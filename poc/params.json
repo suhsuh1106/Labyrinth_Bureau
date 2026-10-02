@@ -1,0 +1,1518 @@
+{
+  "_comment": "밸런스 수치. 기획서에 없는 공식의 계수는 모두 임시값이다.",
+  "start": {
+    "gold": 15000,
+    "reputation": 0,
+    "members": 10,
+    "understanding_1": 0.0
+  },
+  "rules": {
+    "max_months": 36,
+    "deficit_game_over_months": 3,
+    "bankrupt_game_over": false,
+    "faction_collapse_at": -100,
+    "reputation_mode": "accumulate",
+    "use_or_lose_decay": 0.5,
+    "win_depth": 0.9,
+    "win_success": 0.5,
+    "win_min_members": 50
+  },
+  "adventurers": {
+    "grade_power": {
+      "low": 1.0,
+      "mid": 1.6,
+      "high": 2.4
+    },
+    "grade_wage_mult": {
+      "low": 0.8,
+      "mid": 1.0,
+      "high": 1.4
+    },
+    "salary_ref": 1000,
+    "base_attrition": 0.08,
+    "salary_attrition_eff": 0.1,
+    "loot_rate_attrition_eff": 0.1,
+    "min_attrition": 0.01,
+    "max_attrition": 0.5,
+    "base_recruit": 2,
+    "recruit_per_100_promo": 1.0,
+    "unpaid_exodus_keep": 0.75,
+    "risk_pay_per_floor": 0.045,
+    "care_attrition_eff": 0.03
+  },
+  "types": {
+    "majority": 0.5,
+    "scout_depth_bonus": 0.06,
+    "combat_survival_bonus": 0.25,
+    "scholar_understanding_bonus": 0.5,
+    "synergy_fades_with_understanding": true
+  },
+  "facilities": {
+    "potion_cost": 30,
+    "potion_ref_price": 50,
+    "potions_per_member": 3,
+    "potion_power_bonus": 0.25,
+    "gear_cost": {
+      "low": 60,
+      "mid": 140,
+      "high": 280
+    },
+    "gear_ref_price": {
+      "low": 90,
+      "mid": 200,
+      "high": 380
+    },
+    "gear_per_member": 1,
+    "gear_power": {
+      "low": 1.0,
+      "mid": 1.35,
+      "high": 1.8
+    },
+    "level_discount": 0.0,
+    "market_sell_mult": 1.05,
+    "demand_elasticity": 0.5
+  },
+  "dungeon": {
+    "floor_difficulty": [
+      0.0,
+      1.44,
+      1.8,
+      2.16,
+      2.64,
+      3.12,
+      3.6,
+      4.2,
+      4.8,
+      5.4,
+      6.0
+    ],
+    "floor_reward_per_member": [
+      0,
+      1800,
+      2100,
+      2400,
+      2700,
+      3000,
+      3300,
+      3600,
+      3900,
+      4200,
+      4500
+    ],
+    "floor_state_level_required": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      1,
+      1,
+      2,
+      2,
+      3
+    ],
+    "unlock_next_at_understanding": 0.7,
+    "depth_difficulty_min": 0.5,
+    "depth_difficulty_range": 1.1,
+    "understanding_power_bonus": 0.6,
+    "understanding_gain": 0.37,
+    "understanding_reward_decay": 0.5,
+    "base_loss": 0.06,
+    "max_loss": 0.6,
+    "loot_share_of_reward": 0.5,
+    "rep_per_member_floor": 1.5,
+    "penalty_per_lost_member": 400,
+    "power_scale": 1.5,
+    "rout_loss": 0.2,
+    "retreat_reward_share": 0.25,
+    "retreat_understanding_share": 0.5,
+    "success_steepness": 4.0,
+    "depth_reward_min": 0.6,
+    "depth_reward_range": 0.8,
+    "depth_und_min": 0.6,
+    "depth_und_range": 0.8
+  },
+  "factions": {
+    "names": [
+      "merchant",
+      "church",
+      "state"
+    ],
+    "sanction_below": -50,
+    "sanction_price_mult": 1.5,
+    "sanction_recruit_mult": 0.5,
+    "level_rep_cost": [
+      0,
+      150,
+      400,
+      900
+    ],
+    "level_gauge_required": 20,
+    "level_up_gauge_gain": 10,
+    "rep_to_gauge": 0.2,
+    "cards_per_month": 3,
+    "rivalry": 0.0,
+    "max_requests": 2
+  },
+  "policy_cards": [
+    {
+      "name": "상단 회계사 파견",
+      "desc": "보급부가 이번 달 있는 그대로 보고",
+      "gauges": {
+        "merchant": 8
+      },
+      "org": {
+        "honest": "supply"
+      }
+    },
+    {
+      "name": "교회 고해성사",
+      "desc": "부서장 1명의 정직도 공개",
+      "gauges": {
+        "church": 8
+      },
+      "org": {
+        "reveal": 1
+      }
+    },
+    {
+      "name": "국가 감찰관 수용",
+      "desc": "사망자 교차 확인이 정확해짐, 탐사부가 사망자를 1.5배 신경 씀",
+      "gauges": {
+        "state": 10
+      },
+      "org": {
+        "cross_exact": true,
+        "weights": {
+          "explore": {
+            "deaths": 1.5
+          }
+        }
+      }
+    },
+    {
+      "name": "성과급 제도",
+      "desc": "전력 +5% (이번 달), 대신 모든 부서의 보고 포장 1.5배",
+      "gauges": {},
+      "gold": -3000,
+      "org": {
+        "power": 0.05,
+        "spin_mult": 1.5
+      }
+    },
+    {
+      "name": "긴축 명령",
+      "desc": "월급 −10% (이탈률 증가)",
+      "gauges": {
+        "state": 4
+      },
+      "org": {
+        "salary_mult": 0.9
+      }
+    },
+    {
+      "name": "내부 고발 제도",
+      "desc": "무작위 부서 1곳 무료 감사",
+      "gauges": {
+        "church": 4
+      },
+      "org": {
+        "free_audit": "random"
+      }
+    },
+    {
+      "name": "부서장 윤리 연수",
+      "desc": "부서장 전원 정직도 상승 (영구)",
+      "gauges": {},
+      "gold": -2000,
+      "org": {
+        "honesty_shift": -0.15
+      }
+    },
+    {
+      "name": "시장 전면 개방",
+      "desc": "상단 크게 우대",
+      "gauges": {
+        "merchant": 15,
+        "church": -8,
+        "state": -4
+      },
+      "gold": 800
+    },
+    {
+      "name": "이단 심문 허가",
+      "desc": "교회 크게 우대",
+      "gauges": {
+        "church": 15,
+        "merchant": -6,
+        "state": -4
+      }
+    },
+    {
+      "name": "국가 징집 협조",
+      "desc": "국가 우대, 모험가 3명 차출",
+      "gauges": {
+        "state": 12,
+        "church": -4
+      },
+      "members": -3
+    },
+    {
+      "name": "중립 유지",
+      "desc": "아무 일도 하지 않음",
+      "gauges": {}
+    }
+  ],
+  "weekly": {
+    "weeks_per_month": 4,
+    "actions_per_week": 2,
+    "injured_share": 0.5,
+    "injured_recovery": 0.15,
+    "train_cap": 0.3,
+    "faction_help_min_gauge": 0,
+    "healer_recovery": 0.6,
+    "healer_covers": 10,
+    "healer_wage": 1500
+  },
+  "activities": {
+    "scout": {
+      "name": "정찰 선발대",
+      "desc": "성공률 +10%p, 보상 −15%",
+      "effect": {
+        "success": 0.1,
+        "reward": 0.85
+      }
+    },
+    "potions": {
+      "name": "물약 추가 지급",
+      "desc": "손실 −40%, 1인당 20G",
+      "effect": {
+        "loss": 0.6,
+        "gold_per_member": 20
+      }
+    },
+    "train": {
+      "name": "집중 훈련",
+      "desc": "이번 주 탐사 인원 −30%, 전력 영구 +3% (최대 +30%)",
+      "effect": {
+        "party": 0.7,
+        "train": 0.03
+      }
+    },
+    "map": {
+      "name": "지도 연구",
+      "desc": "이해도 +0.08",
+      "effect": {
+        "understanding": 0.08
+      }
+    },
+    "heal": {
+      "name": "부상자 치료",
+      "desc": "부상자 전원 복귀, 1인당 150G",
+      "effect": {
+        "heal": true,
+        "gold_per_injured": 150
+      }
+    },
+    "church": {
+      "name": "교회 사제 동행",
+      "faction": "church",
+      "desc": "손실 −60%, 교회 우호도 −8",
+      "effect": {
+        "loss": 0.4,
+        "gauge_cost": {
+          "church": 8
+        }
+      }
+    },
+    "merchant": {
+      "name": "상단 호위대",
+      "faction": "merchant",
+      "desc": "성공률 +8%p, 보상 +15%, 상단 우호도 −8",
+      "effect": {
+        "success": 0.08,
+        "reward": 1.15,
+        "gauge_cost": {
+          "merchant": 8
+        }
+      }
+    },
+    "state": {
+      "name": "국가 기사단 지원",
+      "faction": "state",
+      "desc": "성공률 +18%p, 국가 우호도 −12",
+      "effect": {
+        "success": 0.18,
+        "gauge_cost": {
+          "state": 12
+        }
+      }
+    }
+  },
+  "findings": [
+    {
+      "id": "quiet",
+      "name": "특이사항 없음",
+      "text": "탐사대가 별다른 이상을 보고하지 않았습니다.",
+      "weight": 4
+    },
+    {
+      "id": "trap",
+      "name": "함정 지대 발견",
+      "text": "탐사 구역 곳곳에서 새로운 함정이 발견되었습니다.",
+      "hint": "대비 없으면 성공률 −25%p. 정찰 선발대를 보내면 오히려 +8%p",
+      "weight": 2,
+      "effect": {
+        "success": -0.25
+      },
+      "counters": [
+        "scout"
+      ],
+      "bonus": {
+        "success": 0.08
+      }
+    },
+    {
+      "id": "monsters",
+      "name": "몬스터 무리 활발",
+      "text": "몬스터 무리의 활동이 눈에 띄게 늘었습니다.",
+      "hint": "대비 없으면 난이도 +45%. 국가 기사단이나 교회 사제가 있으면 버팁니다",
+      "weight": 2,
+      "effect": {
+        "difficulty": 1.45
+      },
+      "counters": [
+        "state",
+        "church"
+      ]
+    },
+    {
+      "id": "vein",
+      "name": "희귀 광맥 흔적",
+      "text": "넓은 구역에서 희귀 광맥의 흔적이 보고되었습니다.",
+      "hint": "탐사 범위 70% 이상이면 보상 두 배",
+      "weight": 1.5,
+      "min_range": 0.7,
+      "effect": {
+        "reward": 2.0
+      }
+    },
+    {
+      "id": "map_piece",
+      "name": "고대 지도 조각 입수",
+      "text": "탐사대가 고대 지도 조각을 가져왔습니다.",
+      "hint": "지도 연구를 하면 이해도 +0.25 추가",
+      "weight": 1.5,
+      "requires": "map",
+      "effect": {
+        "understanding": 0.25
+      }
+    },
+    {
+      "id": "supply",
+      "name": "보급로 습격 소문",
+      "text": "보급로에 도적이 출몰한다는 소문이 돕니다.",
+      "hint": "상단 호위대가 없으면 물약 효과를 잃고 손실 +20%",
+      "weight": 1.5,
+      "effect": {
+        "potion_off": true,
+        "loss": 1.2
+      },
+      "counters": [
+        "merchant"
+      ]
+    },
+    {
+      "id": "relic",
+      "name": "성유물 기운 감지",
+      "text": "사제들이 던전에서 성스러운 기운을 감지했다고 합니다.",
+      "hint": "교회 사제와 동행하면 교회 우호도 +15, 보상 +30%",
+      "weight": 1,
+      "requires": "church",
+      "effect": {
+        "gauge": {
+          "church": 15
+        },
+        "reward": 1.3
+      }
+    },
+    {
+      "id": "plague",
+      "name": "야영지 역병",
+      "text": "야영지에 역병이 돌아 부상자가 회복하지 못하고 있습니다.",
+      "hint": "대비 없으면 부상자 회복 없음, 손실 +60%. 부상자 치료나 교회 사제로 막을 수 있습니다",
+      "weight": 1,
+      "effect": {
+        "no_heal": true,
+        "loss": 1.6
+      },
+      "counters": [
+        "heal",
+        "church"
+      ]
+    }
+  ],
+  "requests": [
+    {
+      "faction": "merchant",
+      "name": "광석 운송 의뢰",
+      "text": "상단이 대량의 광석을 원합니다.",
+      "goal": "탐사 범위 70% 이상으로 2주 성공",
+      "condition": {
+        "type": "weeks",
+        "min_range": 0.7,
+        "cleared": true,
+        "count": 2
+      },
+      "reward": {
+        "gold": 3000,
+        "gauge": {
+          "merchant": 15
+        }
+      },
+      "penalty": {
+        "gauge": {
+          "merchant": -8
+        }
+      }
+    },
+    {
+      "faction": "merchant",
+      "name": "신규 광맥 조사",
+      "text": "희귀 광맥 소문의 진위를 확인해 달랍니다.",
+      "goal": "'희귀 광맥 흔적' 정황이 뜨면 기회를 살리기 (실패해도 불이익 없음)",
+      "condition": {
+        "type": "seize",
+        "finding": "vein"
+      },
+      "reward": {
+        "gold": 5000,
+        "gauge": {
+          "merchant": 15
+        }
+      }
+    },
+    {
+      "faction": "merchant",
+      "name": "호위 실적 쌓기",
+      "text": "상단 호위대가 실전 경험을 원합니다.",
+      "goal": "상단 호위대와 함께 2주 탐사",
+      "condition": {
+        "type": "weeks",
+        "activity": "merchant",
+        "count": 2
+      },
+      "reward": {
+        "gold": 1500,
+        "gauge": {
+          "merchant": 25
+        }
+      },
+      "penalty": {
+        "gauge": {
+          "merchant": -5
+        }
+      }
+    },
+    {
+      "faction": "merchant",
+      "name": "대량 납품 계약",
+      "text": "상단이 이번 달 꾸준한 물량을 요구합니다.",
+      "goal": "4주 모두 탐사 범위 50% 이상으로 성공",
+      "condition": {
+        "type": "weeks",
+        "min_range": 0.5,
+        "cleared": true,
+        "count": 4
+      },
+      "reward": {
+        "gold": 6000,
+        "gauge": {
+          "merchant": 20
+        }
+      },
+      "penalty": {
+        "gauge": {
+          "merchant": -10
+        }
+      }
+    },
+    {
+      "faction": "church",
+      "name": "성유물 회수",
+      "text": "사제단이 던전 속 성유물을 되찾고 싶어 합니다.",
+      "goal": "'성유물 기운' 정황이 뜨면 교회 사제와 동행해 회수 (실패해도 불이익 없음)",
+      "condition": {
+        "type": "seize",
+        "finding": "relic"
+      },
+      "reward": {
+        "gauge": {
+          "church": 20
+        },
+        "rep": 60
+      }
+    },
+    {
+      "faction": "church",
+      "name": "순례자 안전 보장",
+      "text": "순례자들이 던전 입구를 지나갑니다. 희생을 줄여 달랍니다.",
+      "goal": "3주 이상 탐사하면서 이번 달 사망 2명 이하",
+      "condition": {
+        "type": "max_dead",
+        "max": 2,
+        "min_weeks": 3
+      },
+      "reward": {
+        "gauge": {
+          "church": 15
+        },
+        "rep": 30
+      },
+      "penalty": {
+        "gauge": {
+          "church": -8
+        }
+      }
+    },
+    {
+      "faction": "church",
+      "name": "역병 구호",
+      "text": "야영지 위생을 챙기라는 교회의 권고입니다.",
+      "goal": "부상자 치료를 2주 실시",
+      "condition": {
+        "type": "weeks",
+        "activity": "heal",
+        "count": 2
+      },
+      "reward": {
+        "gauge": {
+          "church": 15
+        },
+        "rep": 20
+      },
+      "penalty": {
+        "gauge": {
+          "church": -5
+        }
+      }
+    },
+    {
+      "faction": "church",
+      "name": "사제 수련 동행",
+      "text": "견습 사제들이 던전 경험을 쌓고 싶어 합니다.",
+      "goal": "교회 사제와 함께 2주 탐사",
+      "condition": {
+        "type": "weeks",
+        "activity": "church",
+        "count": 2
+      },
+      "reward": {
+        "gauge": {
+          "church": 25
+        },
+        "rep": 20
+      },
+      "penalty": {
+        "gauge": {
+          "church": -5
+        }
+      }
+    },
+    {
+      "faction": "state",
+      "name": "심층 정찰 보고",
+      "text": "국가가 최전선 층의 정보를 요구합니다.",
+      "goal": "갈 수 있는 가장 깊은 층에서 3주 성공",
+      "condition": {
+        "type": "weeks",
+        "deepest": true,
+        "cleared": true,
+        "count": 3
+      },
+      "reward": {
+        "gauge": {
+          "state": 15
+        }
+      },
+      "penalty": {
+        "gauge": {
+          "state": -8
+        }
+      }
+    },
+    {
+      "faction": "state",
+      "name": "신규 구역 개척",
+      "text": "새로운 층을 열어 국위를 높이라는 명령입니다.",
+      "goal": "이번 달 안에 다음 층 해금",
+      "condition": {
+        "type": "unlock"
+      },
+      "reward": {
+        "gauge": {
+          "state": 20
+        },
+        "rep": 40
+      },
+      "penalty": {
+        "gauge": {
+          "state": -5
+        }
+      }
+    },
+    {
+      "faction": "state",
+      "name": "기사단 합동 작전",
+      "text": "기사단이 길드와의 합동 작전을 제안합니다.",
+      "goal": "국가 기사단과 함께 탐사해 1주 성공",
+      "condition": {
+        "type": "weeks",
+        "activity": "state",
+        "cleared": true,
+        "count": 1
+      },
+      "reward": {
+        "gauge": {
+          "state": 22
+        },
+        "gold": 1000
+      },
+      "penalty": {
+        "gauge": {
+          "state": -5
+        }
+      }
+    },
+    {
+      "faction": "state",
+      "name": "몬스터 토벌",
+      "text": "늘어난 몬스터를 토벌하라는 요청입니다.",
+      "goal": "'몬스터 무리 활발' 정황이 뜨면 대비해서 막기 (실패해도 불이익 없음)",
+      "condition": {
+        "type": "seize",
+        "finding": "monsters"
+      },
+      "reward": {
+        "gauge": {
+          "state": 15
+        },
+        "gold": 2000
+      }
+    }
+  ],
+  "org": {
+    "_comment": "조직 레이어 수치. kpis = KPI 카드, dir min = 이상 달성, max = 이하 유지",
+    "slots": {
+      "explore": 3,
+      "hr": 2,
+      "supply": 2
+    },
+    "default_kpis": {
+      "explore": [
+        "progress"
+      ],
+      "hr": [
+        "ready"
+      ],
+      "supply": [
+        "supply_profit"
+      ]
+    },
+    "kpis": {
+      "deaths": {
+        "dept": "explore",
+        "name": "월 탐사 사망자 상한",
+        "metric": "deaths",
+        "dir": "max",
+        "default": 2,
+        "unit": "명",
+        "fmt": ".0f",
+        "desc": "탐사 중 목숨을 잃은 모험가 수. 탐사부가 범위를 좁히고 사제 · 물약으로 손실을 줄여요"
+      },
+      "progress": {
+        "dept": "explore",
+        "name": "월 이해도 증가",
+        "metric": "progress",
+        "dir": "min",
+        "default": 0.4,
+        "unit": "",
+        "fmt": ".2f",
+        "desc": "한 달 동안 탐사한 층의 이해도가 오른 양. 0.7이면 다음 층이 열려요"
+      },
+      "help_limit": {
+        "dept": "explore",
+        "name": "세력 협력 우호도 사용 상한",
+        "metric": "gauge_spent",
+        "dir": "max",
+        "default": 10,
+        "unit": "점",
+        "fmt": ".0f",
+        "desc": "탐사부가 사제 · 호위대 · 기사단을 불러 쓴 세력 우호도"
+      },
+      "ready": {
+        "dept": "hr",
+        "name": "월말 출전 가능 인원",
+        "metric": "ready",
+        "dir": "min",
+        "default": 9,
+        "unit": "명",
+        "fmt": ".0f",
+        "desc": "다음 달 탐사에 나갈 수 있는 인원 (전체 − 요양 중)"
+      },
+      "gear": {
+        "dept": "supply",
+        "name": "장비 등급 (0 Low · 1 Mid · 2 High)",
+        "metric": "gear_tier",
+        "dir": "min",
+        "default": 1,
+        "unit": "",
+        "fmt": ".0f",
+        "desc": "보급부가 사서 나눠 주는 장비 품질"
+      },
+      "supply_profit": {
+        "dept": "supply",
+        "name": "월 보급 손익",
+        "metric": "supply_profit",
+        "dir": "min",
+        "default": 3000,
+        "unit": "G",
+        "fmt": ",.0f",
+        "desc": "길드 · 일반 모험가에게 판 물건 값 − 사들인 값 (캠프 유지비 제외)"
+      },
+      "floor_und": {
+        "dept": "explore",
+        "name": "지정 층 이해도",
+        "metric": "floor_und",
+        "dir": "min",
+        "default": 0.9,
+        "unit": "",
+        "fmt": ".2f",
+        "floor": true,
+        "desc": "지정한 층의 지도가 얼마나 그려졌는지. 높을수록 그 층 매장 손님이 늘어요"
+      },
+      "left": {
+        "dept": "hr",
+        "name": "월 이탈자 상한",
+        "metric": "left",
+        "dir": "max",
+        "default": 3,
+        "unit": "명",
+        "fmt": ".0f",
+        "desc": "한 달 동안 길드를 떠난 모험가 수 (사망 제외). 처우비로 줄여요"
+      },
+      "floor_sales": {
+        "dept": "supply",
+        "name": "월 층 매출",
+        "metric": "floor_sales",
+        "dir": "min",
+        "default": 8000,
+        "unit": "G",
+        "fmt": ",.0f",
+        "desc": "전초기지 매장에서 일반 모험가에게 판 금액"
+      },
+      "maint": {
+        "dept": "supply",
+        "name": "전초기지 정비 (정상 비율)",
+        "metric": "maint",
+        "dir": "min",
+        "default": 1.0,
+        "unit": "",
+        "fmt": ".0%",
+        "desc": "유지비를 받아 '정상'인 캠프 비율"
+      }
+    },
+    "max_bias": 0.5,
+    "noise_sd": 0.02,
+    "audit_cost": 1500,
+    "audit_catch_threshold": 0.15,
+    "fire_cost": 1000,
+    "alert_week_deaths": 2,
+    "alert_gauge": -70,
+    "request_weight": 1.0,
+    "cross_check_sd": 0.12,
+    "head_names": {
+      "explore": [
+        "브란트",
+        "카이렌",
+        "오르셀",
+        "텔마",
+        "레오닉"
+      ],
+      "hr": [
+        "미렐라",
+        "하스",
+        "델핀",
+        "유리아",
+        "코벳"
+      ],
+      "supply": [
+        "구스타프",
+        "엘로이",
+        "파비안",
+        "시오나",
+        "룬델"
+      ]
+    },
+    "injury_rate_guess": 0.012,
+    "assault_optimism": 0.25,
+    "traits": {
+      "field": {
+        "name": "현장파",
+        "dept": "explore",
+        "pro": "탐사 손실 −25%",
+        "con": "보고서를 대충 써서 숫자 오차가 두 배",
+        "evidence": "위험한 구역에서도 부하들을 잘 데리고 나와요",
+        "effect": {
+          "loss": 0.75
+        }
+      },
+      "gambler": {
+        "name": "도박사",
+        "dept": "explore",
+        "pro": "보상 +10%",
+        "con": "손실 +20%, 탐사 범위를 한 단계 더 넓게 잡음",
+        "evidence": "늘 조금 더 깊이 들어가자고 해요",
+        "effect": {
+          "reward": 1.1,
+          "loss": 1.2
+        }
+      },
+      "scholar": {
+        "name": "학자형",
+        "dept": "explore",
+        "pro": "이해도 증가 +(주 0.03)",
+        "con": "보상 −10% (조사에 시간을 씀)",
+        "evidence": "탐사 기록이 유난히 꼼꼼해요",
+        "effect": {
+          "understanding": 0.03,
+          "reward": 0.9
+        }
+      },
+      "timid": {
+        "name": "겁쟁이",
+        "dept": "explore",
+        "pro": "탐사 손실 −15%",
+        "con": "범위 70%를 넘지 않음. 최심부 공략을 요청하지 않음",
+        "evidence": "넓은 구역 얘기만 나오면 말을 돌려요",
+        "effect": {
+          "loss": 0.85
+        }
+      },
+      "ties_state": {
+        "name": "국가 인맥",
+        "dept": "explore",
+        "faction": "state",
+        "pro": "국가 기사단 지원의 우호도 비용 절반",
+        "con": "기사단 없이는 불안해서 쓸 수 있으면 매주 부름",
+        "evidence": "기사단장과 호형호제하는 사이예요"
+      },
+      "ties_merchant": {
+        "name": "상단 인맥",
+        "dept": "explore",
+        "faction": "merchant",
+        "pro": "상단 호위대의 우호도 비용 절반",
+        "con": "호위대 없이는 불안해서 쓸 수 있으면 매주 부름",
+        "evidence": "상단 호위대장과 오랜 친구예요"
+      },
+      "ties_church": {
+        "name": "교회 인맥",
+        "dept": "explore",
+        "faction": "church",
+        "pro": "교회 사제 동행의 우호도 비용 절반",
+        "con": "사제 없이는 불안해서 쓸 수 있으면 매주 부름",
+        "evidence": "주교와 같은 고향 출신이에요"
+      },
+      "popular": {
+        "name": "인기인",
+        "dept": "hr",
+        "pro": "홍보비 절반으로 같은 모집",
+        "con": "목표보다 5명 더 뽑음 (인건비↑)",
+        "evidence": "모험가들 사이에 인기가 많아요"
+      },
+      "miser": {
+        "name": "구두쇠",
+        "dept": "hr",
+        "pro": "월급 −10%",
+        "con": "박봉이라 이탈이 늘고 교회가 싫어함",
+        "evidence": "월급날마다 한 푼이라도 깎으려 해요"
+      },
+      "devout": {
+        "name": "독실함",
+        "dept": "hr",
+        "pro": "힐러 고용비 −30%",
+        "con": "20명당 힐러 1명은 꼭 둠 (인건비↑)",
+        "evidence": "매주 예배를 빠지지 않아요"
+      },
+      "connected": {
+        "name": "상단 연줄",
+        "dept": "supply",
+        "pro": "소모품 구매가 −15%",
+        "con": "구매액의 8%가 리베이트로 장부 밖으로 샘",
+        "evidence": "상단 사람들과 자주 술자리를 가져요"
+      },
+      "trader": {
+        "name": "장사꾼",
+        "dept": "supply",
+        "pro": "마진을 올려도 상단 불만이 절반",
+        "con": "판매 마진 0%는 절대 안 함",
+        "evidence": "물건값 흥정에 능해요"
+      },
+      "frugal": {
+        "name": "알뜰",
+        "dept": "supply",
+        "pro": "보급비 −10%",
+        "con": "장비 등급을 한 단계 낮게 고르는 버릇",
+        "evidence": "창고 재고를 한 개 단위까지 세요"
+      },
+      "ambitious": {
+        "name": "야심가",
+        "dept": "any",
+        "pro": "성과 조항을 더 세게 쫓음 (가중 ×1.3)",
+        "con": "미달이면 보고 포장도 ×1.5",
+        "evidence": "다음 자리를 노린다는 소문이 있어요"
+      },
+      "principled": {
+        "name": "원칙주의",
+        "dept": "any",
+        "pro": "보고를 절대 꾸미지 않음",
+        "con": "목표만 딱 맞추고 그 이상은 안 함",
+        "evidence": "숫자 하나 틀려도 다시 써 와요"
+      },
+      "watchdog": {
+        "name": "감시자",
+        "dept": "any",
+        "pro": "다른 부서의 수상한 숫자를 귀띔",
+        "con": "남을 보느라 자기 조항 가중 ×0.85",
+        "evidence": "다른 부서 일에 관심이 많아요"
+      }
+    },
+    "generic_trait_chance": 0.6,
+    "trait_reveal_chance": 0.35,
+    "reference_cost": 500,
+    "candidates": 3,
+    "events_per_month": 2,
+    "budget": {
+      "_comment": "예산: 부서 요청액 = 필요액 × (1 + 부풀림). 덜 주면 조항 밖부터 자르고 외상, 더 주면 다 써 버린다",
+      "inflate": {
+        "공격형": 0.15,
+        "균형형": 0.05,
+        "신중형": 0.0
+      },
+      "inflate_honesty": 0.2,
+      "embezzle": 0.5,
+      "credit_limit": 3000,
+      "credit_gauge_per_1000": 2,
+      "explore_default": 2000
+    },
+    "contract": {
+      "_comment": "계약 조항 난이도: 부서장이 지난달 실적 기준으로 쉬움/적당/어려움 목표를 제시한다. 달성하면 성과급, 연속 미달이면 계약 위반",
+      "presets": {
+        "쉬움": 0.8,
+        "적당": 1.0,
+        "어려움": 1.25
+      },
+      "bonus": {
+        "쉬움": 100,
+        "적당": 300,
+        "어려움": 600
+      },
+      "sandbag": 0.25,
+      "free_fire_after": 2,
+      "resign_after": 3
+    }
+  },
+  "politics": {
+    "_comment": "우호도 단계 = 적대(tiers[0] 미만) · 냉담(tiers[1] 미만) · 중립 · 우호(tiers[2] 이상) · 신뢰(tiers[3] 이상)",
+    "tiers": [
+      -50,
+      -20,
+      20,
+      50
+    ],
+    "perks": {
+      "supply_discount": {
+        "faction": "merchant",
+        "name": "소모품 가격 인하",
+        "by_standing": {
+          "-2": -0.5,
+          "-1": -0.15,
+          "0": 0.0,
+          "1": 0.1,
+          "2": 0.2
+        }
+      },
+      "healer_discount": {
+        "faction": "church",
+        "name": "힐러 고용비 인하",
+        "by_standing": {
+          "-2": -0.5,
+          "-1": -0.2,
+          "0": 0.0,
+          "1": 0.25,
+          "2": 0.5
+        }
+      },
+      "tax_rate": {
+        "faction": "state",
+        "name": "세율",
+        "by_standing": {
+          "-2": 0.12,
+          "-1": 0.08,
+          "0": 0.06,
+          "1": 0.04,
+          "2": 0.02
+        }
+      }
+    },
+    "actions_per_month": 2,
+    "actions": {
+      "banquet": {
+        "name": "상단 연회 개최",
+        "desc": "금화 2,000 → 상단 +10",
+        "gold": 2000,
+        "gauge": {
+          "merchant": 10
+        }
+      },
+      "offering": {
+        "name": "교회 헌금",
+        "desc": "금화 1,500 → 교회 +10",
+        "gold": 1500,
+        "gauge": {
+          "church": 10
+        }
+      },
+      "lobby": {
+        "name": "국가 로비",
+        "desc": "명성 60 → 국가 +10",
+        "rep": 60,
+        "gauge": {
+          "state": 10
+        }
+      },
+      "mediate": {
+        "name": "중재 회담",
+        "desc": "명성 80 → 우호도가 가장 낮은 세력 +12",
+        "rep": 80,
+        "mediate": 12
+      }
+    }
+  },
+  "reactions": {
+    "_comment": "월말 세력 반응 (플레이어에게는 숫자 없이 소문으로만 보인다)",
+    "merchant": {
+      "trade_per_1000": 0.5,
+      "trade_cap": 4,
+      "markup_free": 0.1,
+      "markup_penalty": 30,
+      "fair_loot_rate": 0.8,
+      "lowball_penalty": 40
+    },
+    "church": {
+      "per_death": 3,
+      "death_cap": 15,
+      "fair_salary": 1000,
+      "low_pay_per_100": 1.5,
+      "injured_ratio_ok": 0.1,
+      "neglect_penalty": 30,
+      "kind_max_dead": 0.5,
+      "kind_bonus": 2
+    },
+    "state": {
+      "success_ok": 0.6,
+      "success_weight": 8,
+      "tax_weight": 10,
+      "tax_cap": 4,
+      "new_floor": 3
+    }
+  },
+  "rumors": {
+    "trade": "상단이 길드와의 꾸준한 거래를 반기고 있습니다.",
+    "gouging": "상단 사이에서 길드가 물건을 비싸게 판다는 불만이 돕니다.",
+    "lowball": "길드가 전리품을 헐값에 사들인다는 소문에 상단이 언짢아합니다.",
+    "deaths": "잇따른 사망자 소식에 교회가 불편한 기색을 보입니다.",
+    "low_pay": "모험가 처우가 박하다는 설교가 교회에서 들립니다.",
+    "neglect": "치료받지 못한 부상자들을 두고 교회가 걱정하고 있습니다.",
+    "kind": "길드가 사람을 아낀다는 평판이 교회에 닿았습니다.",
+    "success": "탐사대의 연이은 성과가 궁정에서 화제입니다.",
+    "failure": "탐사가 지지부진하다는 보고가 궁정에 올라갔습니다.",
+    "tax_up": "재무관이 늘어난 세수를 반기고 있습니다.",
+    "tax_down": "세수가 줄었다며 재무관이 눈살을 찌푸립니다.",
+    "new_floor": "새 층이 열렸다는 소식에 국가가 고무되어 있습니다."
+  },
+  "secrets": {
+    "_comment": "층의 비밀. 판마다 층별로 무작위. 공략 지침이 맞으면 effect 적용. 단서 문장은 [문장, 강한 단서 여부]",
+    "effect": {
+      "difficulty": 0.62,
+      "loss": 0.7
+    },
+    "two_secrets_from": 5,
+    "gear_types": {
+      "none": "일반",
+      "fire": "화염",
+      "silver": "은",
+      "blunt": "둔기",
+      "frost": "방한"
+    },
+    "formations": {
+      "balanced": {
+        "name": "균형",
+        "mix": {
+          "combat": 0.4,
+          "scout": 0.3,
+          "scholar": 0.3
+        }
+      },
+      "combat": {
+        "name": "전투 중심",
+        "mix": {
+          "combat": 0.6,
+          "scout": 0.2,
+          "scholar": 0.2
+        }
+      },
+      "scout": {
+        "name": "정찰 중심",
+        "mix": {
+          "combat": 0.2,
+          "scout": 0.6,
+          "scholar": 0.2
+        }
+      },
+      "scholar": {
+        "name": "학자 중심",
+        "mix": {
+          "combat": 0.2,
+          "scout": 0.2,
+          "scholar": 0.6
+        }
+      }
+    },
+    "preps": [
+      "church",
+      "scout",
+      "potions",
+      "merchant"
+    ],
+    "switch_cost": {
+      "gear": 40,
+      "formation": 60
+    },
+    "clue": {
+      "base": 0.2,
+      "per_depth": 0.35,
+      "scholar_formation": 0.15,
+      "map": 0.2,
+      "scholar_trait": 0.15,
+      "max": 0.85,
+      "lie": 0.35
+    },
+    "clues": {
+      "gear:fire": [
+        [
+          "몬스터들이 횃불 근처로는 다가오지 않습니다",
+          true
+        ],
+        [
+          "불에 그을린 흔적이 있는 구역은 유난히 조용합니다",
+          false
+        ],
+        [
+          "야영지 모닥불 주변에서는 습격이 없었습니다",
+          false
+        ]
+      ],
+      "gear:silver": [
+        [
+          "보통 칼로 벤 상처가 금세 아뭅니다",
+          true
+        ],
+        [
+          "은화를 지닌 대원만 멀쩡히 돌아왔습니다",
+          false
+        ],
+        [
+          "몬스터들이 은빛에 움찔하는 것 같습니다",
+          false
+        ]
+      ],
+      "gear:blunt": [
+        [
+          "칼날이 단단한 껍질에 튕겨 나갑니다",
+          true
+        ],
+        [
+          "망치를 든 대원의 전과가 유독 좋습니다",
+          false
+        ],
+        [
+          "부서진 뼈 무더기가 많은 구역이 있습니다",
+          false
+        ]
+      ],
+      "gear:frost": [
+        [
+          "추위에 대원들이 손을 제대로 못 씁니다",
+          true
+        ],
+        [
+          "서리가 낀 구역에서 사상자가 몰립니다",
+          false
+        ],
+        [
+          "두꺼운 옷을 챙긴 대원들이 오래 버텼습니다",
+          false
+        ]
+      ],
+      "formation:combat": [
+        [
+          "흩어진 조가 각개격파당했습니다. 정면 돌파만 통합니다",
+          true
+        ],
+        [
+          "힘으로 밀어붙인 날에 돌파가 잘 됐습니다",
+          false
+        ],
+        [
+          "몬스터들이 떼로 몰려다닙니다",
+          false
+        ]
+      ],
+      "formation:scout": [
+        [
+          "후퇴한 날마다 길을 잃은 조가 있었습니다",
+          true
+        ],
+        [
+          "정찰조가 앞선 주에는 사상자가 없었습니다",
+          false
+        ],
+        [
+          "통로가 매주 바뀌는 것 같습니다",
+          false
+        ]
+      ],
+      "formation:scholar": [
+        [
+          "벽의 문양을 읽으면 함정 위치가 보입니다",
+          true
+        ],
+        [
+          "기록을 남긴 조는 같은 함정에 걸리지 않았습니다",
+          false
+        ],
+        [
+          "고대 문자가 곳곳에 새겨져 있습니다",
+          false
+        ]
+      ],
+      "prep:church": [
+        [
+          "죽은 자들이 다시 일어섭니다",
+          true
+        ],
+        [
+          "사제의 기도 소리에 몬스터들이 물러났다는 증언이 있습니다",
+          false
+        ],
+        [
+          "밤마다 곡소리가 들립니다",
+          false
+        ]
+      ],
+      "prep:scout": [
+        [
+          "매복에 걸린 조가 대부분입니다",
+          true
+        ],
+        [
+          "먼저 길을 살핀 날엔 피해가 적었습니다",
+          false
+        ],
+        [
+          "발자국이 우리 뒤를 따라옵니다",
+          false
+        ]
+      ],
+      "prep:potions": [
+        [
+          "독에 당한 부상자가 대부분입니다",
+          true
+        ],
+        [
+          "물약을 넉넉히 챙긴 조가 버텼습니다",
+          false
+        ],
+        [
+          "상처가 검게 변하는 대원이 있습니다",
+          false
+        ]
+      ],
+      "prep:merchant": [
+        [
+          "상단 호위대만 아는 샛길이 있다고 합니다",
+          true
+        ],
+        [
+          "상단 마차 바퀴 자국을 따라가면 안전했습니다",
+          false
+        ],
+        [
+          "옛 교역로의 흔적이 보입니다",
+          false
+        ]
+      ]
+    },
+    "found": {
+      "gear:fire": "화염 장비에 몬스터들이 맥없이 흩어졌습니다",
+      "gear:silver": "은 장비로 벤 상처는 다시 아물지 않았습니다",
+      "gear:blunt": "둔기에 단단한 껍질이 깨져 나갔습니다",
+      "gear:frost": "방한 장비 덕에 대원들이 추위를 버텼습니다",
+      "formation:combat": "전투 중심 편성으로 정면 돌파에 성공했습니다",
+      "formation:scout": "정찰 중심 편성으로 길을 잃지 않았습니다",
+      "formation:scholar": "학자들이 문양을 읽어 함정을 피해 갔습니다",
+      "prep:church": "사제의 기도에 되살아난 자들이 쓰러졌습니다",
+      "prep:scout": "선발대가 매복을 먼저 찾아냈습니다",
+      "prep:potions": "넉넉한 물약으로 독을 버텨 냈습니다",
+      "prep:merchant": "상단 호위대가 샛길로 안내했습니다"
+    }
+  },
+  "outposts": {
+    "_comment": "전초기지 = 보급 캠프 + 일반 모험가 상대 매장. 층 월 매출 = 손님 × 이해도 × 정비 × 가격 반응 × 1인 구매액",
+    "install": [
+      0,
+      0,
+      1000,
+      1000,
+      1000,
+      2000,
+      2000,
+      2000,
+      3000,
+      3000,
+      3000
+    ],
+    "upkeep": [
+      0,
+      300,
+      300,
+      300,
+      300,
+      600,
+      600,
+      600,
+      1000,
+      1000,
+      1000
+    ],
+    "visitors": [
+      0,
+      270,
+      248,
+      225,
+      202,
+      158,
+      135,
+      112,
+      90,
+      72,
+      56
+    ],
+    "spend": [
+      0,
+      60,
+      65,
+      70,
+      75,
+      110,
+      120,
+      130,
+      190,
+      210,
+      230
+    ],
+    "goods_cost_ratio": 0.6,
+    "elasticity": 0.8,
+    "maint_factor": {
+      "정상": 1.0,
+      "노후": 0.7,
+      "방치": 0.3
+    },
+    "worn_loss": 1.3,
+    "worn_raid_weight": 3.0,
+    "abandoned_success": -0.1
+  },
+  "diplomacy": {
+    "_comment": "정치 심화: 빚 장부 · 경계도 · 세력의 보고서 입수와 기만 판정. 수치는 초안",
+    "favors": {
+      "merchant": {
+        "name": "상단에 부탁",
+        "desc": "이번 달 소모품 가격 한 단계 우대"
+      },
+      "church": {
+        "name": "교회에 부탁",
+        "desc": "이번 달 힐러 무상 파견"
+      },
+      "state": {
+        "name": "국가에 부탁",
+        "desc": "다음 층 허가의 우호도 조건 1회 면제"
+      }
+    },
+    "max_debts": 3,
+    "debt_vigilance": -5,
+    "collect_base": 0.06,
+    "collect_per_month": 0.04,
+    "collect_trigger": 0.2,
+    "refuse_gauge": -20,
+    "demands": {
+      "merchant": {
+        "text": "대량 납품 기한을 맞춰라",
+        "desc": "이사회 금고에서 납품 대금 4,000G",
+        "gold": 4000
+      },
+      "church": {
+        "text": "이단 심문에 협조하라",
+        "desc": "교회 +5 · 상단 −6 · 국가 −4",
+        "gauges": {
+          "church": 5,
+          "merchant": -6,
+          "state": -4
+        }
+      },
+      "state": {
+        "text": "징집에 응하라",
+        "desc": "모험가 4명 차출",
+        "members": -4
+      }
+    },
+    "vigilance_decay": 3,
+    "sanction_at": 60,
+    "severe_at": 90,
+    "request_vigilance": -5,
+    "give_credit_vigilance": -10,
+    "give_credit_rep": 30,
+    "deceit_penalty": 15,
+    "deceit_vigilance": 20,
+    "leak_step": 0.1,
+    "cross_expose": 0.3,
+    "rumors": {
+      "merchant": [
+        "상단 사이에서 길드의 유통망 얘기가 오르내립니다.",
+        "상단 조합이 길드를 경쟁자로 여기기 시작했습니다.",
+        "상단 조합이 경쟁 길드를 후원한다는 소문이 파다합니다."
+      ],
+      "church": [
+        "교회에서 길드의 급성장을 조심스럽게 지켜봅니다.",
+        "교회가 길드의 세력 확장을 경계하고 있습니다.",
+        "교회가 길드를 공공연히 견제하기 시작했습니다."
+      ],
+      "state": [
+        "조정에서 우리 길드 얘기가 자주 나옵니다.",
+        "조정에서 길드의 성장을 우려하는 목소리가 커지고 있습니다.",
+        "조정이 길드를 잠재적 위협으로 보고 있다는 말이 돕니다."
+      ]
+    }
+  }
+}

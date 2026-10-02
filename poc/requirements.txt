@@ -1,0 +1,2 @@
+# 시뮬레이션 자체는 표준 라이브러리만 사용. 그래프(run_batch.py --plot)용.
+matplotlib>=3.8

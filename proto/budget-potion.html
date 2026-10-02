@@ -1,0 +1,1264 @@
+<meta charset="utf-8">
+<title>미궁 관리국 예산안</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* 레이아웃: 초록 가죽 책상 위에 왼쪽은 서류 더미, 오른쪽은 결재할 예산안 한 장 */
+:root {
+  --desk: #b9c4b5;
+  --desk-line: #a6b3a2;
+  --paper: #fcfbf7;
+  --paper-2: #f1f0ea;
+  --ink: #1d2a23;
+  --ink-soft: #55625a;
+  --rule: #d9dbd2;
+  --stamp: #a3312a;
+  --merchant: #2c4a7a;
+  --church: #a57a12;
+  --good: #2f6b45;
+  --bad: #a3312a;
+  --shadow: 0 1px 0 rgba(29,42,35,.08), 0 6px 18px rgba(29,42,35,.12);
+  --f-display: "Gowun Batang", "Nanum Myeongjo", "Batang", serif;
+  --f-body: "IBM Plex Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+  --f-num: "IBM Plex Mono", ui-monospace, "Consolas", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --desk: #131c17; --desk-line: #1b2620; --paper: #212a25; --paper-2: #29332d;
+    --ink: #e5e9e2; --ink-soft: #a3ada6; --rule: #36423b; --stamp: #e0675c;
+    --merchant: #8fb0e6; --church: #d9b45a; --good: #79c393; --bad: #e0675c;
+    --shadow: 0 1px 0 rgba(0,0,0,.3), 0 8px 22px rgba(0,0,0,.35);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --desk: #131c17; --desk-line: #1b2620; --paper: #212a25; --paper-2: #29332d;
+  --ink: #e5e9e2; --ink-soft: #a3ada6; --rule: #36423b; --stamp: #e0675c;
+  --merchant: #8fb0e6; --church: #d9b45a; --good: #79c393; --bad: #e0675c;
+  --shadow: 0 1px 0 rgba(0,0,0,.3), 0 8px 22px rgba(0,0,0,.35);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--desk);
+  background-image: repeating-linear-gradient(0deg, transparent 0 3px, var(--desk-line) 3px 4px);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 14px;
+  line-height: 1.55;
+  padding: 20px 16px 48px;
+}
+.num, output, input[type=number] { font-family: var(--f-num); font-variant-numeric: tabular-nums; }
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 18px; }
+
+.bar {
+  display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px;
+  color: var(--ink);
+}
+.bar h1 { font-family: var(--f-display); font-size: 26px; margin: 0; font-weight: 700; letter-spacing: -.01em; }
+.bar .sub { color: var(--ink-soft); font-size: 13px; }
+.stats { display: flex; flex-wrap: wrap; gap: 6px 20px; }
+.stat { display: flex; flex-direction: column; }
+.stat span { font-size: 11px; letter-spacing: .08em; color: var(--ink-soft); }
+.stat b { font-family: var(--f-num); font-size: 18px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.neg { color: var(--bad); }
+.pos { color: var(--good); }
+
+.desk { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 400px); gap: 18px; align-items: start; }
+@media (max-width: 860px) { .desk { grid-template-columns: minmax(0, 1fr); } }
+
+.tray { display: grid; gap: 14px; min-width: 0; }
+.tray-head { font-size: 11px; letter-spacing: .12em; color: var(--ink-soft); }
+
+.doc {
+  background: var(--paper); box-shadow: var(--shadow); padding: 18px 20px 16px;
+  position: relative; min-width: 0; border-top: 3px solid var(--rule);
+}
+.doc.secret { border-top-color: var(--stamp); }
+.doc.merchant { border-top-color: var(--merchant); }
+.doc.church { border-top-color: var(--church); }
+.doc header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; margin-bottom: 10px; }
+.doc .kind { font-size: 11px; letter-spacing: .1em; color: var(--ink-soft); }
+.doc h3 { font-family: var(--f-display); font-size: 18px; margin: 2px 0 0; text-wrap: balance; }
+.doc p { margin: 6px 0; max-width: 65ch; }
+.doc .from { font-size: 12px; color: var(--ink-soft); }
+.stampmark {
+  position: absolute; right: 14px; top: 12px; transform: rotate(-8deg);
+  border: 2px solid var(--stamp); color: var(--stamp); font-family: var(--f-display); font-weight: 700;
+  padding: 1px 8px; font-size: 13px; opacity: .85;
+}
+.notice { border-left: 3px solid var(--rule); padding: 4px 0 4px 12px; margin: 8px 0; }
+.notice.merchant { border-color: var(--merchant); }
+.notice.church { border-color: var(--church); }
+.notice .who { font-size: 12px; font-weight: 600; }
+.notice q { quotes: "“" "”"; font-family: var(--f-display); }
+
+table.ledger { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.ledger td { padding: 4px 0; border-bottom: 1px dotted var(--rule); vertical-align: top; }
+table.ledger td:last-child { text-align: right; font-family: var(--f-num); font-variant-numeric: tabular-nums; white-space: nowrap; padding-left: 12px; }
+table.ledger tr.sum td { border-bottom: none; border-top: 1px solid var(--ink-soft); font-weight: 600; }
+table.ledger .sec td { font-size: 11px; letter-spacing: .08em; color: var(--ink-soft); padding-top: 10px; border-bottom: none; }
+.tablewrap { overflow-x: auto; }
+
+.memo { background: var(--paper-2); padding: 14px 18px; box-shadow: var(--shadow); }
+.memo ul { margin: 6px 0 0; padding-left: 18px; }
+.memo li { margin: 4px 0; }
+.memo-head { font-size: 11px; letter-spacing: .1em; color: var(--ink-soft); }
+
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.chart { background: var(--paper); box-shadow: var(--shadow); padding: 12px 14px 8px; min-width: 0; }
+.chart h4 { margin: 0 0 4px; font-size: 12px; font-weight: 600; }
+.legend { display: flex; gap: 12px; font-size: 11px; color: var(--ink-soft); }
+.legend i { display: inline-block; width: 10px; height: 3px; vertical-align: middle; margin-right: 4px; }
+.chart svg { width: 100%; height: auto; display: block; }
+.chart svg text { fill: var(--ink-soft); font-family: var(--f-num); font-size: 9px; }
+
+.budget { background: var(--paper); box-shadow: var(--shadow); padding: 20px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); min-width: 0; }
+@media (max-width: 860px) { .budget { position: static; } }
+.budget h2 { font-family: var(--f-display); font-size: 21px; margin: 0; }
+.budget .lead { font-size: 12px; color: var(--ink-soft); margin: 2px 0 14px; }
+.line { display: grid; grid-template-columns: minmax(0, 1fr) 96px; gap: 4px 10px; padding: 10px 0; border-bottom: 1px solid var(--rule); }
+.line label { font-weight: 600; font-size: 13px; }
+.line .hint { grid-column: 1 / -1; font-size: 12px; color: var(--ink-soft); }
+.line input[type=range] { grid-column: 1 / 2; width: 100%; accent-color: var(--ink); }
+.line input[type=number] {
+  width: 100%; text-align: right; background: var(--paper-2); color: var(--ink);
+  border: 1px solid var(--rule); padding: 3px 6px; font-size: 13px;
+}
+.line.fixed { color: var(--ink-soft); }
+.line.fixed .val { text-align: right; font-family: var(--f-num); }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+
+.proj { margin-top: 14px; display: grid; gap: 4px; font-size: 13px; }
+.proj .row { display: flex; justify-content: space-between; gap: 12px; }
+.proj .row b { font-family: var(--f-num); font-weight: 500; font-variant-numeric: tabular-nums; }
+.proj .row.total { border-top: 1px solid var(--ink-soft); padding-top: 6px; margin-top: 4px; font-weight: 600; }
+.cov { height: 6px; background: var(--paper-2); margin: 4px 0 2px; position: relative; }
+.cov span { position: absolute; inset: 0 auto 0 0; background: var(--good); }
+.cov.low span { background: var(--bad); }
+
+.approve {
+  margin-top: 16px; width: 100%; padding: 12px; font-family: var(--f-display); font-size: 17px; font-weight: 700;
+  background: var(--stamp); color: var(--paper); border: none; cursor: pointer; letter-spacing: .1em;
+}
+.approve:hover { filter: brightness(1.08); }
+.approve:focus-visible, input:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.approve:disabled { opacity: .45; cursor: default; }
+.flash { animation: flash .5s ease-out; }
+@keyframes flash { from { transform: translateY(-6px); opacity: .4; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .flash { animation: none; } }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 2px solid var(--ink-soft); }
+.tab {
+  font-family: var(--f-display); font-size: 15px; font-weight: 700; padding: 8px 16px 6px; cursor: pointer;
+  background: var(--paper-2); color: var(--ink-soft); border: none; border-bottom: 2px solid transparent; margin-bottom: -2px;
+}
+.tab[aria-selected="true"] { background: var(--paper); color: var(--ink); border-bottom-color: var(--paper); }
+.tab:focus-visible, select:focus-visible, .btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.tab .badge { font-family: var(--f-body); font-size: 11px; font-weight: 600; color: var(--paper); background: var(--stamp); padding: 0 6px; margin-left: 6px; border-radius: 8px; }
+.panel { display: grid; gap: 14px; min-width: 0; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.attitude { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border: 1px solid currentColor; }
+.att-0, .att-1 { color: var(--good); } .att-2 { color: var(--ink-soft); } .att-3 { color: var(--church); } .att-4 { color: var(--bad); }
+.feed { margin: 8px 0 0; padding-left: 18px; font-size: 13px; }
+.feed li { margin: 3px 0; }
+.feed .num { color: var(--ink-soft); }
+.bar-track { height: 8px; background: var(--paper-2); position: relative; margin: 6px 0 2px; }
+.bar-track span { position: absolute; inset: 0 auto 0 0; background: var(--ink); }
+.floor-row { display: grid; gap: 6px; }
+.floor-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; font-size: 13px; }
+.unknown { color: var(--ink-soft); font-style: italic; }
+.guide { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; }
+select {
+  background: var(--paper-2); color: var(--ink); border: 1px solid var(--rule); padding: 4px 6px; font-family: var(--f-body); font-size: 13px;
+}
+.btn {
+  background: var(--ink); color: var(--paper); border: none; padding: 5px 12px; font-size: 13px; font-family: var(--f-body); font-weight: 600; cursor: pointer;
+}
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--ink-soft); }
+.controls { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; font-size: 13px; }
+table.stats { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.stats th { text-align: right; font-size: 11px; letter-spacing: .06em; color: var(--ink-soft); font-weight: 500; padding: 4px 0 4px 10px; border-bottom: 1px solid var(--ink-soft); white-space: nowrap; }
+table.stats th:first-child { text-align: left; padding-left: 0; }
+table.stats td { padding: 5px 0 5px 10px; border-bottom: 1px dotted var(--rule); text-align: right; font-family: var(--f-num); font-variant-numeric: tabular-nums; white-space: nowrap; }
+table.stats td:first-child { text-align: left; padding-left: 0; font-family: var(--f-body); }
+table.stats tr.grp td { font-family: var(--f-body); font-size: 11px; letter-spacing: .08em; color: var(--ink-soft); padding-top: 12px; border-bottom: none; text-align: left; }
+.rate { display: inline-flex; align-items: center; gap: 6px; justify-content: flex-end; }
+.rate i { display: inline-block; height: 6px; background: var(--ink-soft); }
+.dim { color: var(--ink-soft); }
+.ok { color: var(--good); } .ng { color: var(--bad); }
+</style>
+
+<div class="wrap">
+  <div class="bar">
+    <div>
+      <h1>미궁 관리국 예산안</h1>
+      <div class="sub">서부 변경 미궁 · 세력과 용병이 스스로 움직이는 관리국 프로토타입</div>
+    </div>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <main class="desk">
+    <section class="tray" aria-label="책상">
+      <div class="tabs" role="tablist" id="tabs">
+        <button class="tab" role="tab" data-tab="docs" id="tab-docs">서류함</button>
+        <button class="tab" role="tab" data-tab="faction" id="tab-faction">세력 동향</button>
+        <button class="tab" role="tab" data-tab="explore" id="tab-explore">탐사 기록</button>
+        <button class="tab" role="tab" data-tab="build" id="tab-build">개척 시설</button>
+      </div>
+      <div id="panel" class="panel" role="tabpanel"></div>
+    </section>
+
+    <aside class="budget" aria-label="예산안">
+      <h2 id="b-title">제1월 예산안</h2>
+      <p class="lead" id="b-lead"></p>
+      <form id="form" novalidate>
+        <div id="lines"></div>
+        <div id="fixed"></div>
+        <div class="proj" id="proj"></div>
+        <button class="approve" id="approve" type="submit">결재</button>
+      </form>
+    </aside>
+  </main>
+</div>
+
+<script>
+const C = {
+  CUSTOM: 1000, FIXED: 6000, CAP: 80, NEED: 2, TOLL: 130, MONTHS: 36,
+  WS_BUILD: 8000, WS_COST: 40, WS_CAP: 60, BASE_COST_M: 30, BASE_COST_C: 25, SHOCK_COST: 20,
+  GUIDE_FEE: 1500, BASE_SUCC: [0.5, 0.44, 0.38, 0.33, 0.28], LOOT: [400, 480, 560, 640, 720], KEY_BONUS: 0.33, PROG_PER_WIN: 1.2,
+};
+const CLASSES = ['전사', '궁수', '마법사', '사제', '도적'];
+const CLASS_SHARE = [0.35, 0.2, 0.12, 0.13, 0.2];
+const GEARS = ['일반', '화염', '냉기', '은', '둔기'];
+const GEAR_SHARE = [0.6, 0.1, 0.1, 0.1, 0.1];
+const MONSTERS = [
+  { name: '슬라임 군체', key: 'c:마법사', clues: ['베어도 베어도 다시 들러붙는 점액질 덩어리가 통로를 막고 있습니다.', '횃불이 닿은 덩어리가 움찔했다는 말이 있습니다.', '마법사가 낀 조는 덩어리를 태워 길을 뚫었습니다.'] },
+  { name: '푸른 슬라임', key: 'g:냉기', trap: true, clues: ['점액질 덩어리가 통로를 막고 있습니다. 베어도 다시 붙습니다.', '마법을 맞은 덩어리가 오히려 부풀어 올랐습니다.', '추운 새벽에는 덩어리가 굳어 움직임이 느렸습니다.'] },
+  { name: '해골 병사', key: 'g:둔기', clues: ['쓰러뜨려도 다시 일어서는 뼈 무더기가 있습니다.', '칼날이 뼈 사이로 헛돌기만 합니다.', '망치를 든 대원의 전과가 유독 좋습니다.'] },
+  { name: '늑대인간', key: 'g:은', clues: ['분명 깊이 베었는데 상처가 금세 아뭅니다.', '보름 무렵 피해가 커집니다.', '은화를 지닌 대원만 멀쩡히 돌아왔습니다.'] },
+  { name: '그림자 늑대', key: 'c:궁수', trap: true, clues: ['늑대 울음이 들리고, 상처가 금세 아문다는 말이 있습니다.', '은 장비를 챙긴 조도 똑같이 당했습니다.', '가까이 가기 전에 멀리서 쏘아 맞힌 조만 무사했습니다.'] },
+  { name: '망령', key: 'c:사제', clues: ['칼이 몸을 그냥 통과해 버립니다.', '밤마다 곡소리가 들리고, 홀린 대원이 동료를 공격했습니다.', '기도문을 외운 대원은 홀리지 않았습니다.'] },
+  { name: '함정 회랑', key: 'c:도적', clues: ['앞장선 대원이 매번 다쳐서 돌아옵니다.', '바닥 돌이 눌리면 어디선가 화살이 날아옵니다.', '자물쇠를 따던 대원이 있던 조는 무사했습니다.'] },
+  { name: '화염 도마뱀', key: 'g:냉기', clues: ['벽이 뜨겁게 달아 있습니다.', '방패가 녹아내렸습니다. 물웅덩이 근처에서는 덜 덤볐습니다.', '서리 부적을 붙인 무기가 비늘을 뚫었습니다.'] },
+  { name: '얼음 거미', key: 'g:화염', clues: ['숨이 하얗게 얼어붙습니다.', '거미줄이 칼을 붙잡아 놓지 않습니다.', '횃불을 든 조는 거미줄을 태우며 나아갔습니다.'] },
+  { name: '독포자 버섯밭', key: 'c:사제', trap: true, clues: ['버섯이 빽빽하게 자란 구역이 있습니다.', '불을 놓자 포자가 오히려 사방으로 퍼졌습니다.', '포자를 마시고 쓰러진 대원이 사제의 기도로 깨어났습니다.'] },
+  { name: '박쥐 떼', key: 'c:궁수', clues: ['천장 높은 곳에서 무언가가 떼로 덤벼듭니다.', '칼이 닿지 않습니다. 마법은 몇 마리 맞히지만 금방 바닥납니다.', '활을 든 대원이 많던 조가 먼저 통로를 지났습니다.'] },
+];
+const FACILITIES = [
+  { id: 'ws', name: '포션 공방', cost: 8000, months: 3, upkeep: 0, effect: '포션을 병당 40G에 한 달 최대 60병 직접 만들어요. 완공 뒤 예산안의 공방 줄로 생산량을 정해요', hint: '상단과 교회는 자기 물건이 덜 팔릴까 반기지 않을 거예요', react: { gM: 12, gC: 6 }, rumor: '관리국 공방 착공 소식에 상단과 교회가 술렁입니다. 자기들 물건이 덜 팔릴까 걱정하는 눈치입니다.', doneMsg: '포션 공방이 완공되었습니다. 예산안에서 생산량을 정할 수 있습니다.' },
+  { id: 'camp', name: '전진 야영지', cost: 6000, months: 2, upkeep: 400, effect: '가장 깊은 층에서 사망이 40% 줄고, 개척이 50% 빨라져요', hint: '용병을 아끼는 일이라 교회가 반길 거예요', react: { gC: -8 }, rumor: '교회가 용병들을 위한 전진 야영지 착공을 반깁니다.', doneMsg: '전진 야영지가 완공되었습니다. 최전선 파티가 쉬어 갈 곳이 생겼습니다.' },
+  { id: 'appraise', name: '전리품 감정소', cost: 9000, months: 3, upkeep: 600, excl: 'consign', effect: '전리품 수입이 40% 늘어요', hint: '지금은 상단이 전리품 감정과 매입을 도맡고 있어요', react: { gM: 25 }, rumor: '상단 조합이 감정소 착공을 두고 "남의 밥그릇을 뺏는다"며 격분했습니다.', doneMsg: '전리품 감정소가 문을 열었습니다. 전리품을 제값에 거래합니다.' },
+  { id: 'consign', name: '감정 이권 상단 위탁', cost: 0, months: 1, upkeep: 0, excl: 'appraise', effect: '전리품 감정을 상단에 맡겨요. 전리품 수입이 15% 늘고, 상단이 매달 조금씩 더 호의적이 돼요. 감정소와 함께 둘 수 없어요', hint: '돈은 감정소보다 덜 벌지만 상단을 확실히 내 편으로 만들어요', react: { gM: -35 }, rumor: '감정 이권을 맡긴다는 소식에 상단 조합장이 직접 감사 인사를 왔습니다.', doneMsg: '상단이 전리품 감정을 맡기 시작했습니다.' },
+  { id: 'mapper', name: '지도 제작소', cost: 6000, months: 3, upkeep: 400, effect: '현장 증언이 더 빨리 모이고, 공략본을 따르는 파티가 15%p 늘어요', hint: '용병들이 반길 거예요', react: {}, trust: 5, rumor: '관리국이 지도를 만든다는 소식이 용병들 사이에서 반갑게 돕니다.', doneMsg: '지도 제작소가 문을 열었습니다. 증언과 공략이 더 빨리 퍼집니다.' },
+  { id: 'clinic', name: '교회 공동 구호소', cost: 7000, months: 2, upkeep: 300, effect: '모든 층에서 사망이 40% 줄어요. 완공되면 교회 관례 헌금이 200G 올라요', hint: '교회가 크게 기뻐하겠지만, 교회의 목소리도 커질 거예요', react: { gC: -20 }, rumor: '대사제가 공동 구호소 소식에 크게 기뻐합니다. 앞으로 교회가 목소리를 더 낼 것 같습니다.', doneMsg: '교회 공동 구호소가 문을 열었습니다.' },
+];
+const OFFERS = {
+  bulk: { who: 'merchant', name: '상단 조합장', title: '상단 독점 공급 계약', text: '3개월 동안 포션을 저희 상단에서만 받아 주시면, 단가를 20% 깎아 드리지요. 교회 물건은 잠시 쉬셔도 되지 않겠습니까?', terms: '비용 없음 · 3개월간 상단 포션 20% 할인 · 그동안 교회 포션을 사면 계약이 깨져요 (매출이 끊긴 교회는 매달 서운해해요)', cost: 0 },
+  gear: { who: 'merchant', name: '상단 조합장', title: '신형 원소 장비 시험 공급', text: '새로 들여온 원소 장비를 용병들에게 시험 삼아 풀어 볼까 합니다. 운송비만 대 주시면 됩니다.', terms: '2,000G · 3개월간 화염·냉기·은·둔기 장비를 쓰는 파티가 두 배로 늘어요', cost: 2000 },
+  novice: { who: 'church', name: '대사제', title: '견습 사제 파견', text: '견습 사제들이 수련 삼아 용병들과 동행하고 싶어 합니다. 숙식비만 보태 주시지요.', terms: '1,000G · 3개월간 사망이 30% 줄고, 사제가 낀 파티가 늘어요', cost: 1000 },
+  cap: { who: 'church', name: '교회 회계 사제', title: '성수 포션 공급 한도 증설', text: '성수 제조실을 넓히면 매달 더 많은 포션을 드릴 수 있습니다. 증설 비용을 함께 부담해 주시겠습니까?', terms: '3,000G · 교회 포션 공급 한도가 한 달 80병에서 120병으로 영구히 늘어요 (상단은 달가워하지 않을 거예요)', cost: 3000, once: true },
+};
+const offerCost = () => S.offers.filter(o => o.accepted).reduce((a, o) => a + OFFERS[o.id].cost, 0);
+const TARGETS = [
+  { treasury: 25000, floor: 2, M: 120, deaths: 40 },
+  { treasury: 45000, floor: 3, M: 140, deaths: 45 },
+  { treasury: 70000, floor: 4, M: 160, deaths: 50 },
+];
+const LIKES = {
+  merchant: { like: { steady: '꾸준하고 넉넉한 포션 주문', gear: '원소 장비가 팔리는 공략본', consign: '감정 같은 이권을 상단에 맡기는 일' },
+              hate: { drop: '갑자기 줄어든 주문', build: '관리국이 직접 만들거나 감정하는 일', audit: '이유 없는 감찰', jealous: '교회만 챙기는 모습', breach: '약속을 어기는 일' } },
+  church: { like: { donation: '관례 이상의 헌금', safe: '사망자가 적은 운영', priest: '사제를 쓰는 공략본', clinic: '용병을 돌보는 시설' },
+            hate: { lowdon: '관례보다 적은 헌금', deaths: '잇따른 사망', audit: '신전을 겨눈 감찰', jealous: '상단만 챙기는 모습', excl: '상단과의 독점 거래' } },
+};
+function learn(who, type, key) { const k = type + ':' + key; if (!S.learned[who][k]) S.learned[who][k] = S.month; }
+const ANOMALIES = [
+  '가장 깊은 층에서 벽이 숨 쉬듯 부풀었다 가라앉는다는 증언이 들어왔습니다.',
+  '1층에서 깊은 층에만 사는 몬스터가 발견되었습니다. 위로 올라온 것 같습니다.',
+  '노련한 용병들이 "미궁이 배가 부른 것 같다"는 농담을 하기 시작했습니다.',
+  '전리품을 많이 꺼낸 다음 달마다 입구의 진동이 커진다는 기록이 있습니다.',
+  '옛 지도와 비교해 보니 통로 몇 개가 스스로 넓어졌습니다.',
+];
+const fixedCost = () => 1000 + 40 * S.M;
+const done = id => !!(S.fac[id] && S.fac[id].state === 'done');
+const facPendingCost = () => FACILITIES.reduce((a, f) => a + (S.fac[f.id] && S.fac[f.id].state === 'pending' ? f.cost : 0), 0);
+const facUpkeep = () => FACILITIES.reduce((a, f) => a + (done(f.id) ? f.upkeep : 0), 0);
+const KEYS = [...CLASSES.map(c => 'c:' + c), ...GEARS.filter(g => g !== '일반').map(g => 'g:' + g)];
+const josa = w => ((w.charCodeAt(w.length - 1) - 0xAC00) % 28 ? "이" : "가");
+const keyLabel = k => k.startsWith("c:") ? `${k.slice(2)}${josa(k.slice(2))} 있는 파티` : `${k.slice(2)} 장비`;
+
+const LINES = [
+  { id: 'potM', name: '상단 포션 구매', who: 'merchant', max: 20000, hint: () => `단가 ${fmt(prices().m)}G · 공급 한도 없음` },
+  { id: 'potC', name: '교회 포션 구매', who: 'church', max: 8000, hint: () => S.deals.bulk ? `상단과 독점 계약 중이에요 (${S.deals.bulk.left}개월 남음). 사면 계약이 깨져요` : `단가 ${fmt(prices().c)}G · 한 달 최대 ${S.cap}병 (넘는 돈은 집행되지 않아요)` },
+  { id: 'ws', name: '관리국 포션 공방', who: 'good', max: 2400, hint: () => S.wsBuilt ? `가동 중 · 병당 ${C.WS_COST}G · 한 달 최대 ${C.WS_CAP}병` : '공방이 없어요. 개척 시설 탭에서 착공할 수 있어요' },
+  { id: 'donation', name: '교회 헌금', nameFn: () => schismLines() ? '정통파 헌금 (대사제)' : '교회 헌금', who: 'church', max: 8000, hint: () => S.schism && !S.schism.outcome
+      ? `대사제가 이끄는 정통파에 내는 돈이에요. 관례 ${fmt(S.custom)}G는 두 줄 합계로 따져요`
+      : S.schism && S.schism.outcome === 'compromise' ? `정통파 관례는 매달 ${fmt(S.custom)}G예요`
+      : `관례는 매달 ${fmt(S.custom)}G예요. 더 내면 호의가 쌓이지만, 여섯 달 내내 많이 내면 그 금액이 새 관례가 돼요` },
+  { id: 'donR', name: '개혁파 헌금 (리아나 사제)', who: 'church', max: 6000, show: () => schismLines(), hint: () => S.schism && S.schism.outcome === 'compromise'
+      ? `개혁파 관례는 매달 ${fmt(S.customR)}G예요`
+      : '개혁파에 싣는 돈이에요. 정통파보다 많이 실으면 개혁파가 힘을 얻지만 대사제가 불쾌해해요' },
+  { id: 'audit', name: '조사·감찰비', who: null, max: 4000, hint: () => '1,500G 이상: 상단 장부 사본 · 3,000G 이상: 상단과 교회 장부 사본 (다음 달 서류함)' },
+  { id: 'support', name: '공략 지원금', who: 'ink', max: 4000, hint: () => {
+      const n = S.floors.filter(f => f.guide).length + (S.pendingGuide ? 1 : 0);
+      return n ? `공략본대로 편성·장비를 갖추는 파티 비율 ${Math.round(adoptRate(S.budget.support) * 100)}% (탐사 기록 탭에서 공략본 발간)` : '발간한 공략본이 없어요. 탐사 기록 탭에서 공략본을 내면 효과가 생겨요';
+    } },
+];
+
+let S;
+const schismLines = () => !!(S.schism && (!S.schism.outcome || S.schism.outcome === 'compromise'));
+let VIS = [];
+const fmt = n => Math.round(n).toLocaleString('ko-KR');
+const sgn = n => (n > 0 ? '+' : n < 0 ? '−' : '') + fmt(Math.abs(n));
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const r5 = v => Math.round(v / 5) * 5;
+const rnd = () => Math.random();
+const pick = (arr, w) => { let x = rnd() * w.reduce((a, b) => a + b, 0); for (let i = 0; i < arr.length; i++) { x -= w[i]; if (x <= 0) return arr[i]; } return arr[arr.length - 1]; };
+const pct = v => `${Math.round(v * 100)}%`;
+const adoptRate = s => 0.25 + 0.6 * Math.min(1, s / 3000);
+
+function newGame() {
+  const mons = [...MONSTERS].sort(() => rnd() - 0.5).slice(0, 5);
+  S = {
+    v: 7, month: 1, treasury: 25000, M: 100, tab: 'docs', seenTabs: {},
+    budget: { potM: 6000, potC: 4400, ws: 0, donation: 1000, donR: 0, audit: 0, support: 0 },
+    learned: { merchant: {}, church: {} }, schism: null, customR: 0, cPriceAdj: 0, deathSens: 1, churchReform: false, eventDocs: [], pressure: 0, anoms: [], overflow: null,
+    custom: C.CUSTOM, donHist: [], gM: 0, gC: 0, cap: 80, offers: [], deals: {}, used: {}, evals: [], warn: 0, yearDeaths: 0, rel: 40 + Math.round(rnd() * 30), noAudit: 0, avgVol: 120,
+    shock: 0, cartel: null, cooldown: 0, cartels: 0, cartelMonths: 0, overpaid: 0,
+    wsBuilt: false, fac: {}, statOpen: false, deathsTotal: 0, neg: 0,
+    floors: mons.map(m => ({ mon: m, prog: 0, known: 0, n: 0, cl: 0, guide: null })), unlocked: 1, trust: 50,
+    pendingGuide: null, exped: [], lastLoot: 5000, statFloor: 0, statRange: 3, guideDraft: {},
+    hist: [], last: null, ledgers: null, ledgerArchive: [], archive: [], notes: [], notices: [], log: [], talk: null, over: null,
+  };
+}
+function log(t) { S.log.push({ m: S.month, t }); }
+
+function costs() { const s = S.shock > 0 ? C.SHOCK_COST : 0; return { m: C.BASE_COST_M + s, c: C.BASE_COST_C + s }; }
+function fair() { const k = costs(); return { m: k.m + 20, c: k.c + 30 + S.cPriceAdj }; }
+function prices() {
+  const f = fair();
+  if (!S.cartel) return S.deals.bulk ? { m: r5(f.m * 0.8), c: f.c } : f;
+  const K = S.cartel;
+  const sh = S.shock > 0 ? C.SHOCK_COST : 0;
+  const m = K.caved ? f.m + 20 : r5((f.m - sh) * K.markup) + sh;
+  return { m, c: Math.max(f.c, m - 10) };
+}
+
+function project(b) {
+  const P = prices();
+  const qM = Math.floor(b.potM / P.m);
+  const qC = Math.min(Math.floor(b.potC / P.c), S.cap);
+  const qW = S.wsBuilt ? Math.min(Math.floor(b.ws / C.WS_COST), C.WS_CAP) : 0;
+  const sW = qW * C.WS_COST;
+  const need = S.M * C.NEED;
+  const cov = need ? Math.min(1, (qM + qC + qW) / need) : 1;
+  const sM = qM * P.m, sC = qC * P.c;
+  const fee = S.pendingGuide ? C.GUIDE_FEE : 0;
+  const facCost = facPendingCost(), upkeep = facUpkeep();
+  const offers = offerCost(), fixed = fixedCost();
+  const spend = sM + sC + sW + b.donation + (b.donR || 0) + b.audit + b.support + fee + facCost + upkeep + offers + fixed;
+  const income = S.M * C.TOLL + S.lastLoot;
+  return { P, qM, qC, qW, sM, sC, sW, fee, facCost, upkeep, offers, fixed, need, cov, spend, income, net: income - spend };
+}
+
+function cartelScore(pr) {
+  const dep = 1 - pr.qW / Math.max(1, pr.need);
+  let s = -1.6;
+  s += 2.0 * dep;
+  s += 0.8 * clamp((S.treasury - 10000) / 20000, 0, 1.5);
+  s += 0.015 * (S.gM + S.gC);
+  s += 0.02 * (S.rel - 50);
+  s += 0.3 * Math.min(S.noAudit, 6);
+  if (S.shock > 0) s += 1;
+  return s;
+}
+
+/* ---------- 탐사 ---------- */
+function makeParty(f, adopt) {
+  const cs = S.deals.novice ? CLASS_SHARE.map((v, i) => CLASSES[i] === '사제' ? v * 2.5 : v) : CLASS_SHARE;
+  const gs = S.deals.gear ? GEAR_SHARE.map((v, i) => i ? v * 2 : v) : GEAR_SHARE;
+  const c = []; for (let i = 0; i < 4; i++) c.push(pick(CLASSES, cs));
+  let g = pick(GEARS, gs);
+  const gk = S.floors[f].guide;
+  let a = false;
+  if (gk && rnd() < adopt) {
+    a = true;
+    if (gk.startsWith('c:')) { const cl = gk.slice(2); if (!c.includes(cl)) c[Math.floor(rnd() * 4)] = cl; }
+    else g = gk.slice(2);
+  }
+  return { c, g, a };
+}
+const satisfies = (key, p) => key.startsWith('c:') ? p.c.includes(key.slice(2)) : p.g === key.slice(2);
+
+function explore(cov, adopt) {
+  const n = Math.max(1, Math.round(S.M / 4));
+  const u = S.unlocked, deep = u - 1;
+  const res = { n, wins: 0, deaths: 0, loot: 0, byFloor: S.floors.map(() => ({ n: 0, w: 0, loot: 0, d: 0, got: 0 })) };
+  for (let i = 0; i < n; i++) {
+    const f = u === 1 ? 0 : (rnd() < 0.6 ? deep : Math.floor(rnd() * deep));
+    const p = makeParty(f, adopt);
+    const ok = satisfies(S.floors[f].mon.key, p);
+    const pr = clamp((C.BASE_SUCC[f] + (ok ? C.KEY_BONUS : 0)) * (0.6 + 0.4 * cov), 0.05, 0.95);
+    const s = rnd() < pr;
+    S.exped.push({ m: S.month, f, c: p.c, g: p.g, s, a: p.a });
+    res.byFloor[f].n++; S.floors[f].n++;
+    if (s) { res.wins++; res.byFloor[f].w++; res.byFloor[f].loot = (res.byFloor[f].loot || 0) + C.LOOT[f] * (done('appraise') ? 1.4 : done('consign') ? 1.15 : 1); }
+    else if (rnd() < 0.3 * (1 + 1.5 * (1 - cov)) * (done('clinic') ? 0.6 : 1) * (S.deals.novice ? 0.7 : 1) * (done('camp') && f === deep ? 0.6 : 1)) { res.deaths++; res.byFloor[f].d++; }
+  }
+  // 한 층에 파티가 몰리면 전리품이 나뉘어 줄어든다 (층당 20파티까지는 온전히)
+  res.byFloor.forEach((bf, i) => { bf.crowd = bf.n ? Math.min(1, 20 / bf.n) : 1; bf.got = Math.round(bf.loot * bf.crowd); res.loot += bf.got; S.floors[i].lootTotal = (S.floors[i].lootTotal || 0) + bf.got; });
+  return res;
+}
+
+function resolve() {
+  const b = { ...S.budget };
+  const pr = project(b);
+  const { P, qM, qC, qW, cov } = pr;
+  const F = fair(), K0 = costs();
+  const M = S.M;
+  const notes = [], notices = [];
+  const nextMonth = S.month + 1;
+  let rebate = 0;
+  S.talk = null;
+
+  // 세력 제안 수락
+  S.offers.filter(o => o.accepted).forEach(o => {
+    const O = OFFERS[o.id];
+    if (o.id === 'cap') { S.cap = 120; S.used.cap = true; S.gM += 10; }
+    else S.deals[o.id] = { left: 3 };
+    if (O.who === 'merchant') S.gM -= 8; else S.gC -= 8;
+    log(`${O.who === 'merchant' ? '상단' : '교회'} 제안 수락: ${O.title}`);
+  });
+  S.offers = [];
+
+  // 공략본 발간
+  if (S.pendingGuide) {
+    const { f, key } = S.pendingGuide;
+    const fl = S.floors[f];
+    fl.guide = key; fl.guideMonth = S.month; fl.guideOk = key === fl.mon.key;
+    log(`${f + 1}층 공략본 발간: "${keyLabel(key)}"`);
+    S.pendingGuide = null;
+  }
+
+  // 탐사
+  const adopt = S.floors.some(f => f.guide) ? adoptRate(b.support) + (done('mapper') ? 0.15 : 0) : 0;
+  const ex = explore(cov, adopt);
+  const deaths = ex.deaths;
+  const income = M * C.TOLL + ex.loot;
+  const spend = pr.spend;
+  const net = income - spend;
+  S.treasury += net;
+  S.lastLoot = ex.loot;
+  S.pressure += ex.loot / 15000 + ex.n / 100;
+  if (S.month >= 25 && S.anoms.length < ANOMALIES.length && (S.month === 25 || rnd() < 0.45)) {
+    const t = ANOMALIES[S.anoms.length]; S.anoms.push({ m: S.month, t }); log('이상 징후: ' + t); notes.push(t);
+  }
+  let od = 0;
+  if (S.month >= 29 && !S.overflow && (rnd() < 0.35 || S.month >= 32)) {
+    od = Math.round(S.M * 0.06);
+    S.overflow = { m: S.month, deaths: od, cost: 5000, pressure: Math.round(S.pressure) };
+    S.treasury -= 5000; S.trust -= 12; S.gC += 15;
+    log(`소규모 범람: 몬스터가 위층으로 쏟아져 용병 ${od}명 사망, 복구비 5,000G`);
+  }
+
+  const deep = S.floors[S.unlocked - 1];
+  const before = deep.prog;
+  deep.prog = Math.min(100, deep.prog + ex.byFloor[S.unlocked - 1].w * C.PROG_PER_WIN * (done('camp') ? 1.5 : 1));
+  const th = done('mapper') ? [10, 30, 60] : [15, 45, 90];
+  S.floors.forEach((fl, i) => {
+    if (i >= S.unlocked) return;
+    while (fl.cl < 3 && fl.n >= th[fl.cl]) {
+      const c = fl.mon.clues[fl.cl]; fl.cl++;
+      log(`${i + 1}층 현장 증언: "${c}"`);
+      notes.push(`${i + 1}층에서 돌아온 용병의 증언: "${c}"`);
+    }
+  });
+  if (deep.prog >= 70 && deep.known < 2) { deep.known = 2; log(`${S.unlocked}층에 사는 것의 이름이 알려짐: ${deep.mon.name}`); notes.push(`용병들이 ${S.unlocked}층에 사는 것을 '${deep.mon.name}'(이)라 부르기 시작했습니다.`); }
+  if (before < 100 && deep.prog >= 100) {
+    if (S.unlocked < S.floors.length) { log(`${S.unlocked}층 개척 완료 → ${S.unlocked + 1}층 개방`); notes.push(`${S.unlocked}층 개척을 마쳤습니다. ${S.unlocked + 1}층이 열렸습니다. 더 깊을수록 전리품 값이 오릅니다.`); S.unlocked++; }
+    else log(`${S.floors.length}층 개척 완료. 최심부로 가는 길이 보입니다`);
+  }
+
+  // 공략본 평판 (발간 다음 달 결과로)
+  S.floors.forEach((fl, i) => {
+    if (fl.guide && fl.guideMonth === S.month && ex.byFloor[i].n) {
+      if (fl.guideOk) { S.trust += 10; notes.push(`${i + 1}층 공략본이 맞아떨어졌다는 평이 돕니다. 용병들이 관리국을 다시 봅니다.`); log(`${i + 1}층 공략본 적중 → 용병 신뢰 상승`); }
+      else { S.trust -= 8; notes.push(`${i + 1}층 공략본대로 했다가 크게 당했다는 원성이 들립니다.`); log(`${i + 1}층 공략본이 빗나감 → 용병 신뢰 하락`); }
+    }
+  });
+  const rate = ex.n ? ex.wins / ex.n : 0;
+  S.trust += (rate - 0.5) * 16 - Math.max(0, deaths - 4) * 1.5;
+  S.trust += (50 - S.trust) * 0.05;
+  S.trust = clamp(S.trust, 0, 100);
+  const leave = Math.round(M * 0.03 + (1 - cov) * M * 0.08 + (S.trust < 35 ? M * 0.03 : 0));
+  const arrive = Math.round(3 + S.trust / 10) - (S.gC >= 60 ? 3 : 0);
+
+  // 개척 시설
+  FACILITIES.forEach(fa => {
+    const st = S.fac[fa.id];
+    if (!st) return;
+    if (st.state === 'pending') {
+      st.state = 'building'; st.left = fa.months;
+      if (fa.react.gM) S.gM += fa.react.gM;
+      if (fa.react.gC) S.gC += fa.react.gC;
+      if (fa.trust) S.trust += fa.trust;
+      if (fa.id === 'consign') learn('merchant', 'like', 'consign');
+      if (fa.id === 'ws' || fa.id === 'appraise') learn('merchant', 'hate', 'build');
+      if (fa.id === 'clinic' || fa.id === 'camp') learn('church', 'like', 'clinic');
+      log(`${fa.name} 착공 (${fmt(fa.cost)}G, ${fa.months}개월)`);
+      notes.push(fa.rumor);
+    } else if (st.state === 'building') {
+      st.left--;
+      if (st.left <= 0) {
+        st.state = 'done';
+        log(`${fa.name} 완공`); notes.push(fa.doneMsg);
+        if (fa.id === 'ws') S.wsBuilt = true;
+        if (fa.id === 'clinic') { S.custom += 200; log(`교회 관례 헌금이 ${fmt(S.custom)}G로 오름 (구호소 공동 운영)`); }
+      }
+    }
+  });
+
+
+  // 세력 관계 (양수 = 서운함, 음수 = 호의). 가만히 두면 무덤덤으로 돌아감
+  S.gM *= 0.9; S.gC *= 0.9;
+  if (qM < 0.7 * S.avgVol) { S.gM += 15; learn('merchant', 'hate', 'drop'); notes.push('상단 조합장이 관리국 주문이 줄었다고 투덜댑니다.'); }
+  else if (qM >= 0.9 * S.avgVol) { S.gM -= 4; if (S.month >= 3) learn('merchant', 'like', 'steady'); }
+  S.avgVol = 0.7 * S.avgVol + 0.3 * qM;
+  const gearGuides = S.floors.filter(f => f.guide && f.guide.startsWith('g:')).length;
+  if (gearGuides && b.support > 0) { S.gM -= Math.min(6, b.support / 500); learn('merchant', 'like', 'gear'); if (rnd() < 0.4) notes.push('공략본 덕에 원소 장비가 잘 팔린다며 상단이 흐뭇해합니다.'); }
+  if (S.deals.gear) S.gM -= 3;
+  if (done('consign')) S.gM -= 2;
+  const twoCustom = S.schism && S.schism.outcome === 'compromise';
+  const donTotal = b.donation + (b.donR || 0);
+  if (twoCustom) {
+    [['donation', S.custom, '정통파'], ['donR', S.customR, '개혁파']].forEach(([k, cu, nm]) => {
+      if ((b[k] || 0) < cu) { S.gC += 8; learn('church', 'hate', 'lowdon'); notes.push(`${nm} 헌금이 관례보다 줄었다며 ${nm}가 불만을 표합니다.`); }
+      else S.gC -= 1 + ((b[k] || 0) - cu) / 100;
+    });
+  } else if (donTotal < S.custom) { S.gC += 12; learn('church', 'hate', 'lowdon'); notes.push('헌금이 관례보다 줄었다며 교회에서 불만이 나옵니다.'); }
+  else { S.gC -= 2 + (donTotal - S.custom) / 100; if (donTotal > S.custom) learn('church', 'like', 'donation'); }
+  if (!twoCustom) {
+    S.donHist.push(donTotal); if (S.donHist.length > 6) S.donHist.shift();
+    if (S.donHist.length === 6) {
+      const settled = Math.floor(Math.min(...S.donHist) * 0.9 / 100) * 100;
+      if (settled > S.custom) { S.custom = settled; log(`교회가 매달 ${fmt(settled)}G를 당연하게 여기기 시작함 (새 관례)`); notes.push(`여섯 달째 비슷한 헌금이 들어오자 교회가 이제 ${fmt(settled)}G를 당연한 관례로 여깁니다.`); }
+    }
+  }
+  const dRate = deaths / Math.max(1, M) * 100;
+  if (dRate > 3) { S.gC += 3 * (dRate - 3) * S.deathSens; if (dRate > 4) learn('church', 'hate', 'deaths'); }
+  else if (dRate <= 2) { S.gC -= 4; learn('church', 'like', 'safe'); if (rnd() < 0.4) notes.push('관리국이 사람을 아낀다는 말이 교회에서 나옵니다.'); }
+  if (S.floors.some(f => f.guide === 'c:사제')) { S.gC -= 3; learn('church', 'like', 'priest'); }
+  if (S.gM < S.gC - 50) { S.gC += 3; learn('church', 'hate', 'jealous'); if (rnd() < 0.5) notes.push('교회가 관리국이 상단과만 가깝게 지낸다며 못마땅해합니다.'); }
+  else if (S.gC < S.gM - 50) { S.gM += 3; learn('merchant', 'hate', 'jealous'); if (rnd() < 0.5) notes.push('상단이 관리국이 교회 편만 든다며 투덜댑니다.'); }
+  if (dRate >= 5) notes.push(`이번 달 사망자가 ${deaths}명입니다. 교회가 장례 미사에서 관리국을 언급했습니다.`);
+  if (cov < 0.8) notes.push('용병들 사이에서 물약이 모자란다는 불만이 돕니다. 떠나는 사람이 늘었습니다.');
+  if (S.gC >= 60) notes.push('교회가 설교에서 관리국을 비판했습니다. 새로 오는 용병이 줄어듭니다.');
+
+  // 약속 · 제안 기간
+  if (S.deals.bulk && qC > 0) { delete S.deals.bulk; S.gM += 25; learn('merchant', 'hate', 'breach'); log('독점 계약 중에 교회 포션을 삼 → 계약 파기, 상단이 크게 서운해함'); notes.push('독점 계약을 어기고 교회 포션을 샀다며 상단 조합장이 크게 언짢아합니다. 할인도 끝났습니다.'); }
+  else if (S.deals.bulk) { S.gC += 6; learn('church', 'hate', 'excl'); notes.push('관리국이 상단하고만 거래한다며 교회 회계실이 한숨을 쉽니다.'); }
+  Object.keys(S.deals).forEach(k => { if (--S.deals[k].left <= 0) { delete S.deals[k]; log(`${OFFERS[k].title} 기간 종료`); } });
+
+  // 감찰
+  const audited = b.audit >= 1500, full = b.audit >= 3000;
+  S.noAudit = audited ? 0 : S.noAudit + 1;
+  if (audited && !S.cartel) {
+    learn('merchant', 'hate', 'audit'); if (full) learn('church', 'hate', 'audit');
+    if (S.shock > 0) { S.gM += 10; if (full) S.gC += 10; notes.push('흉작으로 값을 올렸을 뿐인데 감찰을 받았다며 공급처들이 불쾌해합니다.'); }
+    else { S.gM += 4; if (full) S.gC += 4; }
+  }
+
+  // 교회 종파 다툼
+  if (S.schism && !S.schism.outcome) {
+    const SC = S.schism, dR = b.donR || 0;
+    SC.R = clamp(SC.R + (dR - b.donation) / 300 + (dRate > 3 ? 1 : 0) + (full ? 2 : 0), 0, 100);
+    if (dR > b.donation) { S.gC += (dR - b.donation) / 500; notes.push('대사제가 관리국이 개혁파에 돈을 댄다며 불쾌해합니다.'); }
+    notes.push(SC.R >= 60 ? '개혁파의 집회에 사람이 몰립니다. 젊은 사제들이 대사제의 회계를 공개하라고 외칩니다.' : SC.R <= 25 ? '정통파가 개혁파 사제들을 징계하기 시작했습니다.' : '교회 안의 다툼이 팽팽합니다. 신도들이 두 쪽으로 갈려 수군댑니다.');
+  }
+
+  // 담합 진행
+  let ended = null;
+  if (S.cartel) {
+    const K = S.cartel;
+    K.months++; S.cartelMonths++;
+    S.overpaid += (P.m - F.m) * qM + (P.c - F.c) * qC;
+    rebate = Math.round(0.3 * Math.max(0, P.m - F.m) * qM);
+    const extra = Math.max(0, P.c - F.c) * qC;
+    if (full) { K.auditStreak++; if (!K.spooked) { K.spooked = true; log('감찰관이 교회 회계실을 조사 → 교회가 상단의 뒷돈을 꺼리기 시작'); notes.push('감찰관이 신전 회계실을 다녀간 뒤로 사제들이 부쩍 말을 아낍니다.'); } }
+    else K.auditStreak = 0;
+    const value = rebate * (K.spooked ? 0.4 : 1) + extra;
+    const offer = b.donation * 1.5 * (1 - clamp(S.gC, 0, 100) / 200);
+    const share = qW / Math.max(1, pr.need);
+
+    if (b.donation > S.custom && !K.raised) { K.raised = true; log(`교회 헌금을 관례보다 늘림 (${fmt(b.donation)}G)`); }
+    if (b.donation > S.custom && offer > value) {
+      ended = 'donation';
+      S.talk = { month: S.month, rebate, spooked: K.spooked, extra, qC, over: P.c - F.c, donation: b.donation, value: Math.round(value), offer: Math.round(offer), gC: Math.round(S.gC) };
+    } else if (K.auditStreak >= 2) {
+      ended = 'audit';
+    } else {
+      if (offer >= 0.7 * value && b.donation > S.custom) {
+        if (!K.wavered) { K.wavered = true; log('대사제가 흔들리기 시작함'); }
+        notes.push('대사제가 관리국의 헌금에 각별한 감사를 전해 왔습니다. 무언가 망설이는 눈치입니다.');
+      }
+      if (qM < 0.5 * K.vol0) K.low++; else K.low = 0;
+      if (share >= 0.25) K.wsMonths = (K.wsMonths || 0) + 1; else K.wsMonths = 0;
+      if (K.wsMonths >= 2) ended = 'merchant';
+      else if (K.low >= 2 && !K.caved) {
+        K.caved = true; S.gM += 15;
+        log('상단 주문이 두 달 연속 급감 → 상단이 단가를 일부 양보');
+        notices.push({ who: 'merchant', name: '상단 조합장', text: `관리국과의 오랜 거래를 생각해 다음 달부터 단가를 ${F.m + 20}G로 조정해 드리겠습니다.` });
+      }
+      if (rnd() < 0.5) notes.push('상단 조합장이 요즘 신전에 자주 드나든다고 합니다.');
+    }
+
+    if (ended) {
+      S.cartel = null; S.cooldown = 4; S.rel = 5;
+      if (ended === 'donation') {
+        const nc = Math.max(S.custom, Math.round(b.donation * 0.6 / 100) * 100);
+        log(`교회가 담합에서 이탈 (헌금으로 데려옴). 관례 헌금이 ${fmt(nc)}G로 오름`);
+        S.custom = nc; S.gC -= 25; S.gM += 25;
+        notices.push({ who: 'church', name: '대사제', text: '교회는 다음 달부터 성수 포션을 제값에 공급하겠습니다. 관리국의 깊은 신앙심에 감사드립니다.' });
+        notices.push({ who: 'merchant', name: '상단 조합장', text: '상단도 단가를 되돌리겠습니다. 부디 거래를 이어 가 주시길 바랍니다.' });
+        notes.push('상단 조합장이 신전 앞에서 대사제와 크게 언성을 높였다는 목격담이 있습니다.');
+      } else if (ended === 'audit') {
+        log('두 달 연속 감찰 → 교회가 겁을 먹고 담합에서 이탈. 대신 관리국에 앙금이 남음');
+        S.gC += 30; S.gM += 15;
+        notices.push({ who: 'church', name: '대사제', text: '관리국이 신전을 죄인 다루듯 하니 유감입니다. 포션은 제값에 드리겠으나, 이 일은 잊지 않겠습니다.' });
+        notices.push({ who: 'merchant', name: '상단 조합장', text: '…상단도 단가를 되돌리겠습니다.' });
+      } else {
+        log('공방 가동으로 관리국이 덜 아쉬워짐 → 상단이 담합을 포기');
+        S.gM += 10; S.rel = 15;
+        notices.push({ who: 'merchant', name: '상단 조합장', text: '관리국이 직접 포션을 만드신다니 저희도 욕심을 접겠습니다. 단가를 되돌리지요.' });
+        notices.push({ who: 'church', name: '교회 회계 사제', text: '교회도 단가를 예전대로 맞추겠습니다.' });
+      }
+    }
+  }
+
+  // 담합 발생 판정
+  let formed = false;
+  if (!S.cartel && !ended) {
+    if (S.cooldown > 0) S.cooldown--;
+    else if (S.month >= 2 && S.rel >= 25 && S.gM > -30 && S.gC > -30 && !S.churchReform) {
+      const sc = cartelScore(pr);
+      const p = clamp(0.08 * sc, 0, 0.5);
+      if (rnd() < p) {
+        formed = true; S.cartels++;
+        S.cartel = { start: nextMonth, markup: 1.6 + 0.12 * clamp(sc, 0, 3.3), months: 0, low: 0, caved: false, spooked: false, auditStreak: 0, vol0: Math.max(40, qM) };
+      } else if (p > 0.14 && rnd() < 0.5) {
+        notes.push('상단 조합장과 교회 회계 사제가 함께 식사하는 모습이 자주 보입니다.');
+      }
+    }
+  }
+
+  // 약초 흉작 (진짜 원가 상승)
+  const shockBefore = S.shock > 0;
+  if (S.shock > 0) S.shock--;
+  else if (rnd() < 0.07) S.shock = 3;
+  const shockStarted = !shockBefore && S.shock > 0, shockEnded = shockBefore && S.shock === 0;
+  if (shockStarted) {
+    log('약초 흉작으로 원가 상승 (진짜)');
+    if (rnd() < 0.6) notes.push('남부 약초 산지에 흉작이 들었다는 소식입니다.');
+    if (!S.cartel) {
+      notices.push({ who: 'merchant', name: '상단 조합장', text: `약초 흉작으로 원가가 올라 다음 달부터 단가를 ${C.BASE_COST_M + C.SHOCK_COST + 20}G로 조정합니다.`, date: `제${nextMonth}월 1일` });
+      notices.push({ who: 'church', name: '교회 회계 사제', text: `약초 값이 올라 성수 포션 단가를 ${C.BASE_COST_C + C.SHOCK_COST + 30}G로 조정합니다.`, date: `제${nextMonth}월 1일` });
+    }
+  }
+  if (shockEnded && !S.cartel) {
+    notices.push({ who: 'merchant', name: '상단 조합장', text: '약초 수급이 회복되어 단가를 되돌립니다.' });
+    notices.push({ who: 'church', name: '교회 회계 사제', text: '약초 값이 안정되어 단가를 예전대로 맞춥니다.' });
+  }
+  if (formed) {
+    const np = prices();
+    const why = S.shock > 0 ? '약초 흉작으로' : '원자재 수급 악화로';
+    log(`상단(${np.m}G)과 교회(${np.c}G)가 같은 날 포션 단가를 올림`);
+    notices.push({ who: 'merchant', name: '상단 조합장', text: `${why} 이번 달부터 포션 단가를 ${np.m}G로 조정합니다. 양해 바랍니다.`, date: `제${nextMonth}월 1일` });
+    notices.push({ who: 'church', name: '교회 회계 사제', text: `성수 수급 사정으로 이번 달부터 포션 단가를 ${np.c}G로 조정함을 양해 바랍니다.`, date: `제${nextMonth}월 1일` });
+  }
+
+  if (!S.cartel && !ended) S.rel = Math.min(80, S.rel + 3);
+  S.gM = clamp(S.gM, -100, 100); S.gC = clamp(S.gC, -100, 100);
+
+  // 호의적인 세력의 제안 (다음 달 서류함)
+  ['merchant', 'church'].forEach(who => {
+    const g = who === 'merchant' ? S.gM : S.gC;
+    if (g > -25 || S.cartel || rnd() > 0.35) return;
+    const ids = Object.keys(OFFERS).filter(id => OFFERS[id].who === who && !S.deals[id] && !(OFFERS[id].once && S.used[id]));
+    if (!ids.length) return;
+    const id = ids[Math.floor(rnd() * ids.length)];
+    S.offers.push({ id, accepted: false });
+    log(`${who === 'merchant' ? '상단이' : '교회가'} 제안을 보내옴: ${OFFERS[id].title}`);
+  });
+
+  // 장부 사본
+  const prev = S.hist[S.hist.length - 1];
+  let ledgerM = null, ledgerC = null;
+  if (audited) {
+    ledgerM = { month: S.month, price: P.m, cost: K0.m, q: qM, rebate, prevPrice: prev ? prev.pm : P.m, prevCost: prev ? prev.cm : K0.m };
+    if (rebate > 0) log(`상단 장부에서 '신전 축복 수수료' ${fmt(rebate)}G 발견`);
+  }
+  if (full) {
+    ledgerC = { month: S.month, price: P.c, cost: K0.c, q: qC, donation: b.donation, rebate, prevPrice: prev ? prev.pc : P.c, prevCost: prev ? prev.cc : K0.c, prevSales: prev ? prev.qC * prev.pc : qC * P.c };
+    if (rebate > 0) log(`교회 장부에서 '기부자 미기재' 수입 ${fmt(rebate)}G 발견`);
+  }
+
+  S.M = Math.max(0, M - deaths - leave + arrive);
+  S.M = Math.max(0, S.M - od);
+  S.deathsTotal += deaths + od; S.yearDeaths += deaths + od;
+  S.hist.push({ month: S.month, pm: P.m, pc: P.c, cm: K0.m, cc: K0.c, qC, treasury: S.treasury, M: S.M, deaths, rate });
+  S.last = { month: S.month, P, qM, qC, qW, cov, deaths, leave, arrive, need: pr.need, toll: M * C.TOLL, loot: ex.loot, ex, sM: pr.sM, sC: pr.sC, sW: pr.sW, fee: pr.fee, facCost: pr.facCost, upkeep: pr.upkeep, offers: pr.offers, fixed: pr.fixed, b, net, M };
+  S.ledgers = (ledgerM || ledgerC) ? { m: ledgerM, c: ledgerC } : null;
+  if (ledgerM) S.ledgerArchive.unshift({ m: ledgerM });
+  if (ledgerC) S.ledgerArchive.unshift({ c: ledgerC });
+  S.ledgerArchive = S.ledgerArchive.slice(0, 6);
+
+  if (S.treasury < 0) S.neg++; else S.neg = 0;
+  S.month = nextMonth;
+  S.notes = notes; S.notices = notices;
+  monthEvents(notes, notices);
+  notices.forEach(n => S.archive.push({ m: S.month, who: n.who, t: `${n.name}: “${n.text}”` }));
+  notes.forEach(t => S.archive.push({ m: S.month, who: /상단|조합장/.test(t) && /교회|신전|사제/.test(t) ? 'both' : /상단|조합장/.test(t) ? 'merchant' : /교회|신전|사제|헌금/.test(t) ? 'church' : 'other', t }));
+  if ((S.month - 1) % 12 === 0) evaluate();
+  if (S.neg >= 3) S.over = 'fired';
+  else if (S.M < 40) S.over = 'empty';
+  else if (S.warn >= 2) S.over = 'recalled';
+  else if (S.month > C.MONTHS) S.over = 'done';
+}
+
+function monthEvents(notes, notices) {
+  const ed = (o) => S.eventDocs.push({ month: S.month, ...o });
+  if (S.month === 11) notes.push('교회 안에서 젊은 사제들이 대사제의 방식에 반발한다는 소문이 돕니다.');
+  if (S.month === 13 && !S.schism) {
+    S.schism = { R: 40, start: 13, outcome: null };
+    log('교회 종파 분열: 개혁파가 일어남. 헌금이 정통파와 개혁파 두 줄로 나뉨');
+    ed({ cls: 'church', kind: '교회 · 개혁파의 서신', title: '교회가 둘로 갈라지고 있습니다', from: '개혁파 수장 리아나 사제', stamp: '분열',
+      body: `<div class="notice church"><q>대사제께서는 헌금을 쌓아 두고 신전 이름만 높이십니다. 그사이 미궁에서 죽어 가는 용병들은 기도 한 줄 받지 못합니다. 관리국이 저희를 도와주신다면, 교회는 다시 사람을 위한 곳이 될 것입니다.</q></div>
+        <div class="notice church"><div class="who">대사제</div><q>젊은 사제들의 치기에 관리국이 휘말리지 않기를 바랍니다. 교회의 질서는 하루아침에 바뀌지 않습니다.</q></div>
+        <p>이제 예산안의 교회 헌금이 <b>정통파 헌금(대사제)</b>과 <b>개혁파 헌금</b> 두 줄로 나뉩니다. 앞으로 1년 동안 어느 쪽에 얼마를 싣는지가 교회의 앞날을 정합니다. 관례 헌금은 두 줄 합계로 따지고, 교회 포션 공급은 아직 대사제가 쥐고 있습니다.</p>
+        <p class="from">개혁파에 힘을 실을지, 대사제를 지킬지, 양쪽에 고르게 걸고 줄을 탈지 정해야 합니다. 사망이 많거나 감찰이 잦으면 개혁파에 힘이 붙습니다.</p>` });
+  }
+  if (S.month === 19 && S.schism && !S.schism.outcome) {
+    const R = S.schism.R;
+    ed({ cls: 'church', kind: '서기 보고 · 교회 판세', title: R >= 60 ? '개혁파가 기세를 잡았습니다' : R <= 25 ? '대사제가 개혁파를 몰아붙이고 있습니다' : '두 종파가 팽팽하게 맞서고 있습니다', from: '제18월 말',
+      body: `<p>${R >= 60 ? '리아나 사제의 설교에 용병과 신도가 몰립니다. 대사제 측은 관리국의 돈이 개혁파로 흘러간다고 공공연히 비난합니다.' : R <= 25 ? '대사제가 개혁파 사제 몇을 변방 교구로 보냈습니다. 리아나 사제는 관리국에 마지막 도움을 청하는 편지를 보냈습니다.' : '어느 쪽도 물러서지 않습니다. 양쪽 모두 관리국이 누구 편인지 주시하고 있습니다.'}</p><p class="from">결론은 제24월 말에 납니다.</p>` });
+  }
+  if (S.month === 25 && S.schism && !S.schism.outcome) {
+    const R = S.schism.R, out = R >= 60 ? 'reform' : R <= 25 ? 'orthodox' : 'compromise';
+    S.schism.outcome = out;
+    let title, body;
+    if (out === 'reform') {
+      S.custom = 800; S.churchReform = true; S.cPriceAdj = -10; S.M = Math.max(0, S.M - 8); S.gC = -20; S.deathSens = 1.5; S.budget.donR = 0; S.rel = 0;
+      title = '개혁파가 교회를 이끌게 되었습니다';
+      body = `<p>대사제가 물러나고 리아나 사제가 새 대사제로 추대되었습니다. 첫 설교에서 그는 교회의 장부를 모두 공개하겠다고 약속했습니다.</p><ul class="feed"><li>관례 헌금이 800G로 내려갑니다</li><li>교회 포션 단가가 10G 내려갑니다</li><li>투명해진 교회는 다시는 상단과 뒷거래를 하지 않습니다</li><li>옛 신앙을 따르던 용병 8명이 떠났습니다</li><li>새 교회는 사망에 더 민감합니다</li></ul>`;
+    } else if (out === 'orthodox') {
+      S.gC -= 40; S.custom += 500; S.rel = Math.min(80, S.rel + 30); S.cPriceAdj = 5; S.trust += 8; S.budget.donR = 0;
+      title = '대사제가 개혁파를 누르고 자리를 지켰습니다';
+      body = `<p>개혁파 사제들은 변방 교구로 흩어졌습니다. 대사제는 관리국의 변함없는 지지에 감사하며 미궁 입구에서 용병들을 위한 축복 미사를 열었습니다.</p><ul class="feed"><li>교회가 관리국을 크게 신뢰합니다</li><li>관례 헌금이 500G 오릅니다</li><li>대사제의 축복으로 용병들의 신뢰가 오릅니다</li><li>교회 포션 단가가 5G 오릅니다</li><li>대사제와 상단 조합장이 다시 가까워졌다는 말이 돕니다</li></ul>`;
+    } else {
+      S.custom = 700; S.customR = 600; S.gC -= 10; S.trust += 5;
+      title = '교회는 둘로 나뉜 채 공존하기로 했습니다';
+      body = `<p>관리국이 양쪽에 고르게 힘을 실은 덕에 어느 쪽도 이기지 못했습니다. 두 종파는 각자의 예배당을 두고 공존하기로 합의했고, 양쪽 모두 관리국을 중재자로 여깁니다.</p><ul class="feed"><li>헌금란이 두 줄로 계속 남습니다</li><li>정통파 관례 700G, 개혁파 관례 600G를 따로 지켜야 합니다</li><li>중재자라는 평판으로 용병들의 신뢰가 조금 오릅니다</li></ul>`;
+    }
+    log(`교회 종파 다툼의 결론: ${title}`);
+    ed({ cls: 'church', kind: '교회 · 종파 다툼의 결론', title, from: '제24월 말', stamp: '결론', body });
+  }
+  if (S.overflow && S.overflow.m === S.month - 1) {
+    const o = S.overflow;
+    ed({ cls: 'secret', kind: '현장 사무소 · 긴급 보고', title: '미궁이 넘쳤습니다', from: `제${o.m}월`, stamp: '범람',
+      body: `<p>깊은 층의 몬스터들이 위층으로 쏟아져 나와 1층 야영지를 덮쳤습니다. 다행히 입구에서 막아 냈지만 피해가 큽니다.</p>` + rows([['사망한 용병', `${o.deaths}명`], ['복구비', `${fmt(o.cost)}G`]]) + `<p class="from">교회가 크게 놀랐고, 용병들의 신뢰가 흔들렸습니다. 현장에서는 "꺼낸 만큼 차오른다"는 말이 돌고 있습니다.</p>` });
+  }
+  if (S.month === 34 && S.anoms.length) {
+    const lootSum = S.floors.reduce((a, f) => a + (f.lootTotal || 0), 0);
+    const years = Math.max(2, Math.round(9 - S.pressure / 12));
+    ed({ cls: 'secret', kind: '왕립 학술원 · 대외비', title: '미궁 수지에 관한 보고서', from: '파견 학자 일동', stamp: '대외비',
+      body: rows([['지금까지 미궁에서 꺼낸 전리품', `${fmt(lootSum)}G`], ['기록된 이상 징후', `${S.anoms.length}건`], ['범람', S.overflow ? `1회 · 용병 ${S.overflow.deaths}명 사망` : '아직 없음']])
+        + `<p>꺼낸 양이 늘수록 미궁의 압력이 오르고, 범람의 간격이 짧아지고 있습니다. 이 추세라면 약 <b>${years}년</b> 안에 범람의 피해가 미궁의 수익을 넘어섭니다.</p>
+        <p class="from">학자들은 보고서 끝에 한 줄을 지웠다가 다시 적었습니다. "가장 값싼 해법은 봉인이다."</p>` });
+  }
+}
+
+function evalItems(T) {
+  return [
+    { label: '금고', target: `${fmt(T.treasury)}G 이상`, actual: `${fmt(S.treasury)}G`, ok: S.treasury >= T.treasury },
+    { label: '개척', target: `${T.floor}층 진입`, actual: `${S.unlocked}층`, ok: S.unlocked >= T.floor },
+    { label: '용병', target: `${T.M}명 이상`, actual: `${S.M}명`, ok: S.M >= T.M },
+    { label: '올해 사망', target: `${T.deaths}명 이하`, actual: `${S.yearDeaths}명`, ok: S.yearDeaths <= T.deaths },
+    { label: '지역 세력', target: '불만이 큰 세력 없음', actual: S.gM >= 45 || S.gC >= 45 ? '불만이 큰 세력 있음' : '없음', ok: S.gM < 45 && S.gC < 45 },
+  ];
+}
+function evaluate() {
+  const year = (S.month - 1) / 12;
+  const items = evalItems(TARGETS[year - 1]);
+  const score = items.filter(i => i.ok).length;
+  const grade = score >= 4 ? '우수' : score >= 2 ? '보통' : '미흡';
+  let reward = '';
+  if (grade === '우수') { S.treasury += 8000; S.trust += 5; reward = '수도에서 특별 보조금 8,000G를 보내왔습니다.'; }
+  else if (grade === '미흡') { S.warn++; reward = S.warn >= 2 ? '두 번째 미흡입니다. 수도가 관리국장을 소환합니다.' : '수도에서 경고장이 왔습니다. 다음 평가도 미흡하면 소환됩니다.'; }
+  else reward = '수도는 지켜보겠다는 입장입니다.';
+  S.evals.push({ year, month: S.month, items, grade, reward });
+  log(`${year}년 차 임기 평가: ${grade}`);
+  S.yearDeaths = 0;
+}
+
+/* ---------- 공용 렌더 ---------- */
+function doc({ cls = '', kind, title, from, stamp, body }) {
+  return `<article class="doc ${cls}"><header><div><div class="kind">${kind}</div><h3>${title}</h3></div>${from ? `<div class="from">${from}</div>` : ''}</header>${stamp ? `<div class="stampmark">${stamp}</div>` : ''}${body}</article>`;
+}
+function rows(list) {
+  return `<div class="tablewrap"><table class="ledger">${list.map(r => r.sec ? `<tr class="sec"><td colspan="2">${r.sec}</td></tr>` : `<tr class="${r.sum ? 'sum' : ''}"><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')}</table></div>`;
+}
+const arrow = (a, b, u = 'G') => a === b ? `${fmt(b)}${u}` : `${fmt(a)} → ${fmt(b)}${u}`;
+function logList() { return `<ul>${S.log.map(e => `<li><span class="num">${e.m}월</span> · ${e.t}</li>`).join('')}</ul>`; }
+
+function ledgerDocM(lm) {
+  const sales = lm.q * lm.price, buy = lm.q * lm.cost, ship = lm.q * 8;
+  const list = [
+    { sec: '포션 (지난달 → 이번 달)' },
+    ['매입 원가', arrow(lm.prevCost, lm.cost, 'G/병')],
+    ['관리국 납품 단가', arrow(lm.prevPrice, lm.price, 'G/병')],
+    { sec: '이번 달 장부' },
+    [`관리국 납품 ${lm.q}병`, fmt(sales)],
+    ['포션 매입', fmt(buy)],
+    ['운송·창고', fmt(ship)],
+  ];
+  if (lm.rebate > 0) list.push(['신전 축복 수수료', fmt(lm.rebate)]);
+  list.push({ sum: true, 0: '조합 순익', 1: fmt(sales - buy - ship - lm.rebate) });
+  return doc({ cls: 'merchant', kind: '감찰 사본 · 대외비', title: `상단 조합 장부 (제${lm.month}월)`, stamp: '감찰', body: rows(list) });
+}
+function ledgerDocC(lc) {
+  const sales = lc.q * lc.price;
+  const list = [
+    { sec: '성수 포션 (지난달 → 이번 달)' },
+    ['원가', arrow(lc.prevCost, lc.cost, 'G/병')],
+    ['관리국 납품 단가', arrow(lc.prevPrice, lc.price, 'G/병')],
+    { sec: '수입 (지난달 → 이번 달)' },
+    [`포션 판매 (${lc.q}병)`, arrow(lc.prevSales, sales)],
+    ['관리국 헌금', fmt(lc.donation)],
+  ];
+  if (lc.rebate > 0) list.push(['기타 기부 수입 (기부자 미기재)', fmt(lc.rebate)]);
+  list.push({ sum: true, 0: '이번 달 수입 합계', 1: fmt(sales + lc.donation + lc.rebate) });
+  return doc({ cls: 'church', kind: '감찰 사본 · 대외비', title: `교회 회계 장부 (제${lc.month}월)`, stamp: '감찰', body: rows(list) });
+}
+
+/* ---------- 서류함 탭 ---------- */
+function renderDocsTab() {
+  const top = [], events = [], reports = [], bottom = [];
+  if (S.over) top.push(endingDoc());
+  if (S.month === 1) {
+    top.push(doc({ kind: '제국 행정성 · 인사 통지', title: '미궁 관리국장 부임을 명함', from: '제1월 1일', stamp: '임명',
+      body: `<p>서부 변경에 미궁이 열렸습니다. 관리국은 용병에게 면허를 내주고 통행세를 받으며, 용병 파티가 가져온 전리품 거래로 운영비를 마련합니다.</p>
+      <p>용병 한 명은 매달 포션 <b>2병</b>이 필요합니다. 모자라면 죽거나 떠납니다. 포션은 상단과 교회에서 삽니다. 공급처들은 저마다 셈이 있습니다.</p>
+      <p>미궁의 층마다 통하는 공략법이 따로 있다고 합니다. <b>탐사 기록</b> 탭에 모이는 현장 증언으로 추리하고 통계로 확인해 공략본을 내면, 용병들이 이 미궁에 미래가 있다고 믿게 됩니다.</p>
+      <p>사건이 없는 달은 <b>개척 시설</b> 탭에서 미궁을 키울 때입니다. 다만 시설마다 누군가의 이권을 건드립니다.</p>
+      <p>교회에는 매달 관례로 헌금 1,000G를 냅니다. 상단과 교회는 서운하게 하면 등을 돌리지만, 호의를 쌓으면 먼저 좋은 제안을 들고 옵니다. 그들이 무엇을 반기고 싫어하는지는 겪어 봐야 압니다.</p>
+      <p>임기는 ${C.MONTHS}개월이고, 12개월마다 수도가 임기를 평가합니다. 금고가 석 달 연속 마이너스면 해임됩니다.</p>` }));
+  }
+  if (S.notes.length) top.push(`<div class="memo"><div class="memo-head">제${S.month}월 서기의 메모 · 이번 달 들려오는 말</div><ul>${S.notes.map(n => `<li>${n}</li>`).join('')}</ul></div>`);
+
+  const ev = S.evals[S.evals.length - 1];
+  if (ev && ev.month === S.month) {
+    events.push(doc({ cls: 'secret', kind: '제국 행정성 · 임기 평가', title: `${ev.year}년 차 평가: ${ev.grade}`, from: `제${S.month - 1}월 말 기준`, stamp: ev.grade,
+      body: rows(ev.items.map(i => [`${i.label} (목표 ${i.target})`, `<span class="${i.ok ? 'ok' : 'ng'}">${i.actual} ${i.ok ? '달성' : '미달'}</span>`])) + `<p>${ev.reward}</p>` }));
+  }
+  S.eventDocs.filter(d => d.month === S.month).forEach(d => events.push(doc(d)));
+  S.offers.forEach(o => {
+    const O = OFFERS[o.id];
+    events.push(doc({ cls: O.who, kind: `${O.who === 'merchant' ? '상단' : '교회'}의 제안 · 이번 달까지`, title: O.title, from: O.name,
+      body: `<div class="notice ${O.who}"><q>${O.text}</q></div><p>${O.terms}</p><div class="guide">${o.accepted
+        ? `<span class="ok">수락함 · 다음 결재에 반영</span><button type="button" class="btn ghost" data-action="offer" data-id="${o.id}">수락 취소</button>`
+        : `<button type="button" class="btn" data-action="offer" data-id="${o.id}">수락${O.cost ? ` (${fmt(O.cost)}G)` : ''}</button><span class="dim">수락하지 않으면 이번 달이 지나면 사라져요</span>`}</div>` }));
+  });
+  if (S.notices.length) {
+    events.push(doc({ cls: 'secret', kind: '소모품 계약 · 단가 변경 통보', title: '공급처에서 서신이 왔습니다', from: `제${S.month}월`,
+      body: S.notices.map(n => `<div class="notice ${n.who}"><div class="who">${n.name}${n.date ? ` · <span class="num">${n.date}</span>` : ''}</div><q>${n.text}</q></div>`).join('') }));
+  }
+  if (S.talk) {
+    const t = S.talk;
+    const list = [
+      { sec: '상단 쪽에 남으면 얻는 것 (매달)' },
+      [`상단이 보내던 '축복 수수료'${t.spooked ? ' · 감찰 이후 위험한 돈이라 40%로 침' : ''}`, t.spooked ? `${fmt(t.rebate)} → ${fmt(t.rebate * 0.4)}` : fmt(t.rebate)],
+      [`비싼 값으로 더 번 돈 (관리국에 ${t.qC}병 × ${t.over}G 웃돈)`, fmt(t.extra)],
+      { sum: true, 0: '담합으로 얻는 몫', 1: fmt(t.value) },
+      { sec: '관리국 쪽으로 오면 얻는 것' },
+      [`관리국 헌금 · 깨끗한 돈이라 1.5배로 침${t.gC > 0 ? ' · 쌓인 서운함만큼 깎음' : ''}`, `${fmt(t.donation)} → ${fmt(t.offer)}`],
+      { sum: true, 0: '헌금의 무게', 1: fmt(t.offer) },
+    ];
+    events.push(doc({ cls: 'church', kind: '면담 기록 · 관리국장실', title: '대사제가 찾아왔습니다', from: `제${t.month}월 말`, stamp: '면담',
+      body: `<p>"상단 조합장이 매달 보내던 돈은 '축복 수수료'라 불렀지만, 결국 장부에 이름을 쓸 수 없는 돈이었습니다.${t.spooked ? ' 감찰관께서 회계실을 다녀가신 뒤로는 언제 터질지 모르는 약점이 되었지요.' : ''} 관리국의 헌금은 신전 이름을 높이는 돈입니다. 교회는 상단과의 약조를 끊겠습니다."</p>
+      <p class="from">서기가 대사제의 말을 숫자로 옮겨 적었습니다. 앞으로는 이 수준의 헌금이 새 관례가 됩니다.</p>` + rows(list) }));
+  }
+  if (S.ledgers) { if (S.ledgers.m) events.push(ledgerDocM(S.ledgers.m)); if (S.ledgers.c) events.push(ledgerDocC(S.ledgers.c)); }
+
+  const L = S.last;
+  if (L) {
+    const exp = [[`상단 포션 ${L.qM}병 × ${L.P.m}G`, fmt(L.sM)], [`교회 포션 ${L.qC}병 × ${L.P.c}G`, fmt(L.sC)]];
+    if (L.sW) exp.push([L.qW ? `공방 포션 ${L.qW}병 × ${C.WS_COST}G` : '공방 건설비', fmt(L.sW)]);
+    if (L.fee) exp.push(['공략본 발간비', fmt(L.fee)]);
+    if (L.facCost) exp.push(['개척 시설 착공', fmt(L.facCost)]);
+    if (L.upkeep) exp.push(['시설 유지비', fmt(L.upkeep)]);
+    if (L.offers) exp.push(['세력 제안 수락', fmt(L.offers)]);
+    exp.push([L.b.donR ? '정통파 헌금' : '교회 헌금', fmt(L.b.donation)]);
+    if (L.b.donR) exp.push(['개혁파 헌금', fmt(L.b.donR)]);
+    reports.push(doc({ kind: '재무과 보고', title: `제${L.month}월 결산`, from: `금고 ${sgn(L.net)}G`,
+      body: rows([
+        { sec: '수입' },
+        [`통행세 (용병 ${L.M}명 × ${C.TOLL}G)`, fmt(L.toll)],
+        [`전리품 거래 (성공한 파티 ${L.ex.wins}개)`, fmt(L.loot)],
+        { sec: '지출' }, ...exp,
+        ['조사·감찰비', fmt(L.b.audit)],
+        ['공략 지원금', fmt(L.b.support)],
+        [`관리국 운영비`, fmt(L.fixed)],
+        { sum: true, 0: '이번 달 손익', 1: `<span class="${L.net < 0 ? 'neg' : 'pos'}">${sgn(L.net)}</span>` },
+      ]) }));
+    reports.push(doc({ kind: '현장 보고', title: `제${L.month}월 미궁 현황`, from: '현장 사무소',
+      body: rows([
+        ['출발한 파티 / 성공', `${L.ex.n} / ${L.ex.wins}개 (${pct(L.ex.wins / Math.max(1, L.ex.n))})`],
+        ['필요 포션 / 지급 포션', `${fmt(L.need)} / ${fmt(L.qM + L.qC + L.qW)}병 (${pct(L.cov)})`],
+        ['사망', `${L.deaths}명`],
+        ['면허 반납 후 떠남', `${L.leave}명`],
+        ['새로 면허 발급', `${L.arrive}명`],
+        { sum: true, 0: '현재 용병', 1: `${S.M}명` },
+      ]) + `<p class="from">층별 기록과 파티 통계는 탐사 기록 탭에 있습니다.</p>` }));
+  }
+
+  if (!S.over) {
+    const year = Math.ceil(S.month / 12), T = TARGETS[year - 1];
+    bottom.push(`<div class="memo"><div class="memo-head">${year}년 차 임기 목표 · 제${year * 12}월 말 평가 (${year * 12 - S.month + 1}개월 남음)</div>
+      <div class="tablewrap"><table class="stats">${evalItems(T).map(i => `<tr><td>${i.label}</td><td>${i.target}</td><td class="${i.ok ? 'ok' : 'ng'}">${i.actual}</td></tr>`).join('')}</table></div>
+      <p class="dim" style="margin:6px 0 0;font-size:12px">5개 중 4개 이상이면 우수(보조금), 1개 이하면 미흡. 미흡이 두 번이면 소환됩니다.</p></div>`);
+  }
+  if (S.log.length && !S.over) {
+    const recent = S.log.slice(-6).reverse();
+    bottom.push(`<div class="memo"><div class="memo-head">사건 일지 · 최근 ${recent.length}건</div><ul>${recent.map(e => `<li><span class="num">${e.m}월</span> · ${e.t}</li>`).join('')}</ul>${S.log.length > 6 ? `<details><summary style="cursor:pointer;font-size:13px">전체 일지 ${S.log.length}건 보기</summary>${logList()}</details>` : ''}</div>`);
+  }
+  if (S.hist.length) {
+    const h = S.hist, tv = h.map(r => r.treasury), step = 10000;
+    const tmin = Math.floor(Math.min(-10000, ...tv) / step) * step, tmax = Math.ceil(Math.max(30000, ...tv) / step) * step;
+    const tt = []; const st = (tmax - tmin) > 80000 ? 40000 : step; for (let v = tmin; v <= tmax; v += st) tt.push(v);
+    bottom.push(`<div class="charts">
+      <div class="chart"><h4>금고 (G)</h4><div class="legend"><span><i style="background:var(--ink)"></i>월말 잔액</span></div>
+        ${lineChart([{ color: 'var(--ink)', vals: tv }], { min: tmin, max: tmax, ticks: tt, fmtTick: v => (v / 1000) + 'k' })}</div>
+      <div class="chart"><h4>용병 수 (명)</h4><div class="legend"><span><i style="background:var(--good)"></i>월말 인원</span></div>
+        ${lineChart([{ color: 'var(--good)', vals: h.map(r => r.M) }], { min: 0, max: 250, ticks: [0, 50, 100, 150, 200, 250] })}</div></div>`);
+  }
+  const head = (t) => `<div class="tray-head">${t}</div>`;
+  return [
+    ...top,
+    events.length ? head(`제${S.month}월에 새로 온 서류 ${events.length}건`) : '', ...events,
+    reports.length ? head('지난달 보고') : '', reports.length ? `<div class="grid2">${reports.join('')}</div>` : '',
+    ...bottom,
+  ].join('');
+}
+
+function endingDoc() {
+  const best = S.evals.filter(e => e.grade === '우수').length;
+  const title = S.over === 'fired' ? '해임 통지' : S.over === 'empty' ? '미궁 운영 중단' : S.over === 'recalled' ? '소환 명령' : best >= 2 ? '수도 복귀 명령' : '임기 만료';
+  const lead = S.over === 'fired' ? '금고가 석 달 연속 마이너스를 기록해 관리국장직에서 해임되었습니다.'
+    : S.over === 'empty' ? '용병이 40명 아래로 줄어 미궁 운영이 멈췄습니다.'
+    : S.over === 'recalled' ? '두 번의 미흡 평가로 수도가 관리국장을 소환했습니다.'
+    : best >= 2 ? `${C.MONTHS}개월 임기를 마쳤습니다. 수도가 당신을 차기 국장 후보로 부릅니다.` : `${C.MONTHS}개월 임기를 마쳤습니다. 수도는 당신을 이 변경에 더 두기로 했습니다.`;
+  const solved = S.floors.filter(f => f.guide && f.guideOk).length;
+  return doc({ cls: 'secret', kind: '제국 행정성', title, stamp: S.over === 'done' ? '평가' : '통지',
+    body: `<p>${lead}</p>` + rows([
+      ['최종 금고', `<span class="${S.treasury < 0 ? 'neg' : ''}">${fmt(S.treasury)}G</span>`],
+      ['남은 용병', `${S.M}명 · ${trustWord()}`],
+      ['누적 사망', `${S.deathsTotal}명`],
+      ['개척한 층', `${S.unlocked}층 (${Math.round(S.floors[S.unlocked - 1].prog)}%)`],
+      ['맞힌 공략본', `${solved}개`],
+      ['지은 시설', FACILITIES.filter(f => done(f.id)).map(f => f.name).join(', ') || '없음'],
+      ['임기 평가', S.evals.map(e => `${e.year}년 차 ${e.grade}`).join(' · ') || '-'],
+      ['담합 발생', `${S.cartels}번 · ${S.cartelMonths}개월`],
+      ['담합 때문에 더 낸 돈', `${fmt(S.overpaid)}G`],
+    ]) + `<p class="from" style="margin-top:14px">각 층의 정체</p><ul>${S.floors.map((f, i) => `<li>${i + 1}층 · ${f.mon.name}${f.mon.trap ? ' (겉모습과 다른 함정)' : ''} → ${keyLabel(f.mon.key)}</li>`).join('')}</ul>`
+      + (S.log.length ? `<p class="from" style="margin-top:14px">사건 일지</p>${logList()}` : '')
+      + (S.anoms.length ? `<p style="margin-top:14px">그리고 미궁은 아직 숨 쉬고 있습니다. 학술원의 보고서는 수도의 서랍 속에서 누군가 읽어 주기를 기다립니다. <span class="dim">(이야기는 여기서 이어집니다)</span></p>` : '')
+      + `<p><button type="button" class="approve" data-action="restart" style="margin-top:12px">처음부터 다시</button></p>` });
+}
+
+/* ---------- 세력 동향 탭 ---------- */
+function attitude(g) { const i = g <= -40 ? 0 : g <= -15 ? 1 : g < 15 ? 2 : g < 45 ? 3 : 4; return `<span class="attitude att-${i}">${['신뢰함', '호의적', '무덤덤', '서운해함', '불만이 큼'][i]}</span>`; }
+function likesOld(who) { const L = LIKES[who]; return `<p class="from" style="margin-top:10px">반기는 것</p><ul class="feed">${L.like.map(x => `<li>${x}</li>`).join('')}</ul><p class="from">싫어하는 것</p><ul class="feed">${L.hate.map(x => `<li>${x}</li>`).join('')}</ul>`; }
+function dealList(who) { const d = Object.keys(S.deals).filter(k => OFFERS[k].who === who); return d.length ? d.map(k => [`진행 중: ${OFFERS[k].title}`, `${S.deals[k].left}개월 남음`]) : []; }
+function feed(who) {
+  const list = S.archive.filter(a => a.who === who || a.who === 'both').slice(-8).reverse();
+  return list.length ? `<ul class="feed">${list.map(a => `<li><span class="num">${a.m}월</span> ${a.t}</li>`).join('')}</ul>` : '<p class="dim">아직 들려온 이야기가 없습니다.</p>';
+}
+function likes(who) {
+  const L = LIKES[who], got = Object.entries(S.learned[who]).sort((a, b) => a[1] - b[1]);
+  const item = ([k, m]) => { const [t, key] = k.split(':'); return `<li>${L[t][key]} <span class="dim">(${m}월에 알게 됨)</span></li>`; };
+  const lk = got.filter(([k]) => k.startsWith('like')), ht = got.filter(([k]) => k.startsWith('hate'));
+  if (!got.length) return `<p class="from" style="margin-top:10px">알게 된 성향</p><p class="dim" style="margin:0">아직 이 세력이 무엇을 반기고 싫어하는지 겪어 보지 못했습니다.</p>`;
+  return `<p class="from" style="margin-top:10px">겪어 보니 반기는 것</p>${lk.length ? `<ul class="feed">${lk.map(item).join('')}</ul>` : '<p class="dim" style="margin:0">아직 모릅니다</p>'}
+    <p class="from">겪어 보니 싫어하는 것</p>${ht.length ? `<ul class="feed">${ht.map(item).join('')}</ul>` : '<p class="dim" style="margin:0">아직 모릅니다</p>'}`;
+}
+function schismRows() {
+  const SC = S.schism; if (!SC) return [];
+  if (!SC.outcome) return [['교회 판세', SC.R >= 60 ? '개혁파 우세' : SC.R <= 25 ? '정통파 우세' : '팽팽함'], ['결론이 나는 때', '제24월 말']];
+  return [['종파 다툼의 결과', { reform: '개혁파가 교회를 이끔', orthodox: '정통파(대사제)가 자리를 지킴', compromise: '두 종파가 나뉜 채 공존' }[SC.outcome]]];
+}
+function renderFactionTab() {
+  const P = prices(), F = fair();
+  const out = [`<div class="grid2">
+    ${doc({ cls: 'merchant', kind: '세력 · 상단 조합', title: '상단 조합', from: attitude(S.gM),
+      body: rows([['현재 포션 단가', `${P.m}G/병`], ['최근 관리국 주문 (평균)', `${Math.round(S.avgVol)}병`], ...dealList('merchant')]) + likes('merchant') + `<p class="from" style="margin-top:10px">들려오는 말</p>${feed('merchant')}` })}
+    ${doc({ cls: 'church', kind: '세력 · 교회', title: '서부 교구 교회', from: attitude(S.gC),
+      body: rows([['현재 포션 단가', `${P.c}G/병 · 한 달 최대 ${S.cap}병`], [S.schism && S.schism.outcome === 'compromise' ? '관례 헌금 (정통파 · 개혁파)' : '관례 헌금', S.schism && S.schism.outcome === 'compromise' ? `${fmt(S.custom)}G · ${fmt(S.customR)}G` : `${fmt(S.custom)}G`], ...schismRows(), ...dealList('church')]) + likes('church') + `<p class="from" style="margin-top:10px">들려오는 말</p>${feed('church')}` })}
+  </div>`];
+  if (S.hist.length) {
+    const h = S.hist;
+    const pmax = Math.max(120, ...h.map(r => Math.max(r.pm, r.pc)));
+    const pt = []; for (let v = 0; v <= pmax + 39; v += 40) pt.push(v);
+    out.push(`<div class="chart"><h4>포션 단가 (G/병)</h4>
+      <div class="legend"><span><i style="background:var(--merchant)"></i>상단</span><span><i style="background:var(--church)"></i>교회</span></div>
+      ${lineChart([{ color: 'var(--merchant)', vals: h.map(r => r.pm) }, { color: 'var(--church)', vals: h.map(r => r.pc) }], { min: 0, max: pt[pt.length - 1], ticks: pt })}</div>`);
+  }
+  out.push(`<div class="tray-head">감찰 장부 보관함 · 최근 ${S.ledgerArchive.length}건</div>`);
+  out.push(S.ledgerArchive.length ? S.ledgerArchive.map(l => l.m ? ledgerDocM(l.m) : ledgerDocC(l.c)).join('') : `<div class="memo">아직 확보한 장부가 없습니다. 예산안에 조사·감찰비를 넣으면 다음 달 장부 사본이 옵니다.</div>`);
+  return out.join('');
+}
+
+/* ---------- 탐사 기록 탭 ---------- */
+function trustWord() { const t = S.trust; return t < 30 ? '용병들이 이 미궁을 꺼림' : t < 45 ? '용병들이 반신반의함' : t < 60 ? '용병들의 평판 보통' : t < 75 ? '용병들이 기대를 품음' : '용병들이 몰려들고 있음'; }
+function hypo(f, key) {
+  const rec = S.exped.filter(e => e.f === f && e.m >= S.month - 3);
+  const a = rec.filter(e => satisfies(key, e)), o = rec.filter(e => !satisfies(key, e));
+  const r = arr => arr.length ? pct(arr.filter(e => e.s).length / arr.length) : '-';
+  return `<div class="memo" style="padding:10px 14px"><div class="memo-head">가설 검토 · 최근 3개월 ${f + 1}층 기록</div>
+    <div class="tablewrap"><table class="stats"><tr><th>파티</th><th>수</th><th>성공률</th></tr>
+    <tr><td>${keyLabel(key)}</td><td>${a.length}</td><td>${r(a)}</td></tr>
+    <tr><td>그렇지 않은 파티</td><td>${o.length}</td><td>${r(o)}</td></tr></table></div></div>`;
+}
+
+function adoptLine(f) {
+  const rec = S.exped.filter(e => e.f === f && e.m === S.month - 1);
+  if (!rec.length) return '';
+  const a = rec.filter(e => e.a), o = rec.filter(e => !e.a);
+  const r = arr => arr.length ? pct(arr.filter(e => e.s).length / arr.length) : '-';
+  return `<p style="margin:0;font-size:13px">지난달 공략본대로 편성한 파티 <b>${a.length}/${rec.length}개</b> (성공 ${r(a)}) · 따르지 않은 파티 성공 ${r(o)} <span class="dim">· 공략 지원금을 늘리면 따르는 파티가 늘어요</span></p>`;
+}
+function floorEconomy() {
+  const L = S.last;
+  if (!L) return '';
+  const rowsHtml = S.floors.slice(0, S.unlocked).map((fl, i) => {
+    const bf = L.ex.byFloor[i] || { n: 0, w: 0, d: 0, got: 0, crowd: 1 };
+    const crowd = bf.crowd < 1 ? `<span class="ng">${pct(1 - bf.crowd)} 줄어듦</span>` : '<span class="dim">여유</span>';
+    return `<tr><td>${i + 1}층</td><td>${bf.n}</td><td>${bf.n ? pct(bf.w / bf.n) : '-'}</td><td>${fmt(bf.got)}</td><td>${crowd}</td><td>${bf.d}</td><td>${fmt(fl.lootTotal || 0)}</td></tr>`;
+  }).join('');
+  return doc({ kind: '재무과 · 층별 수익', title: `제${L.month}월 층별 탐사 수익`, from: '층당 파티 20개가 넘으면 전리품이 나뉘어요',
+    body: `<div class="tablewrap"><table class="stats"><tr><th>층</th><th>파티</th><th>성공률</th><th>전리품 수익</th><th>붐빔</th><th>사망</th><th>누적 수익</th></tr>${rowsHtml}</table></div>
+      <p class="from">파티는 60%가 가장 깊은 층으로, 나머지는 지나온 층에 고르게 흩어집니다.</p>` });
+}
+
+function renderExploreTab() {
+  const out = [];
+  const L = S.last;
+  out.push(doc({ kind: '용병 동향', title: trustWord(), from: `용병 ${S.M}명`,
+    body: rows([
+      ['지난달 출발 / 성공', L ? `${L.ex.n} / ${L.ex.wins}개 파티 (${pct(L.ex.wins / Math.max(1, L.ex.n))})` : '-'],
+      ['지난달 새로 온 용병 / 떠난 용병', L ? `${L.arrive} / ${L.leave + L.deaths}명 (사망 ${L.deaths})` : '-'],
+    ]) + `<p class="from">공략이 잘 맞고 성공이 쌓이면 소문이 나서 용병이 늘어납니다. 사망이 잦으면 떠납니다.</p>` }));
+
+  const floors = S.floors.map((fl, i) => {
+    if (i >= S.unlocked) return `<div class="floor-row"><div class="floor-meta"><b>${i + 1}층</b><span class="unknown">아직 열리지 않음</span></div></div>`;
+    const who = fl.known >= 2 ? `용병들은 '${fl.mon.name}'(이)라 부름` : '정체 미확인';
+    const pending = S.pendingGuide && S.pendingGuide.f === i;
+    const draft = S.guideDraft[i] || fl.guide || '';
+    const guideState = pending ? `<b>발간 예정:</b> "${keyLabel(S.pendingGuide.key)}" (다음 결재 때 ${fmt(C.GUIDE_FEE)}G)` : fl.guide ? `현재 공략본: "${keyLabel(fl.guide)}"` : '공략본 없음';
+    return `<div class="floor-row">
+      <div class="floor-meta"><b>${i + 1}층</b><span class="${fl.known ? '' : 'unknown'}">${who}</span><span class="num">개척 ${Math.round(fl.prog)}%</span></div>
+      <div class="bar-track"><span style="width:${fl.prog}%"></span></div>
+      ${fl.cl ? `<ul class="feed">${fl.mon.clues.slice(0, fl.cl).map(c => `<li>"${c}"</li>`).join('')}</ul>` : '<p class="dim" style="margin:0">아직 모인 현장 증언이 없습니다.</p>'}
+      ${fl.cl < 3 ? `<p class="dim" style="margin:0;font-size:12px">이 층을 탐사한 파티가 늘면 증언이 더 모입니다 (지금까지 ${fl.n}개 파티)</p>` : ''}
+      ${draft ? hypo(i, draft) : ''}
+      ${fl.guide ? adoptLine(i) : ''}
+      <div class="floor-meta"><span>${guideState}</span></div>
+      <div class="guide">
+        <label for="g-${i}" class="dim">공략 지침</label>
+        <select id="g-${i}" data-floor="${i}">
+          <option value="">고르기</option>
+          ${KEYS.map(k => `<option value="${k}" ${k === draft ? 'selected' : ''}>${keyLabel(k)}</option>`).join('')}
+        </select>
+        ${pending ? `<button type="button" class="btn ghost" data-action="cancel-guide">발간 취소</button>` : `<button type="button" class="btn" data-action="guide" data-floor="${i}">${fl.guide ? '공략본 개정' : '공략본 발간'} (${fmt(C.GUIDE_FEE)}G)</button>`}
+      </div>
+    </div>`;
+  }).join('<hr style="border:none;border-top:1px solid var(--rule);margin:6px 0">');
+  if (S.anoms.length) out.push(doc({ cls: 'secret', kind: '현장 사무소 · 이상 징후', title: '미궁이 이상합니다', from: `${S.anoms.length}건`,
+    body: `<ul class="feed">${S.anoms.map(a => `<li><span class="num">${a.m}월</span> ${a.t}</li>`).join('')}</ul>${S.overflow ? `<p class="ng">제${S.overflow.m}월 소규모 범람 · 용병 ${S.overflow.deaths}명 사망</p>` : ''}` }));
+  out.push(floorEconomy());
+  out.push(doc({ kind: '미궁 개척 현황', title: '층별 개척과 공략본', from: '가장 깊은 층만 개척이 진행됩니다', body: `<div style="display:grid;gap:10px">${floors}</div>` }));
+
+  // 통계
+  const f = Math.min(S.statFloor, S.unlocked - 1);
+  const minM = S.statRange === 0 ? 0 : S.month - S.statRange;
+  const rec = S.exped.filter(e => e.f === f && e.m >= minM);
+  const rateCell = (arr) => { if (!arr.length) return '<span class="dim">-</span>'; const r = arr.filter(e => e.s).length / arr.length; return `<span class="rate"><i style="width:${Math.round(r * 40)}px"></i>${pct(r)}</span>`; };
+  let body = `<div class="controls">
+      <label for="sf">층</label><select id="sf" data-stat="floor">${S.floors.slice(0, S.unlocked).map((_, i) => `<option value="${i}" ${i === f ? 'selected' : ''}>${i + 1}층</option>`).join('')}</select>
+      <label for="sr">기간</label><select id="sr" data-stat="range">${[[1, '지난달'], [3, '최근 3개월'], [0, '전체']].map(([v, t]) => `<option value="${v}" ${v === S.statRange ? 'selected' : ''}>${t}</option>`).join('')}</select>
+      <span class="dim">파티 ${rec.length}개 · 성공률 ${rec.length ? pct(rec.filter(e => e.s).length / rec.length) : '-'}</span>
+    </div>`;
+  if (!rec.length) body += `<p class="dim">이 기간에 이 층을 탐사한 파티가 없습니다.</p>`;
+  else {
+    let t = `<details ${S.statOpen ? 'open' : ''}><summary data-action="stat-toggle" style="cursor:pointer;font-size:13px">전체 통계표 펼치기</summary><div class="tablewrap"><table class="stats"><tr><th>조건</th><th>해당 파티</th><th>성공률</th><th>해당 없는 파티</th><th>성공률</th></tr>`;
+    t += `<tr class="grp"><td colspan="5">파티 구성 (한 명 이상 포함)</td></tr>`;
+    CLASSES.forEach(c => { const a = rec.filter(e => e.c.includes(c)), o = rec.filter(e => !e.c.includes(c)); t += `<tr><td>${c}</td><td>${a.length}</td><td>${rateCell(a)}</td><td>${o.length}</td><td>${rateCell(o)}</td></tr>`; });
+    t += `<tr class="grp"><td colspan="5">주 장비</td></tr>`;
+    GEARS.forEach(g => { const a = rec.filter(e => e.g === g), o = rec.filter(e => e.g !== g); t += `<tr><td>${g}</td><td>${a.length}</td><td>${rateCell(a)}</td><td>${o.length}</td><td>${rateCell(o)}</td></tr>`; });
+    t += `</table></div></details>`;
+    body += t;
+    const recent = rec.slice(-8).reverse();
+    body += `<p class="from" style="margin-top:12px">최근 파티 기록</p><div class="tablewrap"><table class="stats"><tr><th>월</th><th>구성</th><th>장비</th><th>결과</th></tr>${recent.map(e => `<tr><td>${e.m}월</td><td style="font-family:var(--f-body)">${e.c.join('·')}</td><td style="font-family:var(--f-body)">${e.g}</td><td class="${e.s ? 'ok' : 'ng'}" style="font-family:var(--f-body)">${e.s ? '성공' : '후퇴'}</td></tr>`).join('')}</table></div>`;
+  }
+  out.push(doc({ kind: '통계과 보고', title: `${f + 1}층 파티 통계`, from: '가설을 확인할 때 쓰세요', body }));
+  return out.join('');
+}
+
+/* ---------- 개척 시설 탭 ---------- */
+function renderBuildTab() {
+  const up = facUpkeep();
+  const cards = FACILITIES.map(fa => {
+    const st = S.fac[fa.id];
+    const state = !st ? '착공 전' : st.state === 'pending' ? '다음 결재 때 착공' : st.state === 'building' ? `공사 중 · ${st.left}개월 남음` : '운영 중';
+    const blocked = fa.excl && S.fac[fa.excl];
+    const btn = S.over ? '' : !st && blocked ? `<span class="dim">${FACILITIES.find(x => x.id === fa.excl).name}과(와) 함께 둘 수 없어요</span>` : !st ? `<button type="button" class="btn" data-action="build" data-fac="${fa.id}">착공 (${fmt(fa.cost)}G)</button>`
+      : st.state === 'pending' ? `<button type="button" class="btn ghost" data-action="cancel-build" data-fac="${fa.id}">착공 취소</button>` : '';
+    return doc({ cls: st && st.state === 'done' ? '' : 'secret', kind: '개척 시설', title: fa.name, from: state,
+      body: rows([
+        ['착공비 (목돈)', `${fmt(fa.cost)}G`],
+        ['공사 기간', `${fa.months}개월`],
+        ['완공 뒤 유지비', fa.upkeep ? `매달 ${fmt(fa.upkeep)}G` : '없음'],
+      ]) + `<p>${fa.effect}</p><p class="from">서기의 귀띔: ${fa.hint}</p>${btn ? `<div class="guide">${btn}</div>` : ''}` });
+  }).join('');
+  return `<div class="memo">시설은 착공비를 한 번에 내고, 공사가 끝나면 매달 유지비가 나갑니다. 착공 소식이 퍼지는 순간 세력들이 반응합니다. 지금 매달 나가는 유지비는 ${fmt(up)}G입니다.</div><div class="grid2">${cards}</div>`;
+}
+
+/* ---------- 차트 ---------- */
+function lineChart(series, { min, max, ticks, fmtTick = v => v }) {
+  const W = 300, H = 120, L = 34, R = 8, T = 8, B = 18;
+  const x = m => L + (m - 1) * (W - L - R) / (C.MONTHS - 1);
+  const y = v => T + (1 - (v - min) / (max - min)) * (H - T - B);
+  let g = '';
+  ticks.forEach(t => {
+    g += `<line x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}" stroke="var(--rule)" stroke-width="1"/>`;
+    g += `<text x="${L - 4}" y="${y(t) + 3}" text-anchor="end">${fmtTick(t)}</text>`;
+  });
+  [1, 12, 24, 36].forEach(m => { g += `<text x="${x(m)}" y="${H - 4}" text-anchor="middle">${m}월</text>`; });
+  series.forEach(s => {
+    const pts = s.vals.map((v, i) => `${x(i + 1).toFixed(1)},${y(clamp(v, min, max)).toFixed(1)}`);
+    if (pts.length > 1) g += `<polyline points="${pts.join(' ')}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round"/>`;
+    const lv = s.vals[s.vals.length - 1];
+    if (lv !== undefined) g += `<circle cx="${x(s.vals.length)}" cy="${y(clamp(lv, min, max))}" r="3" fill="${s.color}"/>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" role="img">${g}</svg>`;
+}
+
+/* ---------- 예산안 ---------- */
+function buildLines() {
+  VIS = LINES.filter(l => !l.show || l.show());
+  S._sig = VIS.map(l => l.id).join(',') + (schismLines() ? '!' : '');
+  document.getElementById('lines').innerHTML = VIS.map(l => `
+    <div class="line">
+      <label for="${l.id}">${l.who ? `<span class="dot" style="background:var(--${l.who})"></span>` : ''}${l.nameFn ? l.nameFn() : l.name}</label>
+      <input type="number" id="${l.id}" min="0" max="${l.max}" step="100" aria-label="${l.name} 금액">
+      <input type="range" id="${l.id}-r" min="0" max="${l.max}" step="100" aria-label="${l.name} 조절">
+      <div class="hint" id="${l.id}-h"></div>
+    </div>`).join('');
+  VIS.forEach(l => {
+    const n = document.getElementById(l.id), r = document.getElementById(l.id + '-r');
+    const set = v => { S.budget[l.id] = clamp(Math.round((+v || 0) / 100) * 100, 0, l.max); syncBudget(); };
+    r.addEventListener('input', () => set(r.value));
+    n.addEventListener('change', () => set(n.value));
+  });
+}
+function syncBudget() {
+  VIS.forEach(l => {
+    document.getElementById(l.id).value = S.budget[l.id];
+    document.getElementById(l.id + '-r').value = S.budget[l.id];
+    document.getElementById(l.id + '-h').textContent = l.hint();
+  });
+  document.getElementById('fixed').innerHTML =
+    (S.pendingGuide ? `<div class="line fixed"><span>${S.pendingGuide.f + 1}층 공략본 발간비</span><span class="val">${fmt(C.GUIDE_FEE)}</span></div>` : '') +
+    FACILITIES.filter(f => S.fac[f.id] && S.fac[f.id].state === 'pending').map(f => `<div class="line fixed"><span>${f.name} 착공비</span><span class="val">${fmt(f.cost)}</span></div>`).join('') +
+    S.offers.filter(o => o.accepted).map(o => `<div class="line fixed"><span>제안: ${OFFERS[o.id].title}</span><span class="val">${fmt(OFFERS[o.id].cost)}</span></div>`).join('') +
+    (facUpkeep() ? `<div class="line fixed"><span>시설 유지비</span><span class="val">${fmt(facUpkeep())}</span></div>` : '') +
+    `<div class="line fixed"><span>관리국 운영비 (용병 수에 비례)</span><span class="val">${fmt(fixedCost())}</span></div>`;
+  const p = project(S.budget);
+  document.getElementById('proj').innerHTML = `
+    <div class="row"><span>지급 예정 포션</span><b>상단 ${p.qM} + 교회 ${p.qC}${S.wsBuilt ? ` + 공방 ${p.qW}` : ''} = ${p.qM + p.qC + p.qW} / ${p.need}병</b></div>
+    <div class="cov ${p.cov < 0.95 ? 'low' : ''}"><span style="width:${Math.round(p.cov * 100)}%"></span></div>
+    <div class="row"><span>예상 수입 (전리품은 지난달 기준)</span><b>${fmt(p.income)}</b></div>
+    <div class="row"><span>예산 합계</span><b>${fmt(p.spend)}</b></div>
+    <div class="row total"><span>예상 손익</span><b class="${p.net < 0 ? 'neg' : 'pos'}">${sgn(p.net)}</b></div>`;
+}
+function renderStats() {
+  const P = prices();
+  document.getElementById('stats').innerHTML = `
+    <div class="stat"><span>현재</span><b>제${Math.min(S.month, C.MONTHS)}월</b></div>
+    <div class="stat"><span>금고</span><b class="${S.treasury < 0 ? 'neg' : ''}">${fmt(S.treasury)}G</b></div>
+    <div class="stat"><span>용병</span><b>${S.M}명</b></div>
+    <div class="stat"><span>개척</span><b>${S.unlocked}층 ${Math.round(S.floors[S.unlocked - 1].prog)}%</b></div>
+    <div class="stat"><span>포션 단가 상단 · 교회</span><b>${P.m} · ${P.c}G</b></div>`;
+}
+
+function renderPanel(flash) {
+  ['docs', 'faction', 'explore', 'build'].forEach(t => {
+    const b = document.getElementById('tab-' + t);
+    b.setAttribute('aria-selected', S.tab === t ? 'true' : 'false');
+    const fresh = t === 'docs' && (S.offers.length || S.eventDocs.some(d => d.month === S.month)) ? true : t === 'build' ? S.log.some(e => e.m === S.month - 1 && /완공/.test(e.t)) : t === 'docs' ? (S.notices.length || S.ledgers || S.talk) : t === 'faction' ? S.archive.some(a => a.m === S.month && a.who !== 'other') : S.log.some(e => e.m === S.month - 1 && /층/.test(e.t));
+    b.innerHTML = { docs: '서류함', faction: '세력 동향', explore: '탐사 기록', build: '개척 시설' }[t] + (fresh && S.tab !== t && !S.seenTabs[t + S.month] ? '<span class="badge">새 소식</span>' : '');
+  });
+  S.seenTabs[S.tab + S.month] = 1;
+  const el = document.getElementById('panel');
+  el.innerHTML = S.tab === 'build' ? renderBuildTab() : S.tab === 'faction' ? renderFactionTab() : S.tab === 'explore' ? renderExploreTab() : renderDocsTab();
+  if (flash) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+}
+function render(flash = true) {
+  const sig = LINES.filter(l => !l.show || l.show()).map(l => l.id).join(',') + (schismLines() ? '!' : '');
+  if (sig !== S._sig) buildLines();
+  renderStats(); renderPanel(flash);
+  document.getElementById('b-title').textContent = S.over ? '임기 종료' : `제${S.month}월 예산안`;
+  document.getElementById('b-lead').textContent = S.over ? '서류함의 평가서를 확인하세요.' : `용병 ${S.M}명 · 필요한 포션 ${S.M * C.NEED}병 · 결재하면 한 달이 흐릅니다`;
+  document.getElementById('approve').disabled = !!S.over;
+  syncBudget();
+}
+
+document.getElementById('tabs').addEventListener('click', e => {
+  const b = e.target.closest('[data-tab]'); if (!b) return;
+  S.tab = b.dataset.tab; render(false);
+});
+document.getElementById('panel').addEventListener('click', e => {
+  const b = e.target.closest('[data-action]'); if (!b) return;
+  const a = b.dataset.action;
+  if (a === 'restart') { newGame(); render(); window.scrollTo(0, 0); }
+  if (a === 'guide') {
+    const f = +b.dataset.floor, key = S.guideDraft[f] || document.getElementById('g-' + f).value;
+    if (!key || S.over) return;
+    S.pendingGuide = { f, key }; render(false);
+  }
+  if (a === 'cancel-guide') { S.pendingGuide = null; render(false); }
+  if (a === 'build' && !S.over) { S.fac[b.dataset.fac] = { state: 'pending' }; render(false); }
+  if (a === 'cancel-build') { delete S.fac[b.dataset.fac]; render(false); }
+  if (a === 'offer') { const o = S.offers.find(x => x.id === b.dataset.id); if (o) { o.accepted = !o.accepted; if (o.id === 'bulk' && o.accepted) S.budget.potC = 0; } render(false); }
+  if (a === 'stat-toggle') S.statOpen = !S.statOpen;
+});
+document.getElementById('panel').addEventListener('change', e => {
+  const t = e.target;
+  if (t.dataset.floor !== undefined && t.tagName === 'SELECT') { S.guideDraft[+t.dataset.floor] = t.value; render(false); return; }
+  if (t.dataset.stat === 'floor') { S.statFloor = +t.value; render(false); }
+  if (t.dataset.stat === 'range') { S.statRange = +t.value; render(false); }
+});
+document.getElementById('form').addEventListener('submit', e => {
+  e.preventDefault();
+  if (S.over) return;
+  resolve(); S.guideDraft = {}; render();
+  if (window.innerWidth <= 860) window.scrollTo({ top: 0 });
+});
+
+function start(data) {
+  newGame();
+  if (data && data.S && data.S.v === 7) S = data.S;
+  buildLines(); render();
+}
+window.claude?.hot?.snapshot?.(() => ({ S }));
+window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+</script>
