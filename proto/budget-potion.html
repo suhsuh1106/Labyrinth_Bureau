@@ -141,6 +141,9 @@ table.ledger .sec td { font-size: 11px; letter-spacing: .08em; color: var(--ink-
 .bgroup > summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .bgroup .note { font-size: 12px; color: var(--ink-soft); margin: 0 0 2px; }
 .bgroup .line:last-child { border-bottom: none; }
+.line.off { padding: 6px 0; color: var(--ink-soft); }
+.line.off .lbl { font-size: 13px; }
+.line.off .hint { margin-top: -2px; }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
 
 .proj { margin-top: 14px; display: grid; gap: 4px; font-size: 13px; }
@@ -534,7 +537,7 @@ function rollEvents(ctx) {
 const LINES = [
   { id: 'potM', cat: 'potion', name: '상단 포션 구매', who: 'merchant', max: 20000, hint: () => `단가 ${fmt(prices().m)}G · 공급 한도 없음` },
   { id: 'potC', cat: 'potion', name: '교회 포션 구매', who: 'church', max: 8000, hint: () => S.deals.bulk ? `상단과 독점 계약 중이에요 (${S.deals.bulk.left}개월 남음). 사면 계약이 깨져요` : `단가 ${fmt(prices().c)}G · 한 달 최대 ${S.cap}병 (넘는 돈은 집행되지 않아요)` },
-  { id: 'ws', cat: 'potion', name: '관리국 포션 공방', who: 'good', max: 2400, hint: () => S.wsBuilt ? `가동 중 · 병당 ${C.WS_COST}G · 한 달 최대 ${S.wsCap}병` : '공방이 없어요. 개척 시설 탭에서 착공할 수 있어요' },
+  { id: 'ws', cat: 'potion', name: '관리국 포션 공방', who: 'good', max: 2400, off: () => !S.wsBuilt, hint: () => S.wsBuilt ? `가동 중 · 병당 ${C.WS_COST}G · 한 달 최대 ${S.wsCap}병` : '공방이 없어요. 개척 시설 탭에서 착공할 수 있어요' },
   { id: 'donation', cat: 'church', name: '교회 헌금', nameFn: () => schismLines() ? '정통파 헌금 (대사제)' : '교회 헌금', who: 'church', max: 8000, hint: () => S.schism && !S.schism.outcome
       ? `대사제가 이끄는 정통파에 내는 돈이에요. 관례 ${fmt(S.custom)}G는 두 줄 합계로 따져요`
       : S.schism && S.schism.outcome === 'compromise' ? `정통파 관례는 매달 ${fmt(S.custom)}G예요`
@@ -554,7 +557,7 @@ const LINES = [
       const n = S.floors.filter(f => f.guide).length + (S.pendingGuide ? 1 : 0);
       return n ? `공략본대로 편성하려는 파티 ${Math.round(adoptRate(S.budget.support) * 100)}%. 필요한 직업이나 장비가 모자라면 그만큼은 못 따라요` : '발간한 공략본이 없어요. 탐사 기록 탭에서 공략본을 내면 효과가 생겨요';
     } },
-  { id: 'rent', cat: 'explore', name: '장비 대여 (상단 매입)', who: 'merchant', max: 3000, hint: () => {
+  { id: 'rent', cat: 'explore', name: '장비 대여 (상단 매입)', who: 'merchant', max: 3000, off: () => !supply(S.budget).gk.length, hint: () => {
       const u = supply(S.budget);
       return u.gk.length ? `${u.gk.map(k => k.slice(2)).join('·')} 장비 ${u.sets}벌을 빌려줘요 (벌당 ${fmt(u.rp)}G, 상단 포션 단가를 따라 움직여요). 상단이 반겨요`
         : '장비 공략본이 없어서 빌려줄 장비가 정해지지 않았어요. 돈은 나가지 않아요';
@@ -563,7 +566,7 @@ const LINES = [
       const u = supply(S.budget);
       return `사제 1명당 매달 ${fmt(C.PRIEST_COST)}G · ${u.priestPaid}명 요청${u.priests < u.priestPaid ? `, 교회가 서운해서 ${u.priests}명만 보낼 것 같아요` : ''}. 교회가 반기지만, 오래 기대다 끊으면 서운해해요`;
     } },
-  { id: 'recruit', cat: 'explore', name: '직업 장려금', who: 'ink', max: 3000, hint: () => {
+  { id: 'recruit', cat: 'explore', name: '직업 장려금', who: 'ink', max: 3000, off: () => S.union || !supply(S.budget).ck.length, hint: () => {
       const u = supply(S.budget);
       return S.union ? '조합 보이콧 중이라 아무도 오지 않아요. 돈은 나가지 않아요'
         : u.ck.length ? `${u.ck.map(k => k.slice(2)).join('·')} ${u.heads}명을 새로 불러와요 (1명당 ${fmt(C.RECRUIT_COST)}G). 한 번 오면 계속 남지만 통행세를 내고 포션도 써요`
@@ -580,7 +583,9 @@ const BUDGET_GROUPS = [
   { id: 'watch', name: '정보·감찰', sub: (p, b) => (b.intel || 0) + b.audit },
   { id: 'fixed', name: '고정 지출', sub: p => p.fee + p.facCost + p.upkeep + p.offers + p.fixed + p.extra + p.agc },
 ];
-const GROUP_OPEN = {};
+// 접힘 상태는 저장 데이터가 아니라 이 브라우저의 편의 설정으로 둔다. 고정 지출은 조정할 줄이 없어 처음엔 접어 둔다
+const GROUP_OPEN = (() => { try { return { fixed: false, ...JSON.parse(localStorage.getItem('lb-budget-groups') || '{}') }; } catch { return { fixed: false }; } })();
+const lineOff = l => !!(l.off && l.off());
 
 let S;
 const schismLines = () => !!(S.schism && (!S.schism.outcome || S.schism.outcome === 'compromise'));
@@ -1610,7 +1615,12 @@ function lineChart(series, { min, max, ticks, fmtTick = v => v }) {
 function buildLines() {
   VIS = LINES.filter(l => !l.show || l.show());
   S._sig = lineSig();
-  const lineHtml = l => `
+  // 지금 쓸 수 없는 줄은 슬라이더 없이 이름과 안내만 한 줄로 보여 준다
+  const lineHtml = l => lineOff(l) ? `
+    <div class="line off">
+      <span class="lbl">${l.who ? `<span class="dot" style="background:var(--${l.who})"></span>` : ''}${l.nameFn ? l.nameFn() : l.name}</span>
+      <div class="hint" id="${l.id}-h"></div>
+    </div>` : `
     <div class="line">
       <label for="${l.id}">${l.who ? `<span class="dot" style="background:var(--${l.who})"></span>` : ''}${l.nameFn ? l.nameFn() : l.name}</label>
       <input type="number" id="${l.id}" min="0" max="${l.max}" step="100" aria-label="${l.name} 금액">
@@ -1633,8 +1643,11 @@ function buildLines() {
       ${g.note ? `<p class="note">${g.note}</p>` : ''}${body}
     </details>`;
   }).join('');
-  document.querySelectorAll('#lines .bgroup').forEach(d => d.addEventListener('toggle', () => { GROUP_OPEN[d.dataset.group] = d.open; }));
-  VIS.forEach(l => {
+  document.querySelectorAll('#lines .bgroup').forEach(d => d.addEventListener('toggle', () => {
+    GROUP_OPEN[d.dataset.group] = d.open;
+    try { localStorage.setItem('lb-budget-groups', JSON.stringify(GROUP_OPEN)); } catch {}
+  }));
+  VIS.filter(l => !lineOff(l)).forEach(l => {
     const n = document.getElementById(l.id), r = document.getElementById(l.id + '-r');
     const set = v => { S.budget[l.id] = clamp(Math.round((+v || 0) / 100) * 100, 0, l.max); syncBudget(); };
     r.addEventListener('input', () => set(r.value));
@@ -1647,11 +1660,13 @@ function buildLines() {
     n.addEventListener('change', () => set(n.value));
   });
 }
-const lineSig = () => LINES.filter(l => !l.show || l.show()).map(l => l.id).join(',') + (schismLines() ? '!' : '') + '/' + S.unlocked;
+const lineSig = () => LINES.filter(l => !l.show || l.show()).map(l => l.id + (lineOff(l) ? '-' : '')).join(',') + (schismLines() ? '!' : '') + '/' + S.unlocked;
 function syncBudget() {
   VIS.forEach(l => {
-    document.getElementById(l.id).value = S.budget[l.id];
-    document.getElementById(l.id + '-r').value = S.budget[l.id];
+    if (!lineOff(l)) {
+      document.getElementById(l.id).value = S.budget[l.id];
+      document.getElementById(l.id + '-r').value = S.budget[l.id];
+    }
     document.getElementById(l.id + '-h').textContent = l.hint();
   });
   document.getElementById('fixed').innerHTML =
