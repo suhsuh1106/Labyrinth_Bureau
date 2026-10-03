@@ -214,6 +214,7 @@ table.stats tr.grp td { font-family: var(--f-body); font-size: 11px; letter-spac
       <p class="lead" id="b-lead"></p>
       <form id="form" novalidate>
         <div id="lines"></div>
+        <div id="fees"></div>
         <div id="fixed"></div>
         <div class="proj" id="proj"></div>
         <button class="approve" id="approve" type="submit">결재</button>
@@ -226,7 +227,8 @@ table.stats tr.grp td { font-family: var(--f-body); font-size: 11px; letter-spac
 const C = {
   CUSTOM: 1000, FIXED: 6000, CAP: 80, NEED: 2, TOLL: 130, MONTHS: 36,
   WS_BUILD: 8000, WS_COST: 40, WS_CAP: 60, BASE_COST_M: 30, BASE_COST_C: 25, SHOCK_COST: 20,
-  GUIDE_FEE: 1500, FLOOR_CAP: 30, STOCK_CAP: 400, SPOIL: 0.05, BASE_SUCC: [0.5, 0.44, 0.38, 0.33, 0.28], LOOT: [400, 480, 560, 640, 720], KEY_BONUS: 0.33, PROG_PER_WIN: 1.2,
+  GUIDE_FEE: 1500, FLOOR_CAP: 30, STOCK_CAP: 400, SPOIL: 0.05, BASE_SUCC: [0.5, 0.44, 0.38, 0.33, 0.28], LOOT: [400, 480, 560, 640, 720], KEY_BONUS: 0.33, PROG_PER_WIN: 1.5,
+  FEE_MIN: -200, FEE_MAX: 200, FEE_STEP: 50, FRONTIER: 50, LIFE: 700, CHOICE_T: 70, PRIEST_COST: 200, RECRUIT_COST: 400, GEAR_MARKET: 1.5,
 };
 const CLASSES = ['전사', '궁수', '마법사', '사제', '도적'];
 const CLASS_SHARE = [0.35, 0.2, 0.12, 0.13, 0.2];
@@ -266,10 +268,10 @@ const TARGETS = [
   { treasury: 70000, floor: 4, M: 160, deaths: 50 },
 ];
 const LIKES = {
-  merchant: { like: { steady: '꾸준하고 넉넉한 포션 주문', gear: '원소 장비가 팔리는 공략본', consign: '감정 같은 이권을 상단에 맡기는 일' },
+  merchant: { like: { steady: '꾸준하고 넉넉한 포션 주문', gear: '원소 장비가 팔리는 공략본', consign: '감정 같은 이권을 상단에 맡기는 일', rent: '관리국의 장비 대여 주문' },
               hate: { drop: '갑자기 줄어든 주문', build: '관리국이 직접 만들거나 감정하는 일', audit: '이유 없는 감찰', jealous: '교회만 챙기는 모습', breach: '약속을 어기는 일' } },
-  church: { like: { donation: '관례 이상의 헌금', safe: '사망자가 적은 운영', priest: '사제를 쓰는 공략본', clinic: '용병을 돌보는 시설' },
-            hate: { lowdon: '관례보다 적은 헌금', deaths: '잇따른 사망', audit: '신전을 겨눈 감찰', jealous: '상단만 챙기는 모습', excl: '상단과의 독점 거래' } },
+  church: { like: { donation: '관례 이상의 헌금', safe: '사망자가 적은 운영', priest: '사제를 쓰는 공략본', clinic: '용병을 돌보는 시설', dispatch: '사제 파견 요청' },
+            hate: { lowdon: '관례보다 적은 헌금', deaths: '잇따른 사망', audit: '신전을 겨눈 감찰', jealous: '상단만 챙기는 모습', excl: '상단과의 독점 거래', cutoff: '파견하던 사제를 갑자기 끊는 일' } },
 };
 function learn(who, type, key) { const k = type + ':' + key; if (!S.learned[who][k]) S.learned[who][k] = S.month; }
 const ANOMALIES = [
@@ -484,7 +486,7 @@ function rollEvents(ctx) {
   if (!S.union && !S.evCool.union && S.month >= 7 && M >= 90) {
     const recent = S.hist.slice(-3).reduce((a, h) => a + h.deaths, 0) + deaths;
     let sc = (recent / Math.max(1, M) * 100 > 9 ? 1 : 0) + (S.trust < 45 ? 1 : 0)
-      + (has('cold') ? 1 : 0) + (has('checkpoint') ? 1 : 0) + (has('union_broken') ? 1 : 0) - (has('compensated') ? 1 : 0) - (has('union_ok') ? 1.5 : 0);
+      + (has('cold') ? 1 : 0) + (has('checkpoint') ? 1 : 0) + (has('fee_gouge') ? 1 : 0) + (has('union_broken') ? 1 : 0) - (has('compensated') ? 1 : 0) - (has('union_ok') ? 1.5 : 0);
     if (sc > 0 && rnd() < 0.04 * sc) {
       S.union = { m: S.month, refused: 0 };
       log('용병 조합 결성: 신규 면허 보이콧 시작');
@@ -537,10 +539,24 @@ const LINES = [
       return a ? `장부 사본을 얻을 확률 상단 ${pct(pLedgerM(a))} · 교회 ${pct(pLedgerC(a))}. 감시가 이어지면 담합할 엄두를 못 내지만, 공급처가 불쾌해해요`
         : '돈을 쓸수록 상단(1,500G면 확실), 교회(3,000G면 확실) 장부 사본을 얻을 확률이 올라요. 감시가 끊기면 담합하기 쉬워져요';
     } },
-  { id: 'expd', name: '개척 수당', who: 'ink', max: 3000, hint: () => `가장 깊은 층으로 가는 파티 ${pct(deepShare(S.budget.expd))} · 개척 속도 +${pct(expdBoost(S.budget.expd))}. 깊을수록 전리품은 비싸지만 더 위험해요` },
   { id: 'support', name: '공략 지원금', who: 'ink', max: 4000, hint: () => {
       const n = S.floors.filter(f => f.guide).length + (S.pendingGuide ? 1 : 0);
-      return n ? `공략본대로 편성·장비를 갖추는 파티 비율 ${Math.round(adoptRate(S.budget.support) * 100)}% (탐사 기록 탭에서 공략본 발간)` : '발간한 공략본이 없어요. 탐사 기록 탭에서 공략본을 내면 효과가 생겨요';
+      return n ? `공략본대로 편성하려는 파티 ${Math.round(adoptRate(S.budget.support) * 100)}%. 필요한 직업이나 장비가 모자라면 그만큼은 못 따라요` : '발간한 공략본이 없어요. 탐사 기록 탭에서 공략본을 내면 효과가 생겨요';
+    } },
+  { id: 'rent', name: '장비 대여 (상단 매입)', who: 'merchant', max: 3000, hint: () => {
+      const u = supply(S.budget);
+      return u.gk.length ? `${u.gk.map(k => k.slice(2)).join('·')} 장비 ${u.sets}벌을 빌려줘요 (벌당 ${fmt(u.rp)}G, 상단 포션 단가를 따라 움직여요). 상단이 반겨요`
+        : '장비 공략본이 없어서 빌려줄 장비가 정해지지 않았어요. 돈은 나가지 않아요';
+    } },
+  { id: 'priest', name: '사제 파견 요청 (교회)', who: 'church', max: 3000, hint: () => {
+      const u = supply(S.budget);
+      return `사제 1명당 매달 ${fmt(C.PRIEST_COST)}G · ${u.priestPaid}명 요청${u.priests < u.priestPaid ? `, 교회가 서운해서 ${u.priests}명만 보낼 것 같아요` : ''}. 교회가 반기지만, 오래 기대다 끊으면 서운해해요`;
+    } },
+  { id: 'recruit', name: '직업 장려금', who: 'ink', max: 3000, hint: () => {
+      const u = supply(S.budget);
+      return S.union ? '조합 보이콧 중이라 아무도 오지 않아요. 돈은 나가지 않아요'
+        : u.ck.length ? `${u.ck.map(k => k.slice(2)).join('·')} ${u.heads}명을 새로 불러와요 (1명당 ${fmt(C.RECRUIT_COST)}G). 한 번 오면 계속 남지만 통행세를 내고 포션도 써요`
+        : '전사·궁수·마법사·도적이 필요한 공략본이 없어요. 사제는 교회에 파견을 요청하세요. 돈은 나가지 않아요';
     } },
 ];
 
@@ -558,14 +574,13 @@ const adoptRate = s => 0.25 + 0.6 * Math.min(1, s / 3000);
 const intelQ = x => Math.min(1, Math.sqrt(x / 3000));
 const pLedgerM = a => clamp(a / 1500, 0, 1);
 const pLedgerC = a => clamp((a - 1000) / 2000, 0, 1);
-const deepShare = x => 0.6 + 0.3 * Math.min(1, x / 3000);
-const expdBoost = x => 0.5 * Math.min(1, x / 3000);
 
 function newGame() {
   const mons = [...MONSTERS].sort(() => rnd() - 0.5).slice(0, 5);
   S = {
-    v: 9, month: 1, treasury: 25000, M: 100, tab: 'docs', seenTabs: {},
-    budget: { potM: 6000, potC: 4400, ws: 0, donation: 1000, donR: 0, intel: 0, audit: 0, support: 0, expd: 0 },
+    v: 10, month: 1, treasury: 25000, M: 100, tab: 'docs', seenTabs: {},
+    budget: { potM: 6000, potC: 4400, ws: 0, donation: 1000, donR: 0, intel: 0, audit: 0, support: 0, rent: 0, priest: 0, recruit: 0 },
+    fees: [0, 0, 0, 0, 0], cls: CLASS_SHARE.map(v => v * 100), priestRun: 0,
     learned: { merchant: {}, church: {} }, schism: null, customR: 0, cPriceAdj: 0, deathSens: 1, churchReform: false, eventDocs: [], pressure: 0, anoms: [], overflow: null,
     custom: C.CUSTOM, donHist: [], gM: 0, gC: 0, cap: 80, offers: [], deals: {}, used: {}, evals: [], warn: 0, yearDeaths: 0, rel: 40 + Math.round(rnd() * 30), noAudit: 0, avgVol: 120,
     shock: 0, shockIn: 0, stock: 0, intel: null, cartel: null, cooldown: 0, cartels: 0, cartelMonths: 0, overpaid: 0,
@@ -605,9 +620,13 @@ function project(b) {
   const fee = S.pendingGuide ? C.GUIDE_FEE : 0;
   const facCost = facPendingCost(), upkeep = facUpkeep();
   const offers = offerCost(), fixed = fixedCost(), extra = extraUpkeep(), agc = agendaCost();
-  const spend = sM + sC + sW + b.donation + (b.donR || 0) + (b.intel || 0) + b.audit + b.support + (b.expd || 0) + fee + facCost + upkeep + offers + fixed + extra + agc;
-  const income = S.M * S.toll + S.lastLoot + S.lordIncome;
-  return { P, qM, qC, qW, draw, toStock, waste, sM, sC, sW, fee, facCost, upkeep, offers, fixed, extra, agc, need, cov, spend, income, net: income - spend };
+  const sup = supply(b);
+  // 입장료는 파티가 층을 고른 결과에 달려 있어 예상치로 셈한다
+  const n = partyCount(), sh = floorShares(cov);
+  const feeIn = sh.reduce((a, x, i) => a + Math.max(0, S.fees[i]) * x * n, 0), feeOut = sh.reduce((a, x, i) => a + Math.max(0, -S.fees[i]) * x * n, 0);
+  const spend = sM + sC + sW + b.donation + (b.donR || 0) + (b.intel || 0) + b.audit + b.support + sup.rentSpend + sup.priestSpend + sup.recruitSpend + feeOut + fee + facCost + upkeep + offers + fixed + extra + agc;
+  const income = S.M * S.toll + S.lastLoot + S.lordIncome + feeIn;
+  return { P, qM, qC, qW, draw, toStock, waste, sM, sC, sW, fee, facCost, upkeep, offers, fixed, extra, agc, need, cov, sup, sh, n, feeIn, feeOut, spend, income, net: income - spend };
 }
 
 function cartelScore(pr) {
@@ -628,37 +647,99 @@ function cartelScore(pr) {
 }
 
 /* ---------- 탐사 ---------- */
-function makeParty(f, adopt) {
-  const cs = S.deals.novice ? CLASS_SHARE.map((v, i) => CLASSES[i] === '사제' ? v * 2.5 : v) : CLASS_SHARE;
-  const gs = S.deals.gear ? GEAR_SHARE.map((v, i) => i ? v * 2 : v) : GEAR_SHARE;
-  const c = []; for (let i = 0; i < 4; i++) c.push(pick(CLASSES, cs));
-  let g = pick(GEARS, gs);
-  const gk = S.floors[f].guide;
-  let a = false;
-  if (gk && rnd() < adopt) {
-    a = true;
-    if (gk.startsWith('c:')) { const cl = gk.slice(2); if (!c.includes(cl)) c[Math.floor(rnd() * 4)] = cl; }
-    else g = gk.slice(2);
-  }
-  return { c, g, a };
+const partyCount = () => Math.max(1, Math.round(S.M / 4));
+function deathRisk(f, cov) {
+  return 0.3 * (1 + 1.5 * (1 - cov)) * (done('clinic') ? 0.6 : 1) * (S.deals.novice ? 0.7 : 1) * (done('camp') && f === S.unlocked - 1 ? 0.6 : 1) * S.deathMul;
+}
+// 용병은 층마다 기대 전리품, 사망 위험, 붐빔, 입장료를 따져 갈 곳을 고른다
+function floorValue(i, cov) {
+  const rec = S.exped.filter(e => e.f === i && e.m >= S.month - 3);
+  const base = clamp(C.BASE_SUCC[i] * (0.6 + 0.4 * cov), 0.05, 0.95);
+  const pS = rec.length >= 4 ? 0.5 * base + 0.5 * rec.filter(e => e.s).length / rec.length : base;
+  const lastN = S.last && S.last.ex.byFloor[i] ? S.last.ex.byFloor[i].n : 0;
+  const crowd = Math.min(1, C.FLOOR_CAP / Math.max(1, lastN));
+  const frontier = i === S.unlocked - 1 && S.floors[i].prog < 100 ? C.FRONTIER : 0;
+  return pS * C.LOOT[i] * crowd - (1 - pS) * deathRisk(i, cov) * C.LIFE + frontier - S.fees[i];
+}
+function floorShares(cov) {
+  const v = S.floors.slice(0, S.unlocked).map((_, i) => floorValue(i, cov));
+  const top = Math.max(...v), w = v.map(x => Math.exp((x - top) / C.CHOICE_T)), t = w.reduce((a, b) => a + b, 0);
+  return S.floors.map((_, i) => i < S.unlocked ? w[i] / t : 0);
+}
+
+/* ---------- 직업·장비 수급 ---------- */
+const rentPrice = () => Math.round(prices().m * 3 / 10) * 10;
+const churchFulfill = () => clamp(1 - Math.max(0, S.gC) / 100, 0.3, 1);
+function guideKeys() {
+  const ks = S.floors.slice(0, S.unlocked).map((f, i) => S.pendingGuide && S.pendingGuide.f === i ? S.pendingGuide.key : f.guide).filter(Boolean);
+  return [...new Set(ks)];
+}
+function supply(b) {
+  const keys = guideKeys();
+  const gk = keys.filter(k => k.startsWith('g:')), ck = keys.filter(k => k.startsWith('c:') && k !== 'c:사제');
+  const rp = rentPrice();
+  const sets = gk.length ? Math.floor((b.rent || 0) / rp) : 0;
+  const priestPaid = Math.floor((b.priest || 0) / C.PRIEST_COST), priests = Math.floor(priestPaid * churchFulfill());
+  const heads = ck.length && !S.union ? Math.floor((b.recruit || 0) / C.RECRUIT_COST) : 0;
+  return { gk, ck, rp, sets, priestPaid, priests, heads, rentSpend: sets * rp, priestSpend: priestPaid * C.PRIEST_COST, recruitSpend: heads * C.RECRUIT_COST };
+}
+// 이번 달 파티에 들어갈 수 있는 직업별 인원과 장비 수
+function pools(sup) {
+  const n = partyCount();
+  const cls = S.cls.map(v => Math.max(0, Math.round(v)));
+  cls[CLASSES.indexOf('사제')] += sup.priests + (S.deals.novice ? Math.round(S.M * 0.15) : 0);
+  const gm = S.deals.gear ? 2 : 1;
+  const gear = GEARS.map((g, i) => i ? Math.round(n * GEAR_SHARE[i] * gm * C.GEAR_MARKET) : 0);
+  sup.gk.forEach((k, j) => { gear[GEARS.indexOf(k.slice(2))] += Math.floor(sup.sets / sup.gk.length) + (j < sup.sets % sup.gk.length ? 1 : 0); });
+  return { cls, gear, gm };
 }
 const satisfies = (key, p) => key.startsWith('c:') ? p.c.includes(key.slice(2)) : p.g === key.slice(2);
 
-function explore(cov, adopt, expd = 0) {
-  const n = Math.max(1, Math.round(S.M / 4));
+function explore(cov, adopt, sup) {
+  const n = partyCount();
   const u = S.unlocked, deep = u - 1;
-  const res = { n, wins: 0, deaths: 0, loot: 0, byFloor: S.floors.map(() => ({ n: 0, w: 0, loot: 0, d: 0, got: 0 })) };
+  const sh = floorShares(cov);
+  const pl = pools(sup);
+  const res = { n, u, wins: 0, deaths: 0, loot: 0, want: 0, adopted: 0, short: 0, feeIn: 0, feeOut: 0, byFloor: S.floors.map(() => ({ n: 0, w: 0, loot: 0, d: 0, got: 0, want: 0, a: 0, short: 0 })) };
+  const drawClass = () => {
+    if (pl.cls.reduce((a, b) => a + b, 0) <= 0) return pick(CLASSES, CLASS_SHARE);
+    const c = pick(CLASSES, pl.cls); pl.cls[CLASSES.indexOf(c)]--; return c;
+  };
+  const drawGear = () => {
+    const g = pick(GEARS, GEARS.map((_, i) => i ? (pl.gear[i] > 0 ? GEAR_SHARE[i] * pl.gm : 0) : GEAR_SHARE[0]));
+    if (g !== '일반') pl.gear[GEARS.indexOf(g)]--;
+    return g;
+  };
+  // 공략본을 따르려는 파티가 먼저 필요한 사람과 장비를 구하러 다닌다
+  const plan = [];
   for (let i = 0; i < n; i++) {
-    const f = u === 1 ? 0 : (rnd() < deepShare(expd) ? deep : Math.floor(rnd() * deep));
-    const p = makeParty(f, adopt);
-    const ok = satisfies(S.floors[f].mon.key, p);
+    const f = u === 1 ? 0 : pick(S.floors.slice(0, u).map((_, j) => j), sh.slice(0, u));
+    plan.push({ f, will: !!S.floors[f].guide && rnd() < adopt, r: rnd() });
+  }
+  plan.sort((x, y) => (y.will - x.will) || (x.r - y.r));
+  plan.forEach(({ f, will }) => {
+    const bf = res.byFloor[f], gk = S.floors[f].guide;
+    let c, g, a = false, short = false;
+    if (will && gk.startsWith('c:')) {
+      const ci = CLASSES.indexOf(gk.slice(2));
+      if (pl.cls[ci] > 0) { pl.cls[ci]--; c = [gk.slice(2), drawClass(), drawClass(), drawClass()]; }
+      else c = [drawClass(), drawClass(), drawClass(), drawClass()];
+      g = drawGear();
+    } else if (will) {
+      const gi = GEARS.indexOf(gk.slice(2));
+      c = [drawClass(), drawClass(), drawClass(), drawClass()];
+      if (pl.gear[gi] > 0) { pl.gear[gi]--; g = gk.slice(2); } else g = drawGear();
+    } else { c = [drawClass(), drawClass(), drawClass(), drawClass()]; g = drawGear(); }
+    if (will) { a = satisfies(gk, { c, g }); short = !a; res.want++; bf.want++; if (a) { res.adopted++; bf.a++; } else { res.short++; bf.short++; } }
+    const ok = satisfies(S.floors[f].mon.key, { c, g });
     const pr = clamp((C.BASE_SUCC[f] + (ok ? C.KEY_BONUS : 0)) * (0.6 + 0.4 * cov), 0.05, 0.95);
     const s = rnd() < pr;
-    S.exped.push({ m: S.month, f, c: p.c, g: p.g, s, a: p.a });
-    res.byFloor[f].n++; S.floors[f].n++;
-    if (s) { res.wins++; res.byFloor[f].w++; res.byFloor[f].loot = (res.byFloor[f].loot || 0) + C.LOOT[f] * (done('appraise') ? 1.4 : done('consign') ? 1.15 : 1); }
-    else if (rnd() < 0.3 * (1 + 1.5 * (1 - cov)) * (done('clinic') ? 0.6 : 1) * (S.deals.novice ? 0.7 : 1) * (done('camp') && f === deep ? 0.6 : 1) * S.deathMul) { res.deaths++; res.byFloor[f].d++; }
-  }
+    S.exped.push({ m: S.month, f, c, g, s, a, sh: short });
+    bf.n++; S.floors[f].n++;
+    if (S.fees[f] > 0) res.feeIn += S.fees[f]; else res.feeOut -= S.fees[f];
+    if (s) { res.wins++; bf.w++; bf.loot += C.LOOT[f] * (done('appraise') ? 1.4 : done('consign') ? 1.15 : 1); }
+    else if (rnd() < deathRisk(f, cov)) { res.deaths++; bf.d++; }
+  });
   // 한 층에 파티가 몰리면 전리품이 나뉘어 줄어든다 (층당 FLOOR_CAP 파티까지는 온전히)
   res.byFloor.forEach((bf, i) => { bf.crowd = bf.n ? Math.min(1, C.FLOOR_CAP / bf.n) : 1; bf.got = Math.round(bf.loot * bf.crowd); res.loot += bf.got; S.floors[i].lootTotal = (S.floors[i].lootTotal || 0) + bf.got; });
   return res;
@@ -698,13 +779,14 @@ function resolve() {
 
   // 탐사
   const adopt = S.floors.some(f => f.guide) ? clamp(adoptRate(b.support) + (done('mapper') ? 0.15 : 0) + S.adoptBonus, 0, 0.95) : 0;
-  const ex = explore(cov, adopt, b.expd || 0);
+  const sup = pr.sup;
+  const ex = explore(cov, adopt, sup);
   S.stock = Math.floor((S.stock - pr.draw + pr.toStock) * (1 - C.SPOIL));
   const deaths = ex.deaths;
   let leakLost = 0;
   if (S.leak) { leakLost = Math.round(ex.loot * 0.2); ex.loot -= leakLost; S.leak.lost += leakLost; }
-  const income = M * S.toll + ex.loot + S.lordIncome;
-  const spend = pr.spend;
+  const income = M * S.toll + ex.loot + S.lordIncome + ex.feeIn;
+  const spend = pr.spend - pr.feeOut + ex.feeOut;
   const net = income - spend;
   S.treasury += net;
   S.lastLoot = ex.loot;
@@ -722,7 +804,7 @@ function resolve() {
 
   const deep = S.floors[S.unlocked - 1];
   const before = deep.prog;
-  deep.prog = Math.min(100, deep.prog + ex.byFloor[S.unlocked - 1].w * C.PROG_PER_WIN * (done('camp') ? 1.5 : 1) * (1 + expdBoost(b.expd || 0)));
+  deep.prog = Math.min(100, deep.prog + ex.byFloor[S.unlocked - 1].w * C.PROG_PER_WIN * (done('camp') ? 1.5 : 1));
   const th = done('mapper') ? [10, 30, 60] : [15, 45, 90];
   S.floors.forEach((fl, i) => {
     if (i >= S.unlocked) return;
@@ -747,10 +829,15 @@ function resolve() {
   });
   const rate = ex.n ? ex.wins / ex.n : 0;
   S.trust += (rate - 0.5) * 16 - Math.max(0, deaths - 4) * 1.5;
+  // 입장료가 비싸면 용병들이 박하다고 느끼고, 보조금을 주면 반긴다
+  const avgFee = (ex.feeIn - ex.feeOut) / Math.max(1, ex.n);
+  S.trust -= avgFee / 150;
+  if (avgFee >= 100) { flag('fee_gouge'); notes.push('용병들이 관리국이 입장료로 등골을 뺀다며 투덜댑니다.'); }
+  else if (ex.feeOut > 0 && rnd() < 0.3) notes.push('입장 보조금이 나오는 층으로 가자는 말이 용병 숙소에서 돕니다.');
   S.trust += (50 - S.trust) * 0.05;
   S.trust = clamp(S.trust, 0, 100);
   let leave = Math.round(M * 0.03 + (1 - cov) * M * 0.08 + (S.trust < 35 ? M * 0.03 : 0));
-  let arrive = Math.round(3 + S.trust / 10) - (S.gC >= 60 ? 3 : 0);
+  let arrive = Math.max(0, Math.round(3 + S.trust / 10) - (S.gC >= 60 ? 3 : 0));
   if (S.union) { arrive = 0; leave += Math.round(M * 0.01); notes.push('용병 조합의 보이콧으로 새 면허를 받으러 오는 사람이 없습니다.'); }
   if (S.lord) { const t = Math.round(M * 0.025); leave += t; arrive = Math.max(0, arrive - 3); S.lord.taken += t; }
 
@@ -788,6 +875,14 @@ function resolve() {
   const gearGuides = S.floors.filter(f => f.guide && f.guide.startsWith('g:')).length;
   if (gearGuides && b.support > 0) { S.gM -= Math.min(6, b.support / 500); learn('merchant', 'like', 'gear'); if (rnd() < 0.4) notes.push('공략본 덕에 원소 장비가 잘 팔린다며 상단이 흐뭇해합니다.'); }
   if (S.deals.gear) S.gM -= 3;
+  if (sup.sets) { S.gM -= Math.min(5, sup.sets / 3); learn('merchant', 'like', 'rent'); if (rnd() < 0.3) notes.push(`상단이 관리국에 빌려준 ${sup.gk.map(k => k.slice(2)).join('·')} 장비 값이 쏠쏠하다며 웃습니다.`); }
+  if (sup.priestPaid) {
+    S.gC -= Math.min(5, sup.priestPaid / 2); learn('church', 'like', 'dispatch'); S.priestRun++;
+    if (sup.priests < sup.priestPaid) notes.push(`교회가 요청한 사제 ${sup.priestPaid}명 중 ${sup.priests}명만 보냈습니다. 관리국에 서운한 게 있다는 눈치입니다.`);
+  } else {
+    if (S.priestRun >= 4) { S.gC += 10; learn('church', 'hate', 'cutoff'); notes.push('오래 보내던 사제 파견을 관리국이 끊자 교회가 서운해합니다.'); }
+    S.priestRun = 0;
+  }
   if (done('consign')) S.gM -= 2;
   const twoCustom = S.schism && S.schism.outcome === 'compromise';
   const donTotal = b.donation + (b.donR || 0);
@@ -980,9 +1075,18 @@ function resolve() {
 
   S.M = Math.max(0, M - deaths - leave + arrive);
   S.M = Math.max(0, S.M - od);
+  // 떠나고 죽은 만큼 직업 구성이 고르게 줄고, 새로 온 용병은 평소 비율대로 온다. 장려금을 보고 온 용병은 그 직업으로 온다
+  const kept = Math.max(0, S.M - arrive), tot = S.cls.reduce((a, v) => a + v, 0) || 1;
+  S.cls = S.cls.map((v, i) => v * kept / tot + arrive * CLASS_SHARE[i]);
+  if (sup.heads) {
+    sup.ck.forEach(k => { S.cls[CLASSES.indexOf(k.slice(2))] += sup.heads / sup.ck.length; });
+    S.M += sup.heads;
+    log(`직업 장려금으로 ${sup.ck.map(k => k.slice(2)).join('·')} ${sup.heads}명이 새로 면허를 받음`);
+    notes.push(`장려금 소식을 듣고 ${sup.ck.map(k => k.slice(2)).join('·')} ${sup.heads}명이 면허를 받으러 왔습니다.`);
+  }
   S.deathsTotal += deaths + od; S.yearDeaths += deaths + od;
   S.hist.push({ month: S.month, pm: P.m, pc: P.c, cm: K0.m, cc: K0.c, qC, treasury: S.treasury, M: S.M, deaths, rate });
-  S.last = { month: S.month, P, qM, qC, qW, cov, deaths, leave, arrive, need: pr.need, toll: M * S.toll, tollRate: S.toll, adopt, draw: pr.draw, toStock: pr.toStock, waste: pr.waste, stock: S.stock, lord: S.lordIncome, extra: pr.extra, agc: pr.agc, loot: ex.loot, ex, sM: pr.sM, sC: pr.sC, sW: pr.sW, fee: pr.fee, facCost: pr.facCost, upkeep: pr.upkeep, offers: pr.offers, fixed: pr.fixed, b, net, M };
+  S.last = { month: S.month, P, qM, qC, qW, cov, deaths, leave, arrive, heads: sup.heads, sup, fees: [...S.fees], need: pr.need, toll: M * S.toll, tollRate: S.toll, adopt, draw: pr.draw, toStock: pr.toStock, waste: pr.waste, stock: S.stock, lord: S.lordIncome, extra: pr.extra, agc: pr.agc, loot: ex.loot, ex, sM: pr.sM, sC: pr.sC, sW: pr.sW, fee: pr.fee, facCost: pr.facCost, upkeep: pr.upkeep, offers: pr.offers, fixed: pr.fixed, b, net, M };
   S.ledgers = (ledgerM || ledgerC) ? { m: ledgerM, c: ledgerC } : null;
   if (ledgerM) S.ledgerArchive.unshift({ m: ledgerM });
   if (ledgerC) S.ledgerArchive.unshift({ c: ledgerC });
@@ -1202,12 +1306,16 @@ function renderDocsTab() {
         { sec: '수입' },
         [`통행세 (용병 ${L.M}명 × ${L.tollRate}G)`, fmt(L.toll)],
         [`전리품 거래 (성공한 파티 ${L.ex.wins}개 · 파티당 ${fmt(L.loot / Math.max(1, L.ex.wins))}G)`, fmt(L.loot)],
+        ...(L.ex.feeIn ? [['층별 입장료', fmt(L.ex.feeIn)]] : []),
         ...(L.lord ? [['하르덴 백작의 사례금', fmt(L.lord)]] : []),
         { sec: '지출' }, ...exp,
         ['시장 조사비', fmt(L.b.intel || 0)],
         ['감찰비', fmt(L.b.audit)],
-        ['개척 수당', fmt(L.b.expd || 0)],
         ['공략 지원금', fmt(L.b.support)],
+        ...(L.ex.feeOut ? [['층별 입장 보조금', fmt(L.ex.feeOut)]] : []),
+        ...(L.sup && L.sup.rentSpend ? [[`장비 대여 ${L.sup.sets}벌`, fmt(L.sup.rentSpend)]] : []),
+        ...(L.sup && L.sup.priestSpend ? [[`사제 파견 ${L.sup.priestPaid}명 요청 (${L.sup.priests}명 옴)`, fmt(L.sup.priestSpend)]] : []),
+        ...(L.sup && L.sup.recruitSpend ? [[`직업 장려금 ${L.sup.heads}명`, fmt(L.sup.recruitSpend)]] : []),
         [`관리국 운영비`, fmt(L.fixed)],
         { sum: true, 0: '이번 달 손익', 1: `<span class="${L.net < 0 ? 'neg' : 'pos'}">${sgn(L.net)}</span>` },
       ]) }));
@@ -1336,8 +1444,12 @@ function adoptLine(f) {
   if (!rec.length) return '';
   const a = rec.filter(e => e.a), o = rec.filter(e => !e.a);
   const r = arr => arr.length ? pct(arr.filter(e => e.s).length / arr.length) : '-';
-  const exp = S.last && S.last.adopt != null ? ` <span class="dim">(지난달 지원금 ${fmt(S.last.b.support)}G 기준 기대 ${pct(S.last.adopt)})</span>` : '';
-  return `<p style="margin:0;font-size:13px">지난달 공략본대로 편성한 파티 <b>${a.length}/${rec.length}개</b>${exp} (성공 ${r(a)}) · 따르지 않은 파티 성공 ${r(o)} <span class="dim">· 공략 지원금을 늘리면 따르는 파티가 늘어요</span></p>`;
+  const sh = rec.filter(e => e.sh).length, want = a.length + sh;
+  const exp = S.last && S.last.adopt != null ? ` <span class="dim">(지원금 ${fmt(S.last.b.support)}G 기준 기대 ${pct(S.last.adopt)})</span>` : '';
+  const fl = S.floors[f], what = fl.guide.startsWith('c:') ? fl.guide.slice(2) : `${fl.guide.slice(2)} 장비`;
+  const lever = !fl.guide.startsWith('c:') ? '예산안의 장비 대여로 늘릴 수 있어요' : fl.guide === 'c:사제' ? '교회에 사제 파견을 요청해 늘릴 수 있어요' : '예산안의 직업 장려금으로 불러올 수 있어요';
+  return `<p style="margin:0;font-size:13px">지난달 공략본을 따르려던 파티 <b>${want}/${rec.length}개</b>${exp} · 그중 실제로 편성한 파티 <b>${a.length}개</b> (성공 ${r(a)}) · 따르지 않은 파티 성공 ${r(o)}</p>
+    ${sh ? `<p class="ng" style="margin:0;font-size:12px">${what}${josa(what)} 모자라 ${sh}개 파티가 공략본대로 못 꾸렸어요. ${lever}</p>` : ''}`;
 }
 function floorEconomy() {
   const L = S.last;
@@ -1345,11 +1457,27 @@ function floorEconomy() {
   const rowsHtml = S.floors.slice(0, S.unlocked).map((fl, i) => {
     const bf = L.ex.byFloor[i] || { n: 0, w: 0, d: 0, got: 0, crowd: 1 };
     const crowd = bf.crowd < 1 ? `<span class="ng">${pct(1 - bf.crowd)} 줄어듦</span>` : '<span class="dim">여유</span>';
-    return `<tr><td>${i + 1}층</td><td>${bf.n}</td><td>${bf.n ? pct(bf.w / bf.n) : '-'}</td><td>${fmt(bf.got)}</td><td>${crowd}</td><td>${bf.d}</td><td>${fmt(fl.lootTotal || 0)}</td></tr>`;
+    const fee = (L.fees || [])[i] || 0;
+    return `<tr><td>${i + 1}층</td><td>${fee ? sgn(fee) : '<span class="dim">0</span>'}</td><td>${bf.n}</td><td>${bf.n ? pct(bf.w / bf.n) : '-'}</td><td>${fmt(bf.got)}</td><td>${crowd}</td><td>${bf.d}</td><td>${fmt(fl.lootTotal || 0)}</td></tr>`;
   }).join('');
   return doc({ kind: '재무과 · 층별 수익', title: `제${L.month}월 층별 탐사 수익`, from: `층당 파티 ${C.FLOOR_CAP}개가 넘으면 전리품이 나뉘어요`,
-    body: `<div class="tablewrap"><table class="stats"><tr><th>층</th><th>파티</th><th>성공률</th><th>전리품 수익</th><th>붐빔</th><th>사망</th><th>누적 수익</th></tr>${rowsHtml}</table></div>
-      <p class="from">파티는 ${pct(deepShare(L.b.expd || 0))}가 가장 깊은 층으로, 나머지는 지나온 층에 고르게 흩어집니다. 예산안의 개척 수당으로 더 깊이 보낼 수 있어요.</p>` });
+    body: `<div class="tablewrap"><table class="stats"><tr><th>층</th><th>입장료</th><th>파티</th><th>성공률</th><th>전리품 수익</th><th>붐빔</th><th>사망</th><th>누적 수익</th></tr>${rowsHtml}</table></div>
+      <p class="from">용병들은 층마다 기대 전리품, 사망 위험, 지난달 붐빔, 입장료를 따져 갈 곳을 고릅니다. 개척은 가장 깊은 층에서만 진행되니, 예산안의 층별 입장료로 파티를 원하는 층에 보내세요.</p>` });
+}
+function supplyDoc() {
+  const sup = supply(S.budget), pl = pools(sup), need = guideKeys();
+  const cl = CLASSES.map((c, i) => {
+    const k = 'c:' + c, nd = need.includes(k);
+    const extra = c === '사제' && pl.cls[i] > Math.round(S.cls[i]) ? ` <span class="dim">(파견 포함)</span>` : '';
+    return `<tr><td>${nd ? `<b>${c} · 공략본</b>` : c}</td><td>${pl.cls[i]}명${extra}</td><td>${pct(pl.cls[i] / Math.max(1, S.M))}</td></tr>`;
+  }).join('');
+  const gr = GEARS.slice(1).map((g, j) => {
+    const k = 'g:' + g, nd = need.includes(k);
+    return `<tr><td>${nd ? `<b>${g} 장비 · 공략본</b>` : `${g} 장비`}</td><td>${pl.gear[j + 1]}벌</td><td></td></tr>`;
+  }).join('');
+  return doc({ kind: '현장 사무소 · 수급', title: '직업과 장비 수급', from: `이번 달 파티 약 ${partyCount()}개`,
+    body: `<div class="tablewrap"><table class="stats"><tr><th>구분</th><th>쓸 수 있는 수</th><th>용병 중 비율</th></tr>${cl}${gr}</table></div>
+      <p class="from">공략본이 필요하다고 해도 사람과 장비가 없으면 따를 수 없습니다. 장비는 상단에서 빌리고, 사제는 교회에 파견을 요청하고, 나머지 직업은 장려금으로 불러옵니다.</p>` });
 }
 
 function renderExploreTab() {
@@ -1388,6 +1516,7 @@ function renderExploreTab() {
   if (S.anoms.length) out.push(doc({ cls: 'secret', kind: '현장 사무소 · 이상 징후', title: '미궁이 이상합니다', from: `${S.anoms.length}건`,
     body: `<ul class="feed">${S.anoms.map(a => `<li><span class="num">${a.m}월</span> ${a.t}</li>`).join('')}</ul>${S.overflow ? `<p class="ng">제${S.overflow.m}월 소규모 범람 · 용병 ${S.overflow.deaths}명 사망</p>` : ''}` }));
   out.push(floorEconomy());
+  out.push(supplyDoc());
   out.push(doc({ kind: '미궁 개척 현황', title: '층별 개척과 공략본', from: '가장 깊은 층만 개척이 진행됩니다', body: `<div style="display:grid;gap:10px">${floors}</div>` }));
 
   // 통계
@@ -1458,7 +1587,7 @@ function lineChart(series, { min, max, ticks, fmtTick = v => v }) {
 /* ---------- 예산안 ---------- */
 function buildLines() {
   VIS = LINES.filter(l => !l.show || l.show());
-  S._sig = VIS.map(l => l.id).join(',') + (schismLines() ? '!' : '');
+  S._sig = lineSig();
   document.getElementById('lines').innerHTML = VIS.map(l => `
     <div class="line">
       <label for="${l.id}">${l.who ? `<span class="dot" style="background:var(--${l.who})"></span>` : ''}${l.nameFn ? l.nameFn() : l.name}</label>
@@ -1472,7 +1601,21 @@ function buildLines() {
     r.addEventListener('input', () => set(r.value));
     n.addEventListener('change', () => set(n.value));
   });
+  document.getElementById('fees').innerHTML = `<p class="from" style="margin:14px 0 0">층별 입장료 <span class="dim">· 파티당, 음수면 보조금</span></p>` + S.floors.slice(0, S.unlocked).map((_, i) => `
+    <div class="line">
+      <label for="fee-${i}">${i + 1}층 입장료</label>
+      <input type="number" id="fee-${i}" min="${C.FEE_MIN}" max="${C.FEE_MAX}" step="${C.FEE_STEP}" aria-label="${i + 1}층 입장료">
+      <input type="range" id="fee-${i}-r" min="${C.FEE_MIN}" max="${C.FEE_MAX}" step="${C.FEE_STEP}" aria-label="${i + 1}층 입장료 조절">
+      <div class="hint" id="fee-${i}-h"></div>
+    </div>`).join('');
+  S.floors.slice(0, S.unlocked).forEach((_, i) => {
+    const n = document.getElementById('fee-' + i), r = document.getElementById('fee-' + i + '-r');
+    const set = v => { S.fees[i] = clamp(Math.round((+v || 0) / C.FEE_STEP) * C.FEE_STEP, C.FEE_MIN, C.FEE_MAX); syncBudget(); };
+    r.addEventListener('input', () => set(r.value));
+    n.addEventListener('change', () => set(n.value));
+  });
 }
+const lineSig = () => LINES.filter(l => !l.show || l.show()).map(l => l.id).join(',') + (schismLines() ? '!' : '') + '/' + S.unlocked;
 function syncBudget() {
   VIS.forEach(l => {
     document.getElementById(l.id).value = S.budget[l.id];
@@ -1488,6 +1631,13 @@ function syncBudget() {
     (facUpkeep() ? `<div class="line fixed"><span>시설 유지비</span><span class="val">${fmt(facUpkeep())}</span></div>` : '') +
     `<div class="line fixed"><span>관리국 운영비 (용병 수에 비례)</span><span class="val">${fmt(fixedCost())}</span></div>`;
   const p = project(S.budget);
+  S.floors.slice(0, S.unlocked).forEach((fl, i) => {
+    const fee = S.fees[i], np = p.sh[i] * p.n;
+    document.getElementById('fee-' + i).value = fee;
+    document.getElementById('fee-' + i + '-r').value = fee;
+    const tag = i === S.unlocked - 1 && fl.prog < 100 ? '개척 중 · ' : '';
+    document.getElementById('fee-' + i + '-h').textContent = `${tag}예상 파티 ${Math.round(np)}개 (${pct(p.sh[i])})` + (fee > 0 ? ` · 입장료 수입 약 ${fmt(fee * np)}G` : fee < 0 ? ` · 보조금 약 ${fmt(-fee * np)}G` : '');
+  });
   document.getElementById('proj').innerHTML = `
     <div class="row"><span>지급 예정 포션</span><b>상단 ${p.qM} + 교회 ${p.qC}${S.wsBuilt ? ` + 공방 ${p.qW}` : ''}${p.draw ? ` + 창고 ${p.draw}` : ''} = ${Math.min(p.need, p.qM + p.qC + p.qW + p.draw)} / ${p.need}병</b></div>
     <div class="cov ${p.cov < 0.95 ? 'low' : ''}"><span style="width:${Math.round(p.cov * 100)}%"></span></div>
@@ -1519,8 +1669,7 @@ function renderPanel(flash) {
   if (flash) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
 }
 function render(flash = true) {
-  const sig = LINES.filter(l => !l.show || l.show()).map(l => l.id).join(',') + (schismLines() ? '!' : '');
-  if (sig !== S._sig) buildLines();
+  if (lineSig() !== S._sig) buildLines();
   renderStats(); renderPanel(flash);
   document.getElementById('b-title').textContent = S.over ? '임기 종료' : `제${S.month}월 예산안`;
   document.getElementById('b-lead').textContent = S.over ? '서류함의 평가서를 확인하세요.' : `용병 ${S.M}명 · 필요한 포션 ${S.M * C.NEED}병 · 결재하면 한 달이 흐릅니다`;
@@ -1563,7 +1712,7 @@ document.getElementById('form').addEventListener('submit', e => {
 
 function start(data) {
   newGame();
-  if (data && data.S && data.S.v === 9) S = data.S;
+  if (data && data.S && data.S.v === 10) S = data.S;
   buildLines(); render();
 }
 window.claude?.hot?.snapshot?.(() => ({ S }));
