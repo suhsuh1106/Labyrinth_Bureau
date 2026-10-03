@@ -982,7 +982,7 @@ function resolve() {
   S.M = Math.max(0, S.M - od);
   S.deathsTotal += deaths + od; S.yearDeaths += deaths + od;
   S.hist.push({ month: S.month, pm: P.m, pc: P.c, cm: K0.m, cc: K0.c, qC, treasury: S.treasury, M: S.M, deaths, rate });
-  S.last = { month: S.month, P, qM, qC, qW, cov, deaths, leave, arrive, need: pr.need, toll: M * S.toll, tollRate: S.toll, draw: pr.draw, toStock: pr.toStock, waste: pr.waste, stock: S.stock, lord: S.lordIncome, extra: pr.extra, agc: pr.agc, loot: ex.loot, ex, sM: pr.sM, sC: pr.sC, sW: pr.sW, fee: pr.fee, facCost: pr.facCost, upkeep: pr.upkeep, offers: pr.offers, fixed: pr.fixed, b, net, M };
+  S.last = { month: S.month, P, qM, qC, qW, cov, deaths, leave, arrive, need: pr.need, toll: M * S.toll, tollRate: S.toll, adopt, draw: pr.draw, toStock: pr.toStock, waste: pr.waste, stock: S.stock, lord: S.lordIncome, extra: pr.extra, agc: pr.agc, loot: ex.loot, ex, sM: pr.sM, sC: pr.sC, sW: pr.sW, fee: pr.fee, facCost: pr.facCost, upkeep: pr.upkeep, offers: pr.offers, fixed: pr.fixed, b, net, M };
   S.ledgers = (ledgerM || ledgerC) ? { m: ledgerM, c: ledgerC } : null;
   if (ledgerM) S.ledgerArchive.unshift({ m: ledgerM });
   if (ledgerC) S.ledgerArchive.unshift({ c: ledgerC });
@@ -1336,7 +1336,8 @@ function adoptLine(f) {
   if (!rec.length) return '';
   const a = rec.filter(e => e.a), o = rec.filter(e => !e.a);
   const r = arr => arr.length ? pct(arr.filter(e => e.s).length / arr.length) : '-';
-  return `<p style="margin:0;font-size:13px">지난달 공략본대로 편성한 파티 <b>${a.length}/${rec.length}개</b> (성공 ${r(a)}) · 따르지 않은 파티 성공 ${r(o)} <span class="dim">· 공략 지원금을 늘리면 따르는 파티가 늘어요</span></p>`;
+  const exp = S.last && S.last.adopt != null ? ` <span class="dim">(지난달 지원금 ${fmt(S.last.b.support)}G 기준 기대 ${pct(S.last.adopt)})</span>` : '';
+  return `<p style="margin:0;font-size:13px">지난달 공략본대로 편성한 파티 <b>${a.length}/${rec.length}개</b>${exp} (성공 ${r(a)}) · 따르지 않은 파티 성공 ${r(o)} <span class="dim">· 공략 지원금을 늘리면 따르는 파티가 늘어요</span></p>`;
 }
 function floorEconomy() {
   const L = S.last;
