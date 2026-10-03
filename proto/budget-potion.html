@@ -287,10 +287,207 @@ const KEYS = [...CLASSES.map(c => 'c:' + c), ...GEARS.filter(g => g !== '일반'
 const josa = w => ((w.charCodeAt(w.length - 1) - 0xAC00) % 28 ? "이" : "가");
 const keyLabel = k => k.startsWith("c:") ? `${k.slice(2)}${josa(k.slice(2))} 있는 파티` : `${k.slice(2)} 장비`;
 
+/* ---------- 플래그와 안건 ---------- */
+// 플래그: 플레이어가 실제로 한 선택만 기록한다 (수치가 아니라 행동). 안건은 이 기록이 맞아야 올라온다
+const has = k => (S.flags[k] || 0) > 0;
+function flag(k) { S.flags[k] = (S.flags[k] || 0) + 1; if (!S.flagM[k]) S.flagM[k] = S.month; }
+const since = k => S.month - (S.flagM[k] || S.month);
+const extraUpkeep = () => S.upkeepX.reduce((a, u) => a + u.amt, 0);
+function addUpkeep(name, amt) { S.upkeepX.push({ name, amt }); }
+const agendaOpt = () => { if (!S.agenda) return null; const A = AGENDAS.find(a => a.id === S.agenda.id); return A.opts[S.agenda.pick ?? A.def]; };
+const agendaCost = () => { const o = agendaOpt(); return o && o.cost ? o.cost : 0; };
+const val = (v) => typeof v === 'function' ? v() : v;
+const DIRTY = { paid_merchant: '상단에 몰래 준 보전금', lord_pact: '하르덴 백작과의 밀약', false_accuse: '상단을 잘못 고발한 일' };
+
+function endUnion(how) { S.union = null; S.evCool.union = 12; log(`용병 조합 사태 마무리: ${how}`); }
+function endLeak(notes, how) { log(`전리품 누수가 멈춤 (${how}) · 그동안 샌 돈 ${fmt(S.leak.lost)}G`); notes.push(`전리품 거래 수입이 제자리를 찾았습니다. 그동안 새어 나간 돈은 약 ${fmt(S.leak.lost)}G였습니다.`); S.leak = null; S.evCool.leak = 8; }
+function endLord(how) { S.lord = null; S.evCool.lord = 12; log(`하르덴 백작의 용병 포섭이 끝남: ${how}`); }
+
+const AGENDAS = [
+  // 사건이 걸린 안건 (사건이 이어지는 동안 거듭 올라옴)
+  { id: 'union', prio: 2, repeat: true, who: 'secret', name: '용병 조합 대표 "철망치" 브란', title: '용병 조합이 요구서를 보냈습니다',
+    when: () => !!S.union,
+    text: () => `"새 면허는 아무도 받지 않을 겁니다. 통행세를 ${S.toll}G에서 ${S.toll - 20}G로 내리고, 미궁에서 죽은 동료의 가족에게 위로금을 주십시오."${S.union.refused ? ` 관리국은 이미 ${S.union.refused}번 거절했습니다.` : ''}`,
+    opts: [
+      { label: '모두 받아들인다', desc: () => `통행세가 ${S.toll - 20}G로 내리고, 매달 위로금 500G가 나가요. 조합이 해산하고 신뢰가 크게 올라요`,
+        apply() { S.toll -= 20; addUpkeep('사망자 위로금 (조합 합의)', 500); S.trust += 10; flag('union_ok'); endUnion('요구를 모두 수용'); } },
+      { label: '위로금만 준다', desc: '매달 위로금 500G. 조합원 절반쯤은 이걸로 만족할 거예요', apply(notes) {
+        if (!S.union.halfPaid) { addUpkeep('사망자 위로금', 500); S.union.halfPaid = true; }
+        S.trust += 3; if (rnd() < 0.55) endUnion('위로금으로 타협'); else notes.push('조합이 위로금은 받겠지만 통행세 이야기는 끝나지 않았다고 합니다.'); } },
+      { label: '교회에 중재를 부탁한다', need: () => S.gC <= -15, needText: '교회가 호의적이어야 해요',
+        desc: '통행세는 10G만 내려가요. 교회가 공을 세웠다며 관례 헌금을 200G 올려 달라 할 거예요',
+        apply() { S.toll -= 10; S.custom += 200; S.gC += 10; flag('church_mediated'); endUnion('교회의 중재'); } },
+      { label: '거부한다', desc: '신규 면허 보이콧이 이어져요. 세 번 거부하면 조합이 무너지지만 원한이 남아요',
+        apply() { S.union.refused++; if (S.union.refused >= 3) { S.trust -= 12; flag('union_broken'); endUnion('조합이 무너짐'); } } },
+    ], def: 3 },
+  { id: 'leak', prio: 2, repeat: true, who: 'secret', name: '재무과', title: '전리품 수입이 새고 있습니다',
+    when: () => S.leak && S.month - S.leak.m >= 2,
+    text: () => `성공한 파티 수에 비해 전리품 거래 수입이 지난 ${S.month - S.leak.start}개월 동안 약 ${fmt(S.leak.lost)}G 모자랍니다. 상단 감정소가 값을 후려친다는 말도, 용병들이 전리품을 몰래 빼돌린다는 말도 돕니다. 어느 쪽인지 정해야 손을 쓸 수 있습니다.`,
+    opts: [
+      { label: '입구에 검문소를 세운다', cost: 1000, desc: '용병이 빼돌리는 거라면 막혀요. 어느 쪽이든 용병들은 불쾌해해요',
+        apply(notes) { S.trust -= 4; flag('checkpoint');
+          if (S.leak.who === 'mercs') endLeak(notes, '입구 검문');
+          else { S.trust -= 4; S.leak.m = S.month; notes.push('검문소에서는 아무것도 나오지 않았습니다. 용병들만 몸수색에 불쾌해합니다.'); } } },
+      { label: '상단 감정소를 고발한다', desc: '상단이 차익을 챙긴 거라면 절반을 돌려받아요. 틀리면 상단이 크게 분노해요',
+        apply(notes) {
+          if (S.leak.who === 'merchant') { S.treasury += Math.round(S.leak.lost * 0.5); S.gM += 10; flag('exposed_merchant'); endLeak(notes, '상단 고발'); }
+          else { S.gM += 35; flag('false_accuse'); S.leak.m = S.month; notes.push('상단 감정소에서는 차익이 나오지 않았습니다. 조합장이 모욕을 당했다며 길길이 뜁니다.'); } } },
+      { label: '더 지켜본다', desc: '조사·감찰비를 넣으면 상단 장부가, 탐사 기록과 서기의 메모가 단서가 돼요', apply() { S.leak.m = S.month; } },
+    ], def: 2 },
+  { id: 'lord', prio: 2, repeat: true, who: 'secret', name: '하르덴 백작의 사절', title: '이웃 영주가 용병을 데려가고 있습니다',
+    when: () => S.lord && S.month >= S.lord.next,
+    text: () => `"백작께서는 관리국과 다툴 생각이 없으십니다. 용병 몇을 영지 경비대로 넘겨주시면 매달 사례하겠습니다. 수도에 알릴 필요까지야 있겠습니까?" 지금까지 ${S.lord.taken}명이 백작령으로 떠났습니다.`,
+    opts: [
+      { label: '밀약을 맺는다', desc: '용병 15명을 넘기고 매달 800G를 받아요. 수도 몰래 하는 거래예요',
+        apply() { S.M = Math.max(0, S.M - 15); S.lordIncome = 800; flag('lord_pact'); endLord('밀약'); } },
+      { label: '수도에 고발한다', desc: '두 달 뒤 수도가 백작을 견제해요. 그동안은 계속 빠져나가요',
+        apply() { S.lord.until = S.month + 2; S.lord.next = 99; flag('reported_lord'); } },
+      { label: '면허 장려금으로 맞선다', cost: 3000, desc: '새로 오는 용병에게 장려금을 줘서 붙잡아요. 신뢰가 조금 올라요',
+        apply() { S.trust += 6; endLord('장려금'); } },
+      { label: '내버려 둔다', desc: '용병이 계속 조금씩 빠져나가요. 백작이 배를 채우면 언젠가 그치겠지요', apply() { S.lord.next = S.month + 3; } },
+    ], def: 3 },
+  // 선택이 쌓여서 생기는 안건 (한 번씩)
+  { id: 'crown_inquiry', prio: 2, who: 'secret', name: '수도 감찰관', title: '수도가 백작과의 거래를 묻습니다',
+    when: () => has('lord_pact') && since('lord_pact') >= 5,
+    text: () => '"하르덴 백작령 경비대에 관리국 면허를 가진 자들이 있다는 보고가 올라왔습니다. 관리국장께서 직접 해명하시지요."',
+    opts: [
+      { label: '인정하고 밀약을 끊는다', cost: 3000, desc: '벌금 3,000G를 내고 사례금이 끊겨요', apply() { S.lordIncome = 0; log('수도에 백작과의 밀약을 인정함'); } },
+      { label: '부인한다', desc: () => has('opened_books') ? '이미 공개한 장부에 사례금이 적혀 있어요' : '들키면 경고장이 와요. 반쯤은 넘어갈 수 있어요',
+        apply(notes) { flag('lied_crown');
+          if (has('opened_books') || rnd() < 0.45) { S.warn++; S.lordIncome = 0; log('밀약을 부인했다가 들통남 → 수도의 경고'); notes.push('감찰관이 백작령 장부 사본을 내밀었습니다. 수도에서 경고장이 날아옵니다.'); }
+          else notes.push('감찰관이 의심스러운 눈으로 돌아갔습니다.'); } },
+    ], def: 1 },
+  { id: 'm_comp', prio: 1, who: 'merchant', name: '상단 조합장', title: '상단이 손실 보전을 요구합니다',
+    when: () => has('cartel_bought') && !S.cartel,
+    text: () => '"관리국이 헌금으로 교회를 데려가는 바람에 상단만 비싼 물건을 떠안은 꼴이 됐습니다. 그동안 신전에 들인 돈도 있으니, 손실을 조금은 보전해 주셔야 하지 않겠습니까?"',
+    opts: [
+      { label: '보전금을 준다', cost: 2000, desc: '상단의 서운함이 크게 풀려요. 다만 장부에 남고, 상단은 담합해도 손해 볼 게 없다고 배워요', apply() { S.gM -= 25; flag('paid_merchant'); } },
+      { label: '거절한다', desc: '상단이 앙금을 품어요', apply() { S.gM += 15; flag('merchant_grudge'); } },
+      { label: '감찰 장부를 내민다', need: () => has('audit'), needText: '상단을 감찰한 적이 있어야 해요', desc: '축복 수수료 기록으로 입을 막아요. 상단이 한동안 담합을 꿈꾸지 못해요',
+        apply() { S.gM += 5; S.rel = Math.max(0, S.rel - 25); flag('exposed_merchant'); } },
+    ], def: 1 },
+  { id: 'c_apology', prio: 1, who: 'church', name: '대사제', title: '대사제가 사과문을 요구합니다',
+    when: () => has('cartel_audited') && !(S.schism && S.schism.outcome === 'reform'),
+    text: () => '"신전 회계실을 죄인 다루듯 뒤진 일이 신도들 사이에 퍼졌습니다. 관리국장 명의의 사과문 한 장이면 이 일을 덮겠습니다."',
+    opts: [
+      { label: '사과문을 보낸다', desc: '교회의 앙금이 풀려요. 대신 앞으로는 감찰을 세 달 연속 해야 교회가 겁을 먹어요', apply() { S.gC -= 25; flag('apologized'); } },
+      { label: '감찰 결과를 공개한다', desc: '용병과 신도들이 관리국을 다시 봐요. 교회는 크게 분노해요', apply() { S.gC += 20; S.trust += 6; flag('public_audit'); } },
+      { label: '답하지 않는다', desc: '교회의 앙금이 조금 더 쌓여요', apply() { S.gC += 8; } },
+    ], def: 2 },
+  { id: 'open_books', prio: 1, who: 'church', name: '리아나 사제와 용병 대표들', title: '관리국 장부도 공개하라고 합니다',
+    when: () => (has('public_audit') || (S.schism && S.schism.outcome === 'reform')) && S.month >= 14,
+    text: () => '"교회 장부를 열라고 한 관리국이니, 관리국 장부도 열어 보여야 공평하지 않겠습니까?"',
+    opts: [
+      { label: '장부를 공개한다', desc: '깨끗하다면 신뢰를 얻어요. 숨길 게 있었다면 드러나요', apply(notes) {
+        const dirty = Object.keys(DIRTY).filter(has); flag('opened_books');
+        if (!dirty.length) { S.trust += 10; notes.push('공개된 관리국 장부에서 흠잡을 데가 없다는 말이 돕니다.'); }
+        else { S.trust -= 6 * dirty.length; S.gC += 10; notes.push(`공개된 장부에서 ${dirty.map(d => DIRTY[d]).join(', ')}이(가) 드러나 말이 많습니다.`); log('장부 공개로 드러난 일: ' + dirty.map(d => DIRTY[d]).join(', ')); } } },
+      { label: '거부한다', desc: '용병들이 관리국을 의심해요', apply() { S.trust -= 6; flag('secretive'); } },
+    ], def: 1 },
+  { id: 'ws_artisans', prio: 1, who: 'merchant', name: '상단 소속 약제사 셋', title: '상단 약제사들이 공방으로 옮기고 싶어 합니다',
+    when: () => done('ws') && since('fac_ws') >= 5,
+    text: () => '"상단에서는 일한 만큼 받지 못합니다. 관리국 공방에서 일하게 해 주시면 생산량을 크게 늘려 드리겠습니다."',
+    opts: [
+      { label: '고용한다', desc: `공방의 한 달 생산 한도가 ${C.WS_CAP}병에서 100병으로 늘고, 매달 인건비 400G가 나가요. 상단이 크게 분노해요`,
+        apply() { S.wsCap = 100; addUpkeep('약제사 인건비', 400); S.gM += 25; flag('poached'); } },
+      { label: '돌려보낸다', desc: '조합장이 이 일을 전해 듣고 고마워해요', apply() { S.gM -= 10; } },
+    ], def: 1 },
+  { id: 'consign_fee', prio: 1, who: 'merchant', name: '상단 조합장', title: '감정 위탁 수수료를 올려 달랍니다',
+    when: () => done('consign') && since('fac_consign') >= 6,
+    text: () => '"감정 일이 늘어 일손이 모자랍니다. 매달 수수료 300G만 얹어 주시면 지금처럼 정성껏 모시지요."',
+    opts: [
+      { label: '받아들인다', desc: '매달 300G가 나가요. 상단이 더 호의적이 돼요', apply() { addUpkeep('감정 위탁 수수료', 300); S.gM -= 10; } },
+      { label: '위탁을 거둬들인다', desc: '전리품 수입 15% 보너스가 사라지고 상단이 크게 서운해해요. 감정소를 지을 수 있게 돼요', apply() { delete S.fac.consign; S.gM += 20; flag('consign_cut'); } },
+    ], def: 0 },
+  { id: 'guide_comp', prio: 1, who: 'secret', name: '용병 파티 대표들', title: '빗나간 공략본의 책임을 묻습니다',
+    when: () => has('guide_wrong'),
+    text: () => '"관리국 공략본대로 편성했다가 동료를 잃었습니다. 관리국이 낸 책이니 관리국이 책임지십시오."',
+    opts: [
+      { label: '위로금을 준다', cost: 2500, desc: '용병들이 관리국이 책임질 줄 안다고 여겨요', apply() { S.trust += 8; flag('compensated'); } },
+      { label: '교회에 장례를 부탁한다', cost: 800, need: () => S.gC <= 0, needText: '교회와 사이가 나쁘지 않아야 해요', desc: '교회가 장례 미사를 열어 줘요. 위로는 되지만 책임을 피했다는 말도 나와요', apply() { S.trust += 3; S.gC -= 5; } },
+      { label: '거절한다', desc: '공략본은 참고일 뿐이라고 답해요. 용병들 사이에 원망이 남아요', apply() { S.trust -= 6; flag('cold'); } },
+    ], def: 2 },
+  { id: 'guide_rights', prio: 1, who: 'secret', name: '수도의 출판업자', title: '공략본 판권을 사겠답니다',
+    when: () => (S.flags.guide_ok || 0) >= 2,
+    text: () => '"관리국 공략본이 잘 맞는다는 소문이 수도까지 났습니다. 판권을 넘겨주시면 넉넉히 드리지요. 물론 그 뒤로는 저희가 값을 매겨 팝니다."',
+    opts: [
+      { label: '판권을 판다', desc: '당장 4,000G가 들어와요. 대신 책값 때문에 공략본을 따르는 파티가 10%p 줄어요', apply() { S.treasury += 4000; S.adoptBonus -= 0.1; flag('sold_guides'); } },
+      { label: '무상으로 배포한다', desc: '공략본을 따르는 파티가 10%p 늘고 용병 신뢰가 올라요', apply() { S.adoptBonus += 0.1; S.trust += 5; flag('free_guides'); } },
+    ], def: 1 },
+  { id: 'novice_stay', prio: 1, who: 'church', name: '대사제', title: '견습 사제들을 상주시키고 싶답니다',
+    when: () => has('deal_novice') && !S.deals.novice,
+    text: () => '"견습 사제들이 용병들과 정이 들었습니다. 아예 미궁 입구에 상주하게 해 주시면 어떻겠습니까? 숙소와 식비만 대 주시면 됩니다."',
+    opts: [
+      { label: '상주를 허가한다', desc: '매달 500G로 사망이 20% 줄어요. 교회의 입김이 미궁 안까지 들어와요', apply() { addUpkeep('견습 사제 상주비', 500); S.deathMul *= 0.8; S.gC -= 10; flag('church_in'); } },
+      { label: '돌려보낸다', desc: '교회가 조금 서운해해요', apply() { S.gC += 5; } },
+    ], def: 1 },
+];
+
+function applyAgenda(notes) {
+  if (!S.agenda) return;
+  const A = AGENDAS.find(a => a.id === S.agenda.id);
+  let i = S.agenda.pick ?? A.def;
+  if (A.opts[i].need && !A.opts[i].need()) i = A.def;
+  const o = A.opts[i];
+  o.apply(notes);
+  if (!A.repeat) S.agendaDone[A.id] = true;
+  log(`안건 결재: ${A.title} → ${o.label}${S.agenda.pick == null ? ' (고르지 않아 기본 처리)' : ''}`);
+  S.agenda = null;
+}
+function pickAgenda() {
+  const c = AGENDAS.filter(a => !S.agendaDone[a.id] && a.when());
+  if (!c.length) return;
+  const top = Math.max(...c.map(a => a.prio));
+  const pool = c.filter(a => a.prio === top);
+  S.agenda = { id: pool[Math.floor(rnd() * pool.length)].id, pick: null, m: S.month };
+}
+
+/* ---------- 메인 사건: 용병 조합 · 전리품 누수 · 이웃 영주 ---------- */
+function rollEvents(ctx) {
+  const { notes, ed, deaths, M } = ctx;
+  Object.keys(S.evCool).forEach(k => { if (S.evCool[k] > 0) S.evCool[k]--; });
+  // 용병 조합: 용병을 함부로 다뤘던 기록이 쌓일수록 잘 생긴다
+  if (!S.union && !S.evCool.union && S.month >= 7 && M >= 90) {
+    const recent = S.hist.slice(-3).reduce((a, h) => a + h.deaths, 0) + deaths;
+    let sc = (recent / Math.max(1, M) * 100 > 9 ? 1 : 0) + (S.trust < 45 ? 1 : 0)
+      + (has('cold') ? 1 : 0) + (has('checkpoint') ? 1 : 0) + (has('union_broken') ? 1 : 0) - (has('compensated') ? 1 : 0) - (has('union_ok') ? 1.5 : 0);
+    if (sc > 0 && rnd() < 0.04 * sc) {
+      S.union = { m: S.month, refused: 0 };
+      log('용병 조합 결성: 신규 면허 보이콧 시작');
+      ed({ kind: '현장 사무소 · 긴급 보고', title: '용병들이 조합을 만들었습니다', from: `제${S.month}월`, stamp: '보이콧',
+        body: `<p>노련한 용병 "철망치" 브란을 중심으로 용병 조합이 결성되었습니다. 조합은 요구가 받아들여질 때까지 새 면허를 받지 말자고 다른 지역 용병들에게 편지를 돌렸습니다.</p><p class="from">조합이 버티는 동안 새로 오는 용병이 없고, 떠나는 사람이 늘어납니다. 요구서는 안건으로 올라옵니다.</p>` });
+    }
+  }
+  // 전리품 누수: 누가 빼돌리는지는 숨겨져 있고, 단서로 추리한다
+  if (!S.leak && !S.evCool.leak && S.month >= 5 && rnd() < (done('consign') ? 0.09 : 0.05)) {
+    const merchantCan = !done('appraise');
+    const pM = !merchantCan ? 0 : done('consign') ? 0.75 : S.trust < 45 ? 0.3 : 0.5;
+    S.leak = { who: rnd() < pM ? 'merchant' : 'mercs', m: S.month, start: S.month, lost: 0 };
+    log(`전리품 누수 시작 (원인: ${S.leak.who === 'merchant' ? '상단 감정 차익' : '용병 밀반출'})`);
+  }
+  if (S.leak && rnd() < 0.5) {
+    const real = rnd() < 0.7, who = real ? S.leak.who : (S.leak.who === 'merchant' ? 'mercs' : 'merchant');
+    notes.push(who === 'merchant'
+      ? ['상단 감정소에서 값을 너무 짜게 쳐 준다는 용병들의 볼멘소리가 들립니다.', '상단 창고가 요즘 부쩍 꽉 찼다고 합니다. 들어온 물건에 비해 장부가 얇다는 말도 있습니다.'][Math.floor(rnd() * 2)]
+      : ['변두리 술집에서 미궁 보석이 시세보다 싸게 돈다고 합니다.', '파티가 돌아오는 시간이 밤으로 몰린다는 현장 사무소의 보고가 있습니다.'][Math.floor(rnd() * 2)]);
+  }
+  if (S.leak && S.leak.who === 'merchant' && done('appraise')) endLeak(notes, '감정소 직영');
+  else if (S.leak && S.month - S.leak.start >= 9) endLeak(notes, '저절로 잦아듦');
+  // 이웃 영주: 관리국이 잘될수록 눈독을 들인다
+  if (!S.lord && !S.evCool.lord && S.month >= 10 && (S.treasury > 30000 || M >= 130) && rnd() < 0.07) {
+    S.lord = { m: S.month, taken: 0, until: null, next: S.month };
+    log('하르덴 백작이 미궁 용병을 영지 경비대로 끌어가기 시작함');
+    ed({ kind: '서기 보고 · 이웃 영지', title: '하르덴 백작이 용병을 데려가고 있습니다', from: `제${S.month}월`, stamp: '영주',
+      body: '<p>동쪽 백작령에서 미궁 용병에게 경비대 자리를 제안하고 있습니다. 보수는 적지만 죽을 일이 없다는 말에 용병들이 흔들립니다.</p><p class="from">백작이 노리는 것은 용병만이 아닐 겁니다. 미궁이 돈이 된다는 소문이 변경에 퍼졌습니다.</p>' });
+  }
+  if (S.lord && !S.lord.until && S.month - S.lord.m >= 7) { endLord('백작령 경비대가 다 참'); notes.push('하르덴 백작령 경비대가 다 찼는지, 백작령으로 떠나는 용병이 끊겼습니다.'); }
+  if (S.lord && S.lord.until && S.month >= S.lord.until) { endLord('수도의 견제'); notes.push('수도가 하르덴 백작에게 경고장을 보냈다고 합니다. 백작령으로 떠나는 용병이 끊겼습니다.'); }
+}
+
 const LINES = [
   { id: 'potM', name: '상단 포션 구매', who: 'merchant', max: 20000, hint: () => `단가 ${fmt(prices().m)}G · 공급 한도 없음` },
   { id: 'potC', name: '교회 포션 구매', who: 'church', max: 8000, hint: () => S.deals.bulk ? `상단과 독점 계약 중이에요 (${S.deals.bulk.left}개월 남음). 사면 계약이 깨져요` : `단가 ${fmt(prices().c)}G · 한 달 최대 ${S.cap}병 (넘는 돈은 집행되지 않아요)` },
-  { id: 'ws', name: '관리국 포션 공방', who: 'good', max: 2400, hint: () => S.wsBuilt ? `가동 중 · 병당 ${C.WS_COST}G · 한 달 최대 ${C.WS_CAP}병` : '공방이 없어요. 개척 시설 탭에서 착공할 수 있어요' },
+  { id: 'ws', name: '관리국 포션 공방', who: 'good', max: 2400, hint: () => S.wsBuilt ? `가동 중 · 병당 ${C.WS_COST}G · 한 달 최대 ${S.wsCap}병` : '공방이 없어요. 개척 시설 탭에서 착공할 수 있어요' },
   { id: 'donation', name: '교회 헌금', nameFn: () => schismLines() ? '정통파 헌금 (대사제)' : '교회 헌금', who: 'church', max: 8000, hint: () => S.schism && !S.schism.outcome
       ? `대사제가 이끄는 정통파에 내는 돈이에요. 관례 ${fmt(S.custom)}G는 두 줄 합계로 따져요`
       : S.schism && S.schism.outcome === 'compromise' ? `정통파 관례는 매달 ${fmt(S.custom)}G예요`
@@ -320,7 +517,7 @@ const adoptRate = s => 0.25 + 0.6 * Math.min(1, s / 3000);
 function newGame() {
   const mons = [...MONSTERS].sort(() => rnd() - 0.5).slice(0, 5);
   S = {
-    v: 7, month: 1, treasury: 25000, M: 100, tab: 'docs', seenTabs: {},
+    v: 8, month: 1, treasury: 25000, M: 100, tab: 'docs', seenTabs: {},
     budget: { potM: 6000, potC: 4400, ws: 0, donation: 1000, donR: 0, audit: 0, support: 0 },
     learned: { merchant: {}, church: {} }, schism: null, customR: 0, cPriceAdj: 0, deathSens: 1, churchReform: false, eventDocs: [], pressure: 0, anoms: [], overflow: null,
     custom: C.CUSTOM, donHist: [], gM: 0, gC: 0, cap: 80, offers: [], deals: {}, used: {}, evals: [], warn: 0, yearDeaths: 0, rel: 40 + Math.round(rnd() * 30), noAudit: 0, avgVol: 120,
@@ -328,6 +525,8 @@ function newGame() {
     wsBuilt: false, fac: {}, statOpen: false, deathsTotal: 0, neg: 0,
     floors: mons.map(m => ({ mon: m, prog: 0, known: 0, n: 0, cl: 0, guide: null })), unlocked: 1, trust: 50,
     pendingGuide: null, exped: [], lastLoot: 5000, statFloor: 0, statRange: 3, guideDraft: {},
+    flags: {}, flagM: {}, agenda: null, agendaDone: {}, toll: C.TOLL, wsCap: C.WS_CAP, upkeepX: [], adoptBonus: 0, deathMul: 1, lordIncome: 0,
+    union: null, leak: null, lord: null, evCool: { union: 0, leak: 0, lord: 0 },
     hist: [], last: null, ledgers: null, ledgerArchive: [], archive: [], notes: [], notices: [], log: [], talk: null, over: null,
   };
 }
@@ -348,17 +547,17 @@ function project(b) {
   const P = prices();
   const qM = Math.floor(b.potM / P.m);
   const qC = Math.min(Math.floor(b.potC / P.c), S.cap);
-  const qW = S.wsBuilt ? Math.min(Math.floor(b.ws / C.WS_COST), C.WS_CAP) : 0;
+  const qW = S.wsBuilt ? Math.min(Math.floor(b.ws / C.WS_COST), S.wsCap) : 0;
   const sW = qW * C.WS_COST;
   const need = S.M * C.NEED;
   const cov = need ? Math.min(1, (qM + qC + qW) / need) : 1;
   const sM = qM * P.m, sC = qC * P.c;
   const fee = S.pendingGuide ? C.GUIDE_FEE : 0;
   const facCost = facPendingCost(), upkeep = facUpkeep();
-  const offers = offerCost(), fixed = fixedCost();
-  const spend = sM + sC + sW + b.donation + (b.donR || 0) + b.audit + b.support + fee + facCost + upkeep + offers + fixed;
-  const income = S.M * C.TOLL + S.lastLoot;
-  return { P, qM, qC, qW, sM, sC, sW, fee, facCost, upkeep, offers, fixed, need, cov, spend, income, net: income - spend };
+  const offers = offerCost(), fixed = fixedCost(), extra = extraUpkeep(), agc = agendaCost();
+  const spend = sM + sC + sW + b.donation + (b.donR || 0) + b.audit + b.support + fee + facCost + upkeep + offers + fixed + extra + agc;
+  const income = S.M * S.toll + S.lastLoot + S.lordIncome;
+  return { P, qM, qC, qW, sM, sC, sW, fee, facCost, upkeep, offers, fixed, extra, agc, need, cov, spend, income, net: income - spend };
 }
 
 function cartelScore(pr) {
@@ -370,6 +569,10 @@ function cartelScore(pr) {
   s += 0.02 * (S.rel - 50);
   s += 0.3 * Math.min(S.noAudit, 6);
   if (S.shock > 0) s += 1;
+  // 지난 선택이 상단의 셈을 바꾼다
+  if (has('merchant_grudge')) s += 0.6;
+  if (has('paid_merchant')) s += 0.5;
+  if (has('exposed_merchant')) s -= 0.8;
   return s;
 }
 
@@ -403,7 +606,7 @@ function explore(cov, adopt) {
     S.exped.push({ m: S.month, f, c: p.c, g: p.g, s, a: p.a });
     res.byFloor[f].n++; S.floors[f].n++;
     if (s) { res.wins++; res.byFloor[f].w++; res.byFloor[f].loot = (res.byFloor[f].loot || 0) + C.LOOT[f] * (done('appraise') ? 1.4 : done('consign') ? 1.15 : 1); }
-    else if (rnd() < 0.3 * (1 + 1.5 * (1 - cov)) * (done('clinic') ? 0.6 : 1) * (S.deals.novice ? 0.7 : 1) * (done('camp') && f === deep ? 0.6 : 1)) { res.deaths++; res.byFloor[f].d++; }
+    else if (rnd() < 0.3 * (1 + 1.5 * (1 - cov)) * (done('clinic') ? 0.6 : 1) * (S.deals.novice ? 0.7 : 1) * (done('camp') && f === deep ? 0.6 : 1) * S.deathMul) { res.deaths++; res.byFloor[f].d++; }
   }
   // 한 층에 파티가 몰리면 전리품이 나뉘어 줄어든다 (층당 20파티까지는 온전히)
   res.byFloor.forEach((bf, i) => { bf.crowd = bf.n ? Math.min(1, 20 / bf.n) : 1; bf.got = Math.round(bf.loot * bf.crowd); res.loot += bf.got; S.floors[i].lootTotal = (S.floors[i].lootTotal || 0) + bf.got; });
@@ -415,8 +618,9 @@ function resolve() {
   const pr = project(b);
   const { P, qM, qC, qW, cov } = pr;
   const F = fair(), K0 = costs();
-  const M = S.M;
   const notes = [], notices = [];
+  applyAgenda(notes);
+  const M = S.M;
   const nextMonth = S.month + 1;
   let rebate = 0;
   S.talk = null;
@@ -427,6 +631,7 @@ function resolve() {
     if (o.id === 'cap') { S.cap = 120; S.used.cap = true; S.gM += 10; }
     else S.deals[o.id] = { left: 3 };
     if (O.who === 'merchant') S.gM -= 8; else S.gC -= 8;
+    flag('deal_' + o.id);
     log(`${O.who === 'merchant' ? '상단' : '교회'} 제안 수락: ${O.title}`);
   });
   S.offers = [];
@@ -441,10 +646,12 @@ function resolve() {
   }
 
   // 탐사
-  const adopt = S.floors.some(f => f.guide) ? adoptRate(b.support) + (done('mapper') ? 0.15 : 0) : 0;
+  const adopt = S.floors.some(f => f.guide) ? clamp(adoptRate(b.support) + (done('mapper') ? 0.15 : 0) + S.adoptBonus, 0, 0.95) : 0;
   const ex = explore(cov, adopt);
   const deaths = ex.deaths;
-  const income = M * C.TOLL + ex.loot;
+  let leakLost = 0;
+  if (S.leak) { leakLost = Math.round(ex.loot * 0.2); ex.loot -= leakLost; S.leak.lost += leakLost; }
+  const income = M * S.toll + ex.loot + S.lordIncome;
   const spend = pr.spend;
   const net = income - spend;
   S.treasury += net;
@@ -482,23 +689,25 @@ function resolve() {
   // 공략본 평판 (발간 다음 달 결과로)
   S.floors.forEach((fl, i) => {
     if (fl.guide && fl.guideMonth === S.month && ex.byFloor[i].n) {
-      if (fl.guideOk) { S.trust += 10; notes.push(`${i + 1}층 공략본이 맞아떨어졌다는 평이 돕니다. 용병들이 관리국을 다시 봅니다.`); log(`${i + 1}층 공략본 적중 → 용병 신뢰 상승`); }
-      else { S.trust -= 8; notes.push(`${i + 1}층 공략본대로 했다가 크게 당했다는 원성이 들립니다.`); log(`${i + 1}층 공략본이 빗나감 → 용병 신뢰 하락`); }
+      if (fl.guideOk) { flag('guide_ok'); S.trust += 10; notes.push(`${i + 1}층 공략본이 맞아떨어졌다는 평이 돕니다. 용병들이 관리국을 다시 봅니다.`); log(`${i + 1}층 공략본 적중 → 용병 신뢰 상승`); }
+      else { flag('guide_wrong'); S.trust -= 8; notes.push(`${i + 1}층 공략본대로 했다가 크게 당했다는 원성이 들립니다.`); log(`${i + 1}층 공략본이 빗나감 → 용병 신뢰 하락`); }
     }
   });
   const rate = ex.n ? ex.wins / ex.n : 0;
   S.trust += (rate - 0.5) * 16 - Math.max(0, deaths - 4) * 1.5;
   S.trust += (50 - S.trust) * 0.05;
   S.trust = clamp(S.trust, 0, 100);
-  const leave = Math.round(M * 0.03 + (1 - cov) * M * 0.08 + (S.trust < 35 ? M * 0.03 : 0));
-  const arrive = Math.round(3 + S.trust / 10) - (S.gC >= 60 ? 3 : 0);
+  let leave = Math.round(M * 0.03 + (1 - cov) * M * 0.08 + (S.trust < 35 ? M * 0.03 : 0));
+  let arrive = Math.round(3 + S.trust / 10) - (S.gC >= 60 ? 3 : 0);
+  if (S.union) { arrive = 0; leave += Math.round(M * 0.01); notes.push('용병 조합의 보이콧으로 새 면허를 받으러 오는 사람이 없습니다.'); }
+  if (S.lord) { const t = Math.round(M * 0.025); leave += t; arrive = Math.max(0, arrive - 3); S.lord.taken += t; }
 
   // 개척 시설
   FACILITIES.forEach(fa => {
     const st = S.fac[fa.id];
     if (!st) return;
     if (st.state === 'pending') {
-      st.state = 'building'; st.left = fa.months;
+      st.state = 'building'; st.left = fa.months; flag('fac_' + fa.id);
       if (fa.react.gM) S.gM += fa.react.gM;
       if (fa.react.gC) S.gC += fa.react.gC;
       if (fa.trust) S.trust += fa.trust;
@@ -555,13 +764,15 @@ function resolve() {
   if (S.gC >= 60) notes.push('교회가 설교에서 관리국을 비판했습니다. 새로 오는 용병이 줄어듭니다.');
 
   // 약속 · 제안 기간
-  if (S.deals.bulk && qC > 0) { delete S.deals.bulk; S.gM += 25; learn('merchant', 'hate', 'breach'); log('독점 계약 중에 교회 포션을 삼 → 계약 파기, 상단이 크게 서운해함'); notes.push('독점 계약을 어기고 교회 포션을 샀다며 상단 조합장이 크게 언짢아합니다. 할인도 끝났습니다.'); }
+  if (S.deals.bulk && qC > 0) { delete S.deals.bulk; S.gM += 25; flag('breach'); learn('merchant', 'hate', 'breach'); log('독점 계약 중에 교회 포션을 삼 → 계약 파기, 상단이 크게 서운해함'); notes.push('독점 계약을 어기고 교회 포션을 샀다며 상단 조합장이 크게 언짢아합니다. 할인도 끝났습니다.'); }
   else if (S.deals.bulk) { S.gC += 6; learn('church', 'hate', 'excl'); notes.push('관리국이 상단하고만 거래한다며 교회 회계실이 한숨을 쉽니다.'); }
   Object.keys(S.deals).forEach(k => { if (--S.deals[k].left <= 0) { delete S.deals[k]; log(`${OFFERS[k].title} 기간 종료`); } });
 
   // 감찰
   const audited = b.audit >= 1500, full = b.audit >= 3000;
   S.noAudit = audited ? 0 : S.noAudit + 1;
+  if (audited) flag('audit');
+  if (full) flag('audit_church');
   if (audited && !S.cartel) {
     learn('merchant', 'hate', 'audit'); if (full) learn('church', 'hate', 'audit');
     if (S.shock > 0) { S.gM += 10; if (full) S.gC += 10; notes.push('흉작으로 값을 올렸을 뿐인데 감찰을 받았다며 공급처들이 불쾌해합니다.'); }
@@ -594,7 +805,7 @@ function resolve() {
     if (b.donation > S.custom && offer > value) {
       ended = 'donation';
       S.talk = { month: S.month, rebate, spooked: K.spooked, extra, qC, over: P.c - F.c, donation: b.donation, value: Math.round(value), offer: Math.round(offer), gC: Math.round(S.gC) };
-    } else if (K.auditStreak >= 2) {
+    } else if (K.auditStreak >= (has('apologized') ? 3 : 2)) {
       ended = 'audit';
     } else {
       if (offer >= 0.7 * value && b.donation > S.custom) {
@@ -613,6 +824,7 @@ function resolve() {
     }
 
     if (ended) {
+      flag({ donation: 'cartel_bought', audit: 'cartel_audited', merchant: 'cartel_ws' }[ended]);
       S.cartel = null; S.cooldown = 4; S.rel = 5;
       if (ended === 'donation') {
         const nc = Math.max(S.custom, Math.round(b.donation * 0.6 / 100) * 100);
@@ -694,7 +906,7 @@ function resolve() {
   const prev = S.hist[S.hist.length - 1];
   let ledgerM = null, ledgerC = null;
   if (audited) {
-    ledgerM = { month: S.month, price: P.m, cost: K0.m, q: qM, rebate, prevPrice: prev ? prev.pm : P.m, prevCost: prev ? prev.cm : K0.m };
+    ledgerM = { month: S.month, price: P.m, cost: K0.m, q: qM, rebate, skim: S.leak && S.leak.who === 'merchant' ? leakLost : 0, prevPrice: prev ? prev.pm : P.m, prevCost: prev ? prev.cm : K0.m };
     if (rebate > 0) log(`상단 장부에서 '신전 축복 수수료' ${fmt(rebate)}G 발견`);
   }
   if (full) {
@@ -706,7 +918,7 @@ function resolve() {
   S.M = Math.max(0, S.M - od);
   S.deathsTotal += deaths + od; S.yearDeaths += deaths + od;
   S.hist.push({ month: S.month, pm: P.m, pc: P.c, cm: K0.m, cc: K0.c, qC, treasury: S.treasury, M: S.M, deaths, rate });
-  S.last = { month: S.month, P, qM, qC, qW, cov, deaths, leave, arrive, need: pr.need, toll: M * C.TOLL, loot: ex.loot, ex, sM: pr.sM, sC: pr.sC, sW: pr.sW, fee: pr.fee, facCost: pr.facCost, upkeep: pr.upkeep, offers: pr.offers, fixed: pr.fixed, b, net, M };
+  S.last = { month: S.month, P, qM, qC, qW, cov, deaths, leave, arrive, need: pr.need, toll: M * S.toll, tollRate: S.toll, lord: S.lordIncome, extra: pr.extra, agc: pr.agc, loot: ex.loot, ex, sM: pr.sM, sC: pr.sC, sW: pr.sW, fee: pr.fee, facCost: pr.facCost, upkeep: pr.upkeep, offers: pr.offers, fixed: pr.fixed, b, net, M };
   S.ledgers = (ledgerM || ledgerC) ? { m: ledgerM, c: ledgerC } : null;
   if (ledgerM) S.ledgerArchive.unshift({ m: ledgerM });
   if (ledgerC) S.ledgerArchive.unshift({ c: ledgerC });
@@ -716,6 +928,7 @@ function resolve() {
   S.month = nextMonth;
   S.notes = notes; S.notices = notices;
   monthEvents(notes, notices);
+  rollEvents({ notes, deaths, M, ed: (o) => S.eventDocs.push({ month: S.month, ...o }) });
   notices.forEach(n => S.archive.push({ m: S.month, who: n.who, t: `${n.name}: “${n.text}”` }));
   notes.forEach(t => S.archive.push({ m: S.month, who: /상단|조합장/.test(t) && /교회|신전|사제/.test(t) ? 'both' : /상단|조합장/.test(t) ? 'merchant' : /교회|신전|사제|헌금/.test(t) ? 'church' : 'other', t }));
   if ((S.month - 1) % 12 === 0) evaluate();
@@ -723,6 +936,7 @@ function resolve() {
   else if (S.M < 40) S.over = 'empty';
   else if (S.warn >= 2) S.over = 'recalled';
   else if (S.month > C.MONTHS) S.over = 'done';
+  if (!S.over) pickAgenda();
 }
 
 function monthEvents(notes, notices) {
@@ -822,7 +1036,8 @@ function ledgerDocM(lm) {
     ['운송·창고', fmt(ship)],
   ];
   if (lm.rebate > 0) list.push(['신전 축복 수수료', fmt(lm.rebate)]);
-  list.push({ sum: true, 0: '조합 순익', 1: fmt(sales - buy - ship - lm.rebate) });
+  if (lm.skim > 0) list.push(['전리품 감정 차익 (용병 매입가와 판매가 차이)', `+${fmt(lm.skim)}`]);
+  list.push({ sum: true, 0: '조합 순익', 1: fmt(sales - buy - ship - lm.rebate + (lm.skim || 0)) });
   return doc({ cls: 'merchant', kind: '감찰 사본 · 대외비', title: `상단 조합 장부 (제${lm.month}월)`, stamp: '감찰', body: rows(list) });
 }
 function ledgerDocC(lc) {
@@ -838,6 +1053,19 @@ function ledgerDocC(lc) {
   if (lc.rebate > 0) list.push(['기타 기부 수입 (기부자 미기재)', fmt(lc.rebate)]);
   list.push({ sum: true, 0: '이번 달 수입 합계', 1: fmt(sales + lc.donation + lc.rebate) });
   return doc({ cls: 'church', kind: '감찰 사본 · 대외비', title: `교회 회계 장부 (제${lc.month}월)`, stamp: '감찰', body: rows(list) });
+}
+
+function agendaDoc() {
+  const A = AGENDAS.find(a => a.id === S.agenda.id), pick = S.agenda.pick;
+  const opts = A.opts.map((o, i) => {
+    const ok = !o.need || o.need(), on = pick === i;
+    return `<div class="notice ${on ? A.who : ''}" style="${ok ? '' : 'opacity:.55'}"><div class="guide" style="margin:0">
+      ${ok ? `<button type="button" class="btn ${on ? '' : 'ghost'}" data-action="agenda" data-i="${i}" aria-pressed="${on}">${on ? '✓ ' : ''}${o.label}${o.cost ? ` (${fmt(o.cost)}G)` : ''}</button>`
+        : `<span class="dim">${o.label} · ${o.needText}</span>`}${i === A.def ? '<span class="dim" style="font-size:12px">고르지 않으면 이걸로 처리</span>' : ''}</div>
+      <p style="margin:4px 0 0;font-size:13px">${val(o.desc)}</p></div>`;
+  }).join('');
+  return doc({ cls: A.who, kind: '안건 · 이번 결재와 함께 처리', title: A.title, from: A.name,
+    body: `<p>${A.text()}</p>${opts}` });
 }
 
 /* ---------- 서류함 탭 ---------- */
@@ -861,6 +1089,7 @@ function renderDocsTab() {
       body: rows(ev.items.map(i => [`${i.label} (목표 ${i.target})`, `<span class="${i.ok ? 'ok' : 'ng'}">${i.actual} ${i.ok ? '달성' : '미달'}</span>`])) + `<p>${ev.reward}</p>` }));
   }
   S.eventDocs.filter(d => d.month === S.month).forEach(d => events.push(doc(d)));
+  if (S.agenda) events.unshift(agendaDoc());
   S.offers.forEach(o => {
     const O = OFFERS[o.id];
     events.push(doc({ cls: O.who, kind: `${O.who === 'merchant' ? '상단' : '교회'}의 제안 · 이번 달까지`, title: O.title, from: O.name,
@@ -897,13 +1126,16 @@ function renderDocsTab() {
     if (L.facCost) exp.push(['개척 시설 착공', fmt(L.facCost)]);
     if (L.upkeep) exp.push(['시설 유지비', fmt(L.upkeep)]);
     if (L.offers) exp.push(['세력 제안 수락', fmt(L.offers)]);
+    if (L.agc) exp.push(['안건 처리비', fmt(L.agc)]);
+    if (L.extra) exp.push(['약속한 정기 지출 (위로금·인건비 등)', fmt(L.extra)]);
     exp.push([L.b.donR ? '정통파 헌금' : '교회 헌금', fmt(L.b.donation)]);
     if (L.b.donR) exp.push(['개혁파 헌금', fmt(L.b.donR)]);
     reports.push(doc({ kind: '재무과 보고', title: `제${L.month}월 결산`, from: `금고 ${sgn(L.net)}G`,
       body: rows([
         { sec: '수입' },
-        [`통행세 (용병 ${L.M}명 × ${C.TOLL}G)`, fmt(L.toll)],
-        [`전리품 거래 (성공한 파티 ${L.ex.wins}개)`, fmt(L.loot)],
+        [`통행세 (용병 ${L.M}명 × ${L.tollRate}G)`, fmt(L.toll)],
+        [`전리품 거래 (성공한 파티 ${L.ex.wins}개 · 파티당 ${fmt(L.loot / Math.max(1, L.ex.wins))}G)`, fmt(L.loot)],
+        ...(L.lord ? [['하르덴 백작의 사례금', fmt(L.lord)]] : []),
         { sec: '지출' }, ...exp,
         ['조사·감찰비', fmt(L.b.audit)],
         ['공략 지원금', fmt(L.b.support)],
@@ -1180,6 +1412,8 @@ function syncBudget() {
     (S.pendingGuide ? `<div class="line fixed"><span>${S.pendingGuide.f + 1}층 공략본 발간비</span><span class="val">${fmt(C.GUIDE_FEE)}</span></div>` : '') +
     FACILITIES.filter(f => S.fac[f.id] && S.fac[f.id].state === 'pending').map(f => `<div class="line fixed"><span>${f.name} 착공비</span><span class="val">${fmt(f.cost)}</span></div>`).join('') +
     S.offers.filter(o => o.accepted).map(o => `<div class="line fixed"><span>제안: ${OFFERS[o.id].title}</span><span class="val">${fmt(OFFERS[o.id].cost)}</span></div>`).join('') +
+    (agendaCost() ? `<div class="line fixed"><span>안건: ${agendaOpt().label}</span><span class="val">${fmt(agendaCost())}</span></div>` : '') +
+    S.upkeepX.map(u => `<div class="line fixed"><span>${u.name}</span><span class="val">${fmt(u.amt)}</span></div>`).join('') +
     (facUpkeep() ? `<div class="line fixed"><span>시설 유지비</span><span class="val">${fmt(facUpkeep())}</span></div>` : '') +
     `<div class="line fixed"><span>관리국 운영비 (용병 수에 비례)</span><span class="val">${fmt(fixedCost())}</span></div>`;
   const p = project(S.budget);
@@ -1204,7 +1438,7 @@ function renderPanel(flash) {
   ['docs', 'faction', 'explore', 'build'].forEach(t => {
     const b = document.getElementById('tab-' + t);
     b.setAttribute('aria-selected', S.tab === t ? 'true' : 'false');
-    const fresh = t === 'docs' && (S.offers.length || S.eventDocs.some(d => d.month === S.month)) ? true : t === 'build' ? S.log.some(e => e.m === S.month - 1 && /완공/.test(e.t)) : t === 'docs' ? (S.notices.length || S.ledgers || S.talk) : t === 'faction' ? S.archive.some(a => a.m === S.month && a.who !== 'other') : S.log.some(e => e.m === S.month - 1 && /층/.test(e.t));
+    const fresh = t === 'docs' && (S.agenda || S.offers.length || S.eventDocs.some(d => d.month === S.month)) ? true : t === 'build' ? S.log.some(e => e.m === S.month - 1 && /완공/.test(e.t)) : t === 'docs' ? (S.notices.length || S.ledgers || S.talk) : t === 'faction' ? S.archive.some(a => a.m === S.month && a.who !== 'other') : S.log.some(e => e.m === S.month - 1 && /층/.test(e.t));
     b.innerHTML = { docs: '서류함', faction: '세력 동향', explore: '탐사 기록', build: '개척 시설' }[t] + (fresh && S.tab !== t && !S.seenTabs[t + S.month] ? '<span class="badge">새 소식</span>' : '');
   });
   S.seenTabs[S.tab + S.month] = 1;
@@ -1239,6 +1473,7 @@ document.getElementById('panel').addEventListener('click', e => {
   if (a === 'build' && !S.over) { S.fac[b.dataset.fac] = { state: 'pending' }; render(false); }
   if (a === 'cancel-build') { delete S.fac[b.dataset.fac]; render(false); }
   if (a === 'offer') { const o = S.offers.find(x => x.id === b.dataset.id); if (o) { o.accepted = !o.accepted; if (o.id === 'bulk' && o.accepted) S.budget.potC = 0; } render(false); }
+  if (a === 'agenda' && S.agenda && !S.over) { const i = +b.dataset.i; S.agenda.pick = S.agenda.pick === i ? null : i; render(false); }
   if (a === 'stat-toggle') S.statOpen = !S.statOpen;
 });
 document.getElementById('panel').addEventListener('change', e => {
@@ -1256,7 +1491,7 @@ document.getElementById('form').addEventListener('submit', e => {
 
 function start(data) {
   newGame();
-  if (data && data.S && data.S.v === 7) S = data.S;
+  if (data && data.S && data.S.v === 8) S = data.S;
   buildLines(); render();
 }
 window.claude?.hot?.snapshot?.(() => ({ S }));
