@@ -207,6 +207,18 @@ table.stats tr.grp td { font-family: var(--f-body); font-size: 11px; letter-spac
 .rate i { display: inline-block; height: 6px; background: var(--ink-soft); }
 .dim { color: var(--ink-soft); }
 .ok { color: var(--good); } .ng { color: var(--bad); }
+/* 개척 사업 카드 */
+.devcard { border: 1px solid var(--rule); padding: 10px 12px; margin: 8px 0; background: var(--paper); }
+.devcard.done, .devcard.off { padding: 6px 12px; font-size: 13px; }
+.devcard b { font-size: 14px; }
+.devcard .tag { font-size: 11px; color: var(--stamp); border: 1px solid var(--stamp); padding: 0 5px; margin-left: 4px; }
+.devcard .hint { margin: 4px 0 6px; }
+.devopt { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; width: 100%; text-align: left; margin: 4px 0; padding: 7px 9px;
+  background: var(--paper-2); color: var(--ink); border: 1px solid var(--rule); cursor: pointer; font-family: var(--f-body); font-size: 13px; }
+.devopt .t { font-weight: 600; } .devopt .c { font-family: var(--f-num); color: var(--ink-soft); font-size: 12px; white-space: nowrap; }
+.devopt .d { grid-column: 1 / -1; color: var(--ink-soft); font-size: 12px; }
+.devopt.on { border-color: var(--ink); box-shadow: inset 3px 0 0 var(--ink); background: var(--paper); }
+.devopt:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 </style>
 
 <div class="wrap">
@@ -348,7 +360,7 @@ const OFFERS = {
 };
 const offerCost = () => S.offers.filter(o => o.accepted).reduce((a, o) => a + OFFERS[o.id].cost, 0);
 const TARGETS = [
-  { treasury: 25000, floor: 2, M: 120, deaths: 40 },
+  { treasury: 20000, floor: 2, M: 100, deaths: 40 },
   { treasury: 45000, floor: 3, M: 140, deaths: 45 },
   { treasury: 70000, floor: 4, M: 160, deaths: 50 },
 ];
@@ -396,13 +408,28 @@ function addUpkeep(name, amt) { S.upkeepX.push({ name, amt }); }
 const agendaOpt = () => { if (!S.agenda) return null; const A = AGENDAS.find(a => a.id === S.agenda.id); return A.opts[S.agenda.pick ?? A.def]; };
 const agendaCost = () => { const o = agendaOpt(); return o && o.cost ? o.cost : 0; };
 const val = (v) => typeof v === 'function' ? v() : v;
-const DIRTY = { paid_merchant: '상단에 몰래 준 보전금', lord_pact: '하르덴 백작과의 밀약', false_accuse: '상단을 잘못 고발한 일' };
+const DIRTY = { merchant_gift: '부임 때 상단에게 받은 선물', paid_merchant: '상단에 몰래 준 보전금', lord_pact: '하르덴 백작과의 밀약', false_accuse: '상단을 잘못 고발한 일' };
 
 function endUnion(how) { S.union = null; S.evCool.union = 12; log(`용병 조합 사태 마무리: ${how}`); }
 function endLeak(notes, how) { log(`전리품 누수가 멈춤 (${how}) · 그동안 샌 돈 ${fmt(S.leak.lost)}G`); notes.push(`전리품 거래 수입이 제자리를 찾았습니다. 그동안 새어 나간 돈은 약 ${fmt(S.leak.lost)}G였습니다.`); S.leak = null; S.evCool.leak = 8; }
 function endLord(how) { S.lord = null; S.evCool.lord = 12; log(`하르덴 백작의 용병 포섭이 끝남: ${how}`); }
 
 const AGENDAS = [
+  // 개척기의 첫인사: 무엇을 받느냐가 첫 플래그가 된다
+  { id: 'church_greet', prio: 3, who: 'church', name: '서부 교구 대사제', title: '대사제가 미궁 입구를 축성하겠답니다',
+    when: () => true,
+    text: () => '"미궁이 열린 땅은 불안한 법입니다. 입구를 축성하고 용병들의 무사를 비는 일을 교회에 맡겨 주시지요. 대신 관리국에서 매달 관례대로 헌금을 조금 보태 주시면 됩니다."',
+    opts: [
+      { label: '축성을 받는다', desc: '매달 관례 헌금 1,000G를 내기로 해요. 교회가 반기고, 용병들도 마음을 놓아요', apply() { S.custom = C.CUSTOM; S.budget.donation = C.CUSTOM; S.gC -= 15; S.trust += 4; flag('church_greet'); flag('church_blessed'); } },
+      { label: '정중히 사양한다', desc: '관례 헌금이 생기지 않아요. 교회는 서운해하고, 나중에 헌금을 내려 해도 관례가 없다며 덜 반겨요', apply() { S.gC += 15; flag('church_greet'); flag('church_refused'); } },
+    ], def: 0 },
+  { id: 'merchant_greet', prio: 3, who: 'merchant', name: '상단 조합장', title: '상단 조합장이 환영 연회를 열었습니다',
+    when: () => !!S.agendaDone.church_greet,
+    text: () => '"변경에 관리국이 생기다니 반가운 일입니다. 작은 성의를 준비했으니 받아 주시지요. 앞으로 오래 함께할 사이 아니겠습니까?" 연회가 끝날 무렵 조합장이 묵직한 상자를 내밉니다.',
+    opts: [
+      { label: '선물을 받는다', desc: '금고에 1,500G가 들어오고 상단이 크게 반겨요. 이 일은 어딘가에 기록으로 남아요', apply() { S.treasury += 1500; S.gM -= 10; flag('merchant_gift'); } },
+      { label: '선물은 사양한다', desc: '조합장이 조금 머쓱해해요. 관리국이 만만치 않다는 인상을 남겨요', apply() { S.gM += 5; S.rel = Math.max(0, S.rel - 10); flag('clean_start'); } },
+    ], def: 0 },
   // 사건이 걸린 안건 (사건이 이어지는 동안 거듭 올라옴)
   { id: 'union', prio: 2, repeat: true, who: 'secret', name: '용병 조합 대표 "철망치" 브란', title: '용병 조합이 요구서를 보냈습니다',
     when: () => !!S.union,
@@ -580,7 +607,7 @@ function rollEvents(ctx) {
   const { notes, ed, deaths, M } = ctx;
   Object.keys(S.evCool).forEach(k => { if (S.evCool[k] > 0) S.evCool[k]--; });
   // 용병 조합: 용병을 함부로 다뤘던 기록이 쌓일수록 잘 생긴다
-  if (!S.union && !S.evCool.union && S.month >= 7 && M >= 90) {
+  if (!S.union && !S.evCool.union && S.month >= 7 && !founding() && M >= 90) {
     const recent = S.hist.slice(-3).reduce((a, h) => a + h.deaths, 0) + deaths;
     let sc = (recent / Math.max(1, M) * 100 > 9 ? 1 : 0) + (S.trust < 45 ? 1 : 0)
       + (has('cold') ? 1 : 0) + (has('checkpoint') ? 1 : 0) + (has('fee_gouge') ? 1 : 0) + (has('union_broken') ? 1 : 0) - (has('compensated') ? 1 : 0) - (has('union_ok') ? 1.5 : 0);
@@ -592,8 +619,8 @@ function rollEvents(ctx) {
     }
   }
   // 전리품 누수: 누가 빼돌리는지는 숨겨져 있고, 단서로 추리한다
-  if (!S.leak && !S.evCool.leak && S.month >= 5 && rnd() < (done('consign') ? 0.09 : 0.05)) {
-    const merchantCan = !done('appraise');
+  if (!S.leak && !S.evCool.leak && S.month >= 5 && !founding() && rnd() < (done('consign') ? 0.09 : 0.05)) {
+    const merchantCan = !done('appraise') && (has('market_merchant') || done('consign'));
     const pM = !merchantCan ? 0 : done('consign') ? 0.75 : S.trust < 45 ? 0.3 : 0.5;
     S.leak = { who: rnd() < pM ? 'merchant' : 'mercs', m: S.month, start: S.month, lost: 0 };
     log(`전리품 누수 시작 (원인: ${S.leak.who === 'merchant' ? '상단 감정 차익' : '용병 밀반출'})`);
@@ -615,6 +642,119 @@ function rollEvents(ctx) {
   }
   if (S.lord && !S.lord.until && S.month - S.lord.m >= 7) { endLord('백작령 경비대가 다 참'); notes.push('하르덴 백작령 경비대가 다 찼는지, 백작령으로 떠나는 용병이 끊겼습니다.'); }
   if (S.lord && S.lord.until && S.month >= S.lord.until) { endLord('수도의 견제'); notes.push('수도가 하르덴 백작에게 경고장을 보냈다고 합니다. 백작령으로 떠나는 용병이 끊겼습니다.'); }
+}
+
+/* ---------- 개척기: 맨땅에서 관리국을 세운다 ---------- */
+// 입구·공급망·판로 세 축이 서면 운영기로 넘어간다. 고른 선택지는 플래그와 수치로 남아 뒤의 사건을 만든다
+function addMercs(n, share = CLASS_SHARE) {
+  const tot = share.reduce((a, v) => a + v, 0);
+  S.M += n; S.cls = S.cls.map((v, i) => v + n * share[i] / tot);
+}
+const DEV = [
+  { id: 'gate', name: '입구 정비와 면허 사무소', core: true,
+    why: '사무소가 없으면 면허도 통행세도 없어요. 지금 들어가는 개척 용병 20명은 아무것도 내지 않아요',
+    opts: [
+      { label: '천막 사무소', cost: 3000, months: 1, desc: '한 달 뒤 문을 열어요. 용병 40명이 면허를 받으러 와요',
+        apply() { S.toll = C.TOLL; addMercs(40); } },
+      { label: '석조 사무소와 숙소', cost: 7000, months: 2, desc: '두 달 걸려요. 용병 70명이 오고, 숙소 덕에 통행세를 10G 더 받아요',
+        apply() { S.toll = C.TOLL + 10; addMercs(70); } },
+    ] },
+  { id: 'supply', name: '포션 공급망', core: true,
+    why: '지금은 떠돌이 상인에게 웃돈(병당 +30G)을 주고 포션을 사요. 누구에게 맡기느냐가 앞으로의 힘 관계를 정해요',
+    opts: [
+      { label: '상단에 주로 맡긴다', cost: 2000, months: 1, who: 'merchant', desc: '상단 단가가 3G 싸져요. 교회는 한 달 40병만 대요. 상단의 입김이 세지고, 공급처가 사실상 하나라 값을 올려도 피할 곳이 적어요',
+        apply() { S.mPriceAdj = -3; S.cap = 40; S.gM -= 10; S.gC += 6; flag('supply_merchant'); } },
+      { label: '교회에 주로 맡긴다', cost: 2000, months: 1, who: 'church', desc: '교회가 한 달 160병까지, 병당 8G 싸게 대요. 상단은 서운해하며 값을 5G 더 받아요. 교회 관례 헌금이 200G 오르고 교회의 입김이 세져요',
+        apply() { S.mPriceAdj = 5; S.cPriceAdj = -8; S.cap = 160; S.gC -= 10; S.gM += 8; S.custom += 200; flag('supply_church'); } },
+      { label: '둘 다 경쟁 입찰', cost: 3000, months: 2, desc: '경쟁 덕에 상단은 2G, 교회는 5G 싸게 받고, 어느 한쪽에 기대지 않아요. 대신 두 공급처가 입찰장에서 자주 마주 앉게 돼요 (담합 위험)',
+        apply() { S.mPriceAdj = -2; S.cPriceAdj = -5; S.cap = 80; S.rel = Math.min(80, S.rel + 15); flag('supply_bid'); } },
+    ] },
+  { id: 'market', name: '전리품 판로', core: true,
+    why: '판로가 없으면 용병이 가져온 전리품을 팔 수 없어 창고에 쌓여요. 개통하는 달에 쌓인 것을 한꺼번에 팔아요',
+    opts: [
+      { label: '상단이 사들인다', cost: 0, months: 1, who: 'merchant', desc: '돈이 들지 않아요. 대신 감정가를 상단이 정해요',
+        apply() { S.lootMul = 1; S.gM -= 8; flag('market_merchant'); } },
+      { label: '수도 상회와 직거래', cost: 4000, months: 2, desc: '전리품 값을 15% 더 받아요. 상단은 이권을 뺏겼다고 여겨요',
+        apply() { S.lootMul = 1.15; S.gM += 12; flag('market_capital'); } },
+      { label: '교회 성물 거래', cost: 1500, months: 1, who: 'church', desc: '교회가 축성해 성물로 팔아요. 값은 5% 덜 받지만 교회가 크게 반겨요',
+        apply() { S.lootMul = 0.95; S.gC -= 10; flag('market_church'); } },
+    ] },
+  { id: 'survey', name: '1층 측량',
+    why: '관리국 측량반이 1층을 먼저 훑어요. 하지 않아도 운영기로 넘어갈 수 있어요',
+    opts: [
+      { label: '측량반을 보낸다', cost: 1500, months: 1, desc: '1층 개척이 25% 진행되고, 1층에 사는 것의 겉모습을 바로 알아내요',
+        apply(notes) { const fl = S.floors[0]; fl.prog = Math.max(fl.prog, 25); fl.n += 10; if (!fl.heard.look0) sayLine(fl, 0, 'trial', fl.mon.look[0], notes, 'look0'); } },
+    ] },
+  { id: 'poster', name: '용병 모집 공고', need: () => devDone('gate'), needText: '면허 사무소가 문을 열어야 낼 수 있어요',
+    why: '어디에 공고를 내느냐에 따라 오는 용병의 직업이 달라요. 공략본이 요구하는 직업이 모자라면 나중에 고생해요',
+    opts: [
+      { label: '변경 마을', cost: 1000, months: 1, desc: '전사·도적 위주로 30명', apply() { addMercs(30, [0.5, 0.15, 0.03, 0.02, 0.3]); } },
+      { label: '남부 항구', cost: 2000, months: 1, desc: '궁수·도적 위주로 30명', apply() { addMercs(30, [0.2, 0.45, 0.03, 0.02, 0.3]); } },
+      { label: '수도', cost: 3000, months: 1, desc: '마법사·사제가 섞인 30명', apply() { addMercs(30, [0.2, 0.15, 0.35, 0.3, 0]); } },
+    ] },
+];
+const devDone = id => !!(S.dev[id] && S.dev[id].left === 0);
+const devCost = () => Object.entries(S.devPick).reduce((a, [id, i]) => a + DEV.find(d => d.id === id).opts[i].cost, 0);
+const coreDone = () => DEV.filter(d => d.core).every(d => devDone(d.id));
+const founding = () => S.phase === 'found';
+
+function resolveDev(notes) {
+  // 이번 달 착수
+  Object.entries(S.devPick).forEach(([id, i]) => {
+    const d = DEV.find(x => x.id === id), o = d.opts[i];
+    S.dev[id] = { opt: i, left: o.months };
+    log(`개척 사업 착수: ${d.name} · ${o.label}${o.cost ? ` (${fmt(o.cost)}G)` : ''}`);
+  });
+  S.devPick = {};
+  // 진행과 완공
+  Object.entries(S.dev).forEach(([id, st]) => {
+    if (st.left <= 0) return;
+    st.left--;
+    if (st.left === 0) {
+      const d = DEV.find(x => x.id === id), o = d.opts[st.opt];
+      o.apply(notes);
+      if (id === 'supply') S.avgVol = 0;   // 공급 구조가 바뀌었으니 주문량 기준을 새로 잡는다
+      if (id === 'gate' || id === 'supply' || id === 'poster') S.rebudget = d.name;
+      log(`개척 사업 완료: ${d.name} · ${o.label}`);
+      notes.push(`${d.name}(${o.label})이 마무리되었습니다.`);
+      if (id === 'market' && S.unsold > 0) {
+        const sold = Math.round(S.unsold * S.lootMul);
+        S.treasury += sold; S.soldBacklog = sold;
+        log(`판로 개통 · 쌓아 둔 전리품을 ${fmt(sold)}G에 팔았음`);
+        notes.push(`판로가 열리자 창고에 쌓아 둔 전리품을 한꺼번에 내다 팔았습니다. ${fmt(sold)}G가 금고로 들어왔습니다.`);
+        S.unsold = 0;
+      }
+    }
+  });
+}
+// 기반이 바뀌면 보급과가 포션 예산과 헌금을 새 상황에 맞춰 다시 짜 둔다 (플레이어는 결재 전에 고칠 수 있다)
+function staffRebudget(notes, why) {
+  const P = prices(), need = S.M * C.NEED, qC = Math.min(S.cap, need);
+  S.budget.potC = qC * P.c; S.budget.potM = Math.max(0, need - qC) * P.m;
+  if (S.custom) S.budget.donation = Math.max(S.budget.donation, S.custom);
+  notes.push(`보급과가 ${why} 포션 예산을 다시 짰습니다. 용병 ${S.M}명에게 필요한 ${need}병 기준입니다.`);
+}
+function endFounding() {
+  S.phase = 'run'; S.runStart = S.month;
+  const pickOf = id => { const d = DEV.find(x => x.id === id), st = S.dev[id]; return st ? d.opts[st.opt].label : '하지 않음'; };
+  log('개척기를 마치고 운영기로 넘어감');
+  S.eventDocs.push({ month: S.month, cls: 'secret', kind: '제국 행정성 · 보고', title: '관리국이 문을 열었습니다', from: `제${S.month}월`, stamp: '개청',
+    body: rows([['면허 사무소', pickOf('gate')], ['포션 공급망', pickOf('supply')], ['전리품 판로', pickOf('market')], ['1층 측량', pickOf('survey')], ['모집 공고', pickOf('poster')]])
+      + `<p>이제 예산안이 정식으로 열립니다. 층별 입장료, 탐사 지원, 정보·감찰을 매달 정할 수 있습니다.</p>
+      <p class="from">개척기에 맺은 계약과 이권은 그대로 남습니다. 누구에게 무엇을 맡겼는지가 앞으로의 힘 관계를 정합니다.</p>` });
+}
+function devHtml() {
+  const card = d => {
+    const st = S.dev[d.id], pick = S.devPick[d.id];
+    if (st && st.left === 0) return `<div class="devcard done"><b>${d.name}</b> <span class="ok">완료 · ${d.opts[st.opt].label}</span></div>`;
+    if (st) return `<div class="devcard"><b>${d.name}</b> <span class="dim">진행 중 · ${d.opts[st.opt].label} · ${st.left}개월 남음</span></div>`;
+    if (d.need && !d.need()) return `<div class="devcard off"><b>${d.name}</b> <span class="dim">${d.needText}</span></div>`;
+    return `<div class="devcard"><b>${d.name}</b>${d.core ? ' <span class="tag">필수</span>' : ''}<p class="hint">${d.why}</p>
+      ${d.opts.map((o, i) => `<button type="button" class="devopt${pick === i ? ' on' : ''}" data-dev="${d.id}" data-opt="${i}" aria-pressed="${pick === i}">
+        <span class="t">${o.who ? `<span class="dot" style="background:var(--${o.who})"></span>` : ''}${o.label}</span><span class="c">${o.cost ? fmt(o.cost) + 'G' : '무료'} · ${o.months}개월</span>
+        <span class="d">${o.desc}</span></button>`).join('')}</div>`;
+  };
+  return DEV.map(card).join('');
 }
 
 const LINES = [
@@ -662,11 +802,21 @@ const LINES = [
     } },
 ];
 
+// 개척기에는 필요한 기반이 생길 때마다 예산 줄이 열린다
+const gateOk = () => devDone('gate');
+const UNLOCK = {
+  potC: () => S.cap > 0, donation: () => has('church_greet'),
+  intel: () => devDone('supply'), audit: () => devDone('supply'),
+  support: gateOk, trial: gateOk, rent: gateOk, priest: gateOk, recruit: gateOk,
+};
+LINES.forEach(l => { const u = UNLOCK[l.id]; if (u) { const s0 = l.show; l.show = () => u() && (!s0 || s0()); } });
+
 // 예산안은 성격이 같은 줄끼리 묶어 보여 준다. 소계는 실제로 집행될 금액이다
 const BUDGET_GROUPS = [
+  { id: 'dev', name: '개척 사업', note: '이번 달 착수할 사업을 고르세요. 착수비는 한 번에 나가요', sub: p => p.devc, show: () => founding() },
   { id: 'potion', name: '포션 보급', sub: p => p.sM + p.sC + p.sW },
   { id: 'explore', name: '탐사 지원', sub: (p, b) => b.support + p.trialSpend + p.sup.rentSpend + p.sup.priestSpend + p.sup.recruitSpend },
-  { id: 'fees', name: '층별 입장료', note: '파티당, 음수면 보조금', sub: p => p.feeIn - p.feeOut, signed: true },
+  { id: 'fees', name: '층별 입장료', note: '파티당, 음수면 보조금', sub: p => p.feeIn - p.feeOut, signed: true, show: gateOk },
   { id: 'church', name: '교회 헌금', sub: (p, b) => b.donation + (b.donR || 0) },
   { id: 'watch', name: '정보·감찰', sub: (p, b) => (b.intel || 0) + b.audit },
   { id: 'fixed', name: '고정 지출', sub: p => p.fee + p.facCost + p.upkeep + p.offers + p.fixed + p.extra + p.agc },
@@ -693,31 +843,34 @@ const pLedgerC = a => clamp((a - 1000) / 2000, 0, 1);
 function newGame() {
   const mons = [...MONSTERS].sort(() => rnd() - 0.5).slice(0, 5);
   S = {
-    v: 11, month: 1, treasury: 25000, M: 100, tab: 'docs', seenTabs: {},
-    budget: { potM: 6000, potC: 4400, ws: 0, donation: 1000, donR: 0, intel: 0, audit: 0, support: 0, trial: 0, rent: 0, priest: 0, recruit: 0 },
-    fees: [0, 0, 0, 0, 0], cls: CLASS_SHARE.map(v => v * 100), priestRun: 0,
+    v: 12, month: 1, treasury: 25000, M: 20, tab: 'docs', seenTabs: {},
+    phase: 'found', dev: {}, devPick: {}, unsold: 0, lootMul: 1, mPriceAdj: 30, runStart: null, soldBacklog: 0,
+    budget: { potM: 3200, potC: 0, ws: 0, donation: 0, donR: 0, intel: 0, audit: 0, support: 0, trial: 0, rent: 0, priest: 0, recruit: 0 },
+    fees: [0, 0, 0, 0, 0], cls: CLASS_SHARE.map(v => v * 20), priestRun: 0,
     learned: { merchant: {}, church: {} }, schism: null, customR: 0, cPriceAdj: 0, deathSens: 1, churchReform: false, eventDocs: [], pressure: 0, anoms: [], overflow: null,
-    custom: C.CUSTOM, donHist: [], gM: 0, gC: 0, cap: 80, offers: [], deals: {}, used: {}, evals: [], warn: 0, yearDeaths: 0, rel: 40 + Math.round(rnd() * 30), noAudit: 0, avgVol: 120,
+    custom: 0, donHist: [], gM: 0, gC: 0, cap: 0, offers: [], deals: {}, used: {}, evals: [], warn: 0, yearDeaths: 0, rel: 40 + Math.round(rnd() * 30), noAudit: 0, avgVol: 40,
     shock: 0, shockIn: 0, stock: 0, intel: null, cartel: null, cooldown: 0, cartels: 0, cartelMonths: 0, overpaid: 0,
     wsBuilt: false, fac: {}, statOpen: false, deathsTotal: 0, neg: 0,
     floors: mons.map(m => ({ mon: m, weak: m.key, ph: Math.floor(rnd() * 4), prog: 0, known: 0, n: 0, wins: 0, guide: null, say: [], heard: {}, hv: 0, habitKnown: 0, exploit: 0, adapted: 0, root: 0 })), unlocked: 1, trust: 50,
-    pendingGuide: null, trial: null, academy: 0, exped: [], lastLoot: 5000, statFloor: 0, statRange: 3, guideDraft: {},
-    flags: {}, flagM: {}, agenda: null, agendaDone: {}, toll: C.TOLL, wsCap: C.WS_CAP, upkeepX: [], adoptBonus: 0, deathMul: 1, lordIncome: 0,
+    pendingGuide: null, trial: null, academy: 0, exped: [], lastLoot: 0, statFloor: 0, statRange: 3, guideDraft: {},
+    flags: {}, flagM: {}, agenda: null, agendaDone: {}, toll: 0, wsCap: C.WS_CAP, upkeepX: [], adoptBonus: 0, deathMul: 1, lordIncome: 0,
     union: null, leak: null, lord: null, evCool: { union: 0, leak: 0, lord: 0 },
     hist: [], last: null, ledgers: null, ledgerArchive: [], archive: [], notes: [], notices: [], log: [], talk: null, over: null,
   };
+  pickAgenda();
 }
 function log(t) { S.log.push({ m: S.month, t }); }
 
 function costs() { const s = S.shock > 0 ? C.SHOCK_COST : 0; return { m: C.BASE_COST_M + s, c: C.BASE_COST_C + s }; }
-function fair() { const k = costs(); return { m: k.m + 20, c: k.c + 30 + S.cPriceAdj }; }
+function fair() { const k = costs(); return { m: k.m + 20 + S.mPriceAdj, c: k.c + 30 + S.cPriceAdj }; }
 function prices() {
   const f = fair();
   if (!S.cartel) return S.deals.bulk ? { m: r5(f.m * 0.8), c: f.c } : f;
   const K = S.cartel;
   const sh = S.shock > 0 ? C.SHOCK_COST : 0;
   const m = K.caved ? f.m + 20 : r5((f.m - sh) * K.markup) + sh;
-  return { m, c: Math.max(f.c, m - 10) };
+  // 교회가 주 공급처면 교회 물량이 커서, 인상 폭은 원가의 1.5배 안에서 맞춘다
+  return { m, c: Math.max(f.c, has('supply_church') ? Math.min(m - 10, r5(f.c * 1.5)) : m - 10) };
 }
 
 function project(b) {
@@ -734,15 +887,15 @@ function project(b) {
   const sM = qM * P.m, sC = qC * P.c;
   const fee = S.pendingGuide ? C.GUIDE_FEE : 0;
   const facCost = facPendingCost(), upkeep = facUpkeep();
-  const offers = offerCost(), fixed = fixedCost(), extra = extraUpkeep(), agc = agendaCost();
+  const offers = offerCost(), fixed = fixedCost(), extra = extraUpkeep(), agc = agendaCost(), devc = devCost();
   const sup = supply(b);
   const trialSpend = S.trial ? Math.min(partyCount(), Math.floor((b.trial || 0) / C.TRIAL_COST)) * C.TRIAL_COST : 0;
   // 입장료는 파티가 층을 고른 결과에 달려 있어 예상치로 셈한다
   const n = partyCount(), sh = floorShares(cov);
   const feeIn = sh.reduce((a, x, i) => a + Math.max(0, S.fees[i]) * x * n, 0), feeOut = sh.reduce((a, x, i) => a + Math.max(0, -S.fees[i]) * x * n, 0);
-  const spend = sM + sC + sW + b.donation + (b.donR || 0) + (b.intel || 0) + b.audit + b.support + trialSpend + sup.rentSpend + sup.priestSpend + sup.recruitSpend + feeOut + fee + facCost + upkeep + offers + fixed + extra + agc;
+  const spend = sM + sC + sW + b.donation + (b.donR || 0) + (b.intel || 0) + b.audit + b.support + trialSpend + sup.rentSpend + sup.priestSpend + sup.recruitSpend + feeOut + fee + facCost + upkeep + offers + fixed + extra + agc + devc;
   const income = S.M * S.toll + S.lastLoot + S.lordIncome + feeIn;
-  return { P, qM, qC, qW, draw, toStock, waste, sM, sC, sW, fee, facCost, upkeep, offers, fixed, extra, agc, need, cov, sup, sh, n, feeIn, feeOut, trialSpend, spend, income, net: income - spend };
+  return { P, qM, qC, qW, draw, toStock, waste, sM, sC, sW, fee, facCost, upkeep, offers, fixed, extra, agc, devc, need, cov, sup, sh, n, feeIn, feeOut, trialSpend, spend, income, net: income - spend };
 }
 
 function cartelScore(pr) {
@@ -759,6 +912,9 @@ function cartelScore(pr) {
   if (has('merchant_grudge')) s += 0.6;
   if (has('paid_merchant')) s += 0.5;
   if (has('exposed_merchant')) s -= 0.8;
+  // 한 공급처에 몰아주면 그쪽이 값을 쥔다
+  if (has('supply_merchant')) s += 0.6;
+  if (has('supply_church')) s += 0.3;
   return s;
 }
 
@@ -1011,6 +1167,8 @@ function resolve() {
   const deaths = ex.deaths;
   let leakLost = 0;
   if (S.leak) { leakLost = Math.round(ex.loot * 0.2); ex.loot -= leakLost; S.leak.lost += leakLost; }
+  // 판로가 없으면 전리품은 팔리지 못하고 창고에 쌓인다
+  if (!devDone('market')) { S.unsold += ex.loot; ex.loot = 0; } else ex.loot = Math.round(ex.loot * S.lootMul);
   const income = M * S.toll + ex.loot + S.lordIncome + ex.feeIn;
   const spend = pr.spend - pr.feeOut + ex.feeOut;
   const net = income - spend;
@@ -1090,7 +1248,8 @@ function resolve() {
 
   // 세력 관계 (양수 = 서운함, 음수 = 호의). 가만히 두면 무덤덤으로 돌아감
   S.gM *= 0.9; S.gC *= 0.9;
-  if (qM < 0.7 * S.avgVol) { S.gM += 15; learn('merchant', 'hate', 'drop'); notes.push('상단 조합장이 관리국 주문이 줄었다고 투덜댑니다.'); }
+  if (!devDone('supply')) S.avgVol = qM;
+  else if (qM < 0.7 * S.avgVol) { S.gM += 15; learn('merchant', 'hate', 'drop'); notes.push('상단 조합장이 관리국 주문이 줄었다고 투덜댑니다.'); }
   else if (qM >= 0.9 * S.avgVol) { S.gM -= 4; if (S.month >= 3) learn('merchant', 'like', 'steady'); }
   S.avgVol = 0.7 * S.avgVol + 0.3 * qM;
   const gearGuides = S.floors.filter(f => f.guide && f.guide.startsWith('g:')).length;
@@ -1183,7 +1342,8 @@ function resolve() {
         if (!K.wavered) { K.wavered = true; log('대사제가 흔들리기 시작함'); }
         notes.push('대사제가 관리국의 헌금에 각별한 감사를 전해 왔습니다. 무언가 망설이는 눈치입니다.');
       }
-      if (qM < 0.5 * K.vol0) K.low++; else K.low = 0;
+      // 비축으로 버티며 담합한 두 곳의 주문을 함께 줄여야 효과가 있다
+      if (qM + qC < 0.5 * K.vol0) K.low++; else K.low = 0;
       if (share >= 0.25) K.wsMonths = (K.wsMonths || 0) + 1; else K.wsMonths = 0;
       if (K.wsMonths >= 2) ended = 'merchant';
       else if (K.low >= 3) ended = 'boycott';
@@ -1228,12 +1388,12 @@ function resolve() {
   let formed = false;
   if (!S.cartel && !ended) {
     if (S.cooldown > 0) S.cooldown--;
-    else if (S.month >= 4 && S.rel >= 25 && S.gM > -30 && S.gC > -30 && !S.churchReform) {
+    else if (!founding() && S.month >= S.runStart + 3 && S.rel >= 25 && S.gM > -30 && S.gC > -30 && !S.churchReform) {
       const sc = cartelScore(pr);
       const p = clamp(0.08 * sc, 0, 0.5);
       if (rnd() < p) {
         formed = true; S.cartels++;
-        S.cartel = { start: nextMonth, markup: 1.6 + 0.12 * clamp(sc, 0, 3.3), months: 0, low: 0, caved: false, spooked: false, auditStreak: 0, vol0: Math.max(40, qM) };
+        S.cartel = { start: nextMonth, markup: 1.6 + 0.12 * clamp(sc, 0, 3.3), months: 0, low: 0, caved: false, spooked: false, auditStreak: 0, vol0: Math.max(40, qM + qC) };
       } else if (p > 0.14 && rnd() < 0.5) {
         notes.push('상단 조합장과 교회 회계 사제가 함께 식사하는 모습이 자주 보입니다.');
       }
@@ -1305,6 +1465,8 @@ function resolve() {
     log(`직업 장려금으로 ${sup.ck.map(k => k.slice(2)).join('·')} ${sup.heads}명이 새로 면허를 받음`);
     notes.push(`장려금 소식을 듣고 ${sup.ck.map(k => k.slice(2)).join('·')} ${sup.heads}명이 면허를 받으러 왔습니다.`);
   }
+  // 개척 사업은 이번 달 정산이 끝난 뒤 완공된다 (새 용병과 통행세는 다음 달부터)
+  resolveDev(notes);
   S.deathsTotal += deaths + od; S.yearDeaths += deaths + od;
   S.hist.push({ month: S.month, pm: P.m, pc: P.c, cm: K0.m, cc: K0.c, qC, treasury: S.treasury, M: S.M, deaths, rate });
   S.last = { month: S.month, P, qM, qC, qW, cov, deaths, leave, arrive, heads: sup.heads, sup, fees: [...S.fees], need: pr.need, toll: M * S.toll, tollRate: S.toll, adopt, draw: pr.draw, toStock: pr.toStock, waste: pr.waste, stock: S.stock, lord: S.lordIncome, extra: pr.extra, agc: pr.agc, loot: ex.loot, ex, sM: pr.sM, sC: pr.sC, sW: pr.sW, fee: pr.fee, facCost: pr.facCost, upkeep: pr.upkeep, offers: pr.offers, fixed: pr.fixed, b, net, M };
@@ -1323,9 +1485,11 @@ function resolve() {
   notes.forEach(t => S.archive.push({ m: S.month, who: /상단|조합장/.test(t) && /교회|신전|사제/.test(t) ? 'both' : /상단|조합장/.test(t) ? 'merchant' : /교회|신전|사제|헌금/.test(t) ? 'church' : 'other', t }));
   if ((S.month - 1) % 12 === 0) evaluate();
   if (S.neg >= 3) S.over = 'fired';
-  else if (S.M < 40) S.over = 'empty';
+  else if (S.M < 40 && !founding()) S.over = 'empty';
   else if (S.warn >= 2) S.over = 'recalled';
   else if (S.month > C.MONTHS) S.over = 'done';
+  if (S.rebudget) { staffRebudget(notes, `${S.rebudget}에 맞춰`); S.rebudget = null; }
+  if (!S.over && founding() && coreDone()) endFounding();
   if (!S.over) pickAgenda();
 }
 
@@ -1465,12 +1629,10 @@ function renderDocsTab() {
   if (S.over) top.push(endingDoc());
   if (S.month === 1) {
     top.push(doc({ kind: '제국 행정성 · 인사 통지', title: '미궁 관리국장 부임을 명함', from: '제1월 1일', stamp: '임명',
-      body: `<p>서부 변경에 미궁이 열렸습니다. 관리국은 용병에게 면허를 내주고 통행세를 받으며, 용병 파티가 가져온 전리품 거래로 운영비를 마련합니다.</p>
-      <p>용병 한 명은 매달 포션 <b>2병</b>이 필요합니다. 모자라면 죽거나 떠납니다. 포션은 상단과 교회에서 삽니다. 공급처들은 저마다 셈이 있습니다.</p>
-      <p>미궁의 층마다 통하는 공략법이 따로 있다고 합니다. 증언은 용병들이 실제로 데려간 직업과 장비에서만 나옵니다. 궁금한 조건은 <b>탐사 기록</b> 탭에서 시험 탐사를 보내 확인하고, 공략본을 내면 용병들이 이 미궁에 미래가 있다고 믿게 됩니다. 층마다 숨은 습성과 근원도 있습니다.</p>
-      <p>사건이 없는 달은 <b>개척 시설</b> 탭에서 미궁을 키울 때입니다. 다만 시설마다 누군가의 이권을 건드립니다.</p>
-      <p>필요량보다 포션을 더 사면 창고에 비축됩니다. <b>시장 조사비</b>를 쓰면 약초 작황과 공급처의 속셈을 미리 읽을 수 있으니, 값이 오르기 전에 대비하세요.</p>
-      <p>교회에는 매달 관례로 헌금 1,000G를 냅니다. 상단과 교회는 서운하게 하면 등을 돌리지만, 호의를 쌓으면 먼저 좋은 제안을 들고 옵니다. 그들이 무엇을 반기고 싫어하는지는 겪어 봐야 압니다.</p>
+      body: `<p>서부 변경에 미궁이 열렸습니다. 관리국은 아직 이름뿐입니다. 사무소도, 포션을 대 줄 곳도, 전리품을 팔 곳도 없습니다. 수도가 보낸 초기 예산 ${fmt(S.treasury)}G로 맨땅에서 관리국을 세우십시오.</p>
+      <p>예산안의 <b>개척 사업</b>에서 무엇부터 지을지 고릅니다. <b>면허 사무소, 포션 공급망, 전리품 판로</b> 세 가지가 서면 관리국이 정식으로 문을 열고, 예산안의 나머지 줄이 열립니다.</p>
+      <p>벌써 개척 용병 ${S.M}명이 미궁에 드나들고 있습니다. 용병 한 명은 매달 포션 <b>2병</b>이 필요하고, 모자라면 죽거나 떠납니다. 지금은 떠돌이 상인에게 웃돈을 주고 사야 합니다. 판로가 없는 동안 그들이 가져온 전리품은 창고에 쌓입니다.</p>
+      <p>무엇을 누구에게 맡기느냐는 한 번 정하면 오래 갑니다. 상단과 교회는 저마다 셈이 있습니다.</p>
       <p>임기는 ${C.MONTHS}개월이고, 12개월마다 수도가 임기를 평가합니다. 금고가 석 달 연속 마이너스면 해임됩니다.</p>` }));
   }
   if (S.notes.length) top.push(`<div class="memo"><div class="memo-head">제${S.month}월 서기의 메모 · 이번 달 들려오는 말</div><ul>${S.notes.map(n => `<li>${n}</li>`).join('')}</ul></div>`);
@@ -1869,8 +2031,8 @@ function buildLines() {
       <input type="range" id="fee-${i}-r" min="${C.FEE_MIN}" max="${C.FEE_MAX}" step="${C.FEE_STEP}" aria-label="${i + 1}층 입장료 조절">
       <div class="hint" id="fee-${i}-h"></div>
     </div>`;
-  document.getElementById('lines').innerHTML = BUDGET_GROUPS.map(g => {
-    const body = g.id === 'fees' ? `<div id="fees">${S.floors.slice(0, S.unlocked).map(feeHtml).join('')}</div>`
+  document.getElementById('lines').innerHTML = BUDGET_GROUPS.filter(g => g.show ? g.show() : (g.id === 'fixed' || VIS.some(l => l.cat === g.id))).map(g => {
+    const body = g.id === 'dev' ? '<div id="dev"></div>' : g.id === 'fees' ? `<div id="fees">${S.floors.slice(0, S.unlocked).map(feeHtml).join('')}</div>`
       : g.id === 'fixed' ? '<div id="fixed"></div>'
       : VIS.filter(l => l.cat === g.id).map(lineHtml).join('');
     return `<details class="bgroup" data-group="${g.id}"${GROUP_OPEN[g.id] === false ? '' : ' open'}>
@@ -1888,14 +2050,14 @@ function buildLines() {
     r.addEventListener('input', () => set(r.value));
     n.addEventListener('change', () => set(n.value));
   });
-  S.floors.slice(0, S.unlocked).forEach((_, i) => {
+  if (gateOk()) S.floors.slice(0, S.unlocked).forEach((_, i) => {
     const n = document.getElementById('fee-' + i), r = document.getElementById('fee-' + i + '-r');
     const set = v => { S.fees[i] = clamp(Math.round((+v || 0) / C.FEE_STEP) * C.FEE_STEP, C.FEE_MIN, C.FEE_MAX); syncBudget(); };
     r.addEventListener('input', () => set(r.value));
     n.addEventListener('change', () => set(n.value));
   });
 }
-const lineSig = () => LINES.filter(l => !l.show || l.show()).map(l => l.id + (lineOff(l) ? '-' : '')).join(',') + (schismLines() ? '!' : '') + '/' + S.unlocked;
+const lineSig = () => LINES.filter(l => !l.show || l.show()).map(l => l.id + (lineOff(l) ? '-' : '')).join(',') + (schismLines() ? '!' : '') + '/' + S.unlocked + '/' + S.phase + DEV.filter(d => devDone(d.id)).map(d => d.id).join('') + (has('church_greet') ? 'c' : '');
 function syncBudget() {
   VIS.forEach(l => {
     if (!lineOff(l)) {
@@ -1913,7 +2075,8 @@ function syncBudget() {
     (facUpkeep() ? `<div class="line fixed"><span>시설 유지비</span><span class="val">${fmt(facUpkeep())}</span></div>` : '') +
     `<div class="line fixed"><span>관리국 운영비 (용병 수에 비례)</span><span class="val">${fmt(fixedCost())}</span></div>`;
   const p = project(S.budget);
-  S.floors.slice(0, S.unlocked).forEach((fl, i) => {
+  if (founding()) document.getElementById('dev').innerHTML = devHtml();
+  if (gateOk()) S.floors.slice(0, S.unlocked).forEach((fl, i) => {
     const fee = S.fees[i], np = p.sh[i] * p.n;
     document.getElementById('fee-' + i).value = fee;
     document.getElementById('fee-' + i + '-r').value = fee;
@@ -1923,6 +2086,7 @@ function syncBudget() {
     document.getElementById('fee-' + i + '-h').textContent = `${tag}예상 파티 ${Math.round(np)}개 (${pct(p.sh[i])})` + (fee > 0 ? ` · 입장료 수입 약 ${fmt(fee * np)}G` : fee < 0 ? ` · 보조금 약 ${fmt(-fee * np)}G` : '') + warn;
   });
   BUDGET_GROUPS.forEach(g => {
+    if (!document.getElementById('grp-' + g.id)) return;
     const v = g.sub(p, S.budget);
     document.getElementById('grp-' + g.id).textContent = g.signed ? (v ? `${v > 0 ? '수입' : '보조금'} ${fmt(Math.abs(v))}` : '0') : fmt(v);
   });
@@ -1960,11 +2124,17 @@ function render(flash = true) {
   if (lineSig() !== S._sig) buildLines();
   renderStats(); renderPanel(flash);
   document.getElementById('b-title').textContent = S.over ? '임기 종료' : `제${S.month}월 예산안`;
-  document.getElementById('b-lead').textContent = S.over ? '서류함의 평가서를 확인하세요.' : `용병 ${S.M}명 · 필요한 포션 ${S.M * C.NEED}병 · 결재하면 한 달이 흐릅니다`;
+  document.getElementById('b-lead').textContent = S.over ? '서류함의 평가서를 확인하세요.' : founding() ? `개척기 · 용병 ${S.M}명 · 필요한 포션 ${S.M * C.NEED}병${S.unsold ? ` · 팔지 못한 전리품 ${fmt(S.unsold)}G어치` : ''} · 결재하면 한 달이 흐릅니다` : `용병 ${S.M}명 · 필요한 포션 ${S.M * C.NEED}병 · 결재하면 한 달이 흐릅니다`;
   document.getElementById('approve').disabled = !!S.over;
   syncBudget();
 }
 
+document.getElementById('lines').addEventListener('click', e => {
+  const b = e.target.closest('[data-dev]'); if (!b || S.over) return;
+  const id = b.dataset.dev, i = +b.dataset.opt;
+  if (S.devPick[id] === i) delete S.devPick[id]; else S.devPick[id] = i;
+  syncBudget();
+});
 document.getElementById('tabs').addEventListener('click', e => {
   const b = e.target.closest('[data-tab]'); if (!b) return;
   S.tab = b.dataset.tab; render(false);
@@ -2008,7 +2178,7 @@ document.getElementById('form').addEventListener('submit', e => {
 
 function start(data) {
   newGame();
-  if (data && data.S && data.S.v === 11) S = data.S;
+  if (data && data.S && data.S.v === 12) S = data.S;
   buildLines(); render();
 }
 window.claude?.hot?.snapshot?.(() => ({ S }));
