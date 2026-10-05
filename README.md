@@ -13,18 +13,29 @@
 - **추리를 선언하고 확인받는다.** 현장 증언으로 층의 약점을 추리하고, 통계로 확인한 뒤 공략본을 발간합니다. 맞으면 용병들이 이 미궁의 미래를 믿기 시작합니다.
 - **누군가의 이권을 건드리지 않는 결정은 없다.** 시설 하나, 헌금 한 줄, 감찰 한 번이 세력의 태도를 바꿉니다.
 
-## 프로토타입 해 보기
+## 해 보기
 
-브라우저에서 바로 돌아가는 단일 HTML 파일입니다.
+웹 브라우저 게임입니다 (TypeScript + Vite).
 
-- 가장 간단한 방법: [`proto/budget-potion.html`](proto/budget-potion.html)을 브라우저로 엽니다.
-- 로컬 서버로 열기 (프로젝트 루트에서):
+- **바로 하기**: main에 머지될 때마다 GitHub Pages에 올라갑니다. 주소는 `https://suhsuh1106.github.io/Labyrinth_Bureau/` 입니다.
+- **내 컴퓨터에서**: Node 22가 필요합니다.
 
   ```bash
-  python -m http.server 8765 --directory proto
+  npm install
+  npm run dev        # 개발 서버 (http://localhost:5173)
   ```
 
-  그다음 `http://localhost:8765/budget-potion.html`로 접속합니다.
+### 개발 명령
+
+| 명령 | 하는 일 |
+|---|---|
+| `npm run dev` | 개발 서버. 고치면 바로 반영 |
+| `npm test` | 테스트: 옛 프로토타입과 동작 비교, 장부 일치, 모든 탭 렌더, 저장 불러오기 |
+| `npm run typecheck` | 타입 검사 |
+| `npm run sim -- --games 300 --style hero` | 봇 시뮬레이션으로 완주율과 결과 요약 (style: plain, donate, audit, hero, wild) |
+| `npm run build` | 배포용 빌드 (`dist/`) |
+
+PR을 올리면 GitHub Actions가 타입 검사, 테스트, 빌드, 봇 시뮬레이션을 돌립니다.
 
 ### 첫 몇 달: 개척기
 
@@ -64,10 +75,13 @@
 
 | 경로 | 내용 |
 |---|---|
-| `proto/` | 현재 프로토타입 (브라우저 HTML) |
-| `poc/` | 이전 방향의 Python 숫자 시뮬레이터 (길드 이사회 + 부서 KPI 모드). 참고용으로 남겨 둠. 실행 방법은 [`poc/README.md`](poc/README.md) |
+| `src/core/` | 게임 규칙. 화면 코드 없이 Node에서도 돈다 (경제, 세력, 탐사, 사건, 안건, 개척기, 용사, 저장) |
+| `src/ui/` | 화면: 예산안 패널과 탭들, 스타일 |
+| `src/main.ts`, `index.html` | 진입점 |
+| `sim/` | 봇 플레이어와 시뮬레이션 실행기 |
+| `tests/` | 테스트 |
 | `.claude/plan.md` | 이전 방향의 통합 기획서 |
-| `Assets/`, `Packages/`, `ProjectSettings/` | Unity 프로젝트 (본 개발용, 아직 비어 있음) |
+| `proto/budget-potion.html` | 옛 단일 HTML 프로토타입. 새 코드가 이것과 똑같이 움직이는지 비교하는 기준으로만 남겨 둠. 고치지 않는다 |
 
 ## 진행 상황
 
@@ -79,4 +93,4 @@
 - [ ] 지방 영주 세력 (왕실과 영주의 줄다리기)
 - [ ] 후반 긴장감: 성공이 부르는 새 문제 (상납 요구, 경쟁 길드)
 - [ ] 미궁의 비밀과 결말 설계 (봉인으로 향하는 종결 플롯)
-- [ ] Unity로 옮기기
+- [x] 웹(TypeScript)으로 옮기기, 테스트와 자동 배포

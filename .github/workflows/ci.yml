@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: 타입 검사
+        run: npm run typecheck
+      - name: 테스트 (프로토타입 동작 비교, 장부, 화면, 저장)
+        run: npm test
+      - name: 빌드
+        run: npx vite build
+      - name: 봇 시뮬레이션 요약
+        run: npm run sim -- --games 200 --style hero

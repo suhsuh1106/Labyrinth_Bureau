@@ -1,0 +1,21 @@
+# Labyrinth Bureau
+
+미궁 관리국 경영 시뮬레이션. 웹 브라우저 게임 (TypeScript + Vite, 프레임워크 없음).
+
+## 구조
+- `src/core/`: 게임 규칙. DOM을 쓰지 않는다. 상태는 `state.ts`의 `S` 하나이고, 한 달 결재는 `turn.ts`의 `resolve()`.
+- `src/ui/`: 화면. HTML 문자열을 만들어 넣는 방식. `core`는 `ui`를 import하지 않는다.
+- `sim/bot.ts`: 봇 플레이어. 테스트와 `npm run sim`이 같이 쓴다.
+- `proto/budget-potion.html`: 옛 프로토타입. **고치지 않는다.** 동작 비교 테스트의 기준일 뿐이다.
+
+## 규칙
+- 난수는 반드시 `core/rng.ts`의 `rnd()`를 쓴다 (`Math.random` 금지). 시드로 판을 재현해야 테스트와 시뮬레이션이 맞는다.
+- 저장 데이터 모양이 바뀌면 `core/save.ts`의 `SAVE_VERSION`을 올리고, 이전 버전을 불러오는 경로를 `loadGame`에 남긴다.
+- 금고를 움직이는 새 수입·지출은 `turn.ts`의 장부(`S.books`) 기록과 `ui/books.ts`의 항목표에도 넣는다. 안 넣으면 '사건·기타'로 잡히고 장부 테스트가 깨질 수 있다.
+- 게임 규칙을 바꾸는 PR은 `tests/parity.test.ts`(옛 프로토타입과 동작 비교)를 깨뜨린다. 의도한 변경이면 그 PR에서 비교 테스트를 지운다. 비교 기준을 새로 잡을 일이 생기면 그때 정한다.
+- 밸런스를 바꾸면 `npm run sim`으로 전후 완주율을 PR 설명에 적는다.
+
+## 확인
+```bash
+npm run typecheck && npm test && npm run build
+```
