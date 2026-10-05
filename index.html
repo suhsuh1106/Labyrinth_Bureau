@@ -10,39 +10,88 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 </head>
 <body>
+<div class="room">
 <div class="wrap">
-  <div class="bar">
-    <div>
-      <h1>미궁 관리국 예산안</h1>
-      <div class="sub">서부 변경 미궁 · 세력과 용병이 스스로 움직이는 관리국 프로토타입</div>
-    </div>
+  <header class="plaque" aria-label="관리국 현황">
+    <h1>서부 변경 미궁 관리국</h1>
     <div class="stats" id="stats"></div>
-  </div>
+  </header>
 
-  <main class="desk">
-    <section class="tray" aria-label="책상">
-      <div class="tabs" role="tablist" id="tabs">
-        <button class="tab" role="tab" data-tab="docs" id="tab-docs">서류함</button>
-        <button class="tab" role="tab" data-tab="faction" id="tab-faction">세력 동향</button>
-        <button class="tab" role="tab" data-tab="explore" id="tab-explore">탐사 기록</button>
-        <button class="tab" role="tab" data-tab="hero" id="tab-hero">용사 파티</button>
-        <button class="tab" role="tab" data-tab="build" id="tab-build">개척 시설</button>
-        <button class="tab" role="tab" data-tab="books" id="tab-books">수입·지출</button>
-      </div>
-      <div id="panel" class="panel" role="tabpanel"></div>
+  <main class="scene">
+    <section class="side left" aria-label="책상 왼쪽">
+      <button class="obj" data-open="docs" id="tab-docs" style="--rot:-2deg">
+        <span class="pin" hidden></span>
+        <span class="thing inbox"><span class="pp p1"></span><span class="pp p2"></span><span class="pp p3"></span></span>
+        <span class="objtag">서류함</span>
+      </button>
+      <button class="obj" data-open="faction" id="tab-faction" style="--rot:3deg">
+        <span class="pin" hidden></span>
+        <span class="thing letters"><span class="env m"><i></i></span><span class="env c"><i></i></span></span>
+        <span class="objtag">세력 동향 · 서신</span>
+      </button>
+      <button class="obj" data-open="hero" id="tab-hero" style="--rot:-1.5deg">
+        <span class="pin" hidden></span>
+        <span class="thing roster"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M8 32 L30 10 M30 10 l-1 6 M30 10 l-6 1 M32 32 L10 10 M10 10 l1 6 M10 10 l6 1" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round"></path></svg></span>
+        <span class="objtag">용사 명부</span>
+      </button>
     </section>
 
-    <aside class="budget" aria-label="예산안">
+    <section class="center" aria-label="결재 받침">
+      <div class="blotter">
+        <button class="sheet" id="desk-budget" data-open="budget" aria-label="이번 달 예산안 집어 들기"></button>
+      </div>
+    </section>
+
+    <section class="side right" aria-label="책상 오른쪽">
+      <button class="obj" data-open="calendar" id="tab-calendar" style="--rot:2deg">
+        <span class="thing cal"><span class="rings"></span><span class="page" id="cal-page"></span></span>
+        <span class="objtag">달력 · 임기 목표</span>
+      </button>
+      <button class="obj" data-open="books" id="tab-books" style="--rot:-3deg">
+        <span class="pin" hidden></span>
+        <span class="thing book"><span class="pages"></span></span>
+        <span class="objtag">장부 · 수입과 지출</span>
+      </button>
+      <button class="obj" data-open="explore" id="tab-explore" style="--rot:2.5deg">
+        <span class="pin" hidden></span>
+        <span class="thing map"><svg viewBox="0 0 170 112" aria-hidden="true">
+          <path d="M20 90 Q45 70 60 78 T100 62 T150 30" fill="none" stroke="#6b4a22" stroke-width="2" stroke-dasharray="5 4"></path>
+          <circle cx="20" cy="90" r="6" fill="#6b4a22"></circle><circle cx="60" cy="78" r="5" fill="#8a6a3c"></circle>
+          <circle cx="100" cy="62" r="5" fill="none" stroke="#6b4a22" stroke-width="1.5"></circle>
+          <text x="134" y="24" font-size="16" fill="#6b4a22" font-family="serif">?</text>
+          <circle cx="60" cy="78" r="3" fill="#b2342a"></circle></svg></span>
+        <span class="objtag">미궁 지도 · 탐사 기록</span>
+      </button>
+      <button class="obj" data-open="build" id="tab-build" style="--rot:-1deg">
+        <span class="pin" hidden></span>
+        <span class="thing tube"></span>
+        <span class="objtag">시설 도면</span>
+      </button>
+      <div class="stampset">
+        <span class="inkpad" aria-hidden="true"><i></i></span>
+        <button class="stampbtn" id="stamp" type="button" aria-label="예산안에 결재 도장 찍기"><span class="handle"></span><span class="objtag">결재</span></button>
+      </div>
+    </section>
+  </main>
+</div>
+</div>
+
+<div class="reader" id="reader" hidden>
+  <article class="held" id="held" role="dialog" aria-modal="true" aria-label="집어 든 서류" tabindex="-1">
+    <button class="close" id="close" type="button">내려놓기</button>
+    <div id="panel" class="panel"></div>
+    <section class="budget" id="budget-editor" hidden>
       <h2 id="b-title">제1월 예산안</h2>
       <p class="lead" id="b-lead"></p>
       <form id="form" novalidate>
         <div id="lines"></div>
         <div class="proj" id="proj"></div>
-        <button class="approve" id="approve" type="submit">결재</button>
+        <button class="approve" id="approve" type="submit">결재 도장 찍기</button>
       </form>
-    </aside>
-  </main>
+    </section>
+  </article>
 </div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
