@@ -16,6 +16,7 @@ import { renderExploreTab } from '../src/ui/explore';
 import { renderBuildTab } from '../src/ui/build';
 import { renderBooksTab } from '../src/ui/books';
 import { renderHeroTab } from '../src/ui/hero';
+import { calendarHtml, deskBudgetHtml } from '../src/ui/desk';
 import { botRng, botTurn, type BotStyle } from '../sim/bot';
 
 const api = { S: () => S, prices, project, heroPlan, DEV, AGENDAS, KEYS };
@@ -40,10 +41,10 @@ describe('장부', () => {
 });
 
 describe('화면', () => {
-  it('모든 탭이 매달 오류 없이 그려진다', () => {
+  it('모든 탭과 책상 위 서류가 매달 오류 없이 그려진다', () => {
     for (let seed = 200; seed < 215; seed++) play(seed, styles[seed % 3], () => {
       resolve();
-      for (const f of [renderDocsTab, renderFactionTab, renderExploreTab, renderBuildTab, renderBooksTab, renderHeroTab]) {
+      for (const f of [renderDocsTab, renderFactionTab, renderExploreTab, renderBuildTab, renderBooksTab, renderHeroTab, deskBudgetHtml, calendarHtml]) {
         const html = f();
         expect(typeof html).toBe('string');
         expect(html).not.toMatch(/undefined|NaN/);

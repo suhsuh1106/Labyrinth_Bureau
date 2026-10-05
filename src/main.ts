@@ -1,11 +1,21 @@
-// 진입점: 화면 이벤트를 연결하고 게임을 시작한다
+// 진입점: 책상 위 물건과 서류의 이벤트를 연결하고 게임을 시작한다
 import './ui/style.css';
 import { S, newGame } from './core/state';
-import { resolve } from './core/turn';
 import { render, start } from './ui/app';
 import { syncBudget } from './ui/budget';
+import { approve, closeReader, openReader, readerKey } from './ui/desk';
 
 const $ = (id: string): any => document.getElementById(id);
+
+// 책상 위 물건을 누르면 그 서류를 집어 든다
+document.querySelectorAll('[data-open]').forEach((b: any) => b.addEventListener('click', () => openReader(b.dataset.open, b)));
+$('close').addEventListener('click', () => closeReader());
+$('reader').addEventListener('click', e => { if (e.target === $('reader')) closeReader(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && readerKey()) closeReader(); });
+
+// 결재: 책상 위 도장이든 예산안 안의 버튼이든 같은 연출로 한 달을 넘긴다
+$('stamp').addEventListener('click', () => approve());
+$('form').addEventListener('submit', e => { e.preventDefault(); approve(); });
 
 $('lines').addEventListener('click', e => {
   const b = e.target.closest('[data-dev]'); if (!b || S.over) return;
@@ -13,14 +23,10 @@ $('lines').addEventListener('click', e => {
   if (S.devPick[id] === i) delete S.devPick[id]; else S.devPick[id] = i;
   syncBudget();
 });
-$('tabs').addEventListener('click', e => {
-  const b = e.target.closest('[data-tab]'); if (!b) return;
-  S.tab = b.dataset.tab; render(false);
-});
 $('panel').addEventListener('click', e => {
   const b = e.target.closest('[data-action]'); if (!b) return;
   const a = b.dataset.action;
-  if (a === 'restart') { newGame(); render(); window.scrollTo(0, 0); }
+  if (a === 'restart') { newGame(); closeReader(false); render(); window.scrollTo(0, 0); }
   if (a === 'guide') {
     const f = +b.dataset.floor, key = S.guideDraft[f] || $('g-' + f).value;
     if (!key || S.over) return;
@@ -49,12 +55,6 @@ $('panel').addEventListener('change', e => {
   if (t.dataset.stat === 'floor') { S.statFloor = +t.value; render(false); }
   if (t.dataset.stat === 'range') { S.statRange = +t.value; render(false); }
   if (t.dataset.book === 'view') { S.bookView = /^\d+$/.test(t.value) ? +t.value : t.value; render(false); }
-});
-$('form').addEventListener('submit', e => {
-  e.preventDefault();
-  if (S.over) return;
-  resolve(); S.guideDraft = {}; S.bookView = 'last'; render();
-  if (window.innerWidth <= 860) window.scrollTo({ top: 0 });
 });
 
 start({});

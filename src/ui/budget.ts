@@ -8,6 +8,7 @@ import { appCount, appSkill, gearLvl, heroDemand, heroPicks, pickDemand, pubMul 
 import { S, schismLines } from '../core/state';
 import { clamp, eul, fmt, keyWord, pct, pick, sgn } from '../core/util';
 import { allFacs, facUpkeep, fixedCost } from '../core/world';
+import { renderDeskBudget } from './desk';
 
 // 화면 요소는 입력값(value)과 상태(disabled, open)를 바로 다루므로 느슨하게 받는다
 const $ = (id: string): any => document.getElementById(id);
@@ -213,4 +214,5 @@ export function syncBudget() {
     <div class="row"><span>예상 수입 (전리품은 지난달 기준)</span><b>${fmt(p.income)}</b></div>
     <div class="row"><span>예산 합계</span><b>${fmt(p.spend)}</b></div>
     <div class="row total"><span>예상 손익</span><b class="${p.net < 0 ? 'neg' : 'pos'}">${sgn(p.net)}</b></div>`;
+  renderDeskBudget();
 }
