@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>미궁 관리국 예산안</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+</head>
+<body>
+<div class="wrap">
+  <div class="bar">
+    <div>
+      <h1>미궁 관리국 예산안</h1>
+      <div class="sub">서부 변경 미궁 · 세력과 용병이 스스로 움직이는 관리국 프로토타입</div>
+    </div>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <main class="desk">
+    <section class="tray" aria-label="책상">
+      <div class="tabs" role="tablist" id="tabs">
+        <button class="tab" role="tab" data-tab="docs" id="tab-docs">서류함</button>
+        <button class="tab" role="tab" data-tab="faction" id="tab-faction">세력 동향</button>
+        <button class="tab" role="tab" data-tab="explore" id="tab-explore">탐사 기록</button>
+        <button class="tab" role="tab" data-tab="hero" id="tab-hero">용사 파티</button>
+        <button class="tab" role="tab" data-tab="build" id="tab-build">개척 시설</button>
+        <button class="tab" role="tab" data-tab="books" id="tab-books">수입·지출</button>
+      </div>
+      <div id="panel" class="panel" role="tabpanel"></div>
+    </section>
+
+    <aside class="budget" aria-label="예산안">
+      <h2 id="b-title">제1월 예산안</h2>
+      <p class="lead" id="b-lead"></p>
+      <form id="form" novalidate>
+        <div id="lines"></div>
+        <div class="proj" id="proj"></div>
+        <button class="approve" id="approve" type="submit">결재</button>
+      </form>
+    </aside>
+  </main>
+</div>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>
