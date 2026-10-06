@@ -9,7 +9,7 @@ export type Moments = {
   m: number;
   ret: null | {
     parties: Party[];
-    floors: { f: number; n: number; w: number; d: number; got: number }[];
+    floors: { f: number; n: number; w: number; d: number; got: number; per: number }[];
     wins: number; n: number; deaths: number; loot: number; stored: boolean;
     verdicts: { f: number; aw: number; an: number; ow: number; on: number }[];
   };
@@ -32,14 +32,17 @@ export function monthMoments(m = S.month - 1): Moments {
   const L = S.last && S.last.month === m ? S.last : null;
   if (parties.length && L) {
     const ex = L.ex;
-    const floors = ex.byFloor.map((b, f) => ({ f, n: b.n, w: b.w, d: b.d, got: b.got })).filter(x => x.n);
+    const floors = ex.byFloor.map((b, f) => ({ f, n: b.n, w: b.w, d: b.d, got: b.got, per: 0 })).filter(x => x.n);
     if (L.hr && L.hr.runs) {
       const hf = floors.find(x => x.f === L.hr.f);
       if (hf) { hf.n += L.hr.runs; hf.w += L.hr.wins; hf.d += L.hr.dead.length; }
-      else floors.push({ f: L.hr.f, n: L.hr.runs, w: L.hr.wins, d: L.hr.dead.length, got: 0 });
+      else floors.push({ f: L.hr.f, n: L.hr.runs, w: L.hr.wins, d: L.hr.dead.length, got: 0, per: 0 });
     }
     const got = floors.reduce((a, x) => a + x.got, 0) + Math.round(L.hr?.loot || 0);
     const loot = (L.loot || 0) + (L.heroLoot || 0);
+    // 성공한 파티 하나가 들고 온 몫: 층에서 꺼낸 전리품을 그 층 성공 파티 수로 나누고, 판로 값(감정가 배율)을 곱한다
+    const exGot = ex.byFloor.reduce((a, b) => a + b.got, 0), rate = exGot && L.loot ? L.loot / exGot : 1;
+    floors.forEach(x => { const w = ex.byFloor[x.f].w; x.per = w ? Math.round(ex.byFloor[x.f].got / w * rate) : 0; });
     // 공략본이 있던 층마다, 따른 조와 안 따른 조의 성적
     const verdicts = S.floors.map((fl, f) => {
       const here = parties.filter(p => p.f === f && !p.t && !p.h);

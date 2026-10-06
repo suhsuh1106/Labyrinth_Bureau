@@ -6,9 +6,10 @@ import { founding } from '../core/founding';
 import { S } from '../core/state';
 import { evalItems, resolve } from '../core/turn';
 import { fmt, pct, sgn } from '../core/util';
+import { grant, grantLeft } from '../core/income';
 import { rows } from '../core/html';
 import { render, renderPanel } from './app';
-import { BUDGET_GROUPS, VIS, syncBudget } from './budget';
+import { shownGroups, syncBudget } from './budget';
 import { latestIsExtra, renderNewsTab, showIssue } from './news';
 import { playMoments } from './moments';
 
@@ -19,7 +20,7 @@ const reduced = () => typeof matchMedia === 'function' && matchMedia('(prefers-r
 // 예산안 아래 한 줄 설명. 예산 편집 화면 머리말과 책상 위 서류가 같이 쓴다
 export function leadText() {
   if (S.over) return '서류함의 평가서를 확인하세요.';
-  const base = `용병 ${S.M}명 · 파티 약 ${partyCount()}개 · 필요한 포션 ${S.M * C.NEED}병`;
+  const g = grant(), base = `용병 ${S.M}명 · 파티 약 ${partyCount()}개 · 필요한 포션 ${S.M * C.NEED}병${g ? ` · 영주 보조금 ${fmt(g)}G (${grantLeft()}개월 남음)` : ''}`;
   return founding() ? `개척기 · ${base}${S.unsold ? ` · 팔지 못한 전리품 ${fmt(S.unsold)}G어치` : ''}` : base;
 }
 
@@ -41,7 +42,7 @@ export function freshTabs(): Record<string, number> {
 // 책상 가운데 결재 서류: 묶음별 합계와 예상 손익만 적는다. 자세한 조정은 집어 들어서
 export function deskBudgetHtml() {
   const p = project(S.budget);
-  const groups = BUDGET_GROUPS.filter(g => g.show ? g.show() : (g.id === 'fixed' || VIS.some(l => l.cat === g.id)));
+  const groups = shownGroups();
   const line = (lbl: string, val: string, cls = '') => `<span class="sl ${cls}"><span class="lbl">${lbl}</span><span class="dots"></span><span class="val">${val}</span></span>`;
   const gl = groups.map(g => {
     const v = g.sub(p, S.budget);
@@ -61,10 +62,11 @@ export function deskBudgetHtml() {
       <span class="chief"><b>국장</b><i><span class="seal">국장</span></i></span>
     </span></span>
     <span class="sls">${gl}
+      ${p.devFund ? line('개척 사업비 중 영주 개척 자금이 내는 몫', fmt(p.devFund), 'dim') : ''}
       ${line('예상 수입 (전리품은 지난달 기준)', fmt(p.income), 'dim')}
       ${line('예산 합계', fmt(p.spend))}
       ${line('예상 손익', `<span class="${p.net < 0 ? 'neg' : 'pos'}">${sgn(p.net)}</span>`, 'total')}</span>
-    <span class="foot"><span class="${warns.length ? 'warn' : ''}">${warns.length ? warns.join(' · ') : '누르면 서류를 집어 들어 금액을 고칠 수 있어요'}</span><span>${S.over ? '' : '결재는 도장으로'}</span></span>
+    <span class="foot"><span class="${warns.length ? 'warn' : ''}">${warns.length ? warns.join(' · ') : '누르면 결재함을 열어 부서 방침과 품의를 볼 수 있어요'}</span><span>${S.over ? '' : '결재는 도장으로'}</span></span>
     <span class="bigseal" aria-hidden="true"><span>결재<small>제${S.month}월</small></span></span>`;
 }
 export function renderDeskBudget() { const el = $('desk-budget'); if (el) el.innerHTML = deskBudgetHtml(); }
@@ -104,7 +106,7 @@ export function renderReader(flash = false) {
   if (!open) return;
   const isBudget = open === 'budget';
   $('panel').hidden = isBudget; $('budget-editor').hidden = !isBudget;
-  $('held').classList.toggle('narrow', isBudget || open === 'calendar');
+  $('held').classList.toggle('narrow', open === 'calendar');
   if (isBudget) syncBudget();
   else if (open === 'calendar') $('panel').innerHTML = calendarHtml();
   else if (open === 'news') { S.seenTabs['news' + S.month] = 1; $('panel').innerHTML = renderNewsTab(); }

@@ -1,9 +1,9 @@
 // 개척기
 import { flag } from './agendas';
 import { C, CLASS_SHARE } from './data';
-import { prices, project } from './economy';
 import { partyCount } from './explore';
 import { rows } from './html';
+import { compileBudget } from './org';
 import { sayLine } from './secrets';
 import { S, log } from './state';
 import { fmt } from './util';
@@ -96,27 +96,21 @@ export function resolveDev(notes) {
   });
 }
 
-// 기반이 바뀌면 보급과가 포션 예산과 헌금을 새 상황에 맞춰 다시 짜 둔다 (플레이어는 결재 전에 고칠 수 있다)
-export function fillProvisions() {
-  const pv = project({ ...S.budget, food: 1e9, repair: 1e9, haul: 1e9 }).pv;
-  ['food', 'repair', 'haul'].forEach(k => { S.budget[k] = Math.ceil(pv[k].full / 100) * 100; });
-}
-
+// 기반이 바뀌면 보급과가 방침은 그대로 두고 품의를 새 상황에 맞춰 다시 올린다
 export function staffRebudget(notes, why) {
-  const P = prices(), need = S.M * C.NEED, qC = Math.min(S.cap, need);
-  S.budget.potC = qC * P.c; S.budget.potM = Math.max(0, need - qC) * P.m;
-  fillProvisions();
-  if (S.custom) S.budget.donation = Math.max(S.budget.donation, S.custom);
-  notes.push(`보급과가 ${why} 포션과 보급품 예산을 다시 짰습니다. 용병 ${S.M}명, 파티 약 ${partyCount()}개 기준입니다.`);
+  compileBudget();
+  notes.push(`보급과가 ${why} 포션과 보급품 품의를 다시 올렸습니다. 용병 ${S.M}명, 파티 약 ${partyCount()}개 기준입니다.`);
 }
 
 export function endFounding() {
   S.phase = 'run'; S.runStart = S.month;
+  // 쓰고 남은 영주 개척 자금은 관리국 금고로 넘어온다. 개척기를 아껴 마칠수록 운영기가 넉넉하게 시작한다
+  if (S.fund > 0) { S.fundBack = S.fund; S.treasury += S.fund; log(`남은 개척 자금 ${fmt(S.fund)}G를 금고로 옮김`); S.fund = 0; }
   const pickOf = id => { const d = DEV.find(x => x.id === id), st = S.dev[id]; return st ? d.opts[st.opt].label : '하지 않음'; };
   log('개척기를 마치고 운영기로 넘어감');
   S.eventDocs.push({ month: S.month, cls: 'secret', kind: '제국 행정성 · 보고', title: '관리국이 문을 열었습니다', from: `제${S.month}월`, stamp: '개청',
     body: rows([['면허 사무소', pickOf('gate')], ['포션 공급망', pickOf('supply')], ['전리품 판로', pickOf('market')], ['1층 측량', pickOf('survey')], ['모집 공고', pickOf('poster')]])
-      + `<p>이제 예산안이 정식으로 열립니다. 층별 입장료, 탐사 지원, 정보·감찰을 매달 정할 수 있습니다.</p>
+      + `<p>이제 관리국 직제가 정식으로 열립니다. 탐사과·감찰관실·대외과·공보관·재무과를 신설해 맡길 일을 늘리고, 매달 부서 방침과 층별 입장료를 정할 수 있습니다.</p>
       <p class="from">개척기에 맺은 계약과 이권은 그대로 남습니다. 누구에게 무엇을 맡겼는지가 앞으로의 힘 관계를 정합니다.</p>` });
 }
 

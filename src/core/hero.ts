@@ -35,7 +35,7 @@ export function heroPlan(b) {
   const demand = heroDemand() + take.reduce((a, m) => a + m.pay, 0), pay = b.heroPay || 0;
   const forming = !S.hero && take.length >= 2 && pay >= demand, joining = !!S.hero && take.length > 0 && pay >= demand;
   const active = !!S.hero || forming;
-  return { take: forming || joining ? take : [], demand, forming, joining, active, spend: active ? pay + (b.heroGear || 0) + (b.heroPub || 0) : 0 };
+  return { take: forming || joining ? take : [], demand, forming, joining, active, spend: active ? pay + (b.heroGear || 0) : 0 };
 }
 
 export function newApplicant(pay) {

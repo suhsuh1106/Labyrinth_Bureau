@@ -1,7 +1,7 @@
 // 봇 시뮬레이터: 여러 판을 돌려 완주율과 결과를 요약한다. 밸런스를 바꿨을 때 전후 비교용.
 //   npm run sim                        기본 300판
 //   npm run sim -- --games 1000 --style hero --seed 1
-// style: plain(담합 대응 없음) · donate(담합 때 헌금) · audit(담합 때 감찰) · hero(용사 파티 운영) · wild(공략본·제안·안건까지)
+// style: plain(담합 대응 없음) · donate(담합 때 헌금) · audit(담합 때 감찰) · hero(용사 파티 운영) · smart(맞는 공략본을 내는 숙련자) · wild(공략본·제안·안건까지)
 import { setSeed } from '../src/core/rng';
 import { S, newGame } from '../src/core/state';
 import { resolve } from '../src/core/turn';
@@ -16,7 +16,7 @@ const arg = (k: string, d: string) => { const i = process.argv.indexOf('--' + k)
 const games = +arg('games', '300'), seed0 = +arg('seed', '1'), styleName = arg('style', 'donate');
 const STYLES: Record<string, BotStyle> = {
   plain: {}, donate: { cartel: 'donate' }, audit: { cartel: 'audit' },
-  hero: { cartel: 'donate', hero: true }, wild: { cartel: 'donate', hero: true, wild: true },
+  hero: { cartel: 'donate', hero: true }, smart: { cartel: 'donate', smart: true }, wild: { cartel: 'donate', hero: true, wild: true },
 };
 const style = STYLES[styleName];
 if (!style) { console.error(`style은 ${Object.keys(STYLES).join(', ')} 중 하나`); process.exit(1); }

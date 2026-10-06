@@ -1,13 +1,15 @@
 // 고정 데이터: 상수, 몬스터, 시설, 제안, 평가 목표, 세력 취향, 이름표
 
 export const C = {
-  CUSTOM: 1000, FIXED: 6000, CAP: 80, NEED: 2, TOLL: 130, MONTHS: 36,
+  CUSTOM: 1000, FIXED: 6000, CAP: 80, NEED: 2, TOLL: 60, MONTHS: 36,
   WS_BUILD: 8000, WS_COST: 40, WS_CAP: 60, BASE_COST_M: 30, BASE_COST_C: 25, SHOCK_COST: 20,
-  GUIDE_FEE: 1500, FLOOR_CAP: 30, STOCK_CAP: 400, SPOIL: 0.05, BASE_SUCC: [0.5, 0.44, 0.38, 0.33, 0.28], LOOT: [400, 480, 560, 640, 720], KEY_BONUS: 0.33, PROG_PER_WIN: 1.5,
+  GUIDE_FEE: 1500, FLOOR_CAP: 30, STOCK_CAP: 400, SPOIL: 0.05, BASE_SUCC: [0.5, 0.44, 0.38, 0.33, 0.28], LOOT: [700, 840, 980, 1120, 1260], KEY_BONUS: 0.33, PROG_PER_WIN: 1.5,
   FEE_MIN: -200, FEE_MAX: 200, FEE_STEP: 50, FRONTIER: 50, LIFE: 700, CHOICE_T: 70, PRIEST_COST: 200, RECRUIT_COST: 400, GEAR_MARKET: 1.5,
   TRIAL_COST: 150, CROWD_N: 20, ADAPT: 140, MIN_SAMPLE: 6,
   HERO_MAX: 4, HERO_RUNS: 4, HERO_PROG: 4, TRAIL: 60, TRAIL_M: 4, FAME0: 30,
   FOOD_COST: 10, HAUL_COST: 20, OPS_PER_M: 15,
+  // 시작 금고와 영주 개척 자금(개척 사업비는 여기서 먼저 나간다), 첫 달부터의 영주 보조금, 시장세, 의뢰
+  START: 12000, FUND: 15000, GRANT: [3000, 3000, 2500, 2000, 1500, 1000], MKT_M: 12, MKT_L: 0.06, QUEST_MAX: 4, QUEST_BASE: 900, QUEST_CUT: 0.2,
 };
 
 export const CLASSES = ['전사', '궁수', '마법사', '사제', '도적'];
@@ -100,7 +102,7 @@ export const ROOT_LORE = [
 ];
 
 export const FACILITIES = [
-  { id: 'ws', name: '포션 공방', cost: 8000, months: 3, upkeep: 0, effect: '포션을 병당 40G에 한 달 최대 60병 직접 만들어요. 완공 뒤 예산안의 공방 줄로 생산량을 정해요', hint: '상단과 교회는 자기 물건이 덜 팔릴까 반기지 않을 거예요', react: { gM: 12, gC: 6 }, rumor: '관리국 공방 착공 소식에 상단과 교회가 술렁입니다. 자기들 물건이 덜 팔릴까 걱정하는 눈치입니다.', doneMsg: '포션 공방이 완공되었습니다. 예산안에서 생산량을 정할 수 있습니다.' },
+  { id: 'ws', name: '포션 공방', cost: 8000, months: 3, upkeep: 0, effect: '포션을 병당 40G에 한 달 최대 60병 직접 만들어요. 완공되면 보급과가 공방 포션부터 채워요', hint: '상단과 교회는 자기 물건이 덜 팔릴까 반기지 않을 거예요', react: { gM: 12, gC: 6 }, rumor: '관리국 공방 착공 소식에 상단과 교회가 술렁입니다. 자기들 물건이 덜 팔릴까 걱정하는 눈치입니다.', doneMsg: '포션 공방이 완공되었습니다. 보급과가 공방 포션부터 채웁니다.' },
   { id: 'camp', name: '전진 야영지', cost: 6000, months: 2, upkeep: 400, effect: '가장 깊은 층에서 사망이 40% 줄고, 개척이 50% 빨라져요', hint: '용병을 아끼는 일이라 교회가 반길 거예요', react: { gC: -8 }, rumor: '교회가 용병들을 위한 전진 야영지 착공을 반깁니다.', doneMsg: '전진 야영지가 완공되었습니다. 최전선 파티가 쉬어 갈 곳이 생겼습니다.' },
   { id: 'appraise', name: '전리품 감정소', cost: 9000, months: 3, upkeep: 600, excl: 'consign', effect: '전리품 수입이 40% 늘어요', hint: '지금은 상단이 전리품 감정과 매입을 도맡고 있어요', react: { gM: 25 }, rumor: '상단 조합이 감정소 착공을 두고 "남의 밥그릇을 뺏는다"며 격분했습니다.', doneMsg: '전리품 감정소가 문을 열었습니다. 전리품을 제값에 거래합니다.' },
   { id: 'consign', name: '감정 이권 상단 위탁', cost: 0, months: 1, upkeep: 0, excl: 'appraise', effect: '전리품 감정을 상단에 맡겨요. 전리품 수입이 15% 늘고, 상단이 매달 조금씩 더 호의적이 돼요. 감정소와 함께 둘 수 없어요', hint: '돈은 감정소보다 덜 벌지만 상단을 확실히 내 편으로 만들어요', react: { gM: -35 }, rumor: '감정 이권을 맡긴다는 소식에 상단 조합장이 직접 감사 인사를 왔습니다.', doneMsg: '상단이 전리품 감정을 맡기 시작했습니다.' },

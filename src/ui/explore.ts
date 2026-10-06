@@ -26,7 +26,7 @@ export function adoptLine(f) {
   const sh = rec.filter(e => e.sh).length, want = a.length + sh;
   const exp = S.last && S.last.adopt != null ? ` <span class="dim">(지원금 ${fmt(S.last.b.support)}G 기준 기대 ${pct(S.last.adopt)})</span>` : '';
   const fl = S.floors[f], what = fl.guide.startsWith('c:') ? fl.guide.slice(2) : `${fl.guide.slice(2)} 장비`;
-  const lever = !fl.guide.startsWith('c:') ? '예산안의 장비 대여로 늘릴 수 있어요' : fl.guide === 'c:사제' ? '교회에 사제 파견을 요청해 늘릴 수 있어요' : '예산안의 직업 장려금으로 불러올 수 있어요';
+  const lever = !fl.guide.startsWith('c:') ? '탐사과 2단계의 편성 지원(장비 대여)으로 늘릴 수 있어요' : fl.guide === 'c:사제' ? '탐사과 2단계의 편성 지원으로 교회에 사제 파견을 요청할 수 있어요' : '탐사과 2단계의 편성 지원(직업 장려금)으로 불러올 수 있어요';
   return `<p style="margin:0;font-size:13px">지난달 공략본을 따르려던 파티 <b>${want}/${rec.length}개</b>${exp} · 그중 실제로 편성한 파티 <b>${a.length}개</b> (성공 ${r(a)}) · 따르지 않은 파티 성공 ${r(o)}</p>
     ${sh ? `<p class="ng" style="margin:0;font-size:12px">${what}${josa(what)} 모자라 ${sh}개 파티가 공략본대로 못 꾸렸어요. ${lever}</p>` : ''}`;
 }
@@ -61,7 +61,7 @@ export function trialDoc() {
     return `<p style="margin:0">지난달 ${L.f + 1}층 · ${keyWord(L.key)} 시험 파티 <b>${L.n}개</b> 중 성공 <b>${L.w}개 (${pct(L.w / L.n)})</b>${L.d ? ` · 사망 ${L.d}명` : ''} · 같은 층 다른 파티 성공 ${r == null ? '-' : pct(r)}</p>`;
   })() : '';
   return doc({ kind: '관리국 시험반', title: '시험 탐사 의뢰', from: `파티당 ${fmt(C.TRIAL_COST)}G`,
-    body: `<p class="from">궁금한 조건을 갖춘 파티를 관리국 돈으로 보내 결과를 받아 봅니다. 사람과 장비는 관리국이 구해 주고, 그 층에 공략본이 있으면 공략본대로도 갖춰요. 파티 수는 예산안의 <b>시험 탐사비</b>로 정해요.</p>
+    body: `<p class="from">궁금한 조건을 갖춘 파티를 관리국 돈으로 보내 결과를 받아 봅니다. 사람과 장비는 관리국이 구해 주고, 그 층에 공략본이 있으면 공략본대로도 갖춰요. 조건을 고르면 결재함에 시험 탐사 품의(파티 6개, 900G)가 올라와요.</p>
       ${res}
       <div class="guide">
         <label for="t-f" class="dim">층</label>
@@ -83,7 +83,7 @@ export function floorEconomy() {
   }).join('');
   return doc({ kind: '재무과 · 층별 수익', title: `제${L.month}월 층별 탐사 수익`, from: `층당 파티 ${C.FLOOR_CAP}개가 넘으면 전리품이 나뉘어요`,
     body: `<div class="tablewrap"><table class="stats"><tr><th>층</th><th>입장료</th><th>파티</th><th>성공률</th><th>전리품 수익</th><th>붐빔</th><th>사망</th><th>누적 수익</th></tr>${rowsHtml}</table></div>
-      <p class="from">용병들은 층마다 기대 전리품, 사망 위험, 지난달 붐빔, 입장료를 따져 갈 곳을 고릅니다. 개척은 가장 깊은 층에서만 진행되니, 예산안의 층별 입장료로 파티를 원하는 층에 보내세요.</p>` });
+      <p class="from">용병들은 층마다 기대 전리품, 사망 위험, 지난달 붐빔, 입장료를 따져 갈 곳을 고릅니다. 개척은 가장 깊은 층에서만 진행되니, 결재함의 층별 입장료로 파티를 원하는 층에 보내세요.</p>` });
 }
 
 export function supplyDoc() {

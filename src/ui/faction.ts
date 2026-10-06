@@ -50,6 +50,6 @@ export function renderFactionTab() {
       ${lineChart([{ color: 'var(--merchant)', vals: h.map(r => r.pm) }, { color: 'var(--church)', vals: h.map(r => r.pc) }], { min: 0, max: pt[pt.length - 1], ticks: pt })}</div>`);
   }
   out.push(`<div class="tray-head">감찰 장부 보관함 · 최근 ${S.ledgerArchive.length}건</div>`);
-  out.push(S.ledgerArchive.length ? S.ledgerArchive.map(l => l.m ? ledgerDocM(l.m) : ledgerDocC(l.c)).join('') : `<div class="memo">아직 확보한 장부가 없습니다. 예산안에 감찰비를 넣으면 다음 달 장부 사본이 옵니다.</div>`);
+  out.push(S.ledgerArchive.length ? S.ledgerArchive.map(l => l.m ? ledgerDocM(l.m) : ledgerDocC(l.c)).join('') : `<div class="memo">아직 확보한 장부가 없습니다. 감찰관실을 2단계로 키우고 정식 감찰 방침을 고르면 장부 사본을 얻을 수 있습니다.</div>`);
   return out.join('');
 }

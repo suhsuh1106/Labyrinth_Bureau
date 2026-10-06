@@ -2,7 +2,7 @@
 import './ui/style.css';
 import { S, newGame } from './core/state';
 import { render, start } from './ui/app';
-import { syncBudget } from './ui/budget';
+import { onBudgetClick, syncBudget } from './ui/budget';
 import { approve, closeReader, openReader, readerKey, renderReader } from './ui/desk';
 import { showIssue } from './ui/news';
 import { momentsOpen, renderShelf, renderSoundBtn, skipMoments, toggleSound } from './ui/moments';
@@ -21,7 +21,8 @@ $('sound').addEventListener('click', () => toggleSound());
 $('stamp').addEventListener('click', () => approve());
 $('form').addEventListener('submit', e => { e.preventDefault(); approve(); });
 
-$('lines').addEventListener('click', e => {
+$('budget-editor').addEventListener('click', e => {
+  if (onBudgetClick(e.target)) return;
   const b = e.target.closest('[data-dev]'); if (!b || S.over) return;
   const id = b.dataset.dev, i = +b.dataset.opt;
   if (S.devPick[id] === i) delete S.devPick[id]; else S.devPick[id] = i;
@@ -40,12 +41,16 @@ $('panel').addEventListener('click', e => {
   if (a === 'trial-stop') { S.trial = null; render(false); }
   if (a === 'build' && !S.over) { S.fac[b.dataset.fac] = { state: 'pending' }; render(false); }
   if (a === 'cancel-build') { delete S.fac[b.dataset.fac]; render(false); }
-  if (a === 'offer') { const o = S.offers.find(x => x.id === b.dataset.id); if (o) { o.accepted = !o.accepted; if (o.id === 'bulk' && o.accepted) S.budget.potC = 0; } render(false); }
+  if (a === 'offer') { const o = S.offers.find(x => x.id === b.dataset.id); if (o) { o.accepted = !o.accepted; } render(false); }
   if (a === 'agenda' && S.agenda && !S.over) { const i = +b.dataset.i; S.agenda.pick = S.agenda.pick === i ? null : i; render(false); }
   if (a === 'stat-toggle') S.statOpen = !S.statOpen;
   if (a === 'hero-pick' && !S.over) { const x = S.heroApps.find(y => y.id === +b.dataset.id); if (x) x.pick = !x.pick; render(false); }
   if (a === 'book-month') { S.bookView = +b.dataset.m; render(false); }
   if (a === 'paper') { showIssue(+b.dataset.m); renderReader(); $('held').scrollTop = 0; }
+});
+$('lines').addEventListener('change', e => {
+  const t = e.target;
+  if (t.dataset.fee !== undefined && !S.over) { S.fees[+t.dataset.fee] = +t.value; syncBudget(); }
 });
 $('panel').addEventListener('change', e => {
   const t = e.target;
@@ -54,7 +59,6 @@ $('panel').addEventListener('change', e => {
     const f = t.dataset.trial === 'f' ? +t.value : (S.trial ? S.trial.f : +$('t-f').value);
     const key = t.dataset.trial === 'key' ? t.value : (S.trial ? S.trial.key : $('t-k').value);
     S.trial = key ? { f, key } : null;
-    if (S.trial && !S.budget.trial) S.budget.trial = 900;
     render(false); return;
   }
   if (t.dataset.paper === 'pick') { showIssue(+t.value); renderReader(); $('held').scrollTop = 0; return; }

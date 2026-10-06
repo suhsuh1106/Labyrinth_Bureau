@@ -12,17 +12,21 @@ export const BOOK_INC = [
   { k: 'feeIn', name: '층별 입장료', color: 'var(--c3)' },
   { k: 'lord', name: '하르덴 백작의 사례금', color: 'var(--c4)' },
   { k: 'backlog', name: '쌓아 둔 전리품 일괄 판매', color: 'var(--c5)' },
+  { k: 'market', name: '시장세', color: 'var(--c7)' },
+  { k: 'quest', name: '의뢰 수수료', color: 'var(--c3)' },
+  { k: 'grant', name: '영주 보조금', color: 'var(--c4)' },
+  { k: 'fundBack', name: '남은 개척 자금', color: 'var(--c6)' },
   { k: 'misc', name: '사건·기타', color: 'var(--c7)' },
 ];
 
 export const BOOK_EXP = {
   potion: [['sM', '상단 포션'], ['sC', '교회 포션'], ['sW', '공방 포션·건설'], ['food', '식량'], ['repair', '장비 정비'], ['haul', '운송']],
   explore: [['support', '공략 지원금'], ['trial', '시험 탐사'], ['rent', '장비 대여'], ['priest', '사제 파견'], ['recruit', '직업 장려금']],
-  hero: [['heroPay', '용사 후원금'], ['heroGear', '용사 장비 지원'], ['heroPub', '용사 홍보비']],
+  hero: [['heroPay', '용사 후원금'], ['heroGear', '용사 장비 지원']],
   fees: [['feeOut', '층별 입장 보조금']],
-  church: [['donation', '교회 헌금'], ['donR', '개혁파 헌금']],
+  church: [['donation', '교회 헌금'], ['donR', '개혁파 헌금'], ['heroPub', '공보 소식지·용사 홍보']],
   watch: [['intel', '시장 조사비'], ['audit', '감찰비']],
-  fixed: [['fixed', '관리국 운영비'], ['guide', '공략본 발간비'], ['fac', '개척 시설 착공'], ['upkeep', '시설 유지비'], ['offers', '세력 제안 수락'], ['extra', '약속한 정기 지출'], ['agc', '안건 처리비']],
+  fixed: [['fixed', '관리국 운영비'], ['staff', '부서 인건비'], ['org', '부서 신설·확장'], ['guide', '공략본 발간비'], ['fac', '개척 시설 착공'], ['upkeep', '시설 유지비'], ['offers', '세력 제안 수락'], ['extra', '약속한 정기 지출'], ['agc', '안건 처리비']],
   other: [['misc', '사건·기타 (범람 복구비 등)']],
   dev: [['dev', '개척 사업 착수']],
 };

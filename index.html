@@ -90,6 +90,10 @@
     <section class="budget" id="budget-editor" hidden>
       <h2 id="b-title">제1월 예산안</h2>
       <p class="lead" id="b-lead"></p>
+      <div class="otabs" role="tablist" aria-label="결재함">
+        <button type="button" role="tab" id="otab-desk" data-otab="desk" aria-selected="true">이번 달 결재</button>
+        <button type="button" role="tab" id="otab-org" data-otab="org" aria-selected="false">부서 <small>신설 · 확장</small></button>
+      </div>
       <form id="form" novalidate>
         <div id="lines"></div>
         <div class="proj" id="proj"></div>

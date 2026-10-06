@@ -49,16 +49,16 @@ export const sfx = {
 
 // ---------- 장면 HTML (화면 밖에서도 그릴 수 있게 문자열로 만든다) ----------
 const ORIGIN = { church: '교회 추천', merchant: '상단 추천' };
-const partyLine = (p) => {
+const partyLine = (p, per = 0) => {
   const who = p.h ? '용사 파티' : p.t ? '시험 탐사' : p.c.join('·');
   const tags = `${p.g && p.g !== '일반' ? `<span class="pt-gear">${p.g}</span>` : ''}${p.a ? '<span class="pt-guide">공략본대로</span>' : ''}`;
-  return `<span class="pc ${p.s ? 'ok' : 'no'}${p.h ? ' hero' : ''}"><i>${p.s ? '✓' : '–'}</i><span>${who}</span>${tags}</span>`;
+  return `<span class="pc ${p.s ? 'ok' : 'no'}${p.h ? ' hero' : ''}"><i>${p.s ? '✓' : '–'}</i><span>${who}</span>${tags}${p.s && per && !p.h ? `<b class="pt-loot">+${fmt(per)}G</b>` : ''}</span>`;
 };
 export function returnHtml(M: Moments) {
   const R = M.ret; if (!R) return '';
   const floors = R.floors.map(F => `<section class="rf" data-f="${F.f}">
-      <div class="rf-h"><b>${F.f + 1}층</b><span class="rf-sum">${F.n}조 중 ${F.w}조 성공${F.d ? ` · <span class="neg">${F.d}명 사망</span>` : ''}${F.got ? ` · 전리품 ${fmt(F.got)}G` : ''}</span></div>
-      <div class="rf-p">${R.parties.filter(p => p.f === F.f).map(partyLine).join('')}</div></section>`).join('');
+      <div class="rf-h"><b>${F.f + 1}층</b><span class="rf-sum">${F.n}조 중 ${F.w}조 성공${F.d ? ` · <span class="neg">${F.d}명 사망</span>` : ''}${F.got ? ` · 전리품 ${fmt(F.got)}G${F.per ? ` (성공 파티당 ${fmt(F.per)}G)` : ''}` : ''}</span></div>
+      <div class="rf-p">${R.parties.filter(p => p.f === F.f).map(p => partyLine(p, F.per)).join('')}</div></section>`).join('');
   const verdicts = R.verdicts.map(v => `<div class="verdict"><b>${v.f + 1}층 공략본대로 간 조 ${v.aw} / ${v.an} 성공</b>${v.on ? `<span>따르지 않은 조는 ${v.ow} / ${v.on} 성공 (${pct(v.ow / v.on)})</span>` : ''}</div>`).join('');
   return `<div class="mo-doc m-return"><div class="kind">현장 사무소 · 귀환 보고</div><h2>제${M.m}월, 파티들이 돌아왔습니다</h2>
     <div class="counters"><div class="counter"><span>성공</span><b id="c-win">${R.wins} / ${R.n}</b></div><div class="counter"><span>사망</span><b id="c-dead">${R.deaths}명</b></div><div class="counter"><span>${R.stored ? '꺼낸 전리품' : '전리품'}</span><b id="c-loot">${fmt(R.loot)}G</b></div></div>
