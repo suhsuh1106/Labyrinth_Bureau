@@ -101,6 +101,30 @@ describe('결재 뒤의 순간들', () => {
   });
 });
 
+describe('개척 자금과 새 수입', () => {
+  it('개척 사업비는 영주 개척 자금에서 먼저 나가고, 남은 자금은 개척기가 끝날 때 금고로 온다', () => {
+    let backs = 0;
+    for (let seed = 600; seed < 620; seed++) {
+      setSeed(seed); newGame(); const r = botRng(seed);
+      const fund0 = S.fund;
+      botTurn(api, r, styles[0]); const p = project(S.budget); resolve();
+      expect(S.fund + S.fundBack).toBe(fund0 - p.devFund);   // 개척기가 첫 달에 끝나면 남은 자금이 바로 금고로 간다
+      expect(S.books[0].exp.dev).toBe(p.devc);
+      expect(S.books[0].inc.grant).toBeGreaterThan(0);
+      while (!S.over && S.phase === 'found') { botTurn(api, r, styles[0]); resolve(); }
+      if (S.books.some(b => b.inc.fundBack > 0)) backs++;
+      expect(S.fund).toBe(0);
+    }
+    expect(backs).toBeGreaterThan(0);
+  });
+  it('운영기에는 시장세와 의뢰 수수료가 들어온다', () => {
+    let market = 0, quest = 0;
+    play(630, styles[0], () => { resolve(); const b = S.books[S.books.length - 1]; market += b.inc.market; quest += b.inc.quest; });
+    expect(market).toBeGreaterThan(0);
+    expect(quest).toBeGreaterThan(0);
+  });
+});
+
 describe('저장', () => {
   it('지금 버전 저장은 그대로 이어진다', () => {
     play(300, styles[0], () => { if (S.month < 6) resolve(); else S.over = 'stop'; });
@@ -120,6 +144,16 @@ describe('저장', () => {
     expect(S.v).toBe(SAVE_VERSION);
     resolve();
     expect(S.month).toBe(7);
+  });
+  it('개척 자금 이전(버전 14) 저장은 자금 없이 이어진다', () => {
+    play(302, styles[0], () => { if (S.month < 3) resolve(); else S.over = 'stop'; });
+    const old = JSON.parse(JSON.stringify(S));
+    delete old.fund; delete old.fundBack; old.v = 14; old.over = null;
+    loadGame({ S: old });
+    expect(S.fund).toBe(0);
+    expect(S.v).toBe(SAVE_VERSION);
+    resolve();
+    expect(S.month).toBe(4);
   });
   it('모르는 버전이면 새 게임으로 시작한다', () => {
     loadGame({ S: { v: 3 } });

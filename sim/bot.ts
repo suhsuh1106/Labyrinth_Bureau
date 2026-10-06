@@ -17,7 +17,8 @@ export function botRng(seed: number) {
   return () => { s = (s + 0x6d2b79f5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 }
 
-export type BotStyle = { hero?: boolean; cartel?: 'donate' | 'audit' | 'none'; wild?: boolean };
+// smart: 증언을 모아 약점을 알아낸 플레이어 흉내. 새 층이 열리고 몇 달 지나면 맞는 공략본을 내고, 공략 지원금을 댄다
+export type BotStyle = { hero?: boolean; cartel?: 'donate' | 'audit' | 'none'; wild?: boolean; smart?: boolean };
 
 // 이번 달 결재 전에 예산과 선택을 채운다
 export function botTurn(api: GameApi, r: () => number, style: BotStyle = {}) {
@@ -42,6 +43,11 @@ export function botTurn(api: GameApi, r: () => number, style: BotStyle = {}) {
     const f = S.unlocked - 1;
     if (!S.floors[f].guide && !S.pendingGuide && S.month % 4 === 0) S.pendingGuide = { f, key: r() < 0.5 ? S.floors[f].weak : pick(api.KEYS) };
     if (S.month % 7 === 0) S.fees[0] = 50; else if (S.month % 7 === 3) S.fees[0] = 0;
+  }
+  if (style.smart && (!api.DEV || S.phase === 'run')) {
+    const f = S.unlocked - 1, fl = S.floors[f];
+    S.budget.support = 1000;
+    if (fl.guide !== fl.weak && !S.pendingGuide && fl.n >= 30) S.pendingGuide = { f, key: fl.weak };
   }
   if (style.hero && api.heroPlan && S.month >= 8 && (!api.DEV || S.phase === 'run')) {
     if (!S.hero) { S.heroApps.forEach(a => { a.pick = false; }); S.heroApps.slice().sort((a, b) => b.skill - a.skill).slice(0, 3).forEach(a => { a.pick = true; }); }

@@ -7,6 +7,7 @@ import { explore, foodLeave, rootPress } from './explore';
 import { coreDone, devDone, endFounding, founding, resolveDev, staffRebudget } from './founding';
 import { fameAdd, heroApplicants, heroMonth, heroOpened } from './hero';
 import { rows } from './html';
+import { grant, marketTax, questFee, rollQuests } from './income';
 import { intelReport } from './intel';
 import { rnd } from './rng';
 import { floorSecrets } from './secrets';
@@ -16,7 +17,7 @@ import { allFacs, done } from './world';
 
 export function resolve() {
   const t0 = S.treasury;
-  S.soldBacklog = 0;
+  S.soldBacklog = 0; S.fundBack = 0;
   const b = { ...S.budget };
   const pr = project(b);
   const { P, qM, qC, qW, cov } = pr;
@@ -67,7 +68,13 @@ export function resolve() {
   if (!devDone('market')) { S.unsold += ex.loot + heroLoot; ex.loot = 0; heroLoot = 0; }
   else { ex.loot = Math.round(ex.loot * S.lootMul); heroLoot = Math.round(heroLoot * S.lootMul); }
   const tollRate = S.toll;   // 개척 사업이 이번 달 끝에 통행세를 바꿔도 이번 달 장부는 이 요율로 남긴다
-  const income = M * tollRate + ex.loot + heroLoot + S.lordIncome + ex.feeIn;
+  // 의뢰는 그 층에서 성공한 파티(용사 포함)가 있으면 완수된다
+  const winsByFloor = ex.byFloor.map(b => b.w); if (hr.runs) winsByFloor[(hr as any).f] += hr.wins;
+  const quests = rollQuests(winsByFloor), qFee = questFee(quests);
+  if (quests.length) log(`의뢰 ${quests.filter(q => q.done).length}/${quests.length}건 처리 · 수수료 ${fmt(qFee)}G`);
+  const grantNow = grant(), mtax = marketTax(M, ex.loot + heroLoot);
+  S.fund = (S.fund || 0) - pr.devFund;
+  const income = M * tollRate + ex.loot + heroLoot + S.lordIncome + ex.feeIn + grantNow + mtax + qFee;
   const spend = pr.spend - pr.feeOut + ex.feeOut;
   const net = income - spend;
   S.treasury += net;
@@ -387,7 +394,7 @@ export function resolve() {
   resolveDev(notes);
   S.deathsTotal += deaths + od + hr.dead.length; S.yearDeaths += deaths + od + hr.dead.length;
   S.hist.push({ month: S.month, pm: P.m, pc: P.c, cm: K0.m, cc: K0.c, qC, treasury: S.treasury, M: S.M, deaths, rate });
-  S.last = { month: S.month, P, qM, qC, qW, cov, pv, fLeave, deaths, leave, arrive, heads: sup.heads, sup, fees: [...S.fees], need: pr.need, toll: M * tollRate, tollRate, hr, heroLoot, adopt, draw: pr.draw, toStock: pr.toStock, waste: pr.waste, stock: S.stock, lord: S.lordIncome, extra: pr.extra, agc: pr.agc, loot: ex.loot, ex, sM: pr.sM, sC: pr.sC, sW: pr.sW, fee: pr.fee, facCost: pr.facCost, upkeep: pr.upkeep, offers: pr.offers, fixed: pr.fixed, b, net, M };
+  S.last = { month: S.month, P, qM, qC, qW, cov, pv, fLeave, deaths, leave, arrive, heads: sup.heads, sup, fees: [...S.fees], need: pr.need, toll: M * tollRate, tollRate, hr, heroLoot, adopt, draw: pr.draw, toStock: pr.toStock, waste: pr.waste, stock: S.stock, lord: S.lordIncome, extra: pr.extra, agc: pr.agc, loot: ex.loot, ex, sM: pr.sM, sC: pr.sC, sW: pr.sW, fee: pr.fee, facCost: pr.facCost, upkeep: pr.upkeep, offers: pr.offers, fixed: pr.fixed, b, net, M, grant: grantNow, mtax, quests, questFee: qFee, devFund: pr.devFund };
   S.ledgers = (ledgerM || ledgerC) ? { m: ledgerM, c: ledgerC } : null;
   if (ledgerM) S.ledgerArchive.unshift({ m: ledgerM });
   if (ledgerC) S.ledgerArchive.unshift({ c: ledgerC });
@@ -413,11 +420,11 @@ export function resolve() {
   const sp = pr.sup;
   (S.books = S.books || []).push({
     m: nextMonth - 1,
-    inc: { toll: M * S.last.tollRate, loot: ex.loot, heroLoot, feeIn: ex.feeIn, lord: S.last.lord, backlog: S.soldBacklog },
+    inc: { toll: M * S.last.tollRate, loot: ex.loot, heroLoot, feeIn: ex.feeIn, lord: S.last.lord, backlog: S.soldBacklog, grant: grantNow, market: mtax, quest: qFee, fundBack: S.fundBack },
     exp: { sM: pr.sM, sC: pr.sC, sW: pr.sW, food: pr.pv.food.spend, repair: pr.pv.repair.spend, haul: pr.pv.haul.spend, support: b.support, trial: pr.trialSpend, rent: sp.rentSpend, priest: sp.priestSpend, recruit: sp.recruitSpend, feeOut: ex.feeOut,
       heroPay: pr.hero.active ? b.heroPay || 0 : 0, heroGear: pr.hero.active ? b.heroGear || 0 : 0, heroPub: pr.hero.active ? b.heroPub || 0 : 0,
       donation: b.donation, donR: b.donR || 0, intel: b.intel || 0, audit: b.audit, guide: pr.fee, fac: pr.facCost, upkeep: pr.upkeep, offers: pr.offers, fixed: pr.fixed, extra: pr.extra, agc: pr.agc, dev: pr.devc },
-    misc: S.treasury - t0 - net - S.soldBacklog,
+    misc: S.treasury - t0 - net - S.soldBacklog - S.fundBack,
   });
 }
 

@@ -112,6 +112,8 @@ export function staffRebudget(notes, why) {
 
 export function endFounding() {
   S.phase = 'run'; S.runStart = S.month;
+  // 쓰고 남은 영주 개척 자금은 관리국 금고로 넘어온다. 개척기를 아껴 마칠수록 운영기가 넉넉하게 시작한다
+  if (S.fund > 0) { S.fundBack = S.fund; S.treasury += S.fund; log(`남은 개척 자금 ${fmt(S.fund)}G를 금고로 옮김`); S.fund = 0; }
   const pickOf = id => { const d = DEV.find(x => x.id === id), st = S.dev[id]; return st ? d.opts[st.opt].label : '하지 않음'; };
   log('개척기를 마치고 운영기로 넘어감');
   S.eventDocs.push({ month: S.month, cls: 'secret', kind: '제국 행정성 · 보고', title: '관리국이 문을 열었습니다', from: `제${S.month}월`, stamp: '개청',

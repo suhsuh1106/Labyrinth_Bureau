@@ -12,6 +12,10 @@ export const BOOK_INC = [
   { k: 'feeIn', name: '층별 입장료', color: 'var(--c3)' },
   { k: 'lord', name: '하르덴 백작의 사례금', color: 'var(--c4)' },
   { k: 'backlog', name: '쌓아 둔 전리품 일괄 판매', color: 'var(--c5)' },
+  { k: 'market', name: '시장세', color: 'var(--c7)' },
+  { k: 'quest', name: '의뢰 수수료', color: 'var(--c3)' },
+  { k: 'grant', name: '영주 보조금', color: 'var(--c4)' },
+  { k: 'fundBack', name: '남은 개척 자금', color: 'var(--c6)' },
   { k: 'misc', name: '사건·기타', color: 'var(--c7)' },
 ];
 

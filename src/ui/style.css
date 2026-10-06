@@ -454,6 +454,7 @@ div.stats { display: flex; flex-wrap: wrap; gap: 4px 20px; }
 .pc.no { color: var(--ms); }
 .pc.hero { border-color: var(--brass); background: #f8eecf; }
 .pt-gear { font-size: 10.5px; color: var(--ms); }
+.pt-loot { font: 500 10.5px var(--f-num); color: var(--mgood); }
 .pt-guide { font-size: 10px; color: var(--mstamp); border: 1px solid currentColor; border-radius: 2px; padding: 0 3px; }
 .verdicts { display: grid; gap: 6px; margin-top: 8px; }
 .verdict { padding: 8px 12px; border-left: 4px solid var(--mstamp); background: #f9e9e2; display: grid; gap: 2px; }

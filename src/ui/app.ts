@@ -5,6 +5,7 @@ import { C } from '../core/data';
 import { prices } from '../core/economy';
 import { S } from '../core/state';
 import { fmt } from '../core/util';
+import { founding } from '../core/founding';
 import { renderBooksTab } from './books';
 import { buildLines, lineSig, syncBudget } from './budget';
 import { renderBuildTab } from './build';
@@ -21,6 +22,7 @@ export function renderStats() {
   $('stats').innerHTML = `
     <div class="stat"><span>현재</span><b>제${Math.min(S.month, C.MONTHS)}월</b></div>
     <div class="stat"><span>금고</span><b id="st-treasury" class="${S.treasury < 0 ? 'neg' : ''}">${fmt(S.treasury)}G</b></div>
+    ${founding() && S.fund > 0 ? `<div class="stat"><span>영주 개척 자금</span><b>${fmt(S.fund)}G</b></div>` : ''}
     <div class="stat"><span>용병</span><b>${S.M}명</b></div>
     <div class="stat"><span>개척</span><b>${S.unlocked}층 ${Math.round(S.floors[S.unlocked - 1].prog)}%</b></div>
     <div class="stat"><span>명성</span><b>${Math.round(S.fame)}</b></div>

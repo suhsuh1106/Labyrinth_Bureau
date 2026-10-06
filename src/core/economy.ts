@@ -2,7 +2,8 @@
 import { agendaCost, extraUpkeep, has } from './agendas';
 import { C } from './data';
 import { floorShares, partyCount, provisions, supply } from './explore';
-import { devCost } from './founding';
+import { devCost, devDone, founding } from './founding';
+import { grant, marketTax } from './income';
 import { heroPlan } from './hero';
 import { S } from './state';
 import { clamp, r5 } from './util';
@@ -44,7 +45,9 @@ export function project(b) {
   const sM = qM * P.m, sC = qC * P.c;
   const fee = S.pendingGuide ? C.GUIDE_FEE : 0;
   const facCost = facPendingCost(), upkeep = facUpkeep();
-  const offers = offerCost(), fixed = fixedCost(), extra = extraUpkeep(), agc = agendaCost(), devc = devCost();
+  // 개척 사업비는 영주 개척 자금에서 먼저 나가고, 모자란 만큼만 금고에서 낸다
+  const devAll = devCost(), devFund = Math.min(S.fund || 0, devAll), devc = devAll - devFund;
+  const offers = offerCost(), fixed = fixedCost(), extra = extraUpkeep(), agc = agendaCost();
   const sup = supply(b);
   const trialSpend = S.trial ? Math.min(partyCount(), Math.floor((b.trial || 0) / C.TRIAL_COST)) * C.TRIAL_COST : 0;
   // 입장료는 파티가 층을 고른 결과에 달려 있어 예상치로 셈한다
@@ -53,8 +56,11 @@ export function project(b) {
   const pv = provisions(b, sh);
   const feeIn = sh.reduce((a, x, i) => a + Math.max(0, S.fees[i]) * x * n, 0), feeOut = sh.reduce((a, x, i) => a + Math.max(0, -S.fees[i]) * x * n, 0);
   const spend = sM + sC + sW + pv.spend + b.donation + (b.donR || 0) + (b.intel || 0) + b.audit + b.support + trialSpend + sup.rentSpend + sup.priestSpend + sup.recruitSpend + feeOut + fee + facCost + upkeep + offers + fixed + extra + agc + hero.spend + devc;
-  const income = S.M * S.toll + S.lastLoot + S.lordIncome + feeIn;
-  return { P, qM, qC, qW, draw, toStock, waste, sM, sC, sW, pv, fee, facCost, upkeep, offers, fixed, extra, agc, devc, need, cov, sup, sh, n, feeIn, feeOut, trialSpend, hero, spend, income, net: income - spend };
+  // 시장세와 의뢰 수수료는 지난달 전리품·의뢰를 기준으로 어림한다
+  const lootGuess = founding() && !devDone('market') ? 0 : S.lastLoot;
+  const extraIn = grant() + marketTax(S.M, lootGuess) + (S.last && S.last.questFee || 0);
+  const income = S.M * S.toll + S.lastLoot + S.lordIncome + feeIn + extraIn;
+  return { P, qM, qC, qW, draw, toStock, waste, sM, sC, sW, pv, fee, facCost, upkeep, offers, fixed, extra, agc, devc, devFund, extraIn, need, cov, sup, sh, n, feeIn, feeOut, trialSpend, hero, spend, income, net: income - spend };
 }
 
 export function cartelScore(pr) {
