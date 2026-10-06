@@ -10,6 +10,7 @@ import { rows } from '../core/html';
 import { render, renderPanel } from './app';
 import { BUDGET_GROUPS, VIS, syncBudget } from './budget';
 import { latestIsExtra, renderNewsTab, showIssue } from './news';
+import { playMoments } from './moments';
 
 const $ = (id: string): any => document.getElementById(id);
 const TABS = ['docs', 'news', 'faction', 'explore', 'hero', 'build', 'books'];
@@ -140,12 +141,15 @@ export function approve() {
     sheet.classList.add('leaving');
     page.classList.remove('flip'); void page.offsetWidth; page.classList.add('flip');
   }, fast ? 0 : 800);
-  setTimeout(() => {
+  setTimeout(async () => {
     resolve(); S.guideDraft = {}; S.bookView = 'last';
-    busy = false;
     sheet.classList.remove('stamped', 'leaving');
     render(false);
+    // 금고는 귀환 보고가 끝날 때 올라가도록 잠시 결재 전 숫자로 둔다
+    const st = $('st-treasury'); if (st) st.textContent = `${fmt(t0)}G`;
     sheet.classList.add('arriving');
+    await playMoments(t0);
+    busy = false; renderDesk();
     const n = freshTabs().docs;
     say(`제${m0}월 예산안을 결재했습니다 · 금고 ${sgn(S.treasury - t0)}G${n ? ` · 서류함에 새 서류 ${n}건` : ''}`);
     // 임기가 끝나면 평가서부터, 아니면 이달 신문이 책상 위로 날아온다

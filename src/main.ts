@@ -5,6 +5,7 @@ import { render, start } from './ui/app';
 import { syncBudget } from './ui/budget';
 import { approve, closeReader, openReader, readerKey, renderReader } from './ui/desk';
 import { showIssue } from './ui/news';
+import { momentsOpen, renderShelf, renderSoundBtn, skipMoments, toggleSound } from './ui/moments';
 
 const $ = (id: string): any => document.getElementById(id);
 
@@ -12,7 +13,9 @@ const $ = (id: string): any => document.getElementById(id);
 document.querySelectorAll('[data-open]').forEach((b: any) => b.addEventListener('click', () => openReader(b.dataset.open, b)));
 $('close').addEventListener('click', () => closeReader());
 $('reader').addEventListener('click', e => { if (e.target === $('reader')) closeReader(); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && readerKey()) closeReader(); });
+document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; if (momentsOpen()) skipMoments(); else if (readerKey()) closeReader(); });
+$('mo-skip').addEventListener('click', () => skipMoments());
+$('sound').addEventListener('click', () => toggleSound());
 
 // 결재: 책상 위 도장이든 예산안 안의 버튼이든 같은 연출로 한 달을 넘긴다
 $('stamp').addEventListener('click', () => approve());
@@ -27,7 +30,7 @@ $('lines').addEventListener('click', e => {
 $('panel').addEventListener('click', e => {
   const b = e.target.closest('[data-action]'); if (!b) return;
   const a = b.dataset.action;
-  if (a === 'restart') { newGame(); closeReader(false); render(); window.scrollTo(0, 0); }
+  if (a === 'restart') { newGame(); closeReader(false); render(); renderShelf(); window.scrollTo(0, 0); }
   if (a === 'guide') {
     const f = +b.dataset.floor, key = S.guideDraft[f] || $('g-' + f).value;
     if (!key || S.over) return;
@@ -61,3 +64,4 @@ $('panel').addEventListener('change', e => {
 });
 
 start({});
+renderShelf(); renderSoundBtn();

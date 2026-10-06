@@ -15,7 +15,9 @@
   <header class="plaque" aria-label="관리국 현황">
     <h1>서부 변경 미궁 관리국</h1>
     <div class="stats" id="stats"></div>
+    <button class="sound" id="sound" type="button" aria-pressed="true">효과음 켬</button>
   </header>
+  <section class="shelf" id="shelf" aria-label="기념품 선반"></section>
 
   <main class="scene">
     <section class="side left" aria-label="책상 왼쪽">
@@ -95,6 +97,10 @@
       </form>
     </section>
   </article>
+</div>
+<div class="stage" id="stage" hidden role="dialog" aria-modal="true" aria-label="이번 달의 순간">
+  <button class="mo-skip" id="mo-skip" type="button">건너뛰기</button>
+  <div class="stage-box" id="stage-box"></div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <script type="module" src="/src/main.ts"></script>
