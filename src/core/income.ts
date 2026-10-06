@@ -2,6 +2,7 @@
 // 국장이 하나하나 고르는 것은 없다. 마을이 커지고 원정이 잘 풀리면 저절로 늘고, 결과는 결산과 신문에 남는다
 import { C } from './data';
 import { devDone } from './founding';
+import { questCut, questMore } from './org';
 import { rnd } from './rng';
 import { S } from './state';
 
@@ -18,7 +19,7 @@ const CLIENTS = ['마법학교 서부 분교', '수도의 수집가', '교회 �
 export type Quest = { who: string; f: number; reward: number; done: boolean };
 export function rollQuests(winsByFloor: number[]): Quest[] {
   if (!devDone('gate')) return [];
-  const n = Math.min(C.QUEST_MAX, Math.floor(S.unlocked / 2 + S.fame / 40 + rnd()));
+  const n = Math.min(C.QUEST_MAX + questMore(), Math.floor(S.unlocked / 2 + S.fame / 40 + rnd()) + questMore());
   const out: Quest[] = [];
   for (let i = 0; i < n; i++) {
     // 깊은 층 의뢰가 더 많고 더 비싸다
@@ -28,4 +29,4 @@ export function rollQuests(winsByFloor: number[]): Quest[] {
   }
   return out;
 }
-export const questFee = (qs: Quest[]) => qs.filter(q => q.done).reduce((a, q) => a + Math.round(q.reward * C.QUEST_CUT), 0);
+export const questFee = (qs: Quest[]) => qs.filter(q => q.done).reduce((a, q) => a + Math.round(q.reward * questCut()), 0);

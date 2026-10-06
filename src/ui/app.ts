@@ -7,7 +7,7 @@ import { S } from '../core/state';
 import { fmt } from '../core/util';
 import { founding } from '../core/founding';
 import { renderBooksTab } from './books';
-import { buildLines, lineSig, syncBudget } from './budget';
+import { syncBudget } from './budget';
 import { renderBuildTab } from './build';
 import { renderDocsTab } from './docs';
 import { renderExploreTab } from './explore';
@@ -38,9 +38,8 @@ export function renderPanel(flash) {
 }
 
 export function render(flash = true) {
-  if (lineSig() !== S._sig) buildLines();
   renderStats();
-  $('b-title').textContent = S.over ? '임기 종료' : `제${S.month}월 예산안`;
+  $('b-title').textContent = S.over ? '임기 종료' : `제${S.month}월 결재함`;
   $('b-lead').textContent = leadText() + (S.over ? '' : ' · 결재하면 한 달이 흐릅니다');
   $('approve').disabled = !!S.over;
   syncBudget();
@@ -50,5 +49,5 @@ export function render(flash = true) {
 
 export function start(data) {
   loadGame(data);
-  buildLines(); render();
+  render();
 }

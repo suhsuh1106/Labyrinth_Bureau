@@ -22,6 +22,8 @@ import { issue } from '../src/core/news';
 import { monthMoments } from '../src/core/moments';
 import { guideHtml, obitHtml, returnHtml, reviewHtml, shelfHtml } from '../src/ui/moments';
 import { botRng, botTurn, type BotStyle } from '../sim/bot';
+import { DEPTS, canPick, compileBudget, dept, polVal } from '../src/core/org';
+import { deskHtml, orgHtml } from '../src/ui/budget';
 
 const api = { S: () => S, prices, project, heroPlan, DEV, AGENDAS, KEYS };
 const styles: BotStyle[] = [{ cartel: 'donate' }, { cartel: 'audit', wild: true }, { hero: true, wild: true }];
@@ -48,7 +50,8 @@ describe('화면', () => {
   it('모든 탭과 책상 위 서류가 매달 오류 없이 그려진다', () => {
     for (let seed = 200; seed < 215; seed++) play(seed, styles[seed % 3], () => {
       resolve();
-      for (const f of [renderDocsTab, renderFactionTab, renderExploreTab, renderBuildTab, renderBooksTab, renderHeroTab, deskBudgetHtml, calendarHtml, renderNewsTab]) {
+      compileBudget();
+      for (const f of [renderDocsTab, renderFactionTab, renderExploreTab, renderBuildTab, renderBooksTab, renderHeroTab, deskBudgetHtml, calendarHtml, renderNewsTab, () => deskHtml(project(S.budget)), orgHtml]) {
         const html = f();
         expect(typeof html).toBe('string');
         expect(html).not.toMatch(/undefined|NaN/);
@@ -125,6 +128,51 @@ describe('개척 자금과 새 수입', () => {
   });
 });
 
+describe('관리국 직제', () => {
+  const toRun = (seed: number) => { play(seed, styles[0], () => { if (S.phase === 'found') resolve(); else S.over = 'stop'; }); S.over = null; };
+  it('부서 신설비는 결재 때 한 번 나가고, 다음 달부터 그 단계로 일하며 인건비가 붙는다', () => {
+    toRun(700);
+    const cost = dept('finance').cost[0];
+    S.org.up = 'finance'; compileBudget();
+    const p = project(S.budget); resolve();
+    const bk = S.books[S.books.length - 1];
+    expect(bk.exp.org).toBe(cost);
+    expect(p.orgUp).toBe(cost);
+    expect(S.org.lv.finance).toBe(1);
+    expect(S.org.up).toBeNull();
+    compileBudget(); resolve();
+    expect(S.books[S.books.length - 1].exp.staff).toBe(DEPTS.reduce((a, d) => a + (S.org.lv[d.id] ? d.pay[S.org.lv[d.id] - 1] : 0), 0));
+  });
+  it('반려한 품의는 그달 집행되지 않고, 반려는 한 달만 간다', () => {
+    toRun(701);
+    S.org.lv.audit = 2; S.org.pol.audit = 2; compileBudget();
+    expect(S.budget.audit).toBeGreaterThan(0);
+    S.org.rej.audit = true; S.org.rej.supply = true; compileBudget();
+    expect(S.budget.audit + S.budget.intel).toBe(0);
+    expect(S.budget.potM + S.budget.potC + S.budget.food).toBe(0);
+    resolve();
+    expect(S.org.rej).toEqual({});
+  });
+  it('단계가 모자라면 방침이 열리지 않고, 막힌 방침은 열린 값으로 내려간다', () => {
+    toRun(702);
+    expect(canPick('supply', 3)).toBe(false);
+    S.org.pol.supply = 3; expect(polVal('supply')).toBe(1);
+    S.org.lv.supply = 3; expect(polVal('supply')).toBe(1.1);
+  });
+  it('재무과는 예상과 실적이 크게 어긋난 달에만 대조표를 올린다', () => {
+    let docs = 0, months = 0;
+    for (let seed = 710; seed < 716; seed++) play(seed, styles[0], () => {
+      if (S.phase === 'run') S.org.lv.finance = 2;
+      resolve(); months++;
+      const d = S.eventDocs.filter(e => e.month === S.month && /재무과/.test(e.kind));
+      docs += d.length;
+      d.forEach(e => expect(e.body).not.toMatch(/undefined|NaN/));
+    });
+    expect(docs).toBeGreaterThan(0);
+    expect(docs).toBeLessThan(months * 0.8);
+  });
+});
+
 describe('저장', () => {
   it('지금 버전 저장은 그대로 이어진다', () => {
     play(300, styles[0], () => { if (S.month < 6) resolve(); else S.over = 'stop'; });
@@ -154,6 +202,17 @@ describe('저장', () => {
     expect(S.v).toBe(SAVE_VERSION);
     resolve();
     expect(S.month).toBe(4);
+  });
+  it('직제 이전(버전 15) 저장은 쓰던 예산 줄을 맡을 부서를 세워 이어진다', () => {
+    play(303, styles[0], () => { if (S.month < 8) resolve(); else S.over = 'stop'; });
+    const old = JSON.parse(JSON.stringify(S));
+    delete old.org; old.v = 15; old.over = null; old.budget.audit = 3000; old.budget.support = 1000;
+    loadGame({ S: old });
+    expect(S.org.lv.audit).toBe(2);
+    expect(S.org.lv.explore).toBe(1);
+    expect(S.v).toBe(SAVE_VERSION);
+    compileBudget(); resolve();
+    expect(S.month).toBe(9);
   });
   it('모르는 버전이면 새 게임으로 시작한다', () => {
     loadGame({ S: { v: 3 } });

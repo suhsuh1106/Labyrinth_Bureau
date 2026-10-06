@@ -4,6 +4,7 @@ import { C } from './data';
 import { floorShares, partyCount, provisions, supply } from './explore';
 import { devCost, devDone, founding } from './founding';
 import { grant, marketTax } from './income';
+import { potDisc, staffPay, upCost } from './org';
 import { heroPlan } from './hero';
 import { S } from './state';
 import { clamp, r5 } from './util';
@@ -33,7 +34,9 @@ export function prices() {
 
 export function project(b) {
   const P = prices();
-  const qM = Math.floor(b.potM / P.m);
+  // 보급과 2단계는 상단과 대량 구매 협상을 해 둬서 같은 돈으로 조금 더 산다
+  const pm = Math.round(P.m * potDisc());
+  const qM = Math.floor(b.potM / pm);
   const qC = Math.min(Math.floor(b.potC / P.c), S.cap);
   const qW = S.wsBuilt ? Math.min(Math.floor(b.ws / C.WS_COST), S.wsCap) : 0;
   const sW = qW * C.WS_COST;
@@ -42,7 +45,7 @@ export function project(b) {
   const toStock = Math.min(C.STOCK_CAP - S.stock, Math.max(0, buy - need));
   const waste = Math.max(0, buy - need - toStock);
   const cov = need ? Math.min(1, (buy + draw) / need) : 1;
-  const sM = qM * P.m, sC = qC * P.c;
+  const sM = qM * pm, sC = qC * P.c;
   const fee = S.pendingGuide ? C.GUIDE_FEE : 0;
   const facCost = facPendingCost(), upkeep = facUpkeep();
   // 개척 사업비는 영주 개척 자금에서 먼저 나가고, 모자란 만큼만 금고에서 낸다
@@ -55,12 +58,14 @@ export function project(b) {
   const n = partyCount(), sh = floorShares(cov);
   const pv = provisions(b, sh);
   const feeIn = sh.reduce((a, x, i) => a + Math.max(0, S.fees[i]) * x * n, 0), feeOut = sh.reduce((a, x, i) => a + Math.max(0, -S.fees[i]) * x * n, 0);
-  const spend = sM + sC + sW + pv.spend + b.donation + (b.donR || 0) + (b.intel || 0) + b.audit + b.support + trialSpend + sup.rentSpend + sup.priestSpend + sup.recruitSpend + feeOut + fee + facCost + upkeep + offers + fixed + extra + agc + hero.spend + devc;
+  const staff = staffPay(), orgUp = upCost(), pub = b.heroPub || 0;
+  const spend = staff + orgUp + pub + sM + sC + sW + pv.spend + b.donation + (b.donR || 0) + (b.intel || 0) + b.audit + b.support + trialSpend + sup.rentSpend + sup.priestSpend + sup.recruitSpend + feeOut + fee + facCost + upkeep + offers + fixed + extra + agc + hero.spend + devc;
   // 시장세와 의뢰 수수료는 지난달 전리품·의뢰를 기준으로 어림한다
   const lootGuess = founding() && !devDone('market') ? 0 : S.lastLoot;
-  const extraIn = grant() + marketTax(S.M, lootGuess) + (S.last && S.last.questFee || 0);
+  const mktGuess = marketTax(S.M, lootGuess);
+  const extraIn = grant() + mktGuess + (S.last && S.last.questFee || 0);
   const income = S.M * S.toll + S.lastLoot + S.lordIncome + feeIn + extraIn;
-  return { P, qM, qC, qW, draw, toStock, waste, sM, sC, sW, pv, fee, facCost, upkeep, offers, fixed, extra, agc, devc, devFund, extraIn, need, cov, sup, sh, n, feeIn, feeOut, trialSpend, hero, spend, income, net: income - spend };
+  return { P, pm, staff, orgUp, pub, qM, qC, qW, draw, toStock, waste, sM, sC, sW, pv, fee, facCost, upkeep, offers, fixed, extra, agc, devc, devFund, extraIn, mktGuess, need, cov, sup, sh, n, feeIn, feeOut, trialSpend, hero, spend, income, net: income - spend };
 }
 
 export function cartelScore(pr) {

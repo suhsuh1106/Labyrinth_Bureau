@@ -9,6 +9,7 @@ import { fameAdd, heroApplicants, heroMonth, heroOpened } from './hero';
 import { rows } from './html';
 import { grant, marketTax, questFee, rollQuests } from './income';
 import { intelReport } from './intel';
+import { adoptOrg, financeReview, lv, orgMonth, steadyWatch } from './org';
 import { rnd } from './rng';
 import { floorSecrets } from './secrets';
 import { S, learn, log } from './state';
@@ -50,7 +51,7 @@ export function resolve() {
   }
 
   // 탐사
-  const adopt = S.floors.some(f => f.guide) ? clamp(adoptRate(b.support) + (done('mapper') ? 0.15 : 0) + S.adoptBonus, 0, 0.95) : 0;
+  const adopt = S.floors.some(f => f.guide) ? clamp(adoptRate(b.support) + (done('mapper') ? 0.15 : 0) + adoptOrg() + S.adoptBonus, 0, 0.95) : 0;
   const sup = pr.sup;
   const pv = pr.pv;
   const ex = explore(cov, adopt, sup, pv);
@@ -78,6 +79,7 @@ export function resolve() {
   const spend = pr.spend - pr.feeOut + ex.feeOut;
   const net = income - spend;
   S.treasury += net;
+  const fin = financeReview({ pr, loot: ex.loot + heroLoot, mtax, qFee, quests, ex, spend, leakLost });
   S.lastLoot = ex.loot + heroLoot;
   // 미궁의 압력: 꺼낸 만큼 차오른다. 봉인한 층은 덜, 채굴하는 층은 더 채운다
   S.pressure += ex.byFloor.reduce((a, bf, i) => a + bf.got * rootPress(i), 0) / 15000 + ex.n / 100;
@@ -119,8 +121,8 @@ export function resolve() {
   S.trust -= avgFee / 150;
   if (avgFee >= 100) { flag('fee_gouge'); notes.push('용병들이 관리국이 입장료로 등골을 뺀다며 투덜댑니다.'); }
   else if (ex.feeOut > 0 && rnd() < 0.3) notes.push('입장 보조금이 나오는 층으로 가자는 말이 용병 숙소에서 돕니다.');
-  // 명성: 홍보비가 조금씩 쌓고, 가만두면 식는다. 이름난 관리국은 용병이 믿고 찾아온다
-  if (pr.hero.active && S.hero) fameAdd((b.heroPub || 0) / 1000 * 0.8);
+  // 명성: 공보관 소식지(용사가 있으면 용사 홍보)가 조금씩 쌓고, 가만두면 식는다. 이름난 관리국은 용병이 믿고 찾아온다
+  fameAdd((b.heroPub || 0) / 1000 * 0.8);
   S.fame += (C.FAME0 - S.fame) * 0.04;
   S.trust += (S.fame - 50) * 0.02;
   S.trust += (50 - S.trust) * 0.05;
@@ -224,7 +226,7 @@ export function resolve() {
   // 감찰: 쓴 만큼 장부를 얻을 확률·감시 효과·불쾌감이 함께 오른다
   const a = b.audit;
   const audited = a > 0 && rnd() < pLedgerM(a), full = a > 0 && rnd() < pLedgerC(a);
-  S.noAudit = clamp(S.noAudit + 1 - a / 1000, 0, 6);
+  S.noAudit = clamp(S.noAudit + 1 - a / 1000 - (steadyWatch() ? 1 : 0), 0, 6);
   if (audited) flag('audit');
   if (full) flag('audit_church');
   if (a > 0 && !S.cartel) {
@@ -394,7 +396,8 @@ export function resolve() {
   resolveDev(notes);
   S.deathsTotal += deaths + od + hr.dead.length; S.yearDeaths += deaths + od + hr.dead.length;
   S.hist.push({ month: S.month, pm: P.m, pc: P.c, cm: K0.m, cc: K0.c, qC, treasury: S.treasury, M: S.M, deaths, rate });
-  S.last = { month: S.month, P, qM, qC, qW, cov, pv, fLeave, deaths, leave, arrive, heads: sup.heads, sup, fees: [...S.fees], need: pr.need, toll: M * tollRate, tollRate, hr, heroLoot, adopt, draw: pr.draw, toStock: pr.toStock, waste: pr.waste, stock: S.stock, lord: S.lordIncome, extra: pr.extra, agc: pr.agc, loot: ex.loot, ex, sM: pr.sM, sC: pr.sC, sW: pr.sW, fee: pr.fee, facCost: pr.facCost, upkeep: pr.upkeep, offers: pr.offers, fixed: pr.fixed, b, net, M, grant: grantNow, mtax, quests, questFee: qFee, devFund: pr.devFund };
+  S.last = { month: S.month, P, qM, qC, qW, cov, pv, fLeave, deaths, leave, arrive, heads: sup.heads, sup, fees: [...S.fees], need: pr.need, toll: M * tollRate, tollRate, hr, heroLoot, adopt, draw: pr.draw, toStock: pr.toStock, waste: pr.waste, stock: S.stock, lord: S.lordIncome, extra: pr.extra, agc: pr.agc, loot: ex.loot, ex, sM: pr.sM, sC: pr.sC, sW: pr.sW, fee: pr.fee, facCost: pr.facCost, upkeep: pr.upkeep, offers: pr.offers, fixed: pr.fixed, b, net, M, grant: grantNow, mtax, quests, questFee: qFee, devFund: pr.devFund, staff: pr.staff, orgUp: pr.orgUp };
+  orgMonth(log);
   S.ledgers = (ledgerM || ledgerC) ? { m: ledgerM, c: ledgerC } : null;
   if (ledgerM) S.ledgerArchive.unshift({ m: ledgerM });
   if (ledgerC) S.ledgerArchive.unshift({ c: ledgerC });
@@ -404,6 +407,7 @@ export function resolve() {
   if (S.treasury < 0) S.neg++; else S.neg = 0;
   S.month = nextMonth;
   S.notes = notes; S.notices = notices;
+  if (fin) S.eventDocs.push({ month: S.month, ...fin });
   monthEvents(notes, notices);
   rollEvents({ notes, deaths, M, ed: (o) => S.eventDocs.push({ month: S.month, ...o }) });
   notices.forEach(n => S.archive.push({ m: S.month, who: n.who, t: `${n.name}: “${n.text}”` }));
@@ -422,7 +426,7 @@ export function resolve() {
     m: nextMonth - 1,
     inc: { toll: M * S.last.tollRate, loot: ex.loot, heroLoot, feeIn: ex.feeIn, lord: S.last.lord, backlog: S.soldBacklog, grant: grantNow, market: mtax, quest: qFee, fundBack: S.fundBack },
     exp: { sM: pr.sM, sC: pr.sC, sW: pr.sW, food: pr.pv.food.spend, repair: pr.pv.repair.spend, haul: pr.pv.haul.spend, support: b.support, trial: pr.trialSpend, rent: sp.rentSpend, priest: sp.priestSpend, recruit: sp.recruitSpend, feeOut: ex.feeOut,
-      heroPay: pr.hero.active ? b.heroPay || 0 : 0, heroGear: pr.hero.active ? b.heroGear || 0 : 0, heroPub: pr.hero.active ? b.heroPub || 0 : 0,
+      heroPay: pr.hero.active ? b.heroPay || 0 : 0, heroGear: pr.hero.active ? b.heroGear || 0 : 0, heroPub: b.heroPub || 0, staff: pr.staff, org: pr.orgUp,
       donation: b.donation, donR: b.donR || 0, intel: b.intel || 0, audit: b.audit, guide: pr.fee, fac: pr.facCost, upkeep: pr.upkeep, offers: pr.offers, fixed: pr.fixed, extra: pr.extra, agc: pr.agc, dev: pr.devc },
     misc: S.treasury - t0 - net - S.soldBacklog - S.fundBack,
   });
@@ -498,7 +502,8 @@ export function evaluate() {
   const grade = score >= 4 ? '우수' : score >= 2 ? '보통' : '미흡';
   let reward = '';
   // 정치적 이미지: 이름난 관리국에 수도는 너그럽다
-  if (grade === '우수') { S.treasury += 8000; S.trust += 5; reward = '수도에서 특별 보조금 8,000G를 보내왔습니다.'; if (S.fame >= 60) { S.treasury += 3000; reward += ' 용사 소식을 들은 수도가 3,000G를 더 얹었습니다.'; } }
+  if (grade === '우수') { S.treasury += 8000; S.trust += 5; reward = '수도에서 특별 보조금 8,000G를 보내왔습니다.'; if (lv('press') >= 3) { S.treasury += 4000; reward += ' 공보관의 의전 덕에 영주가 4,000G를 더 보탰습니다.'; } if (S.fame >= 60) { S.treasury += 3000; reward += ' 용사 소식을 들은 수도가 3,000G를 더 얹었습니다.'; } }
+  else if (grade === '미흡' && lv('press') >= 3 && !S.pressSaved) { S.pressSaved = true; reward = '평가는 미흡이지만, 공보관이 수도를 오가며 사정을 설명한 덕에 이번 한 번은 경고를 거둡니다.'; }
   else if (grade === '미흡' && S.fame >= 60 && !S.fameSaved) { S.fameSaved = true; reward = '평가는 미흡이지만, 용사 소식으로 이름이 난 덕에 수도가 이번 한 번은 경고를 거둡니다.'; }
   else if (grade === '미흡') { S.warn++; reward = S.warn >= 2 ? '두 번째 미흡입니다. 수도가 관리국장을 소환합니다.' : '수도에서 경고장이 왔습니다. 다음 평가도 미흡하면 소환됩니다.'; }
   else reward = '수도는 지켜보겠다는 입장입니다.';

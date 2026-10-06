@@ -2,7 +2,7 @@
 import { SAVE_VERSION } from './save';
 import { pickAgenda } from './agendas';
 import { C, CLASS_SHARE, MONSTERS } from './data';
-import { fillProvisions } from './founding';
+import { compileBudget, newOrg } from './org';
 import { rnd } from './rng';
 
 export function learn(who, type, key) { const k = type + ':' + key; if (!S.learned[who][k]) S.learned[who][k] = S.month; }
@@ -28,9 +28,10 @@ export function newGame() {
     flags: {}, flagM: {}, agenda: null, agendaDone: {}, toll: 0, wsCap: C.WS_CAP, upkeepX: [], adoptBonus: 0, deathMul: 1, lordIncome: 0,
     union: null, leak: null, lord: null, evCool: { union: 0, leak: 0, lord: 0 },
     hero: null, heroApps: [], heroSeq: 0, heroCool: 0, heroFallen: [], fame: C.FAME0, fameLog: [], fameSaved: false, privateExp: null,
+    org: newOrg(),
     hist: [], books: [], bookView: 'last', last: null, ledgers: null, ledgerArchive: [], archive: [], notes: [], notices: [], log: [], talk: null, over: null,
   };
-  fillProvisions();
+  compileBudget();
   pickAgenda();
 }
 

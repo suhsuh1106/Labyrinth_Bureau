@@ -44,7 +44,7 @@ export function renderHeroTab() {
       : plan.forming ? '결재 때 결성돼요' : `후원금을 ${fmt(plan.demand)}G 이상 걸어야 결성돼요`;
     out.push(doc({ kind: '관리국 · 지원자 통계', title: H ? '빈자리를 채울 지원자' : '용사 파티 결성', from: `공고 후원금 ${fmt(b.heroPay || 0)}G`,
       body: (apps.length ? rows([['이번 달 지원자', `${apps.length}명 · 평균 실력 ${avg}`], ['출신', by]]) + heroTable(apps, true)
-        : `<p class="dim">${S.heroCool ? `파티가 흩어진 뒤라 ${S.heroCool}개월 동안 지원자가 오지 않아요.` : (b.heroPay || 0) ? '다음 달부터 지원자가 와요.' : '예산안의 용사 후원금으로 공고를 걸면 다음 달부터 지원자가 와요.'}</p>`)
+        : `<p class="dim">${S.heroCool ? `파티가 흩어진 뒤라 ${S.heroCool}개월 동안 지원자가 오지 않아요.` : (b.heroPay || 0) ? '다음 달부터 지원자가 와요.' : '결재함의 용사 후원 방침을 정하면 공고가 걸리고 다음 달부터 지원자가 와요.'}</p>`)
         + `<p><b>${status}</b>${picks.length ? ` · 명단 몸값 합계 ${fmt(picks.reduce((a, m) => a + m.pay, 0))}G` : ''}</p>
         <p class="from">공고 금액이 높고 명성이 높을수록 실력 좋은 지원자가 와요. 교회와 사이가 좋으면 교회 추천이, 상단과 사이가 좋으면 상단 추천이 늘어요. 추천받은 용사는 몸값이 싸지만, 그 세력이 용사의 죽음과 대우를 따로 셈해요. 야심 큰 용사는 강하지만 배신하기 쉬워요.</p>` }));
   }
