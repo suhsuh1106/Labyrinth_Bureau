@@ -9,9 +9,10 @@ import { fmt, pct, sgn } from '../core/util';
 import { rows } from '../core/html';
 import { render, renderPanel } from './app';
 import { BUDGET_GROUPS, VIS, syncBudget } from './budget';
+import { latestIsExtra, renderNewsTab, showIssue } from './news';
 
 const $ = (id: string): any => document.getElementById(id);
-const TABS = ['docs', 'faction', 'explore', 'hero', 'build', 'books'];
+const TABS = ['docs', 'news', 'faction', 'explore', 'hero', 'build', 'books'];
 const reduced = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // 예산안 아래 한 줄 설명. 예산 편집 화면 머리말과 책상 위 서류가 같이 쓴다
@@ -31,6 +32,7 @@ export function freshTabs(): Record<string, number> {
   out.faction = S.archive.some(a => a.m === S.month && a.who !== 'other') ? 1 : 0;
   out.hero = S.log.some(e => e.m === S.month - 1 && /용사/.test(e.t)) || (!S.hero && S.heroApps.some(a => a.m === S.month)) ? 1 : 0;
   out.explore = S.log.some(e => e.m === S.month - 1 && /층/.test(e.t)) ? 1 : 0;
+  out.news = S.month > 1 ? 1 : 0;
   out.books = 0;
   return out;
 }
@@ -87,7 +89,7 @@ export function renderDesk() {
   TABS.forEach(t => {
     const b = $('tab-' + t); if (!b) return;
     const pin = b.querySelector('.pin'), on = fresh[t] > 0 && !S.seenTabs[t + S.month];
-    if (pin) { pin.hidden = !on; pin.textContent = t === 'docs' ? `새 서류 ${fresh[t]}` : '새 소식'; }
+    if (pin) { pin.hidden = !on; pin.textContent = t === 'docs' ? `새 서류 ${fresh[t]}` : t === 'news' ? (latestIsExtra() ? '호외' : '새 호') : '새 소식'; }
     b.classList.toggle('fresh', on && t === 'docs');
   });
   $('stamp').disabled = !!S.over || busy;
@@ -104,9 +106,11 @@ export function renderReader(flash = false) {
   $('held').classList.toggle('narrow', isBudget || open === 'calendar');
   if (isBudget) syncBudget();
   else if (open === 'calendar') $('panel').innerHTML = calendarHtml();
+  else if (open === 'news') { S.seenTabs['news' + S.month] = 1; $('panel').innerHTML = renderNewsTab(); }
   else { S.tab = open; renderPanel(flash); }
 }
 export function openReader(key: string, from?: HTMLElement) {
+  if (key === 'news' && open !== 'news') showIssue(null);
   open = key; opener = from || null;
   $('reader').hidden = false;
   renderReader(true);
@@ -144,6 +148,8 @@ export function approve() {
     sheet.classList.add('arriving');
     const n = freshTabs().docs;
     say(`제${m0}월 예산안을 결재했습니다 · 금고 ${sgn(S.treasury - t0)}G${n ? ` · 서류함에 새 서류 ${n}건` : ''}`);
+    // 임기가 끝나면 평가서부터, 아니면 이달 신문이 책상 위로 날아온다
     if (S.over) openReader('docs', $('tab-docs'));
+    else { showIssue(null, !fast); open = 'news'; opener = $('tab-news'); $('reader').hidden = false; renderReader(); renderDesk(); $('held').scrollTop = 0; $('held').focus(); }
   }, fast ? 0 : 1250);
 }
