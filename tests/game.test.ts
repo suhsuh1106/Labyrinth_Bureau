@@ -17,6 +17,10 @@ import { renderBuildTab } from '../src/ui/build';
 import { renderBooksTab } from '../src/ui/books';
 import { renderHeroTab } from '../src/ui/hero';
 import { calendarHtml, deskBudgetHtml } from '../src/ui/desk';
+import { renderNewsTab } from '../src/ui/news';
+import { issue } from '../src/core/news';
+import { monthMoments } from '../src/core/moments';
+import { guideHtml, obitHtml, returnHtml, reviewHtml, shelfHtml } from '../src/ui/moments';
 import { botRng, botTurn, type BotStyle } from '../sim/bot';
 
 const api = { S: () => S, prices, project, heroPlan, DEV, AGENDAS, KEYS };
@@ -44,12 +48,56 @@ describe('화면', () => {
   it('모든 탭과 책상 위 서류가 매달 오류 없이 그려진다', () => {
     for (let seed = 200; seed < 215; seed++) play(seed, styles[seed % 3], () => {
       resolve();
-      for (const f of [renderDocsTab, renderFactionTab, renderExploreTab, renderBuildTab, renderBooksTab, renderHeroTab, deskBudgetHtml, calendarHtml]) {
+      for (const f of [renderDocsTab, renderFactionTab, renderExploreTab, renderBuildTab, renderBooksTab, renderHeroTab, deskBudgetHtml, calendarHtml, renderNewsTab]) {
         const html = f();
         expect(typeof html).toBe('string');
         expect(html).not.toMatch(/undefined|NaN/);
       }
     });
+  });
+});
+
+describe('변경 일보', () => {
+  it('매달 신문이 나오고, 신문을 만들어도 게임 상태는 그대로다', () => {
+    const heds = new Set<string>(); let extras = 0, issues = 0;
+    for (let seed = 400; seed < 430; seed++) play(seed, styles[seed % 3], () => {
+      resolve();
+      const before = JSON.stringify(S);
+      const I = issue(S.month - 1);
+      expect(I, `시드 ${seed} 제${S.month - 1}호`).not.toBeNull();
+      expect(JSON.stringify(I)).not.toMatch(/undefined|NaN/);
+      expect(JSON.stringify(S)).toBe(before);
+      heds.add(I!.kicker); if (I!.extra) extras++; issues++;
+    });
+    // 큰 일이 있는 달에만 호외가 나오고, 1면감도 여러 갈래여야 한다
+    expect(extras).toBeGreaterThan(0);
+    expect(extras).toBeLessThan(issues / 2);
+    expect(heds.size).toBeGreaterThanOrEqual(5);
+  });
+  it('지난 호는 다시 펼쳐도 같다', () => {
+    play(431, styles[2], () => { if (S.month < 10) resolve(); else S.over = 'stop'; });
+    const old = JSON.stringify(issue(4));
+    S.over = null; for (let i = 0; i < 5 && !S.over; i++) resolve();
+    expect(JSON.stringify(issue(4))).toBe(old);
+  });
+});
+
+describe('결재 뒤의 순간들', () => {
+  it('매달 귀환 보고가 나오고, 큰 일은 그달에만 나오며, 게임 상태는 그대로다', () => {
+    const seen = { ret: 0, hit: 0, miss: 0, obit: 0, review: 0, months: 0 };
+    for (let seed = 500; seed < 530; seed++) play(seed, styles[seed % 3], () => {
+      resolve(); seen.months++;
+      const before = JSON.stringify(S);
+      const M = monthMoments();
+      const html = [returnHtml(M), guideHtml(M), reviewHtml(M), shelfHtml(true), ...M.obits.map((_, i) => obitHtml(M, i))].join('');
+      expect(html, `시드 ${seed} 제${M.m}월`).not.toMatch(/undefined|NaN/);
+      expect(JSON.stringify(S)).toBe(before);
+      if (M.ret) { seen.ret++; expect(M.ret.parties.length).toBe(M.ret.n); expect(M.ret.wins).toBeLessThanOrEqual(M.ret.n); }
+      if (M.guide) M.guide.ok ? seen.hit++ : seen.miss++;
+      seen.obit += M.obits.length; if (M.review) seen.review++;
+    });
+    expect(seen.ret).toBeGreaterThan(seen.months * 0.9);
+    for (const k of ['hit', 'miss', 'obit', 'review'] as const) expect(seen[k], k).toBeGreaterThan(0);
   });
 });
 

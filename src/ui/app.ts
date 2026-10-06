@@ -20,7 +20,7 @@ export function renderStats() {
   const P = prices();
   $('stats').innerHTML = `
     <div class="stat"><span>현재</span><b>제${Math.min(S.month, C.MONTHS)}월</b></div>
-    <div class="stat"><span>금고</span><b class="${S.treasury < 0 ? 'neg' : ''}">${fmt(S.treasury)}G</b></div>
+    <div class="stat"><span>금고</span><b id="st-treasury" class="${S.treasury < 0 ? 'neg' : ''}">${fmt(S.treasury)}G</b></div>
     <div class="stat"><span>용병</span><b>${S.M}명</b></div>
     <div class="stat"><span>개척</span><b>${S.unlocked}층 ${Math.round(S.floors[S.unlocked - 1].prog)}%</b></div>
     <div class="stat"><span>명성</span><b>${Math.round(S.fame)}</b></div>
