@@ -5,6 +5,7 @@ import { render, start } from './ui/app';
 import { onBudgetClick, syncBudget } from './ui/budget';
 import { approve, closeReader, openReader, readerKey, renderReader } from './ui/desk';
 import { showIssue } from './ui/news';
+import { clearLocal, loadLocal, saveLocal } from './ui/storage';
 import { momentsOpen, renderShelf, renderSoundBtn, skipMoments, toggleSound } from './ui/moments';
 
 const $ = (id: string): any => document.getElementById(id);
@@ -16,6 +17,11 @@ $('reader').addEventListener('click', e => { if (e.target === $('reader')) close
 document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; if (momentsOpen()) skipMoments(); else if (readerKey()) closeReader(); });
 $('mo-skip').addEventListener('click', () => skipMoments());
 $('sound').addEventListener('click', () => toggleSound());
+$('newgame').addEventListener('click', () => { if (S.over || confirm('지금 판을 버리고 새 게임을 시작할까요? 저장된 판은 지워집니다.')) restart(); });
+// 탭을 닫기 직전에는 미뤄 둔 저장을 바로 쓴다
+window.addEventListener('pagehide', () => saveLocal(true));
+
+function restart() { clearLocal(); newGame(); closeReader(false); render(); renderShelf(); window.scrollTo(0, 0); }
 
 // 결재: 책상 위 도장이든 예산안 안의 버튼이든 같은 연출로 한 달을 넘긴다
 $('stamp').addEventListener('click', () => approve());
@@ -26,12 +32,12 @@ $('budget-editor').addEventListener('click', e => {
   const b = e.target.closest('[data-dev]'); if (!b || S.over) return;
   const id = b.dataset.dev, i = +b.dataset.opt;
   if (S.devPick[id] === i) delete S.devPick[id]; else S.devPick[id] = i;
-  syncBudget();
+  syncBudget(); saveLocal();
 });
 $('panel').addEventListener('click', e => {
   const b = e.target.closest('[data-action]'); if (!b) return;
   const a = b.dataset.action;
-  if (a === 'restart') { newGame(); closeReader(false); render(); renderShelf(); window.scrollTo(0, 0); }
+  if (a === 'restart') restart();
   if (a === 'guide') {
     const f = +b.dataset.floor, key = S.guideDraft[f] || $('g-' + f).value;
     if (!key || S.over) return;
@@ -50,7 +56,7 @@ $('panel').addEventListener('click', e => {
 });
 $('lines').addEventListener('change', e => {
   const t = e.target;
-  if (t.dataset.fee !== undefined && !S.over) { S.fees[+t.dataset.fee] = +t.value; syncBudget(); }
+  if (t.dataset.fee !== undefined && !S.over) { S.fees[+t.dataset.fee] = +t.value; syncBudget(); saveLocal(); }
 });
 $('panel').addEventListener('change', e => {
   const t = e.target;
@@ -67,5 +73,5 @@ $('panel').addEventListener('change', e => {
   if (t.dataset.book === 'view') { S.bookView = /^\d+$/.test(t.value) ? +t.value : t.value; render(false); }
 });
 
-start({});
+start({ S: loadLocal() });
 renderShelf(); renderSoundBtn();

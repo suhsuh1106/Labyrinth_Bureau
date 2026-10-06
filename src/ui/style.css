@@ -405,6 +405,7 @@ div.stats { display: flex; flex-wrap: wrap; gap: 4px 20px; }
 
 /* 명패의 효과음 단추와 기념품 선반 */
 .plaque .sound { margin-left: auto; font: 500 12px var(--f-body); padding: 3px 10px; border-radius: 10px; border: 1px solid rgba(42,30,8,.45); background: rgba(255,255,255,.18); color: #2a1e08; cursor: pointer; }
+.plaque .newgame { margin-left: 6px; }
 .plaque .sound[aria-pressed="false"] { opacity: .6; text-decoration: line-through; }
 .plaque .sound:focus-visible { outline: 2px solid #2a1e08; outline-offset: 2px; }
 .stat b.bump { animation: bump .5s ease-out; }

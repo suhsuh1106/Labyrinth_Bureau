@@ -9,6 +9,7 @@ import { S, schismLines } from '../core/state';
 import { eul, fmt, keyWord, pct, sgn } from '../core/util';
 import { facUpkeep, fixedCost } from '../core/world';
 import { renderDeskBudget } from './desk';
+import { saveLocal } from './storage';
 
 const $ = (id: string): any => document.getElementById(id);
 
@@ -225,5 +226,6 @@ export function onBudgetClick(t: HTMLElement) {
   else if (tab) view = tab.dataset.otab as any;
   else return false;
   syncBudget();
+  saveLocal();
   return true;
 }
