@@ -3,7 +3,7 @@
 //   npm run sim -- --games 500 --style smart
 // 성향: even(고르게) · deep(깊은 층 위주) · hold(시세가 낮으면 쌓아 둠) · hire(계약 파티를 씀) · smart(시장을 읽는 숙련자)
 import { setSeed } from '../src/core/rng';
-import { CO, FLOORS, ITEMS, type Plan, type World, defaultPlan, maxParties, newWorld, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
+import { CO, FLOORS, churchPrice, ITEMS, type Plan, type World, defaultPlan, maxParties, newWorld, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
 
 const arg = (k: string, d: string) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
 const games = +arg('games', '200'), seed0 = +arg('seed', '1'), only = arg('style', '');
@@ -44,6 +44,10 @@ export function smartPlan(W: World): Plan {
   const best = value.indexOf(Math.max(...value));
   if (c.cash > 6000 && value[best] * (1 - CO.HIRE_CUT) - CO.HIRE_FEE > 150) P.hire[best] = 2;
   P.guide = deduce(W);
+  // 포션: 교회 값이 상단보다 싸면(후원해서 교회가 예전 값으로 내줄 때) 교회에서 사고, 담합이 터지면 여유가 있을 때 한 번 후원한다
+  const need = P.parties.reduce((a, n, f) => a + (n + P.hire[f]) * P.pots[f], 0);
+  P.church = churchPrice(W, 0) < W.potion ? need : 0;
+  P.donate = W.cartel && !W.cartel.donated[0] && c.cash > 8000 ? 1000 : 0;
   return P;
 }
 

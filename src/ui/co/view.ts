@@ -1,5 +1,5 @@
 // 용병단 행정실 화면: 결정표(위)와 지난달 정산(아래). HTML 문자열을 만들기만 하고 상태는 건드리지 않는다
-import { CO, FLOORS, ITEMS, type Plan, type World, hireCost, keysAll, maxParties, priceOf, rankOf, sanitize, sortieCost, succRate, us, worth } from '../../core/company';
+import { CO, FLOORS, ITEMS, type Plan, type World, churchPrice, hireCost, keysAll, maxParties, priceOf, rankOf, sanitize, sortieCost, succRate, us, worth } from '../../core/company';
 import { keyLabel } from '../../core/util';
 
 export const COLORS: Record<string, string> = {
@@ -34,7 +34,9 @@ function stepper(k: string, i: number, v: number, label: string, step = 1, disab
 export function planHtml(W: World, raw: Plan) {
   const c = us(W), P = sanitize(W, c, raw), L = W.last;
   const others = (f: number) => (L ? L.plans.reduce((a, Q, i) => a + (i ? Q.parties[f] + Q.hire[f] : 0), 0) : f === 0 ? 75 : 0);
-  const sc = sortieCost(P, W.potion);
+  const needP = P.parties.reduce((a, n, f) => a + (n + P.hire[f]) * P.pots[f], 0), chP = Math.min(P.church || 0, needP);
+  const unitP = needP ? (chP * churchPrice(W, 0) + (needP - chP) * W.potion) / needP : W.potion;
+  const sc = sortieCost(P, unitP);
   const rows = FLOORS.map((F, f) => {
     const open = f < W.unlocked;
     if (!open) return `<tr class="closed"><td><b>${F.name}</b><small>${ITEMS[f].name}</small></td><td colspan="9">${f === W.unlocked ? `아직 닫혀 있다 · 길 뚫기 ${Math.min(99, Math.round(W.prog / CO.OPEN_WINS[W.unlocked - 1] * 100))}%` : '아직 닫혀 있다'}</td></tr>`;
@@ -59,7 +61,7 @@ export function planHtml(W: World, raw: Plan) {
       <td class="n">${fmt(s * est)}G<small>남들이 지난달만큼 팔면 ${fmt(est)}G</small></td></tr>`;
   }).join('');
   const sent = P.parties.reduce((a, b) => a + b, 0), hired = P.hire.reduce((a, b) => a + b, 0);
-  const spend = sc.reduce((a, b) => a + b, 0) + hireCost(P) + c.members * CO.WAGE + P.train + (P.base ? P.base.amt : 0);
+  const spend = sc.reduce((a, b) => a + b, 0) + hireCost(P) + Math.round(c.members * CO.WAGE * (1 + c.members / CO.OVERHEAD)) + P.train + (P.base ? P.base.amt : 0) + (P.donate || 0);
   const sales = ITEMS.reduce((a, it, j) => { const Qo = L ? L.Q[j] - L.res[0].sold[j] : it.D; return a + P.sell[j] * priceOf(it, Qo + P.sell[j]); }, 0);
   const warn: string[] = [];
   if (raw.parties.reduce((a, b) => a + b, 0) > maxParties(c)) warn.push(`단원이 모자라 ${maxParties(c)}조까지만 보내요`);
@@ -82,7 +84,8 @@ export function planHtml(W: World, raw: Plan) {
       <label class="box">훈련비 ${stepper('train', 0, raw.train, '훈련비', 100)}<small>훈련도 ${c.skill.toFixed(1)} → +${(raw.train / 200).toFixed(1)}. 매달 5%씩 식고, 1마다 성공률 +0.4%p</small></label>
       <label class="box">전진 거점 <span class="step"><select data-k="basef" aria-label="거점을 둘 층">${FLOORS.slice(0, W.unlocked).map((F, f) => `<option value="${f}"${f === bf ? ' selected' : ''}>${F.name}</option>`).join('')}</select></span> ${stepper('base', 0, ba, '거점 투자', 500)}<small>${fmt(CO.BASE_STEP)}G마다 1단계 (최대 ${CO.BASE_MAX}). 다음 달부터 그 층 성공률 +5%p, 2단계면 조당 채집 +1. 지금 ${FLOORS.slice(0, W.unlocked).map((F, f) => c.bases[f] ? `${F.name} ${c.bases[f].toFixed(1)}` : '').filter(Boolean).join(' · ') || '없음'}${c.pendingBase ? ` · ${FLOORS[c.pendingBase.f].name} 공사 중` : ''}</small></label>
     </div>
-    <div class="sum"><div><span>출정</span><b>${sent} + 계약 ${hired}조</b></div><div><span>지출 (급여 ${fmt(c.members * CO.WAGE)} 포함)</span><b>${fmt(spend)}</b></div><div><span>예상 판매 수입</span><b>${fmt(sales)}</b></div><div><span>예상 순이익</span><b class="${sales - spend < 0 ? 'neg' : 'pos'}">${sgn(sales - spend)}</b></div></div>
+    ${supplyHtml(W, raw, P)}
+    <div class="sum"><div><span>출정</span><b>${sent} + 계약 ${hired}조</b></div><div><span>지출 (급여 ${fmt(Math.round(c.members * CO.WAGE * (1 + c.members / CO.OVERHEAD)))} 포함)</span><b>${fmt(spend)}</b></div><div><span>예상 판매 수입</span><b>${fmt(sales)}</b></div><div><span>예상 순이익</span><b class="${sales - spend < 0 ? 'neg' : 'pos'}">${sgn(sales - spend)}</b></div></div>
     ${warn.length ? `<div class="warn">${warn.join(' · ')}</div>` : ''}`;
 }
 
@@ -116,10 +119,11 @@ export function resultsHtml(W: World) {
   const r = L.res[0];
   const mine = `<div class="tw"><table class="grid"><thead><tr><th>층</th><th class="n">우리</th><th class="n">계약</th><th class="n">성공</th><th class="n">캐 온 양</th></tr></thead><tbody>${FLOORS.map((F, f) => (r.sent[f] + r.hired[f] ? `<tr><td>${F.name}</td><td class="n">${r.sent[f]}</td><td class="n">${r.hired[f]}</td><td class="n">${r.ok[f]}</td><td class="n">${r.got[f]}</td></tr>` : '')).join('')}</tbody></table></div>
     <div class="tw"><table class="grid"><thead><tr><th>정산</th><th class="n">금액</th></tr></thead><tbody>${ITEMS.map((it, j) => (r.sold[j] ? `<tr><td>${it.name} ${r.sold[j]}개 × ${fmt(L.price[j])}G</td><td class="n">${fmt(r.sold[j] * L.price[j])}</td></tr>` : '')).join('')}
-      <tr><td>출정 (포션 ${L.potion}G/병 ${fmt(r.spend.potion)} 포함)</td><td class="n">−${fmt(r.spend.sortie + r.spend.potion)}</td></tr>
+      <tr><td>출정 (포션 ${r.potNeed}병 중 교회 ${r.potC}병 · ${fmt(r.spend.potion)} 포함)</td><td class="n">−${fmt(r.spend.sortie + r.spend.potion)}</td></tr>
       ${r.spend.hire ? `<tr><td>계약 파티 수수료</td><td class="n">−${fmt(r.spend.hire)}</td></tr>` : ''}
       <tr><td>급여</td><td class="n">−${fmt(r.spend.wage)}</td></tr>
       ${r.spend.recruit ? `<tr><td>신입 계약금 (${r.recruited}명)</td><td class="n">−${fmt(r.spend.recruit)}</td></tr>` : ''}
+      ${r.spend.donate ? `<tr><td>교회 후원금</td><td class="n">−${fmt(r.spend.donate)}</td></tr>` : ''}
       ${r.spend.train + r.spend.base ? `<tr><td>훈련 · 거점</td><td class="n">−${fmt(r.spend.train + r.spend.base)}</td></tr>` : ''}
       <tr class="tot"><td>순이익</td><td class="n ${r.net < 0 ? 'neg' : 'pos'}">${sgn(r.net)}</td></tr></tbody></table></div>`;
   return `<div class="kind">변경 용병단 연합 · 월례 정산</div>
@@ -141,7 +145,7 @@ export function newsLines(W: World) {
   const L = W.last; if (!L) return [];
   const prevP = W.history.length > 1 ? W.history[W.history.length - 2].price : ITEMS.map(it => it.P0);
   const out: string[] = [];
-  W.log.filter(l => l.m === L.month && /챙겨/.test(l.t)).forEach(l => out.push(l.t));
+  W.log.filter(l => l.m === L.month && /챙겨|포션 값|포션을 예전 값|마주 앉는다/.test(l.t)).forEach(l => out.push(l.t));
   if (L.opened != null) out.push(`${FLOORS[L.opened].name}으로 가는 길이 열렸다. 다음 달부터 ${ITEMS[L.opened].name}이 나온다.`);
   ITEMS.forEach((it, j) => {
     if (!L.Q[j]) return;
@@ -173,4 +177,19 @@ export function fieldHtml(W: World) {
       ${rows.length ? `<div class="chips">${rows.map(x => `<span class="chip ${x.off >= 3 && x.d >= 0.12 ? 'up' : x.off >= 3 && x.d <= -0.12 ? 'dn' : ''}" title="갖춘 파티 ${x.n}조 성공 ${pct(x.r)}">${keyLabel(x.k)} ${pct(x.r)}${x.off >= 3 ? ` (${x.d >= 0 ? '+' : '−'}${Math.round(Math.abs(x.d) * 100)}%p)` : ''}</span>`).join('')}</div>` : ''}</div>`;
   });
   return `<div class="fgrid">${open.join('')}</div>`;
+}
+
+// 포션 구매처와 세력: 상단·교회 포션 값, 교회 한도, 우리와의 사이, 담합 형편. 교회 병 수와 후원금은 숫자로 정한다
+export function supplyHtml(W: World, raw: Plan, P: Plan) {
+  const c = us(W), K = W.cartel, need = P.parties.reduce((a, n, f) => a + (n + P.hire[f]) * P.pots[f], 0);
+  const pc = churchPrice(W, 0), church = Math.min(P.church || 0, need);
+  const rel = (v: number | undefined) => { const x = Math.round(v ?? 50); return `${x} ${x >= 65 ? '(가까움)' : x <= 35 ? '(멀어짐)' : '(보통)'}`; };
+  const status = K ? (K.churchOut ? `담합 중 · 교회는 빠졌어요. 후원한 용병단에만 예전 값(${CO.POTION_C0}G)으로 팔아요 (${K.left}개월 남음)${K.donated[0] ? '' : '. 우리도 후원하면 예전 값으로 살 수 있어요'}` : `<b class="neg">담합 중</b> · 상단과 교회가 값을 ${Math.round((CO.CARTEL_MARKUP - 1) * 100)}% 올렸어요 (${K.left}개월 남음). 교회 후원이 모두 합쳐 ${fmt(CO.BREAK_DONATION)}G 쌓이면 교회가 빠져요 (지금 ${fmt(K.donated.reduce((a, b) => a + b, 0))}G)`) : '담합 없음';
+  return `<h3>4 · 포션은 어디서 살까</h3>
+    <p class="note">${status}</p>
+    <div class="invest">
+      <label class="box">교회 성수 포션 ${stepper('church', 0, raw.church || 0, '교회에서 살 포션 병 수', 10)}<small>교회 ${pc}G · 상단 ${W.potion}G (지난달). 이번 달 우리에게 필요한 포션 ${need}병 중 ${church}병을 교회에서, 나머지는 상단에서 사요. 교회는 한 달 ${CO.CHURCH_CAP}병까지만 내고, 모자라면 사이가 좋은 용병단부터 줘요. 성수가 섞여 있어 같은 병 수라도 사망이 더 줄어요.</small></label>
+      <label class="box">교회 후원금 ${stepper('donate', 0, raw.donate || 0, '교회 후원금', 100)}<small>교회와 가까워지고 상단과는 조금 멀어져요. 담합 중에 후원이 쌓이면 교회가 담합에서 빠지고, 후원한 용병단에만 예전 값으로 팔아요. 이번 달만 나가는 돈이에요.</small></label>
+    </div>
+    <p class="note">우리와의 사이 · 상단 ${rel(c.relM)} · 교회 ${rel(c.relC)}. 상단 포션을 사면 상단과, 교회 포션을 사면 교회와 가까워져요. 상단과 가까우면 상단 경매장(가죽·마석)이 조금 더 쳐줘요.</p>`;
 }
