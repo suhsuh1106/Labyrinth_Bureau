@@ -4,6 +4,7 @@ import { setSeed } from '../src/core/rng';
 import { CO, FLOORS, ITEMS, defaultPlan, emptyPlan, newWorld, potionPrice, priceOf, runMonth, us, worth } from '../src/core/company';
 import { BOT, playGame } from '../sim/company';
 import { aiPlan, carryPlan, maxParties, outlook, rankOf, rollParty } from '../src/core/company';
+import { churchPrice, type World } from '../src/core/company';
 import { MONSTERS } from '../src/core/data';
 import { newsLines, planHtml, plaqueHtml, resultsHtml } from '../src/ui/co/view';
 
@@ -193,5 +194,85 @@ describe('밸런스', () => {
     for (let g = 1; g <= 60; g++) { const W = playGame(g, BOT.smart); win[W.last!.rank[0]] = (win[W.last!.rank[0]] || 0) + 1; }
     expect(Math.max(...Object.values(win))).toBeLessThan(60 * 0.6);
     expect(win.us || 0).toBeGreaterThan(0);
+  });
+});
+
+describe('상단·교회와 포션 담합', () => {
+  it('교회 포션은 한 달 한도를 넘겨 나가지 않고, 찾은 만큼보다 많이 받지도 않는다', () => {
+    for (let g = 1; g <= 10; g++) {
+      setSeed(g); const W = newWorld();
+      for (let m = 0; m < 36; m++) {
+        const P = BOT.smart(W); P.church = 9999;
+        const M = runMonth(W, P);
+        expect(M.res.reduce((a, r) => a + r.potC, 0)).toBeLessThanOrEqual(CO.CHURCH_CAP);
+        M.res.forEach(r => expect(r.potC).toBeLessThanOrEqual(r.potNeed));
+      }
+    }
+  });
+  it('담합 전에는 소문이 먼저 돌고, 담합 중에는 상단·교회 포션 값이 함께 오른다', () => {
+    let seen = 0;
+    for (let g = 1; g <= 40; g++) {
+      const W = playGame(g, BOT.even);
+      const start = W.log.find(l => /함께 올린다고/.test(l.t));
+      if (!start) continue;
+      seen++;
+      expect(W.log.some(l => /마주 앉는다/.test(l.t) && l.m <= start.m)).toBe(true);
+      const M = W.history.find(h => h.month === start.m + 1)!;
+      if (!M) continue;
+      expect(M.cartel).toBe(true);
+      expect(M.potion).toBe(Math.round(potionPrice(M.potQ) * CO.CARTEL_MARKUP));
+      expect(M.potionC).toBe(Math.round(CO.POTION_C0 * CO.CARTEL_MARKUP));
+    }
+    expect(seen).toBeGreaterThan(3);
+  });
+  it('담합 중 교회 후원이 쌓이면 교회가 빠져나와 후원한 쪽에 예전 값으로 팔고, 후원한 쪽은 교회와 가까워지고 상단과 멀어진다', () => {
+    let checked = 0;
+    for (let g = 1; g <= 40 && checked < 3; g++) {
+      setSeed(g); const W: World = newWorld();
+      for (let m = 0; m < 36 && !W.cartel; m++) runMonth(W, BOT.even(W));
+      if (!W.cartel) continue;
+      const c = us(W); c.cash = 50000;
+      const relC = c.relC ?? 50, relM = c.relM ?? 50;
+      const P = BOT.even(W); P.donate = CO.BREAK_DONATION; P.church = 0;
+      const M = runMonth(W, P);
+      expect(M.res[0].spend.donate).toBe(CO.BREAK_DONATION);
+      expect(W.cartel ? W.cartel.churchOut : true).toBe(true);
+      expect(c.relC!).toBeGreaterThan(relC);
+      expect(c.relM!).toBeLessThan(relM);
+      expect(W.log.some(l => /예전 값으로 내주기로/.test(l.t))).toBe(true);
+      // 교회가 빠진 뒤로는 후원한 우리에게만 예전 값이고, 후원하지 않은 쪽은 여전히 오른 값을 낸다
+      if (W.cartel) {
+        expect(churchPrice(W, 0)).toBe(CO.POTION_C0);
+        const j = W.cos.findIndex((_, k) => k > 0 && !W.cartel!.donated[k]);
+        if (j > 0) expect(churchPrice(W, j)).toBe(Math.round(CO.POTION_C0 * CO.CARTEL_MARKUP));
+        const P2 = BOT.even(W); P2.church = 10;
+        const N = runMonth(W, P2), r = N.res[0];
+        expect(r.spend.potion).toBe(r.potC * CO.POTION_C0 + (r.potNeed - r.potC) * N.potion);
+      }
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(0);
+  });
+  it('교회 포션을 많이 쓰면 교회와 가까워지고, 상단 포션만 쓰면 상단과 가까워진다', () => {
+    setSeed(6); const A = newWorld(); setSeed(6); const B = newWorld();
+    for (let m = 0; m < 12; m++) {
+      const a = BOT.even(A); a.church = 9999; runMonth(A, a);
+      const b = BOT.even(B); b.church = 0; runMonth(B, b);
+    }
+    expect(us(A).relC!).toBeGreaterThan(us(B).relC!);
+    expect(us(B).relM!).toBeGreaterThan(us(A).relM!);
+  });
+});
+
+describe('교회 성수 포션', () => {
+  it('같은 병 수라도 교회 포션을 쓰면 사망이 줄어든다', () => {
+    let a = 0, b = 0;
+    for (let g = 1; g <= 30; g++) {
+      for (const church of [0, 9999]) {
+        setSeed(g); const W = newWorld();
+        for (let m = 0; m < 12; m++) { const P = BOT.even(W); P.church = church; const M = runMonth(W, P); if (church) a += M.res[0].deaths; else b += M.res[0].deaths; }
+      }
+    }
+    expect(a).toBeLessThan(b);
   });
 });

@@ -6,7 +6,7 @@ import { type Plan, type World, carryPlan, newWorld, rankOf, runMonth } from './
 import { planHtml, plaqueHtml, resultsHtml } from './ui/co/view';
 
 const $ = (id: string): any => document.getElementById(id);
-const KEY = 'lb-co', VERSION = 2, MONTHS = 36;   // 2: 몬스터·현장 기록·편성 지침이 생김 (1은 새 게임으로)
+const KEY = 'lb-co', VERSION = 3, MONTHS = 36;   // 3: 포션 구매처·세력 관계·담합이 생김 (이전 판은 새 게임으로)
 let W: World, plan: Plan;
 
 function save() { try { localStorage.setItem(KEY, JSON.stringify({ v: VERSION, W, plan })); } catch { /* 저장이 막혀도 판은 계속된다 */ } }
@@ -46,6 +46,8 @@ $('plan').addEventListener('change', (e: any) => {
 });
 function edit(k: string, i: number, fn: (v: number) => number) {
   if (k === 'train') plan.train = Math.max(0, fn(plan.train));
+  else if (k === 'church') plan.church = Math.max(0, fn(plan.church || 0));
+  else if (k === 'donate') plan.donate = Math.max(0, fn(plan.donate || 0));
   else if (k === 'base') { const f = plan.base ? plan.base.f : Math.max(0, W.unlocked - 1); plan.base = { f, amt: Math.max(0, fn(plan.base ? plan.base.amt : 0)) }; }
   else if (k === 'pots') plan.pots[i] = Math.max(1, Math.min(8, fn(plan.pots[i])));
   else (plan as any)[k][i] = Math.max(0, fn((plan as any)[k][i]));
