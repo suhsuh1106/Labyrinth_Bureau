@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:,">
-<title>미궁 관리국 예산안</title>
+<title>미궁 용병단 행정실</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -12,115 +12,23 @@
 <body>
 <div class="room">
 <div class="wrap">
-  <header class="plaque" aria-label="관리국 현황">
-    <h1>서부 변경 미궁 관리국</h1>
+  <header class="plaque" aria-label="용병단 현황">
+    <h1>회색늑대 용병단 행정실</h1>
     <div class="stats" id="stats"></div>
-    <button class="sound" id="sound" type="button" aria-pressed="true">효과음 켬</button>
     <button class="sound newgame" id="newgame" type="button">새 게임</button>
   </header>
-  <section class="shelf" id="shelf" aria-label="기념품 선반"></section>
-
-  <main class="scene">
-    <section class="side left" aria-label="책상 왼쪽">
-      <button class="obj" data-open="docs" id="tab-docs" style="--rot:-2deg">
-        <span class="pin" hidden></span>
-        <span class="thing inbox"><span class="pp p1"></span><span class="pp p2"></span><span class="pp p3"></span></span>
-        <span class="objtag">서류함</span>
-      </button>
-      <button class="obj" data-open="news" id="tab-news" style="--rot:-4deg">
-        <span class="pin" hidden></span>
-        <span class="thing paper" aria-hidden="true"><span class="mast">변경 일보</span><span class="hl"></span><span class="cols"></span></span>
-        <span class="objtag">변경 일보 · 신문</span>
-      </button>
-      <button class="obj" data-open="faction" id="tab-faction" style="--rot:3deg">
-        <span class="pin" hidden></span>
-        <span class="thing letters"><span class="env m"><i></i></span><span class="env c"><i></i></span></span>
-        <span class="objtag">세력 동향 · 서신</span>
-      </button>
-      <button class="obj" data-open="hero" id="tab-hero" style="--rot:-1.5deg">
-        <span class="pin" hidden></span>
-        <span class="thing roster"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M8 32 L30 10 M30 10 l-1 6 M30 10 l-6 1 M32 32 L10 10 M10 10 l1 6 M10 10 l6 1" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round"></path></svg></span>
-        <span class="objtag">용사 명부</span>
-      </button>
-    </section>
-
-    <section class="center" aria-label="결재 받침">
-      <div class="blotter">
-        <button class="sheet" id="desk-budget" data-open="budget" aria-label="이번 달 예산안 집어 들기"></button>
-      </div>
-    </section>
-
-    <section class="side right" aria-label="책상 오른쪽">
-      <button class="obj" data-open="calendar" id="tab-calendar" style="--rot:2deg">
-        <span class="thing cal"><span class="rings"></span><span class="page" id="cal-page"></span></span>
-        <span class="objtag">달력 · 임기 목표</span>
-      </button>
-      <button class="obj" data-open="books" id="tab-books" style="--rot:-3deg">
-        <span class="pin" hidden></span>
-        <span class="thing book"><span class="pages"></span></span>
-        <span class="objtag">장부 · 수입과 지출</span>
-      </button>
-      <button class="obj" data-open="explore" id="tab-explore" style="--rot:2.5deg">
-        <span class="pin" hidden></span>
-        <span class="thing map"><svg viewBox="0 0 170 112" aria-hidden="true">
-          <path d="M20 90 Q45 70 60 78 T100 62 T150 30" fill="none" stroke="#6b4a22" stroke-width="2" stroke-dasharray="5 4"></path>
-          <circle cx="20" cy="90" r="6" fill="#6b4a22"></circle><circle cx="60" cy="78" r="5" fill="#8a6a3c"></circle>
-          <circle cx="100" cy="62" r="5" fill="none" stroke="#6b4a22" stroke-width="1.5"></circle>
-          <text x="134" y="24" font-size="16" fill="#6b4a22" font-family="serif">?</text>
-          <circle cx="60" cy="78" r="3" fill="#b2342a"></circle></svg></span>
-        <span class="objtag">미궁 지도 · 탐사 기록</span>
-      </button>
-      <button class="obj" data-open="build" id="tab-build" style="--rot:-1deg">
-        <span class="pin" hidden></span>
-        <span class="thing tube"></span>
-        <span class="objtag">시설 도면</span>
-      </button>
-      <div class="stampset">
-        <span class="inkpad" aria-hidden="true"><i></i></span>
-        <button class="stampbtn" id="stamp" type="button" aria-label="예산안에 결재 도장 찍기"><span class="handle"></span><span class="objtag">결재</span></button>
-      </div>
-    </section>
-  </main>
-</div>
-</div>
-
-<div class="reader" id="reader" hidden>
-  <article class="held" id="held" role="dialog" aria-modal="true" aria-label="집어 든 서류" tabindex="-1">
-    <button class="close" id="close" type="button">내려놓기</button>
-    <div id="panel" class="panel"></div>
-    <section class="budget" id="budget-editor" hidden>
-      <h2 id="b-title">제1월 예산안</h2>
-      <p class="lead" id="b-lead"></p>
-      <div class="otabs" role="tablist" aria-label="결재함">
-        <button type="button" role="tab" id="otab-desk" data-otab="desk" aria-selected="true">이번 달 결재</button>
-        <button type="button" role="tab" id="otab-org" data-otab="org" aria-selected="false">부서 <small>신설 · 확장</small></button>
-      </div>
-      <form id="form" novalidate>
-        <div id="lines"></div>
-        <div class="proj" id="proj"></div>
-        <button class="approve" id="approve" type="submit">결재 도장 찍기</button>
-      </form>
-    </section>
-  </article>
-</div>
-<div class="stage" id="stage" hidden role="dialog" aria-modal="true" aria-label="이번 달의 순간">
-  <button class="mo-skip" id="mo-skip" type="button">건너뛰기</button>
-  <div class="stage-box" id="stage-box"></div>
-</div>
-<div class="arrival" id="arrival" hidden role="dialog" aria-modal="true" aria-label="부임 첫날">
-  <div class="ar-scene" id="ar-scene" data-k="0">
-    <div class="ar-land" aria-hidden="true"><span class="ar-ridge"></span><span class="ar-hill"></span><span class="ar-mouth"></span><span class="ar-tent t1"></span><span class="ar-tent t2"></span><span class="ar-tent t3"></span><span class="ar-lamp"></span></div>
-    <span class="ar-place">하르덴 백작령 서쪽 산허리 · 미궁 입구</span>
-    <button class="ar-skip" id="ar-skip" type="button">건너뛰기</button>
-    <div class="ar-box narr" id="ar-box" aria-live="polite">
-      <span class="ar-seal" id="ar-seal" aria-hidden="true"></span>
-      <span class="ar-who" id="ar-who"></span>
-      <p class="ar-line" id="ar-line"></p>
-      <span class="ar-foot"><span class="ar-dots" id="ar-dots"></span><button class="ar-next" id="ar-next" type="button">다음</button></span>
+  <main class="co-desk">
+    <section class="co-sheet" id="plan" aria-label="이번 달 결정표"></section>
+    <div class="co-go">
+      <button class="co-stamp" id="go" type="button">결재하고 한 달 보내기</button>
+      <span id="go-note"></span>
     </div>
-  </div>
+    <section class="co-sheet" id="results" aria-label="지난달 정산"></section>
+  </main>
+  <p class="co-foot">새 전제(용병단 행정관)로 옮기는 중인 화면입니다. 옛 관리국 게임은 <a href="bureau.html">여기</a>에 남아 있습니다.</p>
+</div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
-<script type="module" src="/src/main.ts"></script>
+<script type="module" src="/src/coMain.ts"></script>
 </body>
 </html>

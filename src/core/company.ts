@@ -210,14 +210,14 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
     if (c.pendingBase) { c.bases[c.pendingBase.f] += c.pendingBase.amt / CO.BASE_STEP; c.pendingBase = null; }
     if (P.base) c.pendingBase = { ...P.base };
   });
-  // 단원: 죽은 만큼 줄고, 규모에 맞춰 조금씩 보충된다. 군소 용병대는 벌이가 좋으면 몰려오고 나쁘면 떠난다
+  // 단원: 죽은 만큼 줄고, 원래 규모까지만 조금씩 보충된다 (규모를 키우는 모집 경쟁은 나중 단계). 군소 용병대는 벌이가 좋으면 몰려오고 나쁘면 떠난다
   W.cos.forEach((c, i) => {
     const r = res[i];
     if (c.style === 'crowd') {
       const sent = r.sent.reduce((a, b) => a + b, 0) || 1;
       c.members = clamp(c.members - r.deaths + Math.round(r.net / sent / 25) * CO.PARTY, 24, 200);
       c.cash = 0;   // 군소 용병대는 버는 대로 쓴다
-    } else c.members = Math.max(8, c.members - r.deaths + Math.round(c.size / 10));
+    } else c.members = Math.max(8, c.members - r.deaths + Math.min(Math.round(c.size / 10), Math.max(0, c.size - c.members + r.deaths)));
   });
   // 길 뚫기: 가장 깊은 열린 층에서 성공이 쌓이면 다음 층이 열린다
   let opened: number | null = null;
@@ -250,3 +250,16 @@ export function sanitize(W: World, c: Company, P: Plan): Plan {
 }
 
 export const rankOf = (W: World, id = 'us') => (W.last ? W.last.rank.indexOf(id) + 1 : 0);
+
+// 다음 달 결정표: 지난달에 고른 파티·포션·훈련·계약 파티는 그대로 두고, 단원 수와 열린 층에 맞춰 고친다.
+// 거점 투자는 한 번 나가는 돈이라 비우고, 창고는 기본으로 다 판다
+export function carryPlan(W: World, prev: Plan | null): Plan {
+  if (!prev) return defaultPlan(W);
+  const c = us(W), P: Plan = JSON.parse(JSON.stringify(prev));
+  P.base = null;
+  P.sell = [...c.stock];
+  P.parties = P.parties.map((n, f) => (f < W.unlocked ? n : 0));
+  let over = P.parties.reduce((a, b) => a + b, 0) - maxParties(c);
+  for (let f = 0; f < NF && over > 0; f++) { const d = Math.min(over, P.parties[f]); P.parties[f] -= d; over -= d; }
+  return P;
+}

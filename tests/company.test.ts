@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { setSeed } from '../src/core/rng';
 import { CO, FLOORS, ITEMS, defaultPlan, emptyPlan, newWorld, potionPrice, priceOf, runMonth, us, worth } from '../src/core/company';
 import { BOT, playGame } from '../sim/company';
+import { carryPlan } from '../src/core/company';
+import { newsLines, planHtml, plaqueHtml, resultsHtml } from '../src/ui/co/view';
 
 describe('용병단 장부', () => {
   it('매달 모든 용병단의 금고 변화가 판매 수입에서 지출을 뺀 값과 같다', () => {
@@ -80,6 +82,23 @@ describe('용병단 시장', () => {
       const sorted = [...named].sort((a, b) => worth(W, b) - worth(W, a)).map(c => c.id);
       expect(W.last!.rank).toEqual(sorted);
       expect(us(W).members).toBeGreaterThanOrEqual(8);
+    }
+  });
+});
+
+describe('용병단 행정실 화면', () => {
+  it('결정표와 정산서가 36개월 내내 깨지지 않고, 그려도 판은 그대로다', () => {
+    for (const [name, bot] of Object.entries(BOT)) {
+      setSeed(21); const W = newWorld();
+      let plan = carryPlan(W, null);
+      for (let m = 0; m < 36; m++) {
+        const before = JSON.stringify(W);
+        const html = plaqueHtml(W) + planHtml(W, plan) + resultsHtml(W) + newsLines(W).join('');
+        expect(html, `${name} 제${W.month}월`).not.toMatch(/undefined|NaN|Infinity/);
+        expect(JSON.stringify(W)).toBe(before);
+        runMonth(W, bot(W));
+        plan = carryPlan(W, plan);
+      }
     }
   });
 });
