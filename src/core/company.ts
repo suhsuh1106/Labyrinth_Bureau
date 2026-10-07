@@ -23,6 +23,9 @@ export const CO = {
   RECRUIT: 80,
   // 큰 조직일수록 사람 하나 굴리는 데 드는 관리비가 오른다: 급여 × (1 + 단원 수 / OVERHEAD). 시작 금고는 규모^CASH_EXP에 비례
   OVERHEAD: 100, CASH_EXP: 1,
+  // 훈련: 훈련도는 매달 5%씩 식고 훈련비/200만큼 찬다(훈련비를 계속 내면 훈련비/10에 머문다).
+  // 성공률 보너스는 갈수록 덜 오른다: TRAIN_MAX × 훈련도 / (훈련도 + TRAIN_K)
+  TRAIN_MAX: 0.2, TRAIN_K: 20,
   // 미궁의 압력: 모두가 꺼낸 전리품 값(기준 시세)이 PRESS_DIV마다 1씩 차고 매달 PRESS_DECAY만큼 빠진다.
   // ANOM_AT마다 이상 징후가 돌고, OVER를 넘으면 달마다 OVER_CHANCE로 범람한다. 범람하면 1·2층에 있던 파티가 당하고 두 층이 쑥대밭이 된다
   PRESS_DIV: 6000, PRESS_DECAY: 0.03, ANOM_AT: [55, 75, 90], OVER: 100, OVER_CHANCE: 0.4, OVER_KILL: 0.2, OVER_POOL: 0.4, OVER_LEFT: 0.35,
@@ -144,8 +147,9 @@ export const pressOf = (W: World, f: number) => { const d = rootOf(W, f).done; r
 export const maxParties = (c: Company) => Math.floor(c.members / CO.PARTY);
 // 평가액: 금고 + 창고 전리품을 지난 시세로 매긴 값. 순위의 기준이다
 export const worth = (W: World, c: Company) => c.cash + c.stock.reduce((a, n, j) => a + n * W.price[j], 0);
+export const trainBonus = (skill: number) => CO.TRAIN_MAX * skill / (skill + CO.TRAIN_K);
 export const succRate = (c: Company, f: number, pots: number, crowd: number) =>
-  clamp(FLOORS[f].base + 0.035 * (pots - 3) + c.skill * 0.004 + Math.min(CO.BASE_MAX, c.bases[f]) * 0.05 - 0.008 * Math.max(0, crowd - FLOORS[f].cap), 0.1, 0.95);
+  clamp(FLOORS[f].base + 0.035 * (pots - 3) + trainBonus(c.skill) + Math.min(CO.BASE_MAX, c.bases[f]) * 0.05 - 0.008 * Math.max(0, crowd - FLOORS[f].cap), 0.1, 0.95);
 
 // 층별 파티 수를 가중치대로 나눈다. 열린 층에만 보낸다
 function spread(W: World, n: number, w: number[]) {
@@ -181,9 +185,9 @@ const STYLE: Record<Style, { prior: (W: World, f: number) => number; resp: numbe
   volume: { prior: (_, f) => 1 / (f + 1) ** 1.5, resp: 0.5, pots: 2, train: 0 },
   steady: { prior: () => 1, resp: 0.3, pots: 4, train: 300 },
   deep: { prior: (W, f) => (f >= W.unlocked - 2 ? (f === W.unlocked - 1 ? 2 : 1) : 0.15), resp: 0.4, pots: 5, train: 600 },
-  chaser: { prior: () => 1, resp: 2, pots: 3, train: 0 },
+  chaser: { prior: () => 1, resp: 1, pots: 3, train: 300 },
   crowd: { prior: () => 1, resp: 1.2, pots: 2, train: 0 },
-  hoarder: { prior: (_, f) => (f === 0 ? 0.6 : 1), resp: 0.6, pots: 3, train: 0 },
+  hoarder: { prior: (_, f) => (f === 0 ? 0.6 : 1), resp: 0.6, pots: 3, train: 300 },
   shallow: { prior: (_, f) => (f === 0 ? 1 : 0), resp: 0, pots: 2, train: 0 },
   second: { prior: (W, f) => (f === Math.min(1, W.unlocked - 1) ? 1 : 0), resp: 0, pots: 3, train: 0 },
   player: { prior: () => 1, resp: 0, pots: 3, train: 0 },
