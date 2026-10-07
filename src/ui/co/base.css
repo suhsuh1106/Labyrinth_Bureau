@@ -186,8 +186,7 @@ div.stats { display: flex; flex-wrap: wrap; gap: 4px 20px; }
 .ar-tent::after { content: ''; position: absolute; left: -5px; top: 18px; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 16px solid rgba(216,154,74,.55); }
 .ar-tent.t1 { left: 16%; top: 63%; } .ar-tent.t2 { left: 27%; top: 67%; border-bottom-color: #5b4532; } .ar-tent.t3 { left: 78%; top: 64%; }
 .ar-lamp { left: 50%; top: 74%; width: 240px; height: 240px; margin: -120px 0 0 -120px; border-radius: 50%; background: radial-gradient(circle, rgba(255,190,110,.5), rgba(255,190,110,0) 65%); transition: left .6s ease; }
-.ar-scene[data-k="2"] .ar-lamp { left: 30%; } .ar-scene[data-k="3"] .ar-lamp { left: 70%; } .ar-scene[data-k="4"] .ar-lamp { left: 42%; }
-.ar-place { position: absolute; top: 14px; left: 16px; font-size: 11px; letter-spacing: .12em; color: #b9ab98; }
+.ar-place { position: absolute; top: 14px; left: 16px; right: 104px; font-size: 11px; letter-spacing: .12em; color: #b9ab98; }
 .ar-skip { position: absolute; top: 12px; right: 12px; font: 500 12px var(--f-body); color: #e9dfcf; background: rgba(0,0,0,.35); border: 1px solid rgba(233,223,207,.35); border-radius: 12px; padding: 4px 12px; cursor: pointer; }
 .ar-box { position: relative; margin: 0 16px 16px; background: rgba(16,11,8,.85); border: 1px solid rgba(233,223,207,.18); border-radius: 4px; padding: 16px 18px 14px; display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 4px 14px; min-height: 132px; }
 .ar-seal { grid-row: span 2; width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; font: 700 22px var(--f-display); color: #fff; box-shadow: inset 0 0 0 3px rgba(255,255,255,.18), 0 2px 8px rgba(0,0,0,.4); }
