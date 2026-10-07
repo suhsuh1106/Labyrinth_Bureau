@@ -2,7 +2,9 @@
 // 여러 용병단이 같은 층에서 전리품을 캐고 같은 시장에 판다. 층마다 캘 수 있는 양이 한정돼 몰리면 나눠 갖고,
 // 모두가 같은 시세에 팔아서 다 같이 많이 팔면 값이 떨어진다. 플레이어는 그중 한 용병단의 행정관이다.
 // 화면에 붙이기 전까지는 상태를 S가 아니라 이 파일의 World 하나로 둔다.
+import { CLASSES, CLASS_SHARE, GEARS, GEAR_SHARE, KEYS, MONSTERS } from './data';
 import { rnd } from './rng';
+import { keyWord } from './util';
 
 export const CO = {
   PARTY: 4, WAGE: 30, SORTIE: 60, POTION0: 35, POTION_Q0: 500,
@@ -10,7 +12,11 @@ export const CO = {
   HIRE_FEE: 120, HIRE_CUT: 0.4, START_CASH: 12000,
   // 가장 깊은 열린 층에서 이만큼 성공이 쌓이면 다음 층이 열린다 (모든 용병단이 함께 뚫는다)
   OPEN_WINS: [40, 60, 80, 100],
+  // 편성 지침: 그 층 몬스터의 약점을 갖춘 파티는 성공률이 오르고, 역효과를 갖춘 파티는 떨어진다. 지침대로 갖추는 데 조당 돈이 든다
+  GUIDE_COST: 20, KEY_BONUS: 0.20, BAD_PEN: 0.15,
 };
+// 경쟁 용병단이 한 층에 몇 달 드나들어야 그 층의 약점을 깨치는가 (군소 용병대는 깨치지 못한다)
+const LEARN_AT: Record<string, number> = { deep: 5, steady: 6, shallow: 6, second: 6, chaser: 8, volume: 9, hoarder: 9 };
 
 export type Floor = { name: string; max: number; take: number; base: number; risk: number; cap: number };
 export const FLOORS: Floor[] = [
@@ -45,10 +51,12 @@ export type Company = {
   id: string; name: string; style: Style; size: number;
   members: number; cash: number; skill: number; bases: number[]; pendingBase: { f: number; amt: number } | null;
   stock: number[]; losses: number;
+  know: number[]; learned: boolean[];   // 층마다 드나든 달 수와 약점을 깨쳤는지 (경쟁 용병단)
   // 판마다 조금씩 다른 성격: 지난달 벌이에 얼마나 민감한지, 포션을 더 쓰는지, 얼마나 값이 올라야 파는지
   trait?: { resp: number; pots: number; sellBar: number };
 };
-export type Plan = { parties: number[]; pots: number[]; sell: number[]; train: number; base: { f: number; amt: number } | null; hire: number[] };
+// guide: 층마다 편성 지침 (KEYS 중 하나, 없으면 빈 문자열)
+export type Plan = { parties: number[]; pots: number[]; sell: number[]; train: number; base: { f: number; amt: number } | null; hire: number[]; guide: string[] };
 
 export const ROSTER: { id: string; name: string; style: Style; size: number }[] = [
   { id: 'us', name: '회색늑대 용병단', style: 'player', size: 36 },
@@ -70,16 +78,22 @@ export type MonthResult = {
   month: number; res: CoResult[]; plans: Plan[]; Q: number[]; price: number[]; potion: number; potQ: number;
   floors: { before: number; taken: number; crowd: number }[]; perParty: number[]; opened: number | null; rank: string[];
 };
+// 현장 기록: 우리 파티만 가져오는 정보다. 증언(notes)과, 어떤 직업·장비를 갖춘 파티가 몇 번 나가 몇 번 성공했는지(obs, '*'는 그 층 전체)
+export type Note = { m: number; f: number; t: string };
 export type World = {
   month: number; unlocked: number; prog: number; pool: number[]; price: number[]; potion: number;
   cos: Company[]; last: MonthResult | null; history: MonthResult[]; log: { m: number; t: string }[];
+  mons: number[]; notes: Note[]; obs: Record<string, { n: number; w: number }>[];
 };
 
 export function newWorld(): World {
+  // 층마다 사는 것은 판마다 다르다
+  const mons = MONSTERS.map((_, i) => i).sort(() => rnd() - 0.5).slice(0, FLOORS.length);
   return {
+    mons, notes: [], obs: FLOORS.map(() => ({})),
     month: 1, unlocked: 1, prog: 0, pool: FLOORS.map(F => F.max), price: ITEMS.map(it => it.P0), potion: CO.POTION0,
     cos: ROSTER.map(r => ({ ...r, members: r.size, cash: r.style === 'crowd' ? 0 : Math.round(CO.START_CASH * r.size / 36),
-      skill: 0, bases: zeros(), pendingBase: null, stock: zeros(), losses: 0,
+      skill: 0, bases: zeros(), pendingBase: null, stock: zeros(), losses: 0, know: zeros(), learned: FLOORS.map(() => false),
       trait: { resp: 0.8 + 0.4 * rnd(), pots: rnd() < 0.3 ? 1 : 0, sellBar: 0.95 * (0.9 + 0.2 * rnd()) } })),
     last: null, history: [], log: [],
   };
@@ -102,7 +116,7 @@ function spread(W: World, n: number, w: number[]) {
   return out;
 }
 
-export function emptyPlan(): Plan { return { parties: zeros(), pots: FLOORS.map(() => 3), sell: zeros(), train: 0, base: null, hire: zeros() }; }
+export function emptyPlan(): Plan { return { parties: zeros(), pots: FLOORS.map(() => 3), sell: zeros(), train: 0, base: null, hire: zeros(), guide: FLOORS.map(() => '') }; }
 
 // 플레이어 기본안: 열린 층에 고르게, 포션 3병, 창고는 다 판다
 export function defaultPlan(W: World): Plan {
@@ -147,6 +161,8 @@ export function aiPlan(W: World, i: number): Plan {
   P.parties = spread(W, n, w);
   P.pots = FLOORS.map(() => pots);
   P.train = S.train;
+  // 깨친 층에서는 약점대로 갖춰 들어간다
+  P.guide = FLOORS.map((_, f) => (c.learned && c.learned[f] ? MONSTERS[W.mons[f]].key : ''));
   // 큰 용병단은 남는 장사인 층이 있으면 군소 용병대를 계약 파티로 빌린다
   if ((c.style === 'volume' || c.style === 'steady' || c.style === 'chaser') && c.cash > 8000) {
     const best = margin.indexOf(Math.max(...margin));
@@ -168,7 +184,7 @@ export function aiPlan(W: World, i: number): Plan {
 
 // 계약 파티: 군소 용병대를 이번 달만 빌린다. 한 조에 HIRE_FEE를 주고, 캐 온 것의 HIRE_CUT은 그들 몫이다
 export const hireCost = (P: Plan) => P.hire.reduce((a, b) => a + b, 0) * CO.HIRE_FEE;
-export const sortieCost = (P: Plan, potion: number) => FLOORS.map((_, f) => (P.parties[f] + P.hire[f]) * (CO.SORTIE + P.pots[f] * potion));
+export const sortieCost = (P: Plan, potion: number) => FLOORS.map((_, f) => (P.parties[f] + P.hire[f]) * (CO.SORTIE + P.pots[f] * potion + (P.guide && P.guide[f] ? CO.GUIDE_COST : 0)));
 
 // ---------- 한 달 ----------
 export function runMonth(W: World, playerPlan: Plan): MonthResult {
@@ -187,17 +203,29 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
   let deepWins = 0;
   FLOORS.forEach((F, f) => {
     const crowd = plans.reduce((a, P) => a + P.parties[f] + P.hire[f], 0);
+    const mon = MONSTERS[W.mons[f]], seen = { good: false, bad: false };
     const wins = W.cos.map((c, i) => {
       const P = plans[i], n = P.parties[f] + P.hire[f], p = succRate(c, f, P.pots[f], crowd);
       let w = 0, d = 0;
       for (let q = 0; q < n; q++) {
-        if (rnd() < p) w++;
+        // 파티마다 직업 넷과 장비 하나가 섞여 들어간다. 지침이 있으면 그 직업이나 장비를 꼭 갖춘다
+        const keys = rollParty(P.guide ? P.guide[f] : '');
+        const hasKey = keys.includes(mon.key), hasBad = keys.includes(mon.bad);
+        const ok = rnd() < clamp(p + (hasKey ? CO.KEY_BONUS : 0) - (hasBad ? CO.BAD_PEN : 0), 0.05, 0.97);
+        if (ok) w++;
         else if (q < P.parties[f]) d += Math.round(Math.max(0, CO.PARTY * F.risk * (1.6 - 0.15 * P.pots[f]) * (0.5 + rnd())));   // 계약 파티의 사망은 그들 몫
+        // 우리 직영 파티만 무엇을 갖추고 갔고 어떻게 됐는지 기록해 온다
+        if (c.style === 'player' && q < P.parties[f]) {
+          ['*', ...keys].forEach(k => { const o = W.obs[f][k] || (W.obs[f][k] = { n: 0, w: 0 }); o.n++; if (ok) o.w++; });   // '*'는 그 층 전체
+          if (ok && hasKey) seen.good = true;
+          if (!ok && hasBad) seen.bad = true;
+        }
       }
       res[i].sent[f] = P.parties[f]; res[i].hired[f] = P.hire[f]; res[i].ok[f] = w; res[i].deaths += d;
       return w;
     });
     if (f === W.unlocked - 1) deepWins = wins.reduce((a, b) => a + b, 0);
+    if (plans[0].parties[f]) testimony(W, f, seen);
     const want = W.cos.map((c, i) => wins[i] * (F.take + Math.floor(Math.min(CO.BASE_MAX, c.bases[f]) / 2)));
     const total = want.reduce((a, b) => a + b, 0), before = W.pool[f], k = total ? Math.min(1, before / total) : 0;
     // 손에 쥐는 양은 몫보다 조금 적을 수 있다 (흘리고 깨뜨린다). 몫을 넘지는 않아서 층에 남은 양을 넘겨 캐지 못한다
@@ -243,6 +271,14 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
       c.cash = 0;   // 군소 용병대는 버는 대로 쓴다
     } else c.members = Math.max(8, c.members - r.deaths + Math.min(Math.round(c.size / 10), Math.max(0, c.size - c.members + r.deaths)));
   });
+  // 경쟁 용병단은 한 층에 오래 드나들수록 그 층의 약점을 깨친다. 깨친 소문은 신문에 새어 나온다
+  W.cos.forEach((c, i) => {
+    const at = LEARN_AT[c.style]; if (!at || !c.know) return;
+    FLOORS.forEach((F, f) => {
+      if (!plans[i].parties[f] || c.learned[f]) return;
+      if (++c.know[f] >= at) { c.learned[f] = true; const k = MONSTERS[W.mons[f]].key; W.log.push({ m: W.month, t: `${c.name} 파티들이 ${F.name}에 ${keyWord(k)}${eulOf(keyWord(k))} 챙겨 들어가기 시작했다는 말이 돈다.` }); }
+    });
+  });
   // 길 뚫기: 가장 깊은 열린 층에서 성공이 쌓이면 다음 층이 열린다
   let opened: number | null = null;
   if (W.unlocked < NF) {
@@ -269,9 +305,33 @@ export function sanitize(W: World, c: Company, P: Plan): Plan {
   Q.pots = Q.pots.map(v => clamp(Math.floor(v), 1, 8));
   Q.sell = Q.sell.map((v, j) => clamp(Math.floor(v), 0, c.stock[j]));
   Q.train = Math.max(0, Math.floor(Q.train));
+  Q.guide = FLOORS.map((_, f) => (Q.guide && KEYS.includes(Q.guide[f]) && f < W.unlocked ? Q.guide[f] : ''));
   if (Q.base && (Q.base.amt <= 0 || Q.base.f >= W.unlocked)) Q.base = null;
   return Q;
 }
+
+const eulOf = (w: string) => ((w.charCodeAt(w.length - 1) - 0xac00) % 28 ? '을' : '를');
+const pickW = <T,>(xs: T[], ws: number[]) => { let x = rnd() * ws.reduce((a, b) => a + b, 0); for (let i = 0; i < xs.length; i++) { x -= ws[i]; if (x <= 0) return xs[i]; } return xs[xs.length - 1]; };
+// 파티 하나의 구성: 직업 넷과 장비 하나. 지침(key)이 있으면 그것을 꼭 넣는다. 갖춘 것을 KEYS 꼴로 돌려준다
+export function rollParty(guide = '') {
+  const cls = [0, 1, 2, 3].map(() => pickW(CLASSES, CLASS_SHARE));
+  let gear = pickW(GEARS, GEAR_SHARE);
+  if (guide.startsWith('c:') && !cls.includes(guide.slice(2))) cls[0] = guide.slice(2);
+  if (guide.startsWith('g:')) gear = guide.slice(2);
+  return [...new Set(cls.map(x => 'c:' + x)), ...(gear !== '일반' ? ['g:' + gear] : [])];
+}
+// 현장 증언: 우리 파티가 다녀온 층에서 들은 말을 남긴다. 처음 가면 겉모습, 세 달째 더 자세한 겉모습,
+// 약점을 갖춘 파티가 성공하거나 역효과를 갖춘 파티가 실패하면 그 이야기를 가끔 가져온다
+function testimony(W: World, f: number, seen: { good: boolean; bad: boolean }) {
+  const mon = MONSTERS[W.mons[f]], here = W.notes.filter(n => n.f === f), say = (t: string) => W.notes.push({ m: W.month, f, t });
+  const visits = W.history.filter(M => M.res[0].sent[f] > 0).length + 1;
+  if (!here.length) say(mon.look[0]);
+  else if (visits >= 3 && !here.some(n => n.t === mon.look[1])) say(mon.look[1]);
+  const recent = here.slice(-3).map(n => n.t);
+  if (seen.good && rnd() < 0.5 && !recent.includes(mon.good)) say(mon.good);
+  if (seen.bad && rnd() < 0.5 && !recent.includes(mon.badSay)) say(mon.badSay);
+}
+export const keysAll = KEYS;
 
 export const rankOf = (W: World, id = 'us') => (W.last ? W.last.rank.indexOf(id) + 1 : 0);
 

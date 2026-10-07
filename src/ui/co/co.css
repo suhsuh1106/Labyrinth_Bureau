@@ -61,3 +61,15 @@ ul.co-news { margin: 6px 0 0; padding-left: 18px; font-size: 13px; line-height: 
   .frow .r { grid-column: 2; text-align: left; }
   .co-sheet { padding: 14px; }
 }
+
+details.field { border: 1px solid var(--rule); padding: 8px 12px; }
+details.field summary { cursor: pointer; font-weight: 600; font-size: 13px; }
+.fgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; margin-top: 8px; }
+.fblock { background: var(--paper-2); padding: 8px 10px; font-size: 12px; min-width: 0; }
+.fblock b { font-family: var(--f-display); font-size: 14px; }
+.fblock ul.notes { margin: 6px 0; padding-left: 16px; line-height: 1.5; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { font-size: 11px; padding: 1px 7px; border-radius: 9px; border: 1px solid var(--rule); color: var(--ink-soft); white-space: nowrap; }
+.chip.up { border-color: var(--good); color: var(--good); }
+.chip.dn { border-color: var(--bad); color: var(--bad); }
+select.guide { font: 12px var(--f-body); padding: 3px; border: 1px solid var(--ink-soft); background: var(--paper); color: var(--ink); max-width: 150px; }

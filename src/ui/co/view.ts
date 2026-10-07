@@ -1,5 +1,6 @@
 // 용병단 행정실 화면: 결정표(위)와 지난달 정산(아래). HTML 문자열을 만들기만 하고 상태는 건드리지 않는다
-import { CO, FLOORS, ITEMS, type Plan, type World, hireCost, maxParties, priceOf, rankOf, sanitize, sortieCost, succRate, us, worth } from '../../core/company';
+import { CO, FLOORS, ITEMS, type Plan, type World, hireCost, keysAll, maxParties, priceOf, rankOf, sanitize, sortieCost, succRate, us, worth } from '../../core/company';
+import { keyLabel } from '../../core/util';
 
 export const COLORS: Record<string, string> = {
   us: 'var(--merchant)', red: '#b8452f', holy: '#a57a12', iron: '#5b6670', crow: '#3b3346', silver: '#2f7d7a',
@@ -36,7 +37,7 @@ export function planHtml(W: World, raw: Plan) {
   const sc = sortieCost(P, W.potion);
   const rows = FLOORS.map((F, f) => {
     const open = f < W.unlocked;
-    if (!open) return `<tr class="closed"><td><b>${F.name}</b><small>${ITEMS[f].name}</small></td><td colspan="8">${f === W.unlocked ? `아직 닫혀 있다 · 길 뚫기 ${Math.min(99, Math.round(W.prog / CO.OPEN_WINS[W.unlocked - 1] * 100))}%` : '아직 닫혀 있다'}</td></tr>`;
+    if (!open) return `<tr class="closed"><td><b>${F.name}</b><small>${ITEMS[f].name}</small></td><td colspan="9">${f === W.unlocked ? `아직 닫혀 있다 · 길 뚫기 ${Math.min(99, Math.round(W.prog / CO.OPEN_WINS[W.unlocked - 1] * 100))}%` : '아직 닫혀 있다'}</td></tr>`;
     const crowd = P.parties[f] + P.hire[f] + others(f), p = succRate(c, f, P.pots[f], crowd);
     const want = crowd * p * F.take, k = want ? Math.min(1, W.pool[f] / want) : 1;
     return `<tr><td><b>${F.name}</b><small>${ITEMS[f].name} · 위험 ${pct(F.risk)}</small></td>
@@ -44,6 +45,7 @@ export function planHtml(W: World, raw: Plan) {
       <td>${stepper('parties', f, raw.parties[f], `${F.name} 파티 수`)}</td>
       <td>${stepper('hire', f, raw.hire[f], `${F.name} 계약 파티`)}</td>
       <td>${stepper('pots', f, raw.pots[f], `${F.name} 파티당 포션`)}</td>
+      <td><select class="guide" data-k="guide" data-i="${f}" aria-label="${F.name} 편성 지침"><option value="">지침 없음</option>${keysAll.map(k => `<option value="${k}"${P.guide[f] === k ? ' selected' : ''}>${keyLabel(k)}</option>`).join('')}</select>${P.guide[f] ? `<small>조당 +${CO.GUIDE_COST}G</small>` : ''}</td>
       <td class="n">${P.parties[f] + P.hire[f] ? pct(p) : '-'}</td>
       <td class="n">${(F.take * k).toFixed(1)}개<small>${k < 1 ? `몰려서 ${pct(k)}만` : '넉넉함'}</small></td>
       <td class="n">${fmt(sc[f] + P.hire[f] * CO.HIRE_FEE)}G</td></tr>`;
@@ -67,7 +69,11 @@ export function planHtml(W: World, raw: Plan) {
     <h2>제${W.month}월 결정표</h2>
     <p class="lead">파티는 4명 한 조. 단원 ${c.members}명이면 ${maxParties(c)}조까지 직접 보낼 수 있고, 모자라면 군소 용병대를 계약 파티로 빌려요 (한 조 ${CO.HIRE_FEE}G, 캔 것의 ${pct(CO.HIRE_CUT)}는 그들 몫). 예상치는 경쟁자가 지난달처럼 움직인다고 보고 어림한 값이에요.</p>
     <h3>1 · 어느 층에 몇 조를 보낼까</h3>
-    <div class="tw"><table class="grid"><thead><tr><th>층 · 전리품</th><th class="n">층에 남은 양</th><th class="n">지난달 남들</th><th>우리 파티</th><th>계약 파티</th><th>파티당 포션 (${W.potion}G)</th><th class="n">예상 성공률</th><th class="n">성공 조당 채집</th><th class="n">출정 비용</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="tw"><table class="grid"><thead><tr><th>층 · 전리품</th><th class="n">층에 남은 양</th><th class="n">지난달 남들</th><th>우리 파티</th><th>계약 파티</th><th>파티당 포션 (${W.potion}G)</th><th>편성 지침</th><th class="n">예상 성공률</th><th class="n">성공 조당 채집</th><th class="n">출정 비용</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <details class="field"${W.notes.length ? ' open' : ''}><summary>현장 기록 · 우리 파티만 가져오는 정보</summary>
+      <p class="note">파티마다 직업 넷과 장비 하나가 섞여 들어가요. 그 층에 사는 것의 약점을 갖춘 파티는 잘 돌아오고, 역효과를 갖춘 파티는 크게 당해요. 증언과 성공률을 보고 약점이라 여기는 것을 편성 지침으로 정하면, 우리 파티는 모두 그것을 갖추고 들어가요. 경쟁 용병단도 한 층에 오래 드나들면 약점을 깨쳐요.</p>
+      ${fieldHtml(W)}
+    </details>
     <h3>2 · 창고의 전리품을 얼마나 팔까</h3>
     <p class="note">이번 달에 캐 온 것은 정산 때 창고로 들어와요. 창고에 두면 매달 ${pct(CO.SPOIL)}씩 상해요.</p>
     <div class="tw"><table class="grid"><thead><tr><th>전리품 · 사 가는 곳</th><th class="n">창고</th><th>이번 달 판매량</th><th class="n">지난달 시장 전체</th><th class="n">지난달 시세</th><th class="n">기준 시세</th><th class="n">예상 판매 수입</th></tr></thead><tbody>${sell || '<tr><td colspan="7" class="dim">창고가 비어 있어요</td></tr>'}</tbody></table></div>
@@ -134,6 +140,7 @@ export function newsLines(W: World) {
   const L = W.last; if (!L) return [];
   const prevP = W.history.length > 1 ? W.history[W.history.length - 2].price : ITEMS.map(it => it.P0);
   const out: string[] = [];
+  W.log.filter(l => l.m === L.month && /챙겨/.test(l.t)).forEach(l => out.push(l.t));
   if (L.opened != null) out.push(`${FLOORS[L.opened].name}으로 가는 길이 열렸다. 다음 달부터 ${ITEMS[L.opened].name}이 나온다.`);
   ITEMS.forEach((it, j) => {
     if (!L.Q[j]) return;
@@ -149,4 +156,20 @@ export function newsLines(W: World) {
     if (ITEMS.some((_, j) => c.stock[j] > 20 && r.sold[j] === 0)) out.push(`${c.name}이 창고 문을 걸어 잠갔다는 말이 돈다. 값이 오르기를 기다리는 모양이다.`);
   });
   return out.slice(0, 7);
+}
+
+// 현장 기록: 층마다 들은 증언(최근 넷)과, 구성별로 갖춘 파티와 안 갖춘 파티의 성공률
+export function fieldHtml(W: World) {
+  const open = FLOORS.slice(0, W.unlocked).map((F, f) => {
+    const notes = W.notes.filter(n => n.f === f).slice(-4).reverse(), all = W.obs[f]['*'];
+    if (!notes.length && !all) return `<div class="fblock"><b>${F.name}</b><p class="note">아직 우리 파티가 가 보지 않았어요.</p></div>`;
+    const rows = Object.entries(W.obs[f]).filter(([k, v]) => k !== '*' && v.n >= 3).map(([k, v]) => {
+      const off = all.n - v.n, offR = off ? (all.w - v.w) / off : 0, r = v.w / v.n, d = off >= 3 ? r - offR : 0;
+      return { k, n: v.n, r, d, off };
+    }).sort((a, b) => b.d - a.d);
+    return `<div class="fblock"><b>${F.name}</b> <span class="dim">우리 파티 ${all ? all.n : 0}조 출정 · 성공 ${all ? pct(all.w / all.n) : '-'}</span>
+      <ul class="notes">${notes.map(n => `<li><span class="dim">제${n.m}월</span> ${n.t}</li>`).join('')}</ul>
+      ${rows.length ? `<div class="chips">${rows.map(x => `<span class="chip ${x.off >= 3 && x.d >= 0.12 ? 'up' : x.off >= 3 && x.d <= -0.12 ? 'dn' : ''}" title="갖춘 파티 ${x.n}조 성공 ${pct(x.r)}">${keyLabel(x.k)} ${pct(x.r)}${x.off >= 3 ? ` (${x.d >= 0 ? '+' : '−'}${Math.round(Math.abs(x.d) * 100)}%p)` : ''}</span>`).join('')}</div>` : ''}</div>`;
+  });
+  return `<div class="fgrid">${open.join('')}</div>`;
 }
