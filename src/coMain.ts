@@ -6,7 +6,7 @@ import { type Plan, type World, carryPlan, newWorld, rankOf, runMonth } from './
 import { planHtml, plaqueHtml, resultsHtml } from './ui/co/view';
 
 const $ = (id: string): any => document.getElementById(id);
-const KEY = 'lb-co', VERSION = 3, MONTHS = 36;   // 3: 포션 구매처·세력 관계·담합이 생김 (이전 판은 새 게임으로)
+const KEY = 'lb-co', VERSION = 4, MONTHS = 36;   // 4: 미궁의 압력·근원·귀환 보고가 생김 (이전 판은 새 게임으로)
 let W: World, plan: Plan;
 
 function save() { try { localStorage.setItem(KEY, JSON.stringify({ v: VERSION, W, plan })); } catch { /* 저장이 막혀도 판은 계속된다 */ } }
@@ -41,6 +41,7 @@ $('plan').addEventListener('click', (e: any) => {
 $('plan').addEventListener('change', (e: any) => {
   const t = e.target;
   if (t.dataset.k === 'guide') { plan.guide = plan.guide || []; plan.guide[+t.dataset.i] = t.value; render(); save(); return; }
+  if (t.dataset.k === 'rootf') { plan.root = { f: +t.value, seal: plan.root ? plan.root.seal : 0, mine: plan.root ? plan.root.mine : 0 }; render(); save(); return; }
   if (t.dataset.k === 'basef') { plan.base = { f: +t.value, amt: plan.base ? plan.base.amt : 0 }; render(); save(); return; }
   if (t.dataset.k) edit(t.dataset.k, +t.dataset.i, () => Math.round(+t.value || 0));
 });
@@ -48,6 +49,11 @@ function edit(k: string, i: number, fn: (v: number) => number) {
   if (k === 'train') plan.train = Math.max(0, fn(plan.train));
   else if (k === 'church') plan.church = Math.max(0, fn(plan.church || 0));
   else if (k === 'donate') plan.donate = Math.max(0, fn(plan.donate || 0));
+  else if (k === 'seal' || k === 'mine') {
+    const f = plan.root ? plan.root.f : (W.roots || []).findIndex(r => r.found && !r.done);
+    const R = plan.root || { f, seal: 0, mine: 0 };
+    R[k] = Math.max(0, fn(R[k])); plan.root = { ...R, f };
+  }
   else if (k === 'base') { const f = plan.base ? plan.base.f : Math.max(0, W.unlocked - 1); plan.base = { f, amt: Math.max(0, fn(plan.base ? plan.base.amt : 0)) }; }
   else if (k === 'pots') plan.pots[i] = Math.max(1, Math.min(8, fn(plan.pots[i])));
   else (plan as any)[k][i] = Math.max(0, fn((plan as any)[k][i]));
@@ -62,7 +68,7 @@ $('go').addEventListener('click', () => {
   plan = carryPlan(W, plan);
   render(); save();
   const r = M.res[0];
-  say(`제${M.month}월 결재 · 순이익 ${r.net >= 0 ? '+' : '−'}${Math.abs(Math.round(r.net)).toLocaleString('ko-KR')}G · ${rankOf(W)}위${M.opened != null ? ` · ${M.opened + 1}층이 열렸어요` : ''}`);
+  say(`제${M.month}월 결재 · 순이익 ${r.net >= 0 ? '+' : '−'}${Math.abs(Math.round(r.net)).toLocaleString('ko-KR')}G · ${rankOf(W)}위${M.opened != null ? ` · ${M.opened + 1}층이 열렸어요` : ''}${M.overflow ? ' · 미궁이 넘쳤어요' : ''}${W.log.some(l => l.m === M.month && /근원 발견/.test(l.t)) ? ' · 근원을 찾았어요' : ''}`);
   $('results').scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
 });
 $('newgame').addEventListener('click', () => { if (W.month === 1 || confirm('지금 판을 버리고 새 게임을 시작할까요?')) start(true); });
