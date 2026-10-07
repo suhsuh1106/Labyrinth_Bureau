@@ -27,16 +27,17 @@ export function endLeak(notes, how) { log(`전리품 누수가 멈춤 (${how}) �
 export function endLord(how) { S.lord = null; S.evCool.lord = 12; log(`하르덴 백작의 용병 포섭이 끝남: ${how}`); }
 
 export const AGENDAS: any[] = [
-  // 개척기의 첫인사: 무엇을 받느냐가 첫 플래그가 된다
+  // 교회의 첫인사는 이제 첫날 장면과 개척 사업(입구 축성)으로 들어간다. 옛 저장에 걸려 있는 안건을 처리하려고 정의만 남긴다
   { id: 'church_greet', prio: 3, who: 'church', name: '서부 교구 대사제', title: '대사제가 미궁 입구를 축성하겠답니다',
-    when: () => true,
+    when: () => false,
     text: () => '"미궁이 열린 땅은 불안한 법입니다. 입구를 축성하고 용병들의 무사를 비는 일을 교회에 맡겨 주시지요. 대신 관리국에서 매달 관례대로 헌금을 조금 보태 주시면 됩니다."',
     opts: [
       { label: '축성을 받는다', desc: '매달 관례 헌금 1,000G를 내기로 해요. 교회가 반기고, 용병들도 마음을 놓아요', apply() { S.custom = C.CUSTOM; S.budget.donation = C.CUSTOM; S.gC -= 15; S.trust += 4; flag('church_greet'); flag('church_blessed'); } },
       { label: '정중히 사양한다', desc: '관례 헌금이 생기지 않아요. 교회는 서운해하고, 나중에 헌금을 내려 해도 관례가 없다며 덜 반겨요', apply() { S.gC += 15; flag('church_greet'); flag('church_refused'); } },
     ], def: 0 },
   { id: 'merchant_greet', prio: 3, who: 'merchant', name: '상단 조합장', title: '상단 조합장이 환영 연회를 열었습니다',
-    when: () => !!S.agendaDone.church_greet,
+    // 개청하고 나서 여는 환영 연회. 첫 달 출발점을 벌리지 않도록 운영기에 들어서야 올라온다
+    when: () => S.phase === 'run',
     text: () => '"변경에 관리국이 생기다니 반가운 일입니다. 작은 성의를 준비했으니 받아 주시지요. 앞으로 오래 함께할 사이 아니겠습니까?" 연회가 끝날 무렵 조합장이 묵직한 상자를 내밉니다.',
     opts: [
       { label: '선물을 받는다', desc: '금고에 1,500G가 들어오고 상단이 크게 반겨요. 이 일은 어딘가에 기록으로 남아요', apply() { S.treasury += 1500; S.gM -= 10; flag('merchant_gift'); } },

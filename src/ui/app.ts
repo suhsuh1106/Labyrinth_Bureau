@@ -8,6 +8,7 @@ import { fmt } from '../core/util';
 import { founding } from '../core/founding';
 import { renderBooksTab } from './books';
 import { syncBudget } from './budget';
+import { saveLocal } from './storage';
 import { renderBuildTab } from './build';
 import { renderDocsTab } from './docs';
 import { renderExploreTab } from './explore';
@@ -45,6 +46,7 @@ export function render(flash = true) {
   syncBudget();
   renderReader(flash);
   renderDesk();
+  saveLocal();
 }
 
 export function start(data) {

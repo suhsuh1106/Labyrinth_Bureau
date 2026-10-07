@@ -3,12 +3,12 @@ import { project } from './economy';
 import { newOrg } from './org';
 import { S, newGame, setState } from './state';
 
-export const SAVE_VERSION = 16;
+export const SAVE_VERSION = 17;
 
 export function loadGame(data?: { S?: any }) {
   newGame();
   const d = data && data.S;
-  if (d && d.v >= 11 && d.v <= 15) {
+  if (d && d.v >= 11 && d.v <= 16) {
     // 버전 11~13 저장은 보급품, 용사 파티, 장부, 개척기 중 일부가 없을 수 있다. 빠진 값은 새 게임 기본값으로 채우고,
     // 보급품 예산은 이번 달 필요량을 100% 채우는 금액으로 넣는다. 개척기 이전 저장은 이미 운영 중인 관리국이다
     const fresh = S; setState(d); S.v = SAVE_VERSION;
@@ -28,6 +28,9 @@ export function loadGame(data?: { S?: any }) {
       if (b.heroPub) { o.lv.press = 1; o.pol.press = 1; }
       if (b.heroPay) o.pol.hero = 1;
     }
+    // 버전 16까지는 개척 사업마다 선택지가 여럿이었다. 이제 사업마다 한 가지라, 진행 중인 사업은 그 한 가지로 이어 간다
+    Object.values(S.dev || {}).forEach((st: any) => { st.opt = 0; });
+    Object.keys(S.devPick || {}).forEach(k => { S.devPick[k] = 0; });
     Object.keys(fresh).forEach(k => { if (!(k in S)) S[k] = fresh[k]; });
     const noProv = S.budget.food == null;
     Object.keys(fresh.budget).forEach(k => { if (S.budget[k] == null) S.budget[k] = 0; });

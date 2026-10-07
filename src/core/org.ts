@@ -49,7 +49,7 @@ export const POLICY: Record<string, { name: string; dept: DeptId | null; opts: O
 
 export function newOrg() {
   return { lv: { supply: 1, explore: 0, audit: 0, outer: 0, press: 0, finance: 0 } as Record<DeptId, number>,
-    pol: { supply: 1, explore: 1, audit: 1, outer: 1, outerR: 1, press: 1, hero: 0 } as Record<string, number>,
+    pol: { supply: 2, explore: 1, audit: 1, outer: 1, outerR: 1, press: 1, hero: 0 } as Record<string, number>,
     rej: {} as Record<string, boolean>, up: null as DeptId | null };
 }
 

@@ -9,19 +9,19 @@ import { S, schismLines } from '../core/state';
 import { eul, fmt, keyWord, pct, sgn } from '../core/util';
 import { facUpkeep, fixedCost } from '../core/world';
 import { renderDeskBudget } from './desk';
+import { saveLocal } from './storage';
 
 const $ = (id: string): any => document.getElementById(id);
 
+// 개척 사업: 서기실이 올린 이번 달 사업은 결재만 받고, 진행 중이거나 끝난 사업은 한 줄로 보여 준다
 export function devHtml() {
   const card = d => {
-    const st = S.dev[d.id], pick = S.devPick[d.id];
-    if (st && st.left === 0) return `<div class="devcard done"><b>${d.name}</b> <span class="ok">완료 · ${d.opts[st.opt].label}</span></div>`;
-    if (st) return `<div class="devcard"><b>${d.name}</b> <span class="dim">진행 중 · ${d.opts[st.opt].label} · ${st.left}개월 남음</span></div>`;
-    if (d.need && !d.need()) return `<div class="devcard off"><b>${d.name}</b> <span class="dim">${d.needText}</span></div>`;
-    return `<div class="devcard"><b>${d.name}</b>${d.core ? ' <span class="tag">필수</span>' : ''}<p class="hint">${d.why}</p>
-      ${d.opts.map((o, i) => `<button type="button" class="devopt${pick === i ? ' on' : ''}" data-dev="${d.id}" data-opt="${i}" aria-pressed="${pick === i}">
-        <span class="t">${o.who ? `<span class="dot" style="background:var(--${o.who})"></span>` : ''}${o.label}</span><span class="c">${o.cost ? fmt(o.cost) + 'G' : '무료'} · ${o.months}개월</span>
-        <span class="d">${o.desc}</span></button>`).join('')}</div>`;
+    const st = S.dev[d.id], o = d.opts[0];
+    if (st && st.left === 0) return `<div class="devcard done"><b>${d.name}</b> <span class="ok">완료 · ${o.label}</span></div>`;
+    if (st) return `<div class="devcard done"><b>${d.name}</b> <span class="dim">진행 중 · ${st.left}개월 남음</span></div>`;
+    if (S.devPick[d.id] == null) return `<div class="devcard off"><b>${d.name}</b> <span class="dim">${d.need && !d.need() ? '사무소가 문을 연 다음 달에 올라와요' : ''}</span></div>`;
+    return `<div class="devcard"><div class="devh"><b>${d.name}</b><span class="from">${d.who ? `<span class="dot" style="background:var(--${d.who})"></span>` : ''}${d.from}</span><span class="c">${o.cost ? fmt(o.cost) + 'G' : '0G'} · ${o.months}개월</span></div>
+      <p class="hint">${o.label} · ${o.desc}</p></div>`;
   };
   return DEV.map(card).join('');
 }
@@ -166,7 +166,7 @@ export function deskHtml(p: any) {
       <div><i>1</i><span><b>방침을 고른다</b>안 바꾸면 지난달 그대로</span></div>
       <div><i>2</i><span><b>품의가 올라온다</b>부서가 방침에 맞춰 금액을 적어 옴</span></div>
       <div><i>3</i><span><b>승인하거나 반려한다</b>기본은 승인</span></div></div>
-    ${founding() ? `<div class="devwrap"><h3>개척 사업</h3><p class="note">이번 달 착수할 사업을 고르세요. 착수비는 영주 개척 자금에서 먼저 나가요</p><div id="dev">${devHtml()}</div></div>` : ''}
+    ${founding() ? `<div class="devwrap"><h3>개척 사업 품의</h3><p class="note">서기실이 올린 이번 달 사업이에요. 결재하면 착수하고, 착수비는 영주 개척 자금에서 먼저 나가요</p><div id="dev">${devHtml()}</div></div>` : ''}
     <div class="orows">${rows.join('')}</div>
     <div class="fixedl"><div class="fl-h"><span>고정 지출 (품의 없음)</span><b>${fmt(fixedItems.reduce((a, x) => a + x[1], 0))}</b></div>${fixedItems.map(([n, v]) => `<span>${n} ${fmt(v)}</span>`).join('')}</div>`;
 }
@@ -225,5 +225,6 @@ export function onBudgetClick(t: HTMLElement) {
   else if (tab) view = tab.dataset.otab as any;
   else return false;
   syncBudget();
+  saveLocal();
   return true;
 }

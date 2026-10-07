@@ -2,6 +2,7 @@
 import { SAVE_VERSION } from './save';
 import { pickAgenda } from './agendas';
 import { C, CLASS_SHARE, MONSTERS } from './data';
+import { staffPlan } from './founding';
 import { compileBudget, newOrg } from './org';
 import { rnd } from './rng';
 
@@ -31,6 +32,7 @@ export function newGame() {
     org: newOrg(),
     hist: [], books: [], bookView: 'last', last: null, ledgers: null, ledgerArchive: [], archive: [], notes: [], notices: [], log: [], talk: null, over: null,
   };
+  staffPlan();
   compileBudget();
   pickAgenda();
 }

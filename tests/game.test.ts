@@ -128,6 +128,22 @@ describe('개척 자금과 새 수입', () => {
   });
 });
 
+describe('개척기', () => {
+  it('판마다 같은 개척 사업으로 시작해 두 달 안에 운영기로 넘어간다', () => {
+    const starts = new Set<string>();
+    for (let seed = 800; seed < 820; seed++) {
+      setSeed(seed); newGame(); const r = botRng(seed);
+      expect(Object.keys(S.devPick).sort()).toEqual(['blessing', 'gate', 'market', 'supply', 'survey']);
+      expect(project(S.budget).cov).toBe(1);   // 첫 달 보급은 기본 방침(100%)으로 다 채운다
+      while (!S.over && S.phase === 'found') { botTurn(api, r, styles[0]); resolve(); }
+      expect(S.phase).toBe('run');
+      expect(S.runStart).toBeLessThanOrEqual(3);
+      starts.add(JSON.stringify([S.toll, S.cap, S.custom, S.mPriceAdj, S.cPriceAdj, S.lootMul, Object.keys(S.dev).sort()]));
+    }
+    expect(starts.size).toBe(1);
+  });
+});
+
 describe('관리국 직제', () => {
   const toRun = (seed: number) => { play(seed, styles[0], () => { if (S.phase === 'found') resolve(); else S.over = 'stop'; }); S.over = null; };
   it('부서 신설비는 결재 때 한 번 나가고, 다음 달부터 그 단계로 일하며 인건비가 붙는다', () => {
