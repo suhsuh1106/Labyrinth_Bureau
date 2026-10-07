@@ -14,6 +14,10 @@ export const CO = {
   OPEN_WINS: [40, 60, 80, 100],
   // 편성 지침: 그 층 몬스터의 약점을 갖춘 파티는 성공률이 오르고, 역효과를 갖춘 파티는 떨어진다. 지침대로 갖추는 데 조당 돈이 든다
   GUIDE_COST: 20, KEY_BONUS: 0.20, BAD_PEN: 0.15,
+  // 죽은 자리를 채우는 신입에게 주는 계약금 (한 명당)
+  RECRUIT: 80,
+  // 큰 조직일수록 사람 하나 굴리는 데 드는 관리비가 오른다: 급여 × (1 + 단원 수 / OVERHEAD). 시작 금고는 규모^CASH_EXP에 비례
+  OVERHEAD: 100, CASH_EXP: 1,
 };
 // 경쟁 용병단이 한 층에 몇 달 드나들어야 그 층의 약점을 깨치는가 (군소 용병대는 깨치지 못한다)
 const LEARN_AT: Record<string, number> = { deep: 5, steady: 6, shallow: 6, second: 6, chaser: 8, volume: 9, hoarder: 9 };
@@ -72,7 +76,7 @@ export const ROSTER: { id: string; name: string; style: Style; size: number }[] 
 
 export type CoResult = {
   sent: number[]; hired: number[]; ok: number[]; got: number[]; deaths: number; sold: number[]; sales: number;
-  spend: { sortie: number; potion: number; wage: number; train: number; base: number; hire: number }; net: number;
+  spend: { sortie: number; potion: number; wage: number; train: number; base: number; hire: number; recruit: number }; net: number; recruited: number;
 };
 export type MonthResult = {
   month: number; res: CoResult[]; plans: Plan[]; Q: number[]; price: number[]; potion: number; potQ: number;
@@ -92,7 +96,7 @@ export function newWorld(): World {
   return {
     mons, notes: [], obs: FLOORS.map(() => ({})),
     month: 1, unlocked: 1, prog: 0, pool: FLOORS.map(F => F.max), price: ITEMS.map(it => it.P0), potion: CO.POTION0,
-    cos: ROSTER.map(r => ({ ...r, members: r.size, cash: r.style === 'crowd' ? 0 : Math.round(CO.START_CASH * r.size / 36),
+    cos: ROSTER.map(r => ({ ...r, members: r.size, cash: r.style === 'crowd' ? 0 : Math.round(CO.START_CASH * Math.pow(r.size / 36, CO.CASH_EXP)),
       skill: 0, bases: zeros(), pendingBase: null, stock: zeros(), losses: 0, know: zeros(), learned: FLOORS.map(() => false),
       trait: { resp: 0.8 + 0.4 * rnd(), pots: rnd() < 0.3 ? 1 : 0, sellBar: 0.95 * (0.9 + 0.2 * rnd()) } })),
     last: null, history: [], log: [],
@@ -198,7 +202,7 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
   const potQ = plans.reduce((a, P) => a + P.parties.reduce((s, n, f) => s + (n + P.hire[f]) * P.pots[f], 0), 0);
   const potion = potionPrice(potQ);
   const res: CoResult[] = W.cos.map(() => ({ sent: zeros(), hired: zeros(), ok: zeros(), got: zeros(), deaths: 0, sold: zeros(), sales: 0,
-    spend: { sortie: 0, potion: 0, wage: 0, train: 0, base: 0, hire: 0 }, net: 0 }));
+    spend: { sortie: 0, potion: 0, wage: 0, train: 0, base: 0, hire: 0, recruit: 0 }, net: 0, recruited: 0 }));
   const floors: MonthResult['floors'] = [];
   let deepWins = 0;
   FLOORS.forEach((F, f) => {
@@ -213,7 +217,7 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
         const hasKey = keys.includes(mon.key), hasBad = keys.includes(mon.bad);
         const ok = rnd() < clamp(p + (hasKey ? CO.KEY_BONUS : 0) - (hasBad ? CO.BAD_PEN : 0), 0.05, 0.97);
         if (ok) w++;
-        else if (q < P.parties[f]) d += Math.round(Math.max(0, CO.PARTY * F.risk * (1.6 - 0.15 * P.pots[f]) * (0.5 + rnd())));   // 계약 파티의 사망은 그들 몫
+        else if (q < P.parties[f]) d += Math.round(Math.max(0, CO.PARTY * F.risk * Math.max(0.2, 1.9 - 0.3 * P.pots[f]) * (0.5 + rnd())));   // 계약 파티의 사망은 그들 몫
         // 우리 직영 파티만 무엇을 갖추고 갔고 어떻게 됐는지 기록해 온다
         if (c.style === 'player' && q < P.parties[f]) {
           ['*', ...keys].forEach(k => { const o = W.obs[f][k] || (W.obs[f][k] = { n: 0, w: 0 }); o.n++; if (ok) o.w++; });   // '*'는 그 층 전체
@@ -254,7 +258,9 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
     FLOORS.forEach((_, f) => { c.stock[f] += r.got[f]; });
     const sc = sortieCost(P, potion);
     const pot = FLOORS.reduce((a, _, f) => a + (P.parties[f] + P.hire[f]) * P.pots[f] * potion, 0);
-    r.spend = { sortie: sc.reduce((a, b) => a + b, 0) - pot, potion: pot, wage: c.members * CO.WAGE, train: P.train, base: P.base ? P.base.amt : 0, hire: hireCost(P) };
+    // 빈자리는 원래 규모까지, 한 달에 규모의 1/10씩 채운다. 신입마다 계약금이 든다 (군소 용병대는 따로)
+    r.recruited = c.style === 'crowd' ? 0 : Math.min(Math.round(c.size / 10), Math.max(0, c.size - c.members + r.deaths));
+    r.spend = { sortie: sc.reduce((a, b) => a + b, 0) - pot, potion: pot, wage: Math.round(c.members * CO.WAGE * (1 + c.members / CO.OVERHEAD)), train: P.train, base: P.base ? P.base.amt : 0, hire: hireCost(P), recruit: r.recruited * CO.RECRUIT };
     r.net = r.sales - Object.values(r.spend).reduce((a, b) => a + b, 0);
     c.cash += r.net;
     c.losses = r.net < 0 ? c.losses + 1 : 0;
@@ -269,7 +275,7 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
       const sent = r.sent.reduce((a, b) => a + b, 0) || 1;
       c.members = clamp(c.members - r.deaths + Math.round(r.net / sent / 25) * CO.PARTY, 24, 200);
       c.cash = 0;   // 군소 용병대는 버는 대로 쓴다
-    } else c.members = Math.max(8, c.members - r.deaths + Math.min(Math.round(c.size / 10), Math.max(0, c.size - c.members + r.deaths)));
+    } else c.members = Math.max(8, c.members - r.deaths + r.recruited);
   });
   // 경쟁 용병단은 한 층에 오래 드나들수록 그 층의 약점을 깨친다. 깨친 소문은 신문에 새어 나온다
   W.cos.forEach((c, i) => {

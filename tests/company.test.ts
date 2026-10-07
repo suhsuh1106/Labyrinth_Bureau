@@ -112,7 +112,7 @@ describe('경쟁 용병단', () => {
   });
   it('기회주의 용병단은 지난달 조당 남는 돈이 가장 좋았던 층에 가장 많이 보낸다', () => {
     let checked = 0;
-    for (let seed = 30; seed < 40; seed++) {
+    for (let seed = 30; seed < 90; seed++) {
       setSeed(seed); const W = newWorld();
       for (let m = 0; m < 12; m++) runMonth(W, BOT.even(W));
       const i = W.cos.findIndex(c => c.style === 'chaser'), look = outlook(W);
@@ -184,5 +184,14 @@ describe('몬스터와 편성 지침', () => {
     let a = 0, b = 0;
     for (let g = 1; g <= 40; g++) { a += rankOf(playGame(g, BOT.smart)); b += rankOf(playGame(g, BOT.smartNoGuide)); }
     expect(a).toBeLessThan(b);
+  });
+});
+
+describe('밸런스', () => {
+  it('어느 한 용병단이 1위를 도맡지 않고, 숙련 봇도 가끔 1위를 한다', () => {
+    const win: Record<string, number> = {};
+    for (let g = 1; g <= 60; g++) { const W = playGame(g, BOT.smart); win[W.last!.rank[0]] = (win[W.last!.rank[0]] || 0) + 1; }
+    expect(Math.max(...Object.values(win))).toBeLessThan(60 * 0.6);
+    expect(win.us || 0).toBeGreaterThan(0);
   });
 });

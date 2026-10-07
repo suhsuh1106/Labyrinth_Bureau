@@ -119,6 +119,7 @@ export function resultsHtml(W: World) {
       <tr><td>출정 (포션 ${L.potion}G/병 ${fmt(r.spend.potion)} 포함)</td><td class="n">−${fmt(r.spend.sortie + r.spend.potion)}</td></tr>
       ${r.spend.hire ? `<tr><td>계약 파티 수수료</td><td class="n">−${fmt(r.spend.hire)}</td></tr>` : ''}
       <tr><td>급여</td><td class="n">−${fmt(r.spend.wage)}</td></tr>
+      ${r.spend.recruit ? `<tr><td>신입 계약금 (${r.recruited}명)</td><td class="n">−${fmt(r.spend.recruit)}</td></tr>` : ''}
       ${r.spend.train + r.spend.base ? `<tr><td>훈련 · 거점</td><td class="n">−${fmt(r.spend.train + r.spend.base)}</td></tr>` : ''}
       <tr class="tot"><td>순이익</td><td class="n ${r.net < 0 ? 'neg' : 'pos'}">${sgn(r.net)}</td></tr></tbody></table></div>`;
   return `<div class="kind">변경 용병단 연합 · 월례 정산</div>
