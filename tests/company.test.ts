@@ -6,7 +6,10 @@ import { BOT, playGame } from '../sim/company';
 import { aiPlan, carryPlan, maxParties, outlook, rankOf, rollParty } from '../src/core/company';
 import { churchPrice, type World } from '../src/core/company';
 import { MONSTERS } from '../src/core/data';
-import { newsLines, planHtml, plaqueHtml, resultsHtml } from '../src/ui/co/view';
+import { depthsHtml, newsLines, planHtml, plaqueHtml, resultsHtml, returnHtml } from '../src/ui/co/view';
+import { coIssue, paperHtml } from '../src/ui/co/paper';
+import { rnd } from '../src/core/rng';
+import { floorMax } from '../src/core/company';
 
 describe('용병단 장부', () => {
   it('매달 모든 용병단의 금고 변화가 판매 수입에서 지출을 뺀 값과 같다', () => {
@@ -95,9 +98,12 @@ describe('용병단 행정실 화면', () => {
       let plan = carryPlan(W, null);
       for (let m = 0; m < 36; m++) {
         const before = JSON.stringify(W);
-        const html = plaqueHtml(W) + planHtml(W, plan) + resultsHtml(W) + newsLines(W).join('');
-        expect(html, `${name} 제${W.month}월`).not.toMatch(/undefined|NaN|Infinity/);
+        setSeed(1000 + m); const r0 = rnd(); setSeed(1000 + m);
+        const html = plaqueHtml(W) + planHtml(W, plan) + resultsHtml(W) + newsLines(W).join('') + returnHtml(W) + depthsHtml(W, plan) + paperHtml(W);
+        expect(html, `${name} 제${W.month}월`).not.toMatch(/undefined|NaN|Infinity|\[object/);
         expect(JSON.stringify(W)).toBe(before);
+        expect(rnd(), '화면을 그려도 난수를 쓰지 않는다').toBe(r0);
+        if (W.last) expect(paperHtml(W)).toContain('변경 일보');
         runMonth(W, bot(W));
         plan = carryPlan(W, plan);
       }
@@ -274,5 +280,87 @@ describe('교회 성수 포션', () => {
       }
     }
     expect(a).toBeLessThan(b);
+  });
+});
+
+describe('미궁의 압력과 근원', () => {
+  it('모두가 꺼낸 만큼 압력이 차고, 넘치면 기록이 남고 1·2층이 쑥대밭이 된다', () => {
+    setSeed(17); const W = newWorld();
+    for (let m = 0; m < 6; m++) runMonth(W, BOT.even(W));
+    expect(W.pressure!).toBeGreaterThan(0);
+    W.pressure = 500;
+    let M = null as ReturnType<typeof runMonth> | null;
+    for (let m = 0; m < 20 && !(M && M.overflow); m++) {
+      const P = BOT.even(W);
+      M = runMonth(W, P);
+    }
+    expect(M!.overflow).toBe(true);
+    expect(W.log.some(l => l.m === M!.month && /^범람: /.test(l.t))).toBe(true);
+    expect(W.pressure!).toBeLessThan(500 * CO.OVER_LEFT + 50);
+    expect(W.pool[0]).toBeLessThan(FLOORS[0].max * 0.6);
+  });
+  it('압력이 차는 동안 이상 징후가 먼저 돌고, 아무 손도 쓰지 않으면 대개 한 번은 넘친다', () => {
+    let over = 0, warned = 0;
+    for (let g = 1; g <= 20; g++) {
+      const W = playGame(g, BOT.even);
+      const first = W.history.find(M => M.overflow);
+      if (!first) continue;
+      over++;
+      if (W.log.some(l => /^이상 징후: /.test(l.t) && l.m < first.month)) warned++;
+    }
+    expect(over).toBeGreaterThan(10);
+    expect(warned).toBe(over);
+  });
+  it('근원은 약점대로 들어가 성공을 쌓은 우리 파티만 찾는다', () => {
+    let smart = 0, even = 0;
+    for (let g = 1; g <= 10; g++) {
+      smart += playGame(g, BOT.smart).roots!.filter(r => r.found).length;
+      even += playGame(g, BOT.even).roots!.filter(r => r.found).length;
+    }
+    expect(even).toBe(0);
+    expect(smart).toBeGreaterThan(5);
+    const W = playGame(3, BOT.smart);
+    W.roots!.forEach((R, f) => { if (R.found) { const k = MONSTERS[W.mons[f]].key; expect(W.obs[f][k].w).toBeGreaterThanOrEqual(CO.ROOT_WINS); } });
+  });
+  it('봉인 기금은 교회가 같은 돈을 보태고, 다 차면 압력이 빠지고 층이 작아지며 교회와 가까워진다', () => {
+    setSeed(4); const W: World = newWorld();
+    W.roots![0].found = 1;
+    runMonth(W, BOT.even(W));
+    const before = W.pressure!, relC = us(W).relC!;
+    const P = BOT.even(W); P.root = { f: 0, seal: CO.ROOT_COST / 2, mine: 0 };
+    const M = runMonth(W, P);
+    expect(M.res[0].spend.root).toBe(CO.ROOT_COST / 2);
+    expect(W.roots![0].done).toBe('seal');
+    expect(W.pressure!).toBeLessThan(before);
+    expect(us(W).relC!).toBeGreaterThan(relC);
+    expect(floorMax(W, 0)).toBe(Math.round(FLOORS[0].max * CO.SEAL_MAX));
+    for (let m = 0; m < 3; m++) runMonth(W, BOT.even(W));
+    expect(W.pool[0]).toBeLessThanOrEqual(floorMax(W, 0));
+  });
+  it('채굴장을 내면 그 층에서 우리 성공 조당 더 캔다', () => {
+    let a = 0, b = 0;
+    for (const mine of [false, true]) {
+      for (let g = 1; g <= 10; g++) {
+        setSeed(g); const W = newWorld();
+        if (mine) { W.roots![0] = { found: 1, seal: 0, mine: CO.ROOT_COST, done: 'mine', at: 1 }; }
+        for (let m = 0; m < 4; m++) { const M = runMonth(W, BOT.even(W)); const per = M.res[0].got[0] / Math.max(1, M.res[0].ok[0]); if (mine) b += per; else a += per; }
+      }
+    }
+    expect(b).toBeGreaterThan(a);
+  });
+  it('찾지 않았거나 이미 끝난 근원에는 기금을 넣을 수 없다', () => {
+    setSeed(6); const W = newWorld();
+    const P = BOT.even(W); P.root = { f: 0, seal: 3000, mine: 0 };
+    const M = runMonth(W, P);
+    expect(M.res[0].spend.root).toBe(0);
+    expect(W.roots![0].seal).toBe(0);
+  });
+  it('신문은 그달 가장 큰 일을 머리기사로 싣는다', () => {
+    setSeed(17); const W = newWorld();
+    for (let m = 0; m < 3; m++) runMonth(W, BOT.even(W));
+    W.pressure = 500;
+    for (let m = 0; m < 20; m++) { const M = runMonth(W, BOT.even(W)); if (M.overflow) break; }
+    expect(coIssue(W)!.hed).toBe('미궁이 넘쳤다');
+    expect(coIssue(W)!.extra).toBe(true);
   });
 });

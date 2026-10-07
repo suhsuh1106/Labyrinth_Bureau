@@ -73,3 +73,15 @@ details.field summary { cursor: pointer; font-weight: 600; font-size: 13px; }
 .chip.up { border-color: var(--good); color: var(--good); }
 .chip.dn { border-color: var(--bad); color: var(--bad); }
 select.guide { font: 12px var(--f-body); padding: 3px; border: 1px solid var(--ink-soft); background: var(--paper); color: var(--ink); max-width: 150px; }
+
+/* 귀환 보고: 파티 하나가 칩 하나 */
+.co-ret { --mr: var(--rule); --ms: var(--ink-soft); --mgood: var(--good); display: grid; }
+.co-ret .pc { background: var(--paper-2); color: var(--ink); }
+.co-ret .pc.ok { background: color-mix(in srgb, var(--good) 12%, var(--paper)); border-color: color-mix(in srgb, var(--good) 45%, transparent); }
+.co-ret .pc.no { color: var(--ink-soft); }
+.co-ret .pc b { font: 500 11px var(--f-num); }
+.co-ret .pt-gear { font-size: 10.5px; padding: 0 4px; border-radius: 2px; background: color-mix(in srgb, var(--ink) 10%, transparent); }
+/* 정산서 맨 아래에 펼쳐 둔 신문 */
+.co-sheet .co-paper { margin-top: 10px; }
+.co-sheet .co-paper .lead { max-width: none; font-size: inherit; color: inherit; margin: 12px 0 0; }
+.co-sheet .co-paper h2.hed { font-family: inherit; }
