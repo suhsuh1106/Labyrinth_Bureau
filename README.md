@@ -34,7 +34,8 @@
 | `npm run dev` | 개발 서버. 고치면 바로 반영 |
 | `npm test` | 테스트: 옛 프로토타입과 동작 비교, 장부 일치, 모든 탭 렌더, 저장 불러오기 |
 | `npm run typecheck` | 타입 검사 |
-| `npm run sim -- --games 300 --style hero` | 봇 시뮬레이션으로 완주율과 결과 요약 (style: plain, donate, audit, hero, smart, wild) |
+| `npm run sim -- --games 200 --style smart` | 용병단 게임 시뮬레이션: 플레이어 봇 성향별 평균 순위와 1위 분포 (style: even, deep, hold, hire, smart) |
+| `npm run sim:bureau -- --games 300 --style hero` | 옛 관리국 게임 시뮬레이션: 완주율과 결과 요약 (style: plain, donate, audit, hero, smart, wild) |
 | `npm run build` | 배포용 빌드 (`dist/`) |
 
 PR을 올리면 GitHub Actions가 타입 검사, 테스트, 빌드, 봇 시뮬레이션을 돌립니다.

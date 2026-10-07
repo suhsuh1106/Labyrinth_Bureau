@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { setSeed } from '../src/core/rng';
 import { CO, FLOORS, ITEMS, defaultPlan, emptyPlan, newWorld, potionPrice, priceOf, runMonth, us, worth } from '../src/core/company';
 import { BOT, playGame } from '../sim/company';
-import { carryPlan } from '../src/core/company';
+import { aiPlan, carryPlan, maxParties, outlook, rankOf } from '../src/core/company';
 import { newsLines, planHtml, plaqueHtml, resultsHtml } from '../src/ui/co/view';
 
 describe('용병단 장부', () => {
@@ -100,5 +100,40 @@ describe('용병단 행정실 화면', () => {
         plan = carryPlan(W, plan);
       }
     }
+  });
+});
+
+describe('경쟁 용병단', () => {
+  it('판마다 성격이 조금씩 다르고, 같은 시드면 같다', () => {
+    setSeed(1); const a = newWorld(); setSeed(1); const b = newWorld(); setSeed(2); const c = newWorld();
+    expect(JSON.stringify(a.cos.map(x => x.trait))).toBe(JSON.stringify(b.cos.map(x => x.trait)));
+    expect(JSON.stringify(a.cos.map(x => x.trait))).not.toBe(JSON.stringify(c.cos.map(x => x.trait)));
+  });
+  it('기회주의 용병단은 지난달 조당 남는 돈이 가장 좋았던 층에 가장 많이 보낸다', () => {
+    let checked = 0;
+    for (let seed = 30; seed < 40; seed++) {
+      setSeed(seed); const W = newWorld();
+      for (let m = 0; m < 12; m++) runMonth(W, BOT.even(W));
+      const i = W.cos.findIndex(c => c.style === 'chaser'), look = outlook(W);
+      const P = aiPlan(W, i), top = look.indexOf(Math.max(...look));
+      if (W.cos[i].losses >= 2 || W.cos[i].cash < 3000) continue;
+      expect(P.parties.indexOf(Math.max(...P.parties)), `시드 ${seed}`).toBe(top);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(3);
+  });
+  it('계약 파티는 군소 용병대가 가진 파티 수를 넘지 않는다', () => {
+    setSeed(13); const W = newWorld();
+    for (let m = 0; m < 24; m++) {
+      const P = BOT.even(W); P.hire = [9, 9, 9, 9, 9];
+      const crowd = W.cos.find(c => c.style === 'crowd')!, free = maxParties(crowd);
+      const M = runMonth(W, P);
+      expect(M.res.reduce((a, r) => a + r.hired.reduce((s, v) => s + v, 0), 0)).toBeLessThanOrEqual(free);
+    }
+  });
+  it('시장을 읽는 숙련 봇이 고르게 두는 봇보다 평균 순위가 높다', () => {
+    let smart = 0, even = 0;
+    for (let g = 1; g <= 40; g++) { smart += rankOf(playGame(g, BOT.smart)); even += rankOf(playGame(g, BOT.even)); }
+    expect(smart).toBeLessThan(even);
   });
 });
