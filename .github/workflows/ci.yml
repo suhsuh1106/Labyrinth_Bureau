@@ -17,9 +17,9 @@ jobs:
       - run: npm ci
       - name: 타입 검사
         run: npm run typecheck
-      - name: 테스트 (프로토타입 동작 비교, 장부, 화면, 저장)
+      - name: 테스트 (장부, 시장, 경쟁자, 담합, 근원, 화면)
         run: npm test
       - name: 빌드
         run: npx vite build
       - name: 봇 시뮬레이션 요약
-        run: npm run sim -- --games 200 --style hero
+        run: npm run sim -- --games 200 --style smart

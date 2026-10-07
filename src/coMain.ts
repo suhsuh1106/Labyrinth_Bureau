@@ -1,5 +1,5 @@
 // 용병단 행정실 진입점: 결정표를 고치고, 결재하면 한 달을 돌리고, 판을 이 브라우저에 저장한다
-import './ui/style.css';
+import './ui/co/base.css';
 import './ui/co/co.css';
 import { setSeed } from './core/rng';
 import { type Plan, type World, carryPlan, newWorld, rankOf, runMonth } from './core/company';
