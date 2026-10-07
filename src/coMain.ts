@@ -6,7 +6,7 @@ import { type Plan, type World, carryPlan, newWorld, rankOf, runMonth } from './
 import { planHtml, plaqueHtml, resultsHtml } from './ui/co/view';
 
 const $ = (id: string): any => document.getElementById(id);
-const KEY = 'lb-co', VERSION = 1, MONTHS = 36;
+const KEY = 'lb-co', VERSION = 2, MONTHS = 36;   // 2: 몬스터·현장 기록·편성 지침이 생김 (1은 새 게임으로)
 let W: World, plan: Plan;
 
 function save() { try { localStorage.setItem(KEY, JSON.stringify({ v: VERSION, W, plan })); } catch { /* 저장이 막혀도 판은 계속된다 */ } }
@@ -40,6 +40,7 @@ $('plan').addEventListener('click', (e: any) => {
 });
 $('plan').addEventListener('change', (e: any) => {
   const t = e.target;
+  if (t.dataset.k === 'guide') { plan.guide = plan.guide || []; plan.guide[+t.dataset.i] = t.value; render(); save(); return; }
   if (t.dataset.k === 'basef') { plan.base = { f: +t.value, amt: plan.base ? plan.base.amt : 0 }; render(); save(); return; }
   if (t.dataset.k) edit(t.dataset.k, +t.dataset.i, () => Math.round(+t.value || 0));
 });

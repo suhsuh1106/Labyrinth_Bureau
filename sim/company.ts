@@ -22,6 +22,8 @@ export const BOT: Record<string, (W: World) => Plan> = {
   hold: W => { const P = defaultPlan(W); P.sell = us(W).stock.map((s, j) => (W.price[j] >= ITEMS[j].P0 * 0.95 || us(W).cash < 3000 ? s : 0)); return P; },
   hire: W => { const P = defaultPlan(W), d = W.unlocked - 1; if (W.last && W.last.perParty[d] > 400) P.hire[d] = 2; return P; },
   smart: W => smartPlan(W),
+  // 숙련 봇에서 추리만 뺀 것 (편성 지침이 순위에 얼마나 보태는지 재는 기준)
+  smartNoGuide: W => { const P = smartPlan(W); P.guide = P.guide.map(() => ''); return P; },
 };
 
 // 숙련 봇: 경쟁자와 군소 용병대가 지난달 벌이를 쫓아 몰려다니므로, 한 층에 몰아넣지 않고 열린 층에 고르게 나누되
@@ -41,7 +43,26 @@ export function smartPlan(W: World): Plan {
   P.pots = FLOORS.map(() => pots);
   const best = value.indexOf(Math.max(...value));
   if (c.cash > 6000 && value[best] * (1 - CO.HIRE_CUT) - CO.HIRE_FEE > 150) P.hire[best] = 2;
+  P.guide = deduce(W);
   return P;
+}
+
+// 현장 기록으로 약점 추리: 그 구성을 갖춘 파티와 안 갖춘 파티의 성공률을 견줘, 양쪽 다 여섯 번 넘게 나갔고
+// 갖춘 쪽이 12%p 넘게 높은 구성 중 차이가 가장 큰 것을 지침으로 삼는다
+export function deduce(W: World) {
+  return FLOORS.map((_, f) => {
+    const all = W.obs[f]['*'];
+    if (f >= W.unlocked || !all) return '';
+    let best = '', bd = 0.12;
+    Object.entries(W.obs[f]).forEach(([k, v]) => {
+      if (k === '*') return;
+      const on = v.n - 0, off = all.n - v.n;
+      if (on < 6 || off < 6) return;
+      const d = v.w / on - (all.w - v.w) / off;
+      if (d > bd) { bd = d; best = k; }
+    });
+    return best;
+  });
 }
 
 export function playGame(seed: number, bot: (W: World) => Plan) {

@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { setSeed } from '../src/core/rng';
 import { CO, FLOORS, ITEMS, defaultPlan, emptyPlan, newWorld, potionPrice, priceOf, runMonth, us, worth } from '../src/core/company';
 import { BOT, playGame } from '../sim/company';
-import { aiPlan, carryPlan, maxParties, outlook, rankOf } from '../src/core/company';
+import { aiPlan, carryPlan, maxParties, outlook, rankOf, rollParty } from '../src/core/company';
+import { MONSTERS } from '../src/core/data';
 import { newsLines, planHtml, plaqueHtml, resultsHtml } from '../src/ui/co/view';
 
 describe('용병단 장부', () => {
@@ -111,13 +112,15 @@ describe('경쟁 용병단', () => {
   });
   it('기회주의 용병단은 지난달 조당 남는 돈이 가장 좋았던 층에 가장 많이 보낸다', () => {
     let checked = 0;
-    for (let seed = 30; seed < 40; seed++) {
+    for (let seed = 30; seed < 90; seed++) {
       setSeed(seed); const W = newWorld();
       for (let m = 0; m < 12; m++) runMonth(W, BOT.even(W));
       const i = W.cos.findIndex(c => c.style === 'chaser'), look = outlook(W);
       const P = aiPlan(W, i), top = look.indexOf(Math.max(...look));
-      if (W.cos[i].losses >= 2 || W.cos[i].cash < 3000) continue;
-      expect(P.parties.indexOf(Math.max(...P.parties)), `시드 ${seed}`).toBe(top);
+      // 적자로 허리띠를 졸라맨 달이나, 어느 층도 비용을 넘지 못해 남는 돈이 모두 바닥값인 달은 견줄 수 없다
+      const cost = CO.SORTIE + P.pots[0] * W.potion, second = [...look].sort((a, b) => b - a)[1];
+      if (W.cos[i].losses >= 2 || W.cos[i].cash < 3000 || look[top] - cost < 50 || look[top] - second < 30) continue;
+      expect(P.parties[top], `시드 ${seed}`).toBe(Math.max(...P.parties));
       checked++;
     }
     expect(checked).toBeGreaterThan(3);
@@ -135,5 +138,60 @@ describe('경쟁 용병단', () => {
     let smart = 0, even = 0;
     for (let g = 1; g <= 40; g++) { smart += rankOf(playGame(g, BOT.smart)); even += rankOf(playGame(g, BOT.even)); }
     expect(smart).toBeLessThan(even);
+  });
+});
+
+describe('몬스터와 편성 지침', () => {
+  it('편성 지침을 주면 파티가 그 직업이나 장비를 꼭 갖춘다', () => {
+    setSeed(2);
+    for (let i = 0; i < 200; i++) {
+      expect(rollParty('c:마법사')).toContain('c:마법사');
+      expect(rollParty('g:은')).toContain('g:은');
+    }
+  });
+  it('현장 기록은 우리 직영 파티만 남기고, 처음 간 층에서는 겉모습 증언을 듣는다', () => {
+    setSeed(4); const W = newWorld();
+    const P = defaultPlan(W); P.hire = [2, 0, 0, 0, 0];
+    runMonth(W, P);
+    expect(W.obs[0]['*'].n).toBe(P.parties[0]);
+    expect(W.notes[0]).toEqual({ m: 1, f: 0, t: MONSTERS[W.mons[0]].look[0] });
+    for (let m = 0; m < 11; m++) runMonth(W, defaultPlan(W));
+    const sent = W.history.reduce((a, M) => a + M.res[0].sent[0], 0);
+    expect(W.obs[0]['*'].n).toBe(sent);
+  });
+  it('약점을 지침으로 삼으면 역효과를 지침으로 삼을 때보다 우리 성공률이 높다', () => {
+    let good = 0, bad = 0, n = 0;
+    for (let seed = 1; seed <= 20; seed++) {
+      for (const which of ['key', 'bad'] as const) {
+        setSeed(seed); const W = newWorld();
+        for (let m = 0; m < 6; m++) {
+          const P = defaultPlan(W); P.guide[0] = MONSTERS[W.mons[0]][which];
+          const M = runMonth(W, P), r = M.res[0];
+          if (which === 'key') { good += r.ok[0]; n += r.sent[0]; } else bad += r.ok[0];
+        }
+      }
+    }
+    expect(good / n - bad / n).toBeGreaterThan(0.2);
+  });
+  it('경쟁 용병단은 한 층에 오래 드나들면 약점을 깨치고, 그 소문이 기록에 남는다', () => {
+    const W = playGame(8, BOT.smart);
+    const learned = W.cos.filter(c => c.learned && c.learned.some(Boolean));
+    expect(learned.length).toBeGreaterThan(0);
+    expect(W.log.some(l => /챙겨 들어가기 시작했다/.test(l.t))).toBe(true);
+    learned.forEach(c => c.learned.forEach((ok, f) => { if (ok) expect(aiPlan(W, W.cos.indexOf(c)).guide[f]).toBe(MONSTERS[W.mons[f]].key); }));
+  });
+  it('숙련 봇은 현장 기록으로 추리한 지침 덕에 지침 없이 둘 때보다 앞선다', () => {
+    let a = 0, b = 0;
+    for (let g = 1; g <= 40; g++) { a += rankOf(playGame(g, BOT.smart)); b += rankOf(playGame(g, BOT.smartNoGuide)); }
+    expect(a).toBeLessThan(b);
+  });
+});
+
+describe('밸런스', () => {
+  it('어느 한 용병단이 1위를 도맡지 않고, 숙련 봇도 가끔 1위를 한다', () => {
+    const win: Record<string, number> = {};
+    for (let g = 1; g <= 60; g++) { const W = playGame(g, BOT.smart); win[W.last!.rank[0]] = (win[W.last!.rank[0]] || 0) + 1; }
+    expect(Math.max(...Object.values(win))).toBeLessThan(60 * 0.6);
+    expect(win.us || 0).toBeGreaterThan(0);
   });
 });
