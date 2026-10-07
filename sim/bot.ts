@@ -24,12 +24,6 @@ export type BotStyle = { hero?: boolean; cartel?: 'donate' | 'audit' | 'none'; w
 export function botTurn(api: GameApi, r: () => number, style: BotStyle = {}) {
   const S = api.S();
   const pick = <T,>(a: T[]) => a[Math.floor(r() * a.length)];
-  if (api.DEV && S.phase === 'found') {
-    api.DEV.forEach(d => {
-      if (S.dev[d.id] || S.devPick[d.id] != null || (d.need && !d.need())) return;
-      if (d.core || r() < 0.4) S.devPick[d.id] = Math.floor(r() * d.opts.length);
-    });
-  }
   // 부서 신설·확장: 한 달에 하나, 금고에 여유가 있을 때만
   const want: [DeptId, number][] = [];
   const run = !api.DEV || S.phase === 'run';

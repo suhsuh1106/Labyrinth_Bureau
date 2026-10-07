@@ -13,6 +13,7 @@
   --merchant: #2c4a7a;
   --church: #a57a12;
   --good: #2f6b45;
+  --lord: #6b2e2a;
   --bad: #a3312a;
   --c1: #2a78d6; --c2: #eb6834; --c3: #1baf7a; --c4: #eda100; --c5: #e87ba4; --c6: #008300; --c7: #4a3aa7;
   --shadow: 0 1px 0 rgba(29,42,35,.08), 0 6px 18px rgba(29,42,35,.12);
@@ -190,6 +191,9 @@ table.stats tr.grp td { font-family: var(--f-body); font-size: 11px; letter-spac
 .devcard { border: 1px solid var(--rule); padding: 10px 12px; margin: 8px 0; background: var(--paper); }
 .devcard.done, .devcard.off { padding: 6px 12px; font-size: 13px; }
 .devcard b { font-size: 14px; }
+.devcard .devh { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.devcard .devh .from { font-size: 12px; color: var(--ink-soft); display: inline-flex; align-items: center; gap: 4px; }
+.devcard .devh .c { margin-left: auto; font-family: var(--f-num); font-size: 12px; color: var(--ink-soft); }
 .devcard .tag { font-size: 11px; color: var(--stamp); border: 1px solid var(--stamp); padding: 0 5px; margin-left: 4px; }
 .devcard .hint { margin: 4px 0 6px; }
 .devopt { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; width: 100%; text-align: left; margin: 4px 0; padding: 7px 9px;
@@ -675,3 +679,40 @@ div.stats { display: flex; flex-wrap: wrap; gap: 4px 20px; }
   .orow .dept b { display: inline; }
   .orow .dec { grid-template-columns: auto 1fr 1fr; align-items: center; }
 }
+
+/* ---------- 첫날 장면: 해 질 녘 미궁 입구. 판의 테마와 상관없이 늘 같은 저녁 빛으로 둔다 ---------- */
+.arrival[hidden] { display: none; }
+.arrival { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 16px; background: rgba(10,7,5,.82); }
+.ar-scene { position: relative; width: min(860px, 100%); min-height: min(520px, calc(100vh - 32px)); border-radius: 6px; overflow: hidden; display: grid; align-content: end; cursor: pointer;
+  background: radial-gradient(120% 70% at 50% 110%, rgba(216,154,74,.32), transparent 60%), linear-gradient(180deg, #2b2030 0%, #3a2a24 38%, #241a12 70%, #17110c 100%); color: #e9dfcf; }
+.ar-land { position: absolute; inset: 0; pointer-events: none; }
+.ar-land span { position: absolute; display: block; }
+.ar-ridge { left: -5%; right: -5%; top: 40%; bottom: 0; background: #2a1f22; border-radius: 45% 55% 0 0 / 18% 22% 0 0; }
+.ar-hill { left: -10%; right: -10%; top: 50%; bottom: 0; background: #1e1611; border-radius: 60% 40% 0 0 / 30% 25% 0 0; }
+.ar-mouth { left: calc(60% - 46px); top: calc(50% - 6px); width: 92px; height: 60px; background: #060403; border-radius: 46px 46px 4px 4px; box-shadow: 0 0 0 4px rgba(216,154,74,.18); }
+.ar-tent { width: 0; height: 0; border-left: 26px solid transparent; border-right: 26px solid transparent; border-bottom: 34px solid #4a3828; }
+.ar-tent::after { content: ''; position: absolute; left: -5px; top: 18px; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 16px solid rgba(216,154,74,.55); }
+.ar-tent.t1 { left: 16%; top: 63%; } .ar-tent.t2 { left: 27%; top: 67%; border-bottom-color: #5b4532; } .ar-tent.t3 { left: 78%; top: 64%; }
+.ar-lamp { left: 50%; top: 74%; width: 240px; height: 240px; margin: -120px 0 0 -120px; border-radius: 50%; background: radial-gradient(circle, rgba(255,190,110,.5), rgba(255,190,110,0) 65%); transition: left .6s ease; }
+.ar-scene[data-k="2"] .ar-lamp { left: 30%; } .ar-scene[data-k="3"] .ar-lamp { left: 70%; } .ar-scene[data-k="4"] .ar-lamp { left: 42%; }
+.ar-place { position: absolute; top: 14px; left: 16px; font-size: 11px; letter-spacing: .12em; color: #b9ab98; }
+.ar-skip { position: absolute; top: 12px; right: 12px; font: 500 12px var(--f-body); color: #e9dfcf; background: rgba(0,0,0,.35); border: 1px solid rgba(233,223,207,.35); border-radius: 12px; padding: 4px 12px; cursor: pointer; }
+.ar-box { position: relative; margin: 0 16px 16px; background: rgba(16,11,8,.85); border: 1px solid rgba(233,223,207,.18); border-radius: 4px; padding: 16px 18px 14px; display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 4px 14px; min-height: 132px; }
+.ar-seal { grid-row: span 2; width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; font: 700 22px var(--f-display); color: #fff; box-shadow: inset 0 0 0 3px rgba(255,255,255,.18), 0 2px 8px rgba(0,0,0,.4); }
+.ar-who { font: 700 15px var(--f-display); }
+.ar-who small { font: 400 12px var(--f-body); color: #b9ab98; margin-left: 6px; }
+.ar-line { margin: 0; font: 400 18px/1.65 var(--f-display); text-wrap: pretty; min-height: 3.3em; }
+.ar-box.narr .ar-seal, .ar-box.narr .ar-who { display: none; }
+.ar-box.narr .ar-line { grid-column: 1 / -1; font-size: 16px; color: #d6cab8; }
+.ar-foot { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.ar-dots { display: flex; gap: 5px; }
+.ar-dots i { width: 6px; height: 6px; border-radius: 50%; background: rgba(233,223,207,.25); }
+.ar-dots i.on { background: #d89a4a; }
+.ar-next { white-space: nowrap; font: 600 13px var(--f-body); color: #17110c; background: #d89a4a; border: none; border-radius: 3px; padding: 6px 14px; cursor: pointer; }
+.ar-next:focus-visible, .ar-skip:focus-visible { outline: 2px solid #d89a4a; outline-offset: 2px; }
+@media (max-width: 680px) {
+  .ar-box { grid-template-columns: 48px minmax(0, 1fr); padding: 14px; }
+  .ar-seal { width: 48px; height: 48px; font-size: 18px; }
+  .ar-line { font-size: 16px; }
+}
+@media (prefers-reduced-motion: reduce) { .ar-lamp { transition: none; } }
