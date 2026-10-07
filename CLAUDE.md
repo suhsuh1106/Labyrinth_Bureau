@@ -9,7 +9,8 @@
 - 예산 줄(`S.budget`)은 플레이어가 직접 적지 않는다. `org.ts`의 `compileBudget()`이 부서 방침·단계·반려에서 만들어 내고, 규칙은 예전처럼 줄 금액을 읽는다. 화면과 봇은 결재 전에 `compileBudget()`을 부른다.
 - `src/ui/`: 화면. HTML 문자열을 만들어 넣는 방식. `core`는 `ui`를 import하지 않는다.
 - `sim/bot.ts`: 봇 플레이어. 테스트와 `npm run sim`이 같이 쓴다.
-- `src/core/company.ts`: 새 전제의 용병단 엔진(계획 1단계). 화면에 붙기 전까지는 `S`가 아니라 자기 `World` 상태로 돈다. 테스트는 `tests/company.test.ts`, 시뮬레이션은 `npm run sim:co` (`sim/company.ts`).
+- `src/core/company.ts`: 새 전제의 용병단 엔진. `S`가 아니라 자기 `World` 상태로 돈다. 테스트는 `tests/company.test.ts`, 시뮬레이션은 `npm run sim:co` (`sim/company.ts`).
+- 페이지가 둘이다. `index.html`(진입점 `src/coMain.ts`, 화면 `src/ui/co/`)은 새 용병단 게임이고 판을 `localStorage`의 `lb-co`에 저장한다. `bureau.html`(진입점 `src/main.ts`)은 옛 관리국 게임으로, 계획 5단계에서 정리할 때까지 참고용으로 남겨 둔다.
 - `proto/budget-potion.html`: 옛 프로토타입. **고치지 않는다.** 수입 구조 개편 때 동작 비교 테스트를 지웠고, 지금은 기록으로만 남아 있다.
 
 ## 규칙

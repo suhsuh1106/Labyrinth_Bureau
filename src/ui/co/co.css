@@ -1,0 +1,63 @@
+/* 용병단 행정실: 책상 위에 결정표와 정산서를 위아래로 펼쳐 둔다. 종이는 테마를 따르고 책상은 늘 같은 색이다 */
+.co-desk { display: grid; gap: 14px; }
+.co-sheet { background: var(--paper); color: var(--ink); border-radius: 3px; padding: 18px 20px; box-shadow: var(--obj-shadow); display: grid; gap: 10px; min-width: 0; }
+.co-sheet .kind { font-size: 11px; letter-spacing: .08em; color: var(--ink-soft); }
+.co-sheet h2 { font-family: var(--f-display); font-size: 21px; margin: 0; text-wrap: balance; }
+.co-sheet h3 { font-size: 13px; margin: 6px 0 0; }
+.co-sheet .lead, .co-sheet .note { font-size: 12px; color: var(--ink-soft); margin: 0; max-width: 80ch; }
+.co-sheet .dim { color: var(--ink-soft); }
+.tw { overflow-x: auto; }
+table.grid { border-collapse: collapse; width: 100%; font-size: 13px; min-width: 720px; }
+table.grid.wide { min-width: 820px; }
+table.grid th { text-align: left; font-weight: 600; font-size: 11px; color: var(--ink-soft); padding: 6px 8px; border-bottom: 1px solid var(--ink-soft); white-space: nowrap; }
+table.grid td { padding: 7px 8px; border-bottom: 1px solid var(--rule); vertical-align: middle; }
+table.grid td:first-child { min-width: 120px; }
+table.grid .n { text-align: right; font-family: var(--f-num); font-variant-numeric: tabular-nums; white-space: nowrap; }
+table.grid td small { display: block; color: var(--ink-soft); font-size: 11px; font-family: var(--f-body); }
+table.grid tr.closed td { color: var(--ink-soft); background: var(--paper-2); }
+table.grid tr.us td { background: color-mix(in srgb, var(--merchant) 10%, transparent); }
+table.grid tr.tot td { font-weight: 600; border-top: 1px solid var(--ink-soft); }
+.step { display: inline-flex; align-items: center; gap: 2px; }
+.step button { width: 26px; height: 28px; border: 1px solid var(--ink-soft); background: var(--paper-2); color: var(--ink); border-radius: 2px; cursor: pointer; font: 600 14px var(--f-num); }
+.step input { width: 64px; padding: 4px 6px; border: 1px solid var(--ink-soft); border-radius: 2px; background: var(--paper); color: var(--ink); text-align: right; font: 500 14px var(--f-num); }
+.step select { font: 13px var(--f-body); padding: 4px; border: 1px solid var(--ink-soft); background: var(--paper); color: var(--ink); }
+.step button:focus-visible, .step input:focus-visible, .step select:focus-visible { outline: 2px solid var(--stamp); outline-offset: 1px; }
+.invest { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.invest .box { border: 1px solid var(--rule); padding: 10px 12px; display: grid; gap: 6px; font-size: 12px; font-weight: 600; }
+.invest .box small { font-weight: 400; color: var(--ink-soft); }
+.sum { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.sum div { background: var(--paper-2); padding: 8px 10px; }
+.sum span { display: block; font-size: 11px; color: var(--ink-soft); }
+.sum b { font: 500 17px var(--f-num); font-variant-numeric: tabular-nums; }
+.co-sheet .warn { background: color-mix(in srgb, var(--bad) 12%, transparent); color: var(--bad); font-size: 12px; padding: 6px 10px; }
+.co-go { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.co-stamp { font: 700 16px var(--f-body); color: #fff; background: var(--stamp); border: none; border-radius: 3px; padding: 12px 22px; cursor: pointer; box-shadow: var(--obj-shadow); }
+.co-stamp:disabled { opacity: .5; cursor: default; }
+.co-stamp:focus-visible { outline: 3px solid var(--brass); outline-offset: 2px; }
+#go-note { color: #e8dcc6; font-size: 13px; }
+.co { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; white-space: nowrap; }
+.co-sw { display: inline-block; width: 10px; height: 10px; min-height: 10px; border-radius: 2px; flex: none; }
+.rk { font: 700 16px var(--f-display); }
+.mv { font: 500 11px var(--f-num); margin-left: 4px; }
+.mv.up { color: var(--good); } .mv.dn { color: var(--bad); }
+.bar { display: flex; height: 16px; border-radius: 2px; overflow: hidden; background: var(--paper-2); min-width: 160px; }
+.bar span { display: block; height: 100%; }
+.cols2 { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 16px; }
+.floors { display: grid; gap: 8px; margin-top: 6px; }
+.frow { display: grid; grid-template-columns: 40px minmax(0, 1fr) 250px; gap: 10px; align-items: center; font-size: 12px; }
+.frow b { font-family: var(--f-display); }
+.frow .r { text-align: right; color: var(--ink-soft); font-family: var(--f-num); }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 11px; margin-top: 8px; }
+.legend .co { font-weight: 500; }
+ul.co-news { margin: 6px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.6; }
+.mine { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.mine table.grid { min-width: 0; }
+.co-foot { color: #cbb99b; font-size: 12px; margin: 0; }
+.co-foot a { color: #f0dcb4; }
+@media (max-width: 760px) {
+  .invest, .cols2, .mine { grid-template-columns: 1fr; }
+  .sum { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .frow { grid-template-columns: 40px minmax(0, 1fr); }
+  .frow .r { grid-column: 2; text-align: left; }
+  .co-sheet { padding: 14px; }
+}
