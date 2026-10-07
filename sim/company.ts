@@ -1,9 +1,9 @@
-// 용병단 시뮬레이터 (docs/plan.md 1단계): 플레이어 봇 성향마다 여러 판을 돌려 평균 순위와 1위 분포를 본다.
-//   npm run sim:co                         기본 200판, 모든 성향
-//   npm run sim:co -- --games 500 --style deep
-// 성향: even(고르게) · deep(깊은 층 위주) · hold(시세가 낮으면 쌓아 둠) · hire(계약 파티를 씀)
+// 용병단 시뮬레이터: 플레이어 봇 성향마다 여러 판을 돌려 평균 순위와 1위 분포를 본다.
+//   npm run sim                         기본 200판, 모든 성향
+//   npm run sim -- --games 500 --style smart
+// 성향: even(고르게) · deep(깊은 층 위주) · hold(시세가 낮으면 쌓아 둠) · hire(계약 파티를 씀) · smart(시장을 읽는 숙련자)
 import { setSeed } from '../src/core/rng';
-import { CO, FLOORS, ITEMS, type Plan, type World, defaultPlan, maxParties, newWorld, rankOf, runMonth, us, worth } from '../src/core/company';
+import { CO, FLOORS, ITEMS, type Plan, type World, defaultPlan, maxParties, newWorld, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
 
 const arg = (k: string, d: string) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
 const games = +arg('games', '200'), seed0 = +arg('seed', '1'), only = arg('style', '');
@@ -21,7 +21,28 @@ export const BOT: Record<string, (W: World) => Plan> = {
   },
   hold: W => { const P = defaultPlan(W); P.sell = us(W).stock.map((s, j) => (W.price[j] >= ITEMS[j].P0 * 0.95 || us(W).cash < 3000 ? s : 0)); return P; },
   hire: W => { const P = defaultPlan(W), d = W.unlocked - 1; if (W.last && W.last.perParty[d] > 400) P.hire[d] = 2; return P; },
+  smart: W => smartPlan(W),
 };
+
+// 숙련 봇: 경쟁자와 군소 용병대가 지난달 벌이를 쫓아 몰려다니므로, 한 층에 몰아넣지 않고 열린 층에 고르게 나누되
+// 조당 남는 돈(기준 시세와 지난 시세의 중간으로 어림)에 비례해 기울인다. 포션은 넉넉히, 크게 남는 층에는 계약 파티를 쓴다.
+// 거점과 쌓아 두기는 지금 규모에서는 손해라 쓰지 않는다 (시뮬레이션으로 확인함)
+export function smartPlan(W: World): Plan {
+  const c = us(W), P = defaultPlan(W), L = W.last, pots = 4;
+  const value = FLOORS.map((F, f) => {
+    if (f >= W.unlocked) return 0;
+    const p = succRate(c, f, pots, F.cap), unit = ((L && L.Q[f] ? W.price[f] : ITEMS[f].P0) + ITEMS[f].P0) / 2;
+    return Math.max(1, p * F.take * unit - (CO.SORTIE + pots * W.potion));
+  });
+  const sum = value.reduce((a, b) => a + b, 0), n = maxParties(c);
+  P.parties = value.map(v => Math.floor(n * v / sum));
+  const order = value.map((v, f) => [v, f]).sort((a, b) => b[0] - a[0]);
+  for (let k = 0, rest = n - P.parties.reduce((a, b) => a + b, 0); rest > 0; k++, rest--) P.parties[order[k % W.unlocked][1]]++;
+  P.pots = FLOORS.map(() => pots);
+  const best = value.indexOf(Math.max(...value));
+  if (c.cash > 6000 && value[best] * (1 - CO.HIRE_CUT) - CO.HIRE_FEE > 150) P.hire[best] = 2;
+  return P;
+}
 
 export function playGame(seed: number, bot: (W: World) => Plan) {
   setSeed(seed);

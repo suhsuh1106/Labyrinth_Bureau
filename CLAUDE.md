@@ -8,8 +8,8 @@
 - `src/core/`: 게임 규칙. DOM을 쓰지 않는다. 상태는 `state.ts`의 `S` 하나이고, 한 달 결재는 `turn.ts`의 `resolve()`.
 - 예산 줄(`S.budget`)은 플레이어가 직접 적지 않는다. `org.ts`의 `compileBudget()`이 부서 방침·단계·반려에서 만들어 내고, 규칙은 예전처럼 줄 금액을 읽는다. 화면과 봇은 결재 전에 `compileBudget()`을 부른다.
 - `src/ui/`: 화면. HTML 문자열을 만들어 넣는 방식. `core`는 `ui`를 import하지 않는다.
-- `sim/bot.ts`: 봇 플레이어. 테스트와 `npm run sim`이 같이 쓴다.
-- `src/core/company.ts`: 새 전제의 용병단 엔진. `S`가 아니라 자기 `World` 상태로 돈다. 테스트는 `tests/company.test.ts`, 시뮬레이션은 `npm run sim:co` (`sim/company.ts`).
+- `sim/bot.ts`: 옛 관리국 게임의 봇. `npm run sim:bureau`(`sim/run.ts`)와 `tests/game.test.ts`가 쓴다.
+- `src/core/company.ts`: 새 전제의 용병단 엔진. `S`가 아니라 자기 `World` 상태로 돈다. 테스트는 `tests/company.test.ts`, 시뮬레이션은 `npm run sim` (`sim/company.ts`, 플레이어 봇 성향별 평균 순위와 1위 분포).
 - 페이지가 둘이다. `index.html`(진입점 `src/coMain.ts`, 화면 `src/ui/co/`)은 새 용병단 게임이고 판을 `localStorage`의 `lb-co`에 저장한다. `bureau.html`(진입점 `src/main.ts`)은 옛 관리국 게임으로, 계획 5단계에서 정리할 때까지 참고용으로 남겨 둔다.
 - `proto/budget-potion.html`: 옛 프로토타입. **고치지 않는다.** 수입 구조 개편 때 동작 비교 테스트를 지웠고, 지금은 기록으로만 남아 있다.
 
@@ -18,7 +18,7 @@
 - 저장 데이터 모양이 바뀌면 `core/save.ts`의 `SAVE_VERSION`을 올리고, 이전 버전을 불러오는 경로를 `loadGame`에 남긴다.
 - 금고를 움직이는 새 수입·지출은 `turn.ts`의 장부(`S.books`) 기록과 `ui/books.ts`의 항목표에도 넣는다. 안 넣으면 '사건·기타'로 잡히고 장부 테스트가 깨질 수 있다.
 - 게임 규칙 변경은 장부 테스트(`tests/game.test.ts`)와 봇 시뮬레이션으로 확인한다.
-- 밸런스를 바꾸면 `npm run sim`으로 전후 완주율을 PR 설명에 적는다.
+- 밸런스를 바꾸면 `npm run sim`으로 전후의 평균 순위와 1위 분포를 PR 설명에 적는다. 숙련 봇(`smart`)이 다른 봇보다 앞서야 한다 (잘 두면 이긴다).
 
 ## 방향 (기획 결정)
 - 중심은 **경영 워게임과 정치**다. 여러 용병단이 같은 미궁과 같은 시장을 두고 경쟁하고, 행정관은 한정된 돈과 사람을 숫자로 나눈다. 건물 배치나 철학적 선택이 중심인 게임(프로스트펑크 등)을 따라가지 않는다.

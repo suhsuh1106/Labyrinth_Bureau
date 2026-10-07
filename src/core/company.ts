@@ -14,7 +14,7 @@ export const CO = {
 
 export type Floor = { name: string; max: number; take: number; base: number; risk: number; cap: number };
 export const FLOORS: Floor[] = [
-  { name: '1층', max: 220, take: 5, base: 0.74, risk: 0.10, cap: 30 },
+  { name: '1층', max: 280, take: 5, base: 0.74, risk: 0.10, cap: 30 },
   { name: '2층', max: 120, take: 4, base: 0.62, risk: 0.16, cap: 22 },
   { name: '3층', max: 70, take: 3, base: 0.52, risk: 0.22, cap: 16 },
   { name: '4층', max: 36, take: 3, base: 0.43, risk: 0.30, cap: 10 },
@@ -23,7 +23,7 @@ export const FLOORS: Floor[] = [
 // 층마다 전리품 한 가지. P0는 수요(D)만큼 팔렸을 때의 시세다
 export type Item = { name: string; buyer: string; P0: number; D: number };
 export const ITEMS: Item[] = [
-  { name: '가죽과 점액', buyer: '상단 경매장', P0: 90, D: 90 },
+  { name: '가죽과 점액', buyer: '상단 경매장', P0: 90, D: 110 },
   { name: '마석 조각', buyer: '마법학교 · 상단', P0: 230, D: 45 },
   { name: '정령 결정', buyer: '마법학교', P0: 340, D: 30 },
   { name: '고대 유물', buyer: '수도 수집가 · 교회', P0: 560, D: 15 },
@@ -45,19 +45,21 @@ export type Company = {
   id: string; name: string; style: Style; size: number;
   members: number; cash: number; skill: number; bases: number[]; pendingBase: { f: number; amt: number } | null;
   stock: number[]; losses: number;
+  // 판마다 조금씩 다른 성격: 지난달 벌이에 얼마나 민감한지, 포션을 더 쓰는지, 얼마나 값이 올라야 파는지
+  trait?: { resp: number; pots: number; sellBar: number };
 };
 export type Plan = { parties: number[]; pots: number[]; sell: number[]; train: number; base: { f: number; amt: number } | null; hire: number[] };
 
 export const ROSTER: { id: string; name: string; style: Style; size: number }[] = [
   { id: 'us', name: '회색늑대 용병단', style: 'player', size: 36 },
-  { id: 'red', name: '붉은 깃발단', style: 'volume', size: 64 },
-  { id: 'holy', name: '성흔 기사단', style: 'steady', size: 60 },
-  { id: 'iron', name: '철모회', style: 'deep', size: 40 },
-  { id: 'crow', name: '까마귀단', style: 'chaser', size: 40 },
-  { id: 'silver', name: '은빛 창', style: 'hoarder', size: 36 },
+  { id: 'red', name: '붉은 깃발단', style: 'volume', size: 56 },
+  { id: 'holy', name: '성흔 기사단', style: 'steady', size: 52 },
+  { id: 'iron', name: '철모회', style: 'deep', size: 36 },
+  { id: 'crow', name: '까마귀단', style: 'chaser', size: 36 },
+  { id: 'silver', name: '은빛 창', style: 'hoarder', size: 32 },
   { id: 'fox', name: '여우굴 패', style: 'shallow', size: 20 },
   { id: 'bridge', name: '돌다리 형제단', style: 'second', size: 20 },
-  { id: 'free', name: '군소 용병대', style: 'crowd', size: 72 },
+  { id: 'free', name: '군소 용병대', style: 'crowd', size: 60 },
 ];
 
 export type CoResult = {
@@ -77,7 +79,8 @@ export function newWorld(): World {
   return {
     month: 1, unlocked: 1, prog: 0, pool: FLOORS.map(F => F.max), price: ITEMS.map(it => it.P0), potion: CO.POTION0,
     cos: ROSTER.map(r => ({ ...r, members: r.size, cash: r.style === 'crowd' ? 0 : Math.round(CO.START_CASH * r.size / 36),
-      skill: 0, bases: zeros(), pendingBase: null, stock: zeros(), losses: 0 })),
+      skill: 0, bases: zeros(), pendingBase: null, stock: zeros(), losses: 0,
+      trait: { resp: 0.8 + 0.4 * rnd(), pots: rnd() < 0.3 ? 1 : 0, sellBar: 0.95 * (0.9 + 0.2 * rnd()) } })),
     last: null, history: [], log: [],
   };
 }
@@ -110,37 +113,56 @@ export function defaultPlan(W: World): Plan {
 }
 
 // ---------- 경쟁 용병단 ----------
-// 성향대로 결정표를 채우고, 지난달 결과에 반응한다. 우리처럼 시세와 붐빔을 보고 움직이지만 정보는 지난달 것뿐이다
+// 층별 조당 벌이 전망: 지난달 그 층에 간 파티가 실제로 캐 온 값. 지난달 아무도 안 간 층(새로 열린 층 등)은 기준 시세로 어림한다
+export function outlook(W: World) {
+  const L = W.last;
+  return FLOORS.map((F, f) => {
+    if (f >= W.unlocked) return 0;
+    const n = L ? L.plans.reduce((a, P) => a + P.parties[f] + P.hire[f], 0) : 0;
+    return n && L ? L.perParty[f] : ITEMS[f].P0 * F.take * F.base * 0.8;
+  });
+}
+const STYLE: Record<Style, { prior: (W: World, f: number) => number; resp: number; pots: number; train: number }> = {
+  volume: { prior: (_, f) => 1 / (f + 1) ** 1.5, resp: 0.5, pots: 2, train: 0 },
+  steady: { prior: () => 1, resp: 0.3, pots: 4, train: 300 },
+  deep: { prior: (W, f) => (f >= W.unlocked - 2 ? (f === W.unlocked - 1 ? 2 : 1) : 0.15), resp: 0.4, pots: 5, train: 600 },
+  chaser: { prior: () => 1, resp: 2, pots: 3, train: 0 },
+  crowd: { prior: () => 1, resp: 1.2, pots: 2, train: 0 },
+  hoarder: { prior: (_, f) => (f === 0 ? 0.6 : 1), resp: 0.6, pots: 3, train: 0 },
+  shallow: { prior: (_, f) => (f === 0 ? 1 : 0), resp: 0, pots: 2, train: 0 },
+  second: { prior: (W, f) => (f === Math.min(1, W.unlocked - 1) ? 1 : 0), resp: 0, pots: 3, train: 0 },
+  player: { prior: () => 1, resp: 0, pots: 3, train: 0 },
+};
+
+// 성향대로 결정표를 채우고, 지난달 결과에 반응한다. 우리처럼 시세와 붐빔을 보지만 정보는 지난달 것뿐이다
 export function aiPlan(W: World, i: number): Plan {
-  const c = W.cos[i], P = emptyPlan(), n = maxParties(c), L = W.last;
-  const per = L ? L.perParty : FLOORS.map((_, f) => (f === 0 ? 1 : 0));
-  const deepest = W.unlocked - 1;
-  const w = {
-    volume: FLOORS.map((_, f) => 1 / (f + 1) ** 1.5),
-    steady: FLOORS.map(() => 1),
-    deep: FLOORS.map((_, f) => (f >= deepest - 1 ? 1 + (f === deepest ? 1 : 0) : 0.15)),
-    chaser: per.map(v => Math.max(0.05, v) ** 2),
-    crowd: per.map(v => Math.max(0.05, v)),
-    hoarder: FLOORS.map((_, f) => (f === 0 ? 0.6 : 1)),
-    shallow: FLOORS.map((_, f) => (f === 0 ? 1 : 0)),
-    second: FLOORS.map((_, f) => (f === Math.min(1, deepest) ? 1 : 0)),
-    player: FLOORS.map(() => 1),
-  }[c.style];
+  const c = W.cos[i], P = emptyPlan(), n = maxParties(c), L = W.last, S = STYLE[c.style];
+  const t = c.trait || { resp: 1, pots: 0, sellBar: 0.95 };
+  const pots = Math.min(6, S.pots + t.pots + (L && L.res[i].deaths / Math.max(1, L.res[i].sent.reduce((a, b) => a + b, 0)) > 0.6 ? 1 : 0));
+  // 조당 남는 돈(전망 - 출정 비용)이 평균보다 좋은 층에 더 보낸다. 반응 정도는 성향과 성격이 정한다
+  const look = outlook(W), cost = CO.SORTIE + pots * W.potion;
+  const margin = look.map((v, f) => (f < W.unlocked ? Math.max(1, v - cost) : 0));
+  const open = margin.filter(v => v > 0), avg = open.reduce((a, b) => a + b, 0) / Math.max(1, open.length);
+  const w = FLOORS.map((_, f) => (f < W.unlocked ? S.prior(W, f) * Math.pow(margin[f] / avg, S.resp * t.resp) : 0));
   P.parties = spread(W, n, w);
-  const pots = { volume: 2, steady: 4, deep: 5, chaser: 3, crowd: 2, hoarder: 3, shallow: 2, second: 3, player: 3 }[c.style];
   P.pots = FLOORS.map(() => pots);
-  P.train = c.style === 'deep' ? 600 : c.style === 'steady' ? 300 : 0;
-  // 파는 법: 안정형은 시세가 기준의 80% 아래면 절반만, 투기형은 90% 아래면 안 판다. 금고가 바닥나면 다 판다
+  P.train = S.train;
+  // 큰 용병단은 남는 장사인 층이 있으면 군소 용병대를 계약 파티로 빌린다
+  if ((c.style === 'volume' || c.style === 'steady' || c.style === 'chaser') && c.cash > 8000) {
+    const best = margin.indexOf(Math.max(...margin));
+    if (look[best] * (1 - CO.HIRE_CUT) - cost - CO.HIRE_FEE > 60) P.hire[best] = Math.floor(c.size / 16);
+  }
+  // 파는 법: 투기형은 시세가 기준의 sellBar 아래면 안 팔고, 안정형은 80% 아래면 절반만. 금고가 바닥나면 다 판다
   P.sell = c.stock.map((s, j) => {
     const low = W.price[j] / ITEMS[j].P0;
     if (c.cash < 3000) return s;
-    if (c.style === 'hoarder' && low < 0.9) return 0;
+    if (c.style === 'hoarder' && low < t.sellBar) return 0;
     if (c.style === 'steady' && low < 0.8) return Math.floor(s / 2);
     return s;
   });
-  if (c.style === 'deep' && W.month % 4 === 1 && c.cash > 9000) P.base = { f: deepest, amt: CO.BASE_STEP };
+  if (c.style === 'deep' && W.month % 4 === 1 && c.cash > 9000) P.base = { f: W.unlocked - 1, amt: CO.BASE_STEP };
   // 두 달 넘게 적자면 허리띠를 졸라맨다
-  if (c.style !== 'crowd' && (c.cash < 3000 || c.losses >= 2)) { P.train = 0; P.base = null; P.pots = P.pots.map(v => Math.max(2, v - 1)); }
+  if (c.style !== 'crowd' && (c.cash < 3000 || c.losses >= 2)) { P.train = 0; P.base = null; P.hire = zeros(); P.pots = P.pots.map(v => Math.max(2, v - 1)); }
   return P;
 }
 
@@ -153,6 +175,8 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
   const plans = W.cos.map((c, i) => (c.style === 'player' ? sanitize(W, c, playerPlan) : aiPlan(W, i)));
   // 계약 파티로 빌려 간 만큼 군소 용병대가 직접 보내는 파티가 준다
   const ci = W.cos.findIndex(c => c.style === 'crowd');
+  // 군소 용병대가 가진 파티보다 많이 빌릴 수는 없다. 플레이어가 먼저 빌리고, 나머지는 순서대로 나눠 빌린다
+  if (ci >= 0) { let free = maxParties(W.cos[ci]); plans.forEach(P => { P.hire = P.hire.map(h => { const x = Math.min(h, free); free -= x; return x; }); }); }
   const hiredAll = plans.reduce((a, P) => a + P.hire.reduce((s, v) => s + v, 0), 0);
   if (ci >= 0) { let cut = hiredAll; const P = plans[ci]; for (let f = 0; f < NF && cut > 0; f++) { const d = Math.min(cut, P.parties[f]); P.parties[f] -= d; cut -= d; } }
   const potQ = plans.reduce((a, P) => a + P.parties.reduce((s, n, f) => s + (n + P.hire[f]) * P.pots[f], 0), 0);
