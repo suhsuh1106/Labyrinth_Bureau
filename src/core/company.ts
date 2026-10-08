@@ -109,30 +109,34 @@ export type Intel = {
 // 경쟁 용병단이 한 층에 몇 달 드나들어야 그 층의 약점을 깨치는가 (군소 용병대는 깨치지 못한다)
 const LEARN_AT: Record<string, number> = { deep: 5, steady: 6, shallow: 6, second: 6, chaser: 8, volume: 9, hoarder: 9 };
 
-export type Floor = { name: string; max: number; take: number; base: number; risk: number; cap: number };
+// 1층은 넓고 순해서 여럿이 몰려도 견딘다(cap이 크고 위험이 낮다). 깊을수록 좁고 사납다.
+// harm: 포션을 아무리 들려도 줄일 수 없는 사망의 바닥 (깊은 층은 포션으로 다 막지 못한다)
+export type Floor = { name: string; max: number; take: number; base: number; risk: number; cap: number; harm: number };
 export const FLOORS: Floor[] = [
-  { name: '1층', max: 280, take: 5, base: 0.74, risk: 0.10, cap: 30 },
-  { name: '2층', max: 120, take: 4, base: 0.62, risk: 0.16, cap: 22 },
-  { name: '3층', max: 70, take: 3, base: 0.52, risk: 0.22, cap: 16 },
-  { name: '4층', max: 36, take: 3, base: 0.43, risk: 0.30, cap: 10 },
-  { name: '5층', max: 16, take: 2, base: 0.35, risk: 0.40, cap: 6 },
+  { name: '1층', max: 240, take: 5, base: 0.86, risk: 0.04, cap: 90, harm: 0.2 },
+  { name: '2층', max: 120, take: 4, base: 0.70, risk: 0.13, cap: 35, harm: 0.25 },
+  { name: '3층', max: 70, take: 3, base: 0.55, risk: 0.24, cap: 18, harm: 0.4 },
+  { name: '4층', max: 36, take: 3, base: 0.42, risk: 0.36, cap: 10, harm: 0.6 },
+  { name: '5층', max: 16, take: 2, base: 0.28, risk: 0.55, cap: 6, harm: 0.85 },
 ];
 // 층마다 전리품 한 가지. P0는 수요(D)만큼 팔렸을 때의 시세다
-export type Item = { name: string; buyer: string; P0: number; D: number };
+// el: 물량에 시세가 얼마나 민감한가, lo~hi: 기준 시세에 곱하는 값의 바닥과 천장.
+// 얕은 층 전리품은 흔해서 값이 잘 안 움직이고, 깊은 층 전리품은 사는 쪽이 적어 크게 출렁인다
+export type Item = { name: string; buyer: string; P0: number; D: number; el: number; lo: number; hi: number };
 export const ITEMS: Item[] = [
-  { name: '가죽과 점액', buyer: '상단 경매장', P0: 90, D: 110 },
-  { name: '마석 조각', buyer: '마법학교 · 상단', P0: 230, D: 45 },
-  { name: '정령 결정', buyer: '마법학교', P0: 340, D: 30 },
-  { name: '고대 유물', buyer: '수도 수집가 · 교회', P0: 560, D: 15 },
-  { name: '심층의 핵', buyer: '수도', P0: 1200, D: 6 },
+  { name: '가죽과 점액', buyer: '상단 경매장', P0: 80, D: 110, el: 0.35, lo: 0.8, hi: 1.15 },
+  { name: '마석 조각', buyer: '마법학교 · 상단', P0: 230, D: 45, el: 0.55, lo: 0.6, hi: 1.3 },
+  { name: '정령 결정', buyer: '마법학교', P0: 340, D: 30, el: 0.75, lo: 0.45, hi: 1.5 },
+  { name: '고대 유물', buyer: '수도 수집가 · 교회', P0: 560, D: 15, el: 0.95, lo: 0.35, hi: 1.7 },
+  { name: '심층의 핵', buyer: '수도', P0: 1200, D: 6, el: 1.15, lo: 0.25, hi: 2.0 },
 ];
 const NF = FLOORS.length;
 export const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 const zeros = () => FLOORS.map(() => 0);
 
 // ---------- 시장 ----------
-// 시장 전체 판매량 Q가 수요 D보다 많으면 값이 떨어지고(최저 35%), 적으면 오른다(최고 130%)
-export const priceOf = (it: Item, Q: number) => Math.round(it.P0 * (Q ? clamp(Math.pow(it.D / Q, 0.7), 0.35, 1.3) : 1.3));
+// 시장 전체 판매량 Q가 수요 D보다 많으면 값이 떨어지고(바닥 lo), 적으면 오른다(천장 hi). 얼마나 민감한지는 el
+export const priceOf = (it: Item, Q: number) => Math.round(it.P0 * (Q ? clamp(Math.pow(it.D / Q, it.el), it.lo, it.hi) : it.hi));
 // 포션은 모든 용병단이 많이 살수록 비싸진다
 export const potionPrice = (Q: number) => Math.round(CO.POTION0 * clamp(Math.sqrt(Q / CO.POTION_Q0), 0.8, 1.6));
 
@@ -470,7 +474,7 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
         }
         if (W.keyUse && guideParts(gk).includes(key)) W.keyUse[f]++;
         if (ok) w++;
-        else if (q < P.parties[f]) dq = Math.round(Math.max(0, CO.PARTY * F.risk * Math.max(0.2, 1.9 - 0.3 * P.pots[f] * holy[i]) * (0.5 + rnd())));   // 계약 파티의 사망은 그들 몫
+        else if (q < P.parties[f]) dq = Math.round(Math.max(0, CO.PARTY * F.risk * Math.max(F.harm, 1.9 - 0.3 * P.pots[f] * holy[i]) * (0.5 + rnd())));   // 계약 파티의 사망은 그들 몫
         d += dq;
         // 우리 직영 파티만 무엇을 갖추고 갔고 어떻게 됐는지 기록해 온다
         if (c.style === 'player' && q < P.parties[f]) {
