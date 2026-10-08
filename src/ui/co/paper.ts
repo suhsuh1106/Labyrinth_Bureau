@@ -100,11 +100,11 @@ export function coIssue(W: World): CoIssue | null {
   // 아래 세 꼭지: 순위 · 소문 · 세력 동향
   const top = M.rank.slice(0, 3).map((id, k) => `${k + 1}위 ${nameOf(W, id)}`).join(', ');
   const rankPart = { tag: '순위', hed: '이달의 평가액 순위', text: `${top}. 회색늑대 용병단은 ${M.rank.indexOf('us') + 1}위${prev ? (prev.rank.indexOf('us') > M.rank.indexOf('us') ? '로 올라섰다' : prev.rank.indexOf('us') < M.rank.indexOf('us') ? '로 내려앉았다' : '를 지켰다') : '다'}.` };
-  const hoard = W.cos.find((c, i) => c.style !== 'player' && c.style !== 'crowd' && ITEMS.some((_, j) => c.stock[j] > 20 && M.res[i].sold[j] === 0));
+  const hoard = W.cos.find((c, i) => c.style !== 'player' && c.style !== 'crowd' && M.res[i].potNeed > Math.max(40, M.res[i].potUsed * 1.6));
   const builder = W.cos.find((c, i) => c.style !== 'player' && M.plans[i].base);
   const crowd = W.cos.findIndex(c => c.style === 'crowd'), cn = crowd >= 0 ? M.res[crowd].sent.reduce((a, b) => a + b, 0) : 0;
   const rumor = builder ? { tag: '소문', hed: `${builder.name}, 거점 짓는다`, text: `${builder.name}${jo(builder.name, '이', '가')} ${FLOORS[M.plans[W.cos.indexOf(builder)].base!.f].name}에 전진 거점을 짓기 시작했다는 말이 돈다. 본지는 확인하지 못했다.` }
-    : hoard ? { tag: '소문', hed: `${hoard.name}, 창고 문 걸어 잠갔다`, text: `${hoard.name}${jo(hoard.name, '이', '가')} 전리품을 팔지 않고 쌓아 두고 있다는 말이 돈다. 값이 오르기를 기다리는 모양이다. 본지는 확인하지 못했다.` }
+    : hoard ? { tag: '소문', hed: `${hoard.name}, 포션 쟁인다`, text: `${hoard.name}${jo(hoard.name, '이', '가')} 상단 포션을 쓸 양보다 훨씬 많이 사 들였다는 말이 돈다. 값이 쌀 때 쟁여 두려는 모양이다. 본지는 확인하지 못했다.` }
     : { tag: '소문', hed: '입구 앞의 군소 용병대', text: `이달 한 파티짜리 군소 용병대 ${cn}개가 입구 앞에 줄을 섰다. 벌이가 좋으면 줄이 길어지고, 나쁘면 흩어진다.` };
   const c = us(W), K = W.cartel;
   const fac = K ? { tag: '세력 동향', hed: K.churchOut ? '교회는 빠지고 상단만 남았다' : '상단과 교회, 값 올린 채 버틴다', text: K.churchOut ? '교회는 후원한 용병단에만 예전 값으로 포션을 내준다. 상단 조합장은 이 일을 두고 말을 아낀다.' : `포션값 인상이 ${K.left}달 더 이어진다. 교회 쪽에서는 장례 기금이 채워지면 생각이 달라질 수 있다는 말도 나온다.` }
