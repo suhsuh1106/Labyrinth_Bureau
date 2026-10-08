@@ -7,9 +7,10 @@ import { CLASSES, GEARS, BUYERS } from '../../core/data';
 import { bookHtml, condLabel, kitHint } from './book';
 import { SRC_INFO, intelHtml, rumorsHtml } from './intel';
 import { coIssue, paperHtml } from './paper';
+import { revealHtml } from './reveal';
 import { KTAG, depthsHtml, fieldHtml, fmt, newsLines, pct, resultsHtml, sgn, stepper } from './view';
 
-export type DeskUi = { phase: number; tab: string; pins: string[]; rival?: string; open?: boolean };
+export type DeskUi = { phase: number; tab: string; pins: string[]; rival?: string; open?: boolean; mute?: boolean };
 const lvOf = (W: World, k: keyof typeof INTEL.BASE) => (W.intel ? W.intel.lv[k] : INTEL.BASE[k]);
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
 const wage = (W: World) => { const c = us(W); return Math.round(c.members * CO.WAGE * (1 + c.members / CO.OVERHEAD)); };
@@ -234,8 +235,8 @@ export function expWeekHtml(W: World, raw: Plan, ui: DeskUi) {
 }
 
 // ---------- 결과 ----------
-export function resultWeekHtml(W: World) {
-  return `<div class="resultwrap"><article class="co-sheet doc" id="results"><span class="stampmark">결재</span>${resultsHtml(W)}</article>
+export function resultWeekHtml(W: World, live = false, mute = false) {
+  return `<div class="resultwrap${live ? '' : ' done'}">${revealHtml(W, live, mute)}<article class="co-sheet doc${live ? ' after-run' : ''}" id="results"><span class="stampmark">결재</span>${resultsHtml(W)}</article>
     <div class="foot"><button type="button" class="btn-next" data-act="phase" data-phase="0">제${W.month}월 정보 주차로 →</button></div></div>`;
 }
 

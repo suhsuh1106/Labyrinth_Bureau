@@ -12,6 +12,8 @@ const $ = (id: string): any => document.getElementById(id);
 const KEY = 'lb-co', VERSION = 7, MONTHS = 36;   // 7: 두 주차 · 보급 창고 · 전리품 보관 기한 · 조사 의뢰 · 편성 줄 (이전 판은 새 게임으로)
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
 let W: World, plan: Plan, ui: DeskUi;
+// 도장을 막 찍은 결과 화면이면 귀환 장부를 한 줄씩 띄운다 (저장하지 않는 화면 상태)
+let live = false, runTimer: any = null;
 
 function save() { try { localStorage.setItem(KEY, JSON.stringify({ v: VERSION, W, plan, ui })); } catch { /* 저장이 막혀도 판은 계속된다 */ } }
 function load() { try { const d = JSON.parse(localStorage.getItem(KEY) || 'null'); return d && d.v === VERSION ? d : null; } catch { return null; } }
@@ -21,10 +23,10 @@ function render() {
   const over = W.month > 36;
   if (over && ui.phase !== 2) ui.phase = 2;
   $('weeks').innerHTML = weeksHtml(W, ui.phase);
-  $('desk').innerHTML = ui.phase === 0 ? infoWeekHtml(W, plan, ui) : ui.phase === 1 ? expWeekHtml(W, plan, ui) : resultWeekHtml(W);
+  $('desk').innerHTML = ui.phase === 0 ? infoWeekHtml(W, plan, ui) : ui.phase === 1 ? expWeekHtml(W, plan, ui) : resultWeekHtml(W, live, !!ui.mute);
   if (over) { const b = document.querySelector('#desk .resultwrap .btn-next') as HTMLButtonElement | null; if (b) { b.disabled = true; b.textContent = `임기가 끝났어요. 최종 ${rankOf(W)}위`; } }
 }
-function setPhase(p: number) { ui.phase = p; ui.open = false; render(); save(); window.scrollTo({ top: 0 }); }
+function setPhase(p: number) { stopRun(); ui.phase = p; ui.open = false; render(); save(); window.scrollTo({ top: 0 }); }
 
 function start(fresh = false) {
   const d = fresh ? null : load();
@@ -62,13 +64,16 @@ function act(b: HTMLElement) {
   if (a === 'kit-add') { const f = +(b.dataset.f || 0); plan.kits = plan.kits || []; plan.kits[f] = [...(plan.kits[f] || []), { n: 0, g: '' }]; render(); save(); return; }
   if (a === 'kit-del') { const f = +(b.dataset.f || 0), k = +(b.dataset.j || 0); if (plan.kits && plan.kits[f]) plan.kits[f].splice(k, 1); render(); save(); return; }
   if (a === 'go') return stamp();
+  if (a === 'skip-run') return finishRun();
+  if (a === 'mute') { ui.mute = !ui.mute; save(); b.textContent = ui.mute ? '소리 켜기' : '소리 끄기'; return; }
 }
 
 function stamp() {
   if (W.month > MONTHS) return;
   const M = runMonth(W, plan);
   plan = carryPlan(W, plan);
-  ui.phase = 2; render(); save(); window.scrollTo({ top: 0 });
+  ui.phase = 2; live = true; render(); save(); window.scrollTo({ top: 0 });
+  playRun();
   const r = M.res[0];
   say(`제${M.month}월 결재 · 순이익 ${r.net >= 0 ? '+' : '−'}${Math.abs(Math.round(r.net)).toLocaleString('ko-KR')}G · ${rankOf(W)}위${M.opened != null ? ` · ${M.opened + 1}층이 열렸어요` : ''}${M.overflow ? ' · 미궁이 넘쳤어요' : ''}${W.log.some(l => l.m === M.month && /근원 발견/.test(l.t)) ? ' · 근원을 찾았어요' : ''}`);
 }
@@ -122,6 +127,66 @@ function edit(k: string, i: number, fn: (v: number) => number, j = 0) {
   else if ((plan as any)[k]) (plan as any)[k][i] = Math.max(0, fn((plan as any)[k][i]));
   render(); save();
   const el = document.querySelector(`input[data-k="${k}"][data-i="${i}"]`) as HTMLElement | null; if (el && document.activeElement === document.body) el.focus();
+}
+
+// ---------- 귀환 장부 연출: 줄마다 띵 하고 뜨고, 장부 금액이 따라 오르내리고, 마지막에 순이익이 찍힌다 ----------
+let actx: AudioContext | null = null;
+function tone(freqs: number[], dur = 0.09, type: OscillatorType = 'triangle', gap = 0.07, vol = 0.07) {
+  if (ui.mute) return;
+  try {
+    actx = actx || new (window.AudioContext || (window as any).webkitAudioContext)();
+    const t0 = actx.currentTime;
+    freqs.forEach((f, i) => {
+      const o = actx!.createOscillator(), g = actx!.createGain(), t = t0 + i * gap;
+      o.type = type; o.frequency.value = f; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g).connect(actx!.destination); o.start(t); o.stop(t + dur + 0.02);
+    });
+  } catch { /* 소리를 못 내도 연출은 이어진다 */ }
+}
+const SOUND: Record<string, (i: number) => void> = {
+  ok: i => tone([660 + i * 18]), no: () => tone([233], 0.12, 'sine'), die: () => tone([147, 110], 0.2, 'square', 0.08, 0.05),
+  gain: i => tone([988 + i * 30, 1319 + i * 30], 0.1), cost: () => tone([330, 247], 0.12, 'sine'),
+  win: () => tone([523, 659, 784, 1047], 0.32, 'triangle', 0.09), lose: () => tone([220, 196, 165], 0.36, 'sine', 0.12),
+};
+const sgnG = (n: number) => (n > 0 ? '+' : n < 0 ? '−' : '±') + Math.abs(Math.round(n)).toLocaleString('ko-KR');
+function countTo(el: HTMLElement, from: number, to: number) {
+  const t0 = performance.now(), d = 260;
+  const f = (t: number) => { const k = Math.min(1, (t - t0) / d); el.textContent = sgnG(from + (to - from) * k); el.classList.toggle('neg', from + (to - from) * k < 0); if (k < 1) requestAnimationFrame(f); };
+  requestAnimationFrame(f);
+}
+function stopRun() { clearTimeout(runTimer); runTimer = null; live = false; }
+function playRun() {
+  const box = document.querySelector('.run.live') as HTMLElement | null; if (!box) return;
+  const items = [...box.querySelectorAll('li.rv')] as HTMLElement[], tv = box.querySelector('.tv') as HTMLElement;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return finishRun();
+  let acc = 0, i = 0, nOk = 0;
+  const step = () => {
+    if (i >= items.length) return finishRun();
+    const li = items[i++], k = li.dataset.k || '', v = +(li.dataset.v || 0);
+    li.classList.add('on');
+    if (k === 'net') {
+      const fin = +(box.dataset.net || 0);
+      countTo(tv, acc, fin); box.classList.add(fin >= 0 ? 'win' : 'lose'); SOUND[fin >= 0 ? 'win' : 'lose'](0);
+      runTimer = setTimeout(finishRun, 900); return;
+    }
+    if (v) { countTo(tv, acc, acc + v); acc += v; }
+    SOUND[k] && SOUND[k](k === 'ok' ? nOk++ : i);
+    const next = items[i] ? items[i].dataset.k : '';
+    runTimer = setTimeout(step, k === 'ok' || k === 'no' ? 170 : k === 'die' ? 420 : next === 'net' ? 900 : k === 'gain' ? 480 : 340);
+  };
+  runTimer = setTimeout(step, 350);
+}
+function finishRun() {
+  clearTimeout(runTimer); runTimer = null;
+  const box = document.querySelector('.run.live') as HTMLElement | null;
+  if (box) {
+    box.querySelectorAll('li.rv').forEach(li => li.classList.add('on'));
+    const fin = +(box.dataset.net || 0), tv = box.querySelector('.tv') as HTMLElement;
+    tv.textContent = sgnG(fin); tv.classList.toggle('neg', fin < 0); box.classList.add(fin >= 0 ? 'win' : 'lose'); box.classList.remove('live');
+    box.querySelector('.skip')?.remove();
+  }
+  live = false;
+  document.querySelector('.resultwrap')?.classList.add('done');
 }
 
 $('newgame').addEventListener('click', () => { if (W.month === 1 || confirm('지금 판을 버리고 새 게임을 시작할까요?')) start(true); });
