@@ -364,3 +364,15 @@ describe('미궁의 압력과 근원', () => {
     expect(coIssue(W)!.extra).toBe(true);
   });
 });
+
+describe('첫날 장면', () => {
+  it('세 세력이 한두 문장씩 말하고, 판에는 아무것도 쓰지 않는다', async () => {
+    const { ARRIVAL } = await import('../src/ui/co/arrival');
+    const who = ARRIVAL.filter(l => l.who).map(l => l.who);
+    expect(who).toEqual(['하르덴 백작', '대사제 엘마', '오르반 조합장']);
+    ARRIVAL.filter(l => l.who).forEach(l => expect(l.t.split(/[.?!]\s/).length, l.who).toBeLessThanOrEqual(2));
+    // 장면은 DOM만 만지고 게임 규칙을 import하지 않는다
+    const src = (await import('node:fs')).readFileSync('src/ui/co/arrival.ts', 'utf8');
+    expect(src).not.toMatch(/core\/|rnd\(/);
+  });
+});

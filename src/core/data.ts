@@ -1,16 +1,5 @@
-// 고정 데이터: 상수, 몬스터, 시설, 제안, 평가 목표, 세력 취향, 이름표
+// 고정 데이터: 파티를 이루는 직업과 장비, 층에 사는 몬스터, 근원과 이상 징후의 글
 
-export const C = {
-  CUSTOM: 1000, FIXED: 6000, CAP: 80, NEED: 2, TOLL: 60, MONTHS: 36,
-  WS_BUILD: 8000, WS_COST: 40, WS_CAP: 60, BASE_COST_M: 30, BASE_COST_C: 25, SHOCK_COST: 20,
-  GUIDE_FEE: 1500, FLOOR_CAP: 30, STOCK_CAP: 400, SPOIL: 0.05, BASE_SUCC: [0.5, 0.44, 0.38, 0.33, 0.28], LOOT: [700, 840, 980, 1120, 1260], KEY_BONUS: 0.33, PROG_PER_WIN: 1.5,
-  FEE_MIN: -200, FEE_MAX: 200, FEE_STEP: 50, FRONTIER: 50, LIFE: 700, CHOICE_T: 70, PRIEST_COST: 200, RECRUIT_COST: 400, GEAR_MARKET: 1.5,
-  TRIAL_COST: 150, CROWD_N: 20, ADAPT: 140, MIN_SAMPLE: 6,
-  HERO_MAX: 4, HERO_RUNS: 4, HERO_PROG: 4, TRAIL: 60, TRAIL_M: 4, FAME0: 30,
-  FOOD_COST: 10, HAUL_COST: 20, OPS_PER_M: 15,
-  // 시작 금고와 영주 개척 자금(개척 사업비는 여기서 먼저 나간다), 첫 달부터의 영주 보조금, 시장세, 의뢰
-  START: 12000, FUND: 15000, GRANT: [3000, 3000, 2500, 2000, 1500, 1000], MKT_M: 12, MKT_L: 0.06, QUEST_MAX: 4, QUEST_BASE: 900, QUEST_CUT: 0.2,
-};
 
 export const CLASSES = ['전사', '궁수', '마법사', '사제', '도적'];
 
@@ -101,35 +90,6 @@ export const ROOT_LORE = [
   '봉인한 근원의 맥은 식어 있습니다. 모든 맥을 식히면 미궁이 잠들 것이라고 학자들은 봅니다.',
 ];
 
-export const FACILITIES = [
-  { id: 'ws', name: '포션 공방', cost: 8000, months: 3, upkeep: 0, effect: '포션을 병당 40G에 한 달 최대 60병 직접 만들어요. 완공되면 보급과가 공방 포션부터 채워요', hint: '상단과 교회는 자기 물건이 덜 팔릴까 반기지 않을 거예요', react: { gM: 12, gC: 6 }, rumor: '관리국 공방 착공 소식에 상단과 교회가 술렁입니다. 자기들 물건이 덜 팔릴까 걱정하는 눈치입니다.', doneMsg: '포션 공방이 완공되었습니다. 보급과가 공방 포션부터 채웁니다.' },
-  { id: 'camp', name: '전진 야영지', cost: 6000, months: 2, upkeep: 400, effect: '가장 깊은 층에서 사망이 40% 줄고, 개척이 50% 빨라져요', hint: '용병을 아끼는 일이라 교회가 반길 거예요', react: { gC: -8 }, rumor: '교회가 용병들을 위한 전진 야영지 착공을 반깁니다.', doneMsg: '전진 야영지가 완공되었습니다. 최전선 파티가 쉬어 갈 곳이 생겼습니다.' },
-  { id: 'appraise', name: '전리품 감정소', cost: 9000, months: 3, upkeep: 600, excl: 'consign', effect: '전리품 수입이 40% 늘어요', hint: '지금은 상단이 전리품 감정과 매입을 도맡고 있어요', react: { gM: 25 }, rumor: '상단 조합이 감정소 착공을 두고 "남의 밥그릇을 뺏는다"며 격분했습니다.', doneMsg: '전리품 감정소가 문을 열었습니다. 전리품을 제값에 거래합니다.' },
-  { id: 'consign', name: '감정 이권 상단 위탁', cost: 0, months: 1, upkeep: 0, excl: 'appraise', effect: '전리품 감정을 상단에 맡겨요. 전리품 수입이 15% 늘고, 상단이 매달 조금씩 더 호의적이 돼요. 감정소와 함께 둘 수 없어요', hint: '돈은 감정소보다 덜 벌지만 상단을 확실히 내 편으로 만들어요', react: { gM: -35 }, rumor: '감정 이권을 맡긴다는 소식에 상단 조합장이 직접 감사 인사를 왔습니다.', doneMsg: '상단이 전리품 감정을 맡기 시작했습니다.' },
-  { id: 'mapper', name: '지도 제작소', cost: 6000, months: 3, upkeep: 400, effect: '현장 증언이 더 빨리 모이고, 공략본을 따르는 파티가 15%p 늘어요', hint: '용병들이 반길 거예요', react: {}, trust: 5, rumor: '관리국이 지도를 만든다는 소식이 용병들 사이에서 반갑게 돕니다.', doneMsg: '지도 제작소가 문을 열었습니다. 증언과 공략이 더 빨리 퍼집니다.' },
-  { id: 'clinic', name: '교회 공동 구호소', cost: 7000, months: 2, upkeep: 300, effect: '모든 층에서 사망이 40% 줄어요. 완공되면 교회 관례 헌금이 200G 올라요', hint: '교회가 크게 기뻐하겠지만, 교회의 목소리도 커질 거예요', react: { gC: -20 }, rumor: '대사제가 공동 구호소 소식에 크게 기뻐합니다. 앞으로 교회가 목소리를 더 낼 것 같습니다.', doneMsg: '교회 공동 구호소가 문을 열었습니다.' },
-];
-
-export const OFFERS = {
-  bulk: { who: 'merchant', name: '상단 조합장', title: '상단 독점 공급 계약', text: '3개월 동안 포션을 저희 상단에서만 받아 주시면, 단가를 20% 깎아 드리지요. 교회 물건은 잠시 쉬셔도 되지 않겠습니까?', terms: '비용 없음 · 3개월간 상단 포션 20% 할인 · 그동안 교회 포션을 사면 계약이 깨져요 (매출이 끊긴 교회는 매달 서운해해요)', cost: 0 },
-  gear: { who: 'merchant', name: '상단 조합장', title: '신형 원소 장비 시험 공급', text: '새로 들여온 원소 장비를 용병들에게 시험 삼아 풀어 볼까 합니다. 운송비만 대 주시면 됩니다.', terms: '2,000G · 3개월간 화염·냉기·은·둔기 장비를 쓰는 파티가 두 배로 늘어요', cost: 2000 },
-  novice: { who: 'church', name: '대사제', title: '견습 사제 파견', text: '견습 사제들이 수련 삼아 용병들과 동행하고 싶어 합니다. 숙식비만 보태 주시지요.', terms: '1,000G · 3개월간 사망이 30% 줄고, 사제가 낀 파티가 늘어요', cost: 1000 },
-  cap: { who: 'church', name: '교회 회계 사제', title: '성수 포션 공급 한도 증설', text: '성수 제조실을 넓히면 매달 더 많은 포션을 드릴 수 있습니다. 증설 비용을 함께 부담해 주시겠습니까?', terms: '3,000G · 교회 포션 공급 한도가 한 달 80병에서 120병으로 영구히 늘어요 (상단은 달가워하지 않을 거예요)', cost: 3000, once: true },
-};
-
-export const TARGETS = [
-  { treasury: 20000, floor: 2, M: 100, deaths: 40 },
-  { treasury: 45000, floor: 3, M: 140, deaths: 45 },
-  { treasury: 70000, floor: 4, M: 160, deaths: 50 },
-];
-
-export const LIKES = {
-  merchant: { like: { steady: '꾸준하고 넉넉한 포션 주문', gear: '원소 장비가 팔리는 공략본', consign: '감정 같은 이권을 상단에 맡기는 일', rent: '관리국의 장비 대여 주문', hero_gear: '용사 장비 지원 주문', hero_backer: '상단이 추천한 용사를 쓰는 일' },
-              hate: { drop: '갑자기 줄어든 주문', build: '관리국이 직접 만들거나 감정하는 일', audit: '이유 없는 감찰', jealous: '교회만 챙기는 모습', breach: '약속을 어기는 일', repair: '장비 정비 주문을 크게 줄이는 일' } },
-  church: { like: { donation: '관례 이상의 헌금', safe: '사망자가 적은 운영', priest: '사제를 쓰는 공략본', clinic: '용병을 돌보는 시설', dispatch: '사제 파견 요청', hero_priest: '교회가 추천한 용사를 쓰는 일' },
-            hate: { lowdon: '관례보다 적은 헌금', deaths: '잇따른 사망', audit: '신전을 겨눈 감찰', jealous: '상단만 챙기는 모습', excl: '상단과의 독점 거래', cutoff: '파견하던 사제를 갑자기 끊는 일', food: '식량 주문을 크게 줄이는 일', hero_death: '용사를 사지로 내모는 일' } },
-};
-
 export const ANOMALIES = [
   '가장 깊은 층에서 벽이 숨 쉬듯 부풀었다 가라앉는다는 증언이 들어왔습니다.',
   '1층에서 깊은 층에만 사는 몬스터가 발견되었습니다. 위로 올라온 것 같습니다.',
@@ -139,21 +99,3 @@ export const ANOMALIES = [
 ];
 
 export const KEYS = [...CLASSES.map(c => 'c:' + c), ...GEARS.filter(g => g !== '일반').map(g => 'g:' + g)];
-
-export const DIRTY = { merchant_gift: '부임 때 상단에게 받은 선물', paid_merchant: '상단에 몰래 준 보전금', lord_pact: '하르덴 백작과의 밀약', false_accuse: '상단을 잘못 고발한 일' };
-
-// 금액으로 예산을 넣고, 필요량 대비 몇 %를 채우는지가 결과를 정한다. 필요량을 넘는 돈은 집행되지 않는다
-export const PROV = {
-  food: { name: '식량', short: '식량', miss: '떠나는 용병이 늘어요' },
-  repair: { name: '장비 정비', short: '정비', miss: '탐사 성공률이 떨어져요' },
-  haul: { name: '운송', short: '운송', miss: '전리품을 다 못 가져와요' },
-};
-
-export const SRC = { merc: '돌아온 용병', trial: '관리국 시험반', hero: '용사 파티', church: '교회', merchant: '상단' };
-
-// 결성·충원·해산 모두 예산 숫자로 정해진다. 몰락과 배신은 사기·야심·세력 관계가 맞을 때만 터진다
-export const HERO_NAMES = ['레온', '세라', '브람', '이네스', '토르', '미라', '아델', '고든', '유리엔', '카야', '벨린', '오스', '루네', '하겐', '시오', '에다', '마렌', '리크', '노아', '페론', '다리안', '솔', '케일', '이브'];
-
-export const ORIGIN = { merc: '용병 출신', church: '교회 추천', merchant: '상단 추천' };
-
-export const AMB = ['낮음', '보통', '높음'];

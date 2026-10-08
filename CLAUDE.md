@@ -2,22 +2,21 @@
 
 미궁 용병단 경영 시뮬레이션. 웹 브라우저 게임 (TypeScript + Vite, 프레임워크 없음).
 
-> 전제를 "미궁 관리국장"에서 "용병단 행정관"으로 바꾸는 중이다. 코드는 아직 옛 전제(관리국)다. 새 전제는 `docs/world.md`, 옮겨 가는 순서는 `docs/plan.md`를 따른다. 새로 짜는 규칙은 계획 쪽을 기준으로 하고, 옛 관리국 전용 시스템(통행세, 입장료, 직제·품의, 개척기 등)은 넓히지 않는다.
+> 전제는 "용병단 행정관"이다(옛 "미궁 관리국장" 게임은 5단계에서 지웠다). 세계관은 `docs/world.md`, 만들어 온 순서와 단계별 기록은 `docs/plan.md`를 따른다.
 
 ## 구조
-- `src/core/`: 게임 규칙. DOM을 쓰지 않는다. 상태는 `state.ts`의 `S` 하나이고, 한 달 결재는 `turn.ts`의 `resolve()`.
-- 예산 줄(`S.budget`)은 플레이어가 직접 적지 않는다. `org.ts`의 `compileBudget()`이 부서 방침·단계·반려에서 만들어 내고, 규칙은 예전처럼 줄 금액을 읽는다. 화면과 봇은 결재 전에 `compileBudget()`을 부른다.
-- `src/ui/`: 화면. HTML 문자열을 만들어 넣는 방식. `core`는 `ui`를 import하지 않는다.
-- `sim/bot.ts`: 옛 관리국 게임의 봇. `npm run sim:bureau`(`sim/run.ts`)와 `tests/game.test.ts`가 쓴다.
-- `src/core/company.ts`: 새 전제의 용병단 엔진. `S`가 아니라 자기 `World` 상태로 돈다. 테스트는 `tests/company.test.ts`, 시뮬레이션은 `npm run sim` (`sim/company.ts`, 플레이어 봇 성향별 평균 순위와 1위 분포).
-- 페이지가 둘이다. `index.html`(진입점 `src/coMain.ts`, 화면 `src/ui/co/`)은 새 용병단 게임이고 판을 `localStorage`의 `lb-co`에 저장한다. `bureau.html`(진입점 `src/main.ts`)은 옛 관리국 게임으로, 계획 5단계에서 정리할 때까지 참고용으로 남겨 둔다.
-- `proto/budget-potion.html`: 옛 프로토타입. **고치지 않는다.** 수입 구조 개편 때 동작 비교 테스트를 지웠고, 지금은 기록으로만 남아 있다.
+- `src/core/company.ts`: 게임 규칙 전부. DOM을 쓰지 않는다. 상태는 `World` 하나이고, 한 달 결재는 `runMonth()`. 층·시장·용병단과 AI·몬스터·포션과 세력·압력과 근원이 여기 있다.
+- `src/core/data.ts`: 직업·장비, 몬스터, 근원·이상 징후의 글. `util.ts`는 조사와 지침 이름 도우미.
+- `src/ui/co/`: 화면. HTML 문자열을 만들어 넣는 방식. 결정표·정산서(`view.ts`), 변경 일보(`paper.ts`), 첫날 장면(`arrival.ts`), 스타일(`base.css`, `co.css`). `core`는 `ui`를 import하지 않는다.
+- `index.html`(진입점 `src/coMain.ts`)이 게임이고, 판을 `localStorage`의 `lb-co`에 저장한다.
+- `sim/company.ts`: 플레이어 봇(성향별)과 시뮬레이션. `npm run sim`이 평균 순위, 1위 분포, 범람 횟수를 낸다. 테스트도 이 봇을 쓴다.
+- `proto/budget-potion.html`: 맨 처음 프로토타입. **고치지 않는다.** 기록으로만 남아 있다.
 
 ## 규칙
 - 난수는 반드시 `core/rng.ts`의 `rnd()`를 쓴다 (`Math.random` 금지). 시드로 판을 재현해야 테스트와 시뮬레이션이 맞는다.
-- 저장 데이터 모양이 바뀌면 `core/save.ts`의 `SAVE_VERSION`을 올리고, 이전 버전을 불러오는 경로를 `loadGame`에 남긴다.
-- 금고를 움직이는 새 수입·지출은 `turn.ts`의 장부(`S.books`) 기록과 `ui/books.ts`의 항목표에도 넣는다. 안 넣으면 '사건·기타'로 잡히고 장부 테스트가 깨질 수 있다.
-- 게임 규칙 변경은 장부 테스트(`tests/game.test.ts`)와 봇 시뮬레이션으로 확인한다.
+- 저장 데이터 모양(`World`, `Plan`)이 바뀌면 `src/coMain.ts`의 `VERSION`을 올린다. 다른 버전의 판은 새 게임으로 시작한다.
+- 금고를 움직이는 새 수입·지출은 `CoResult.spend`(또는 판매 수입)에 항목으로 넣고, 정산서(`view.ts`의 우리 정산)에도 줄을 더한다. 장부 테스트(`tests/company.test.ts`)가 금고 변화 = 판매 − 지출을 확인한다.
+- 게임 규칙 변경은 테스트와 봇 시뮬레이션으로 확인한다.
 - 밸런스를 바꾸면 `npm run sim`으로 전후의 평균 순위와 1위 분포를 PR 설명에 적는다. 숙련 봇(`smart`)이 다른 봇보다 앞서야 한다 (잘 두면 이긴다).
 
 ## 방향 (기획 결정)

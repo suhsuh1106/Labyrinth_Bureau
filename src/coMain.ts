@@ -1,9 +1,10 @@
 // 용병단 행정실 진입점: 결정표를 고치고, 결재하면 한 달을 돌리고, 판을 이 브라우저에 저장한다
-import './ui/style.css';
+import './ui/co/base.css';
 import './ui/co/co.css';
 import { setSeed } from './core/rng';
 import { type Plan, type World, carryPlan, newWorld, rankOf, runMonth } from './core/company';
 import { planHtml, plaqueHtml, resultsHtml } from './ui/co/view';
+import { advanceArrival, arrivalOpen, closeArrival, playArrival } from './ui/co/arrival';
 
 const $ = (id: string): any => document.getElementById(id);
 const KEY = 'lb-co', VERSION = 4, MONTHS = 36;   // 4: 미궁의 압력·근원·귀환 보고가 생김 (이전 판은 새 게임으로)
@@ -26,7 +27,14 @@ function start(fresh = false) {
   if (d) { W = d.W; plan = d.plan; }
   else { setSeed((Date.now() ^ 0x5bd1e995) >>> 0); W = newWorld(); plan = carryPlan(W, null); }
   render(); save();
+  // 새 판이면 미궁을 처음 여는 날의 장면부터 보여 주고, 끝나면 결정표로 간다
+  if (!d) { window.scrollTo(0, 0); playArrival(() => $('plan').scrollIntoView({ block: 'start' })); }
 }
+
+// 첫날 장면: 화면을 누르거나 다음 단추로 넘기고, 건너뛰기나 Esc로 닫는다
+$('ar-scene').addEventListener('click', (e: any) => { if (!e.target.closest('#ar-skip')) advanceArrival(); });
+$('ar-skip').addEventListener('click', () => closeArrival());
+document.addEventListener('keydown', e => { if (arrivalOpen() && e.key === 'Escape') closeArrival(); });
 
 function say(t: string) {
   const el = $('toast'); el.textContent = t; el.classList.add('show');

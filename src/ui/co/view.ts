@@ -1,5 +1,5 @@
 // 용병단 행정실 화면: 결정표(위)와 지난달 정산(아래). HTML 문자열을 만들기만 하고 상태는 건드리지 않는다
-import { CO, FLOORS, ITEMS, type Plan, type World, churchPrice, floorMax, hireCost, keysAll, maxParties, priceOf, rankOf, sanitize, sortieCost, succRate, us, worth } from '../../core/company';
+import { CO, FLOORS, ITEMS, type Plan, type World, churchPrice, floorMax, hireCost, trainBonus, keysAll, maxParties, priceOf, rankOf, sanitize, sortieCost, succRate, us, worth } from '../../core/company';
 import { MONSTERS } from '../../core/data';
 import { keyLabel } from '../../core/util';
 import { paperHtml } from './paper';
@@ -83,7 +83,7 @@ export function planHtml(W: World, raw: Plan) {
     <div class="tw"><table class="grid"><thead><tr><th>전리품 · 사 가는 곳</th><th class="n">창고</th><th>이번 달 판매량</th><th class="n">지난달 시장 전체</th><th class="n">지난달 시세</th><th class="n">기준 시세</th><th class="n">예상 판매 수입</th></tr></thead><tbody>${sell || '<tr><td colspan="7" class="dim">창고가 비어 있어요</td></tr>'}</tbody></table></div>
     <h3>3 · 투자</h3>
     <div class="invest">
-      <label class="box">훈련비 ${stepper('train', 0, raw.train, '훈련비', 100)}<small>훈련도 ${c.skill.toFixed(1)} → +${(raw.train / 200).toFixed(1)}. 매달 5%씩 식고, 1마다 성공률 +0.4%p</small></label>
+      <label class="box">훈련비 ${stepper('train', 0, raw.train, '훈련비', 100)}<small>훈련도 ${c.skill.toFixed(1)} (성공률 +${(trainBonus(c.skill) * 100).toFixed(1)}%p) → 이번 달 +${(raw.train / 200).toFixed(1)}. 매달 5%씩 식고, 이 훈련비를 계속 내면 훈련도 ${Math.round(raw.train / 10)} (성공률 +${(trainBonus(raw.train / 10) * 100).toFixed(1)}%p)에 머물러요. 갈수록 덜 올라요</small></label>
       <label class="box">전진 거점 <span class="step"><select data-k="basef" aria-label="거점을 둘 층">${FLOORS.slice(0, W.unlocked).map((F, f) => `<option value="${f}"${f === bf ? ' selected' : ''}>${F.name}</option>`).join('')}</select></span> ${stepper('base', 0, ba, '거점 투자', 500)}<small>${fmt(CO.BASE_STEP)}G마다 1단계 (최대 ${CO.BASE_MAX}). 다음 달부터 그 층 성공률 +5%p, 2단계면 조당 채집 +1. 지금 ${FLOORS.slice(0, W.unlocked).map((F, f) => c.bases[f] ? `${F.name} ${c.bases[f].toFixed(1)}` : '').filter(Boolean).join(' · ') || '없음'}${c.pendingBase ? ` · ${FLOORS[c.pendingBase.f].name} 공사 중` : ''}</small></label>
     </div>
     ${supplyHtml(W, raw, P)}

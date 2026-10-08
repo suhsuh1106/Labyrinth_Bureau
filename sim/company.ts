@@ -1,8 +1,8 @@
 // 용병단 시뮬레이터: 플레이어 봇 성향마다 여러 판을 돌려 평균 순위와 1위 분포를 본다.
 //   npm run sim                         기본 200판, 모든 성향
 //   npm run sim -- --games 500 --style smart
-// 성향: even(고르게) · deep(깊은 층 위주) · hold(시세가 낮으면 쌓아 둠) · hire(계약 파티를 씀) · smart(시장을 읽는 숙련자, 근원은 봉인)
-//       smartNoGuide · smartMine · smartNoRoot: 숙련 봇에서 지침을 빼거나 근원을 달리 다룬 것
+// 성향: even(고르게) · deep(깊은 층 위주) · hold(시세가 낮으면 쌓아 둠) · hire(계약 파티를 씀) · smart(시장을 읽는 숙련자, 근원에는 채굴장)
+//       smartNoGuide · smartSeal · smartNoRoot: 숙련 봇에서 지침을 빼거나 근원을 달리 다룬 것
 import { setSeed } from '../src/core/rng';
 import { CO, FLOORS, churchPrice, ITEMS, type Plan, type World, defaultPlan, maxParties, newWorld, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
 
@@ -25,16 +25,17 @@ export const BOT: Record<string, (W: World) => Plan> = {
   smart: W => smartPlan(W),
   // 숙련 봇에서 추리만 뺀 것 (편성 지침이 순위에 얼마나 보태는지 재는 기준)
   smartNoGuide: W => { const P = smartPlan(W); P.guide = P.guide.map(() => ''); return P; },
-  // 숙련 봇이 근원에 채굴장을 내는 쪽과, 근원을 그대로 두는 쪽 (봉인과 견주는 기준)
-  smartMine: W => smartPlan(W, 'mine'),
+  // 숙련 봇이 근원을 봉인하는 쪽과, 근원을 그대로 두는 쪽 (채굴장과 견주는 기준)
+  smartSeal: W => smartPlan(W, 'seal'),
   smartNoRoot: W => smartPlan(W, 'none'),
 };
 
 // 숙련 봇: 경쟁자와 군소 용병대가 지난달 벌이를 쫓아 몰려다니므로, 한 층에 몰아넣지 않고 열린 층에 고르게 나누되
-// 조당 남는 돈(기준 시세와 지난 시세의 중간으로 어림)에 비례해 기울인다. 포션은 넉넉히, 크게 남는 층에는 계약 파티를 쓴다.
+// 조당 남는 돈(기준 시세와 지난 시세의 중간으로 어림)에 비례해 기울인다. 포션은 5병, 훈련비는 300(훈련은 갈수록 덜 올라 이 근처가 가장 낫다),
+// 크게 남는 층에는 계약 파티를 쓴다.
 // 거점과 쌓아 두기는 지금 규모에서는 손해라 쓰지 않는다 (시뮬레이션으로 확인함)
-export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'seal'): Plan {
-  const c = us(W), P = defaultPlan(W), L = W.last, pots = 4;
+export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine'): Plan {
+  const c = us(W), P = defaultPlan(W), L = W.last, pots = 5;
   const value = FLOORS.map((F, f) => {
     if (f >= W.unlocked) return 0;
     const p = succRate(c, f, pots, F.cap), unit = ((L && L.Q[f] ? W.price[f] : ITEMS[f].P0) + ITEMS[f].P0) / 2;
@@ -52,8 +53,8 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'seal')
   const need = P.parties.reduce((a, n, f) => a + (n + P.hire[f]) * P.pots[f], 0);
   P.church = churchPrice(W, 0) < W.potion ? need : 0;
   P.donate = W.cartel && !W.cartel.donated[0] && c.cash > 8000 ? 1000 : 0;
-  // 근원: 찾은 근원이 있으면 여유가 있을 때 봉인 기금을 넣는다. 봉인·채굴장·그대로 두기는 순위로는 비슷하고(200판 4.00~4.15),
-  // 봉인하면 범람이 절반으로 준다. 봉인은 교회가 같은 돈을 보태 절반만 든다
+  // 근원: 찾은 근원이 있으면 여유가 있을 때 채굴장 기금을 넣는다. 채굴장과 그대로 두기는 순위가 비슷하고,
+  // 봉인은 범람을 절반으로 줄이지만 우리 순위로는 손해다(200판 3.13 · 3.14 대 3.45). 봉인은 교회가 같은 돈을 보태 절반만 든다
   const rf = (W.roots || []).findIndex(r => r.found && !r.done);
   if (rf >= 0 && c.cash > 8000) P.root = rootMode === 'none' ? null : { f: rf, seal: rootMode === 'seal' ? CO.ROOT_COST / 4 : 0, mine: rootMode === 'mine' ? CO.ROOT_COST / 2 : 0 };
   return P;
