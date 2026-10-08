@@ -196,13 +196,13 @@ function rivalsHtml(W: World) {
 }
 
 // 소문: 확인되지 않은 말은 문장으로 둔다. 최근 두 달 기록에서 소문꼴인 것만
-function rumorsHtml(W: World) {
+export function rumorsHtml(W: World) {
   const rs = W.log.filter(l => l.m >= W.month - 2 && /말이 돈다|이상 징후|마주 앉는다/.test(l.t)).slice(-3).reverse();
   if (!rs.length) return '<p class="note">최근 두 달은 별다른 소문이 없었어요.</p>';
   return `<div class="rumors">${rs.map(r => `<div class="rumor"><div class="top">제${r.m}월</div><div>${r.t.replace(/^이상 징후: /, '')}</div></div>`).join('')}</div>`;
 }
 
-function netHtml(W: World) {
+export function netHtml(W: World) {
   return SRCS.map(k => {
     const S = SRC_INFO[k], lv = lvOf(W, k), keep = INTEL.KEEP[k][lv], acc = W.intel ? W.intel.acc[k] : 0, block = intelBlock(W, k);
     return `<div class="src"><div class="nm">${S.n}<span class="pips" aria-label="${lv}단계">${[1, 2, 3].map(i => `<i class="${i <= lv ? 'on' : ''}"></i>`).join('')}</span></div>
@@ -214,19 +214,12 @@ function netHtml(W: World) {
 }
 
 export function intelHtml(W: World) {
-  return `<div class="kind">회색늑대 용병단 · 정보실</div>
-    <h2>정보망</h2>
-    <p class="lead">출처마다 0~3단계. 단계를 지키고 올리는 데 매달 정보비가 들어요(결정표 6번). 단계가 오르면 지난 기록까지 열람할 수 있어요.</p>
-    <div class="net">${netHtml(W)}</div>
-    <h3>층은 얼마나 남았나</h3>
-    <p class="note">층에 남은 양은 아무도 몰라요. 우리 성공 파티가 한 번에 캐 오는 양이 줄면 그 층이 비고 있다는 뜻이에요. 열린 층끼리 같은 눈금이에요.</p>
+  return `<h3>층은 얼마나 남았나</h3>
     <div class="legend">${legendHtml(W)}</div>
     <div class="floors">${floorsHtml(W)}</div>
-    <h3>교차 확인 · 두 출처를 맞대어 새로 알게 된 것</h3>
+    <h3>교차 확인</h3>
     <div class="cross">${crossHtml(W)}</div>
     <h3>다음 달 누가 어디로 오나</h3>
-    <div class="legend"><span><i style="--c:var(--c-etc)"></i>지난달 파티 수</span><span><i class="line" style="--c:var(--ink-soft)"></i>다음 달 짐작 범위 · 점은 가장 그럴듯한 값</span></div>
-    <div class="tw">${rivalsHtml(W)}</div>
-    <h3>소문 · 확인 안 됨</h3>
-    ${rumorsHtml(W)}`;
+    <div class="legend"><span><i style="--c:var(--c-etc)"></i>지난달</span><span><i class="line" style="--c:var(--ink-soft)"></i>다음 달 짐작</span></div>
+    <div class="tw">${rivalsHtml(W)}</div>`;
 }
