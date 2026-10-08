@@ -2,12 +2,14 @@
 import './ui/co/base.css';
 import './ui/co/co.css';
 import { setSeed } from './core/rng';
-import { type Plan, type World, carryPlan, newWorld, rankOf, runMonth } from './core/company';
+import { type Plan, SRCS, type World, carryPlan, newWorld, rankOf, runMonth } from './core/company';
 import { planHtml, plaqueHtml, resultsHtml } from './ui/co/view';
+import { intelHtml } from './ui/co/intel';
+import { bookHtml } from './ui/co/book';
 import { advanceArrival, arrivalOpen, closeArrival, playArrival } from './ui/co/arrival';
 
 const $ = (id: string): any => document.getElementById(id);
-const KEY = 'lb-co', VERSION = 4, MONTHS = 36;   // 4: 미궁의 압력·근원·귀환 보고가 생김 (이전 판은 새 게임으로)
+const KEY = 'lb-co', VERSION = 6, MONTHS = 36;   // 6: 갈무리 소재와 미궁 도감이 생김 (이전 판은 새 게임으로)
 let W: World, plan: Plan;
 
 function save() { try { localStorage.setItem(KEY, JSON.stringify({ v: VERSION, W, plan })); } catch { /* 저장이 막혀도 판은 계속된다 */ } }
@@ -15,6 +17,8 @@ function load() { try { const d = JSON.parse(localStorage.getItem(KEY) || 'null'
 
 function render() {
   $('stats').innerHTML = plaqueHtml(W);
+  $('intel').innerHTML = intelHtml(W);
+  $('book').innerHTML = bookHtml(W);
   $('plan').innerHTML = planHtml(W, plan);
   $('results').innerHTML = resultsHtml(W);
   const over = W.month > MONTHS;
@@ -48,7 +52,15 @@ $('plan').addEventListener('click', (e: any) => {
 });
 $('plan').addEventListener('change', (e: any) => {
   const t = e.target;
-  if (t.dataset.k === 'guide') { plan.guide = plan.guide || []; plan.guide[+t.dataset.i] = t.value; render(); save(); return; }
+  // 편성: 직업과 장비를 따로 골라 "c:사제+g:은"처럼 한 칸에 둔다
+  if (t.dataset.k === 'guideC' || t.dataset.k === 'guideG') {
+    const f = +t.dataset.i, pre = t.dataset.k === 'guideC' ? 'c:' : 'g:';
+    plan.guide = plan.guide || [];
+    const ps = (plan.guide[f] || '').split('+').filter((k: string) => k && !k.startsWith(pre));
+    if (t.value) ps.push(t.value);
+    plan.guide[f] = ps.sort().join('+'); render(); save(); return;
+  }
+  if (t.dataset.k === 'spyOn') { const on = [...(plan.spyOn || [])]; on[+t.dataset.i] = t.value; plan.spyOn = on.filter(Boolean); render(); save(); return; }
   if (t.dataset.k === 'rootf') { plan.root = { f: +t.value, seal: plan.root ? plan.root.seal : 0, mine: plan.root ? plan.root.mine : 0 }; render(); save(); return; }
   if (t.dataset.k === 'basef') { plan.base = { f: +t.value, amt: plan.base ? plan.base.amt : 0 }; render(); save(); return; }
   if (t.dataset.k) edit(t.dataset.k, +t.dataset.i, () => Math.round(+t.value || 0));
@@ -57,6 +69,9 @@ function edit(k: string, i: number, fn: (v: number) => number) {
   if (k === 'train') plan.train = Math.max(0, fn(plan.train));
   else if (k === 'church') plan.church = Math.max(0, fn(plan.church || 0));
   else if (k === 'donate') plan.donate = Math.max(0, fn(plan.donate || 0));
+  else if (k === 'tool') plan.tool = Math.max(0, Math.min(2, fn(plan.tool || 0)));
+  else if (k === 'proc') plan.proc = Math.max(0, fn(plan.proc || 0));
+  else if (k === 'intel') { const s = SRCS[i]; plan.intel = { ...(plan.intel || {}) }; plan.intel[s] = Math.max(0, fn(plan.intel[s] || 0)); }
   else if (k === 'seal' || k === 'mine') {
     const f = plan.root ? plan.root.f : (W.roots || []).findIndex(r => r.found && !r.done);
     const R = plan.root || { f, seal: 0, mine: 0 };
@@ -82,3 +97,15 @@ $('go').addEventListener('click', () => {
 $('newgame').addEventListener('click', () => { if (W.month === 1 || confirm('지금 판을 버리고 새 게임을 시작할까요?')) start(true); });
 
 start();
+
+// 그래프 위에 마우스를 올리면 그달 숫자를 보여 준다 (data-tip: "제목|줄|줄")
+const tip = $('tip');
+document.addEventListener('pointermove', (ev: PointerEvent) => {
+  const el = (ev.target as HTMLElement).closest('[data-tip]') as HTMLElement | null;
+  if (!el) { tip.hidden = true; return; }
+  const [t, ...ls] = (el.dataset.tip || '').split('|');
+  tip.innerHTML = `<b>${t}</b>${ls.map(l => `<div>${l}</div>`).join('')}`; tip.hidden = false;
+  const r = tip.getBoundingClientRect(); let x = ev.clientX + 14, y = ev.clientY + 14;
+  if (x + r.width > innerWidth - 8) x = ev.clientX - r.width - 14; if (y + r.height > innerHeight - 8) y = ev.clientY - r.height - 14;
+  tip.style.left = x + 'px'; tip.style.top = y + 'px';
+});

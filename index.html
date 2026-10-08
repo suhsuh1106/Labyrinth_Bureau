@@ -18,6 +18,8 @@
     <button class="sound newgame" id="newgame" type="button">새 게임</button>
   </header>
   <main class="co-desk">
+    <section class="co-sheet" id="intel" aria-label="정보실"></section>
+    <section class="co-sheet" id="book" aria-label="미궁 도감"></section>
     <section class="co-sheet" id="plan" aria-label="이번 달 결정표"></section>
     <div class="co-go">
       <button class="co-stamp" id="go" type="button">결재하고 한 달 보내기</button>
@@ -28,10 +30,10 @@
   <p class="co-foot">새 전제(용병단 행정관)로 옮기는 중인 화면입니다. 옛 관리국 게임은 <a href="bureau.html">여기</a>에 남아 있습니다.</p>
 </div>
 </div>
-<div class="arrival" id="arrival" hidden role="dialog" aria-modal="true" aria-label="미궁을 처음 여는 날">
+<div class="arrival" id="arrival" hidden role="dialog" aria-modal="true" aria-label="미궁이 열린 변경">
   <div class="ar-scene" id="ar-scene">
     <div class="ar-land" aria-hidden="true"><span class="ar-ridge"></span><span class="ar-hill"></span><span class="ar-mouth"></span><span class="ar-tent t1"></span><span class="ar-tent t2"></span><span class="ar-tent t3"></span><span class="ar-lamp" id="ar-lamp"></span></div>
-    <span class="ar-place">하르덴 백작령 서쪽 산허리 · 미궁 관리국 앞마당</span>
+    <span class="ar-place">하르덴 백작령 서쪽 산허리 · 미궁 입구</span>
     <button class="ar-skip" id="ar-skip" type="button">건너뛰기</button>
     <div class="ar-box narr" id="ar-box" aria-live="polite">
       <span class="ar-seal" id="ar-seal" aria-hidden="true"></span>
@@ -42,6 +44,7 @@
   </div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="co-tip" id="tip" hidden></div>
 <script type="module" src="/src/coMain.ts"></script>
 </body>
 </html>
