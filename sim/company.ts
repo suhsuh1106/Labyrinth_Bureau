@@ -56,7 +56,7 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
   if (kit) P.guide = P.guide.map((g, f) => addKit(W, f, g, P.parties[f]));
   // 포션: 교회 값이 상단보다 싸면(후원해서 교회가 예전 값으로 내줄 때) 교회에서 사고, 담합이 터지면 여유가 있을 때 한 번 후원한다
   const need = P.parties.reduce((a, n, f) => a + (n + P.hire[f]) * P.pots[f], 0);
-  P.church = churchPrice(W, 0) < W.potion ? need : 0;
+  P.buy = { holy: churchPrice(W, 0) < W.potion ? Math.max(0, need - us(W).sup!.holy) : 0 };
   P.donate = W.cartel && !W.cartel.donated[0] && c.cash > 8000 ? 1000 : 0;
   // 근원: 찾은 근원이 있으면 여유가 있을 때 채굴장 기금을 넣는다. 채굴장과 그대로 두기는 순위가 비슷하고,
   // 봉인은 범람을 절반으로 줄이지만 우리 순위로는 손해다(200판 3.13 · 3.14 대 3.45). 봉인은 교회가 같은 돈을 보태 절반만 든다

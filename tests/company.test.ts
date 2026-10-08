@@ -4,13 +4,15 @@ import { setSeed } from '../src/core/rng';
 import { CO, FLOORS, ITEMS, defaultPlan, emptyPlan, newWorld, potionPrice, priceOf, runMonth, us, worth } from '../src/core/company';
 import { BOT, playGame } from '../sim/company';
 import { aiPlan, carryPlan, maxParties, outlook, rankOf, rollParty } from '../src/core/company';
-import { churchPrice, type World } from '../src/core/company';
+import { churchPrice, type Plan, type World } from '../src/core/company';
 import { MONSTERS } from '../src/core/data';
-import { depthsHtml, newsLines, planHtml, plaqueHtml, resultsHtml, returnHtml } from '../src/ui/co/view';
+import { depthsHtml, newsLines, plaqueHtml, resultsHtml, returnHtml } from '../src/ui/co/view';
+import { DOC_TABS, expWeekHtml, infoWeekHtml, resultWeekHtml } from '../src/ui/co/desk';
+const planHtml = (W: World, P: Plan) => DOC_TABS.map(([tab]) => infoWeekHtml(W, P, { phase: 0, tab, pins: DOC_TABS.map(t => t[0]) })).join('') + expWeekHtml(W, P, { phase: 1, tab: 'report', pins: DOC_TABS.map(t => t[0]) }) + (W.last ? resultWeekHtml(W) : '');
 import { coIssue, paperHtml } from '../src/ui/co/paper';
 import { intelHtml } from '../src/ui/co/intel';
 import { bookHtml, demandsNow } from '../src/ui/co/book';
-import { allMats, floorMons, guideParts, matChance, matPrice, sanitize } from '../src/core/company';
+import { allMats, floorMons, guideParts, matChance, matPrice, probe, sanitize } from '../src/core/company';
 import { INTEL, aiPlan as aiPlanOf } from '../src/core/company';
 import { rnd } from '../src/core/rng';
 import { floorMax, keyOf } from '../src/core/company';
@@ -213,7 +215,7 @@ describe('상단·교회와 포션 담합', () => {
     for (let g = 1; g <= 10; g++) {
       setSeed(g); const W = newWorld();
       for (let m = 0; m < 36; m++) {
-        const P = BOT.smart(W); P.church = 9999;
+        const P = BOT.smart(W); P.buy = { holy: 9999 };
         const M = runMonth(W, P);
         expect(M.res.reduce((a, r) => a + r.potC, 0)).toBeLessThanOrEqual(CO.CHURCH_CAP);
         M.res.forEach(r => expect(r.potC).toBeLessThanOrEqual(r.potNeed));
@@ -244,7 +246,7 @@ describe('상단·교회와 포션 담합', () => {
       if (!W.cartel) continue;
       const c = us(W); c.cash = 50000;
       const relC = c.relC ?? 50, relM = c.relM ?? 50;
-      const P = BOT.even(W); P.donate = CO.BREAK_DONATION; P.church = 0;
+      const P = BOT.even(W); P.donate = CO.BREAK_DONATION; P.buy = { holy: 0 };
       const M = runMonth(W, P);
       expect(M.res[0].spend.donate).toBe(CO.BREAK_DONATION);
       expect(W.cartel ? W.cartel.churchOut : true).toBe(true);
@@ -256,7 +258,7 @@ describe('상단·교회와 포션 담합', () => {
         expect(churchPrice(W, 0)).toBe(CO.POTION_C0);
         const j = W.cos.findIndex((_, k) => k > 0 && !W.cartel!.donated[k]);
         if (j > 0) expect(churchPrice(W, j)).toBe(Math.round(CO.POTION_C0 * CO.CARTEL_MARKUP));
-        const P2 = BOT.even(W); P2.church = 10;
+        const P2 = BOT.even(W); P2.buy = { holy: 10 };
         const N = runMonth(W, P2), r = N.res[0];
         expect(r.spend.potion).toBe(r.potC * CO.POTION_C0 + (r.potNeed - r.potC) * N.potion);
       }
@@ -267,8 +269,8 @@ describe('상단·교회와 포션 담합', () => {
   it('교회 포션을 많이 쓰면 교회와 가까워지고, 상단 포션만 쓰면 상단과 가까워진다', () => {
     setSeed(6); const A = newWorld(); setSeed(6); const B = newWorld();
     for (let m = 0; m < 12; m++) {
-      const a = BOT.even(A); a.church = 9999; runMonth(A, a);
-      const b = BOT.even(B); b.church = 0; runMonth(B, b);
+      const a = BOT.even(A); a.buy = { holy: 9999 }; runMonth(A, a);
+      const b = BOT.even(B); b.buy = { holy: 0 }; runMonth(B, b);
     }
     expect(us(A).relC!).toBeGreaterThan(us(B).relC!);
     expect(us(B).relM!).toBeGreaterThan(us(A).relM!);
@@ -281,7 +283,7 @@ describe('교회 성수 포션', () => {
     for (let g = 1; g <= 30; g++) {
       for (const church of [0, 9999]) {
         setSeed(g); const W = newWorld();
-        for (let m = 0; m < 12; m++) { const P = BOT.even(W); P.church = church; const M = runMonth(W, P); if (church) a += M.res[0].deaths; else b += M.res[0].deaths; }
+        for (let m = 0; m < 12; m++) { const P = BOT.even(W); P.buy = { holy: church }; const M = runMonth(W, P); if (church) a += M.res[0].deaths; else b += M.res[0].deaths; }
       }
     }
     expect(a).toBeLessThan(b);
@@ -541,5 +543,72 @@ describe('갈무리 소재와 미궁 도감', () => {
     let seen = 0;
     for (let m = 0; m < 36; m++) { runMonth(W, BOT.even(W)); seen += W.mat!.dem.length; W.mat!.dem.forEach(d => expect(d.until).toBeGreaterThanOrEqual(W.month - 1)); }
     expect(seen).toBeGreaterThan(0);
+  });
+});
+
+describe('보급 창고 · 전리품 보관 기한 · 조사 의뢰 · 편성 줄', () => {
+  it('포션은 사 둔 것에서 쓴 만큼 줄고, 모자라면 조당 포션을 줄여 보낸다', () => {
+    setSeed(61); const W: World = newWorld();
+    const P = BOT.even(W); P.buy = { pot: 10 };
+    const M = runMonth(W, P), r = M.res[0];
+    expect(r.potUsed).toBeLessThanOrEqual(10);
+    expect(r.potShort).toBeGreaterThan(0);
+    expect(us(W).sup!.pot + us(W).sup!.holy).toBe(10 - r.potUsed);
+    const P2 = BOT.even(W); P2.buy = { pot: 500 };
+    const M2 = runMonth(W, P2);
+    expect(M2.res[0].potShort).toBe(0);
+    expect(us(W).sup!.pot).toBeGreaterThan(400);
+  });
+  it('장비는 한 벌을 조 하나가 들고 가고, 모자라면 그만큼은 장비 없이 가며, 망가진 만큼 창고에서 빠진다', () => {
+    setSeed(62); const W: World = newWorld();
+    const P = BOT.even(W); P.parties[0] = 6; P.kits = [[{ n: 6, g: 'g:냉기' }]]; P.buy = { gear: { 냉기: 4 } };
+    const M = runMonth(W, P), r = M.res[0];
+    expect(r.gearUsed['냉기']).toBe(4);
+    expect(M.ours.filter(x => x.keys.includes('g:냉기') && x.kit === 0).length).toBeGreaterThanOrEqual(4);
+    expect(us(W).sup!.gear['냉기']).toBe(4 - (r.gearLost['냉기'] || 0));
+    expect(r.spend.gear).toBe(4 * CO.GEAR_PRICE);
+  });
+  it('전리품은 들어온 달별로 쌓이고, 오래된 것부터 팔리며, 보관 기한이 지나면 묶음째 상한다', () => {
+    setSeed(63); const W: World = newWorld();
+    let spoiled = 0;
+    for (let m = 0; m < 8; m++) {
+      const P = BOT.even(W); P.sell = P.sell.map(() => 0);
+      const M = runMonth(W, P); spoiled += M.res[0].spoiled[0];
+      const c = us(W);
+      c.stock.forEach((n, j) => expect(n).toBe((c.lots![j] || []).reduce((a, b) => a + (b || 0), 0)));
+      expect((c.lots![0] || []).length).toBeLessThanOrEqual(CO.KEEP[0] + 1);
+    }
+    expect(spoiled).toBeGreaterThan(0);
+    // 다 팔면 창고가 빈다
+    const P = BOT.even(W); P.sell = [...us(W).stock];
+    const before = us(W).stock[0], M = runMonth(W, P);
+    expect(M.res[0].sold[0]).toBe(before);
+    expect(us(W).stock[0]).toBe(M.res[0].got[0]);
+  });
+  it('조사 의뢰는 한 달에 정해진 횟수까지, 값은 그달 정산에 나가고, 타 용병단 조사는 실제 계획과 같다', () => {
+    setSeed(64); const W: World = newWorld();
+    for (let m = 0; m < 3; m++) runMonth(W, BOT.even(W));
+    const a = probe(W, 'riv', 'red'), b = probe(W, 'mkt');
+    expect(a && b).toBeTruthy();
+    expect(probe(W, 'riv', 'holy')).toBeTruthy();
+    expect(probe(W, 'mkt')).toBeNull();
+    const M = runMonth(W, BOT.even(W)), i = W.cos.findIndex(c => c.id === 'red');
+    expect(M.plans[i].parties).toEqual(a!.parties);
+    expect(M.res[0].spend.probe).toBe(CO.PROBE_RIV * 2 + CO.PROBE_MKT);
+    expect(probe(W, 'mkt')).toBeTruthy();
+  });
+  it('편성 줄은 층의 우리 조를 넘지 않게 맞춰지고, 줄마다 챙긴 것을 갖춘 조가 그 줄로 기록된다', () => {
+    setSeed(65); const W: World = newWorld();
+    const P = BOT.even(W); P.parties[0] = 5; P.kits = [[{ n: 3, g: 'c:사제' }, { n: 9, g: 'c:궁수+g:은+c:전사' }]];
+    const Q = sanitize(W, us(W), P);
+    expect(Q.kits![0]).toEqual([{ n: 3, g: 'c:사제' }, { n: 2, g: 'c:궁수+g:은' }]);
+    const M = runMonth(W, P);
+    const k0 = M.ours.filter(x => x.kit === 0), k1 = M.ours.filter(x => x.kit === 1);
+    expect(k0.length).toBe(3); expect(k1.length).toBe(2);
+    k0.forEach(x => expect(x.keys).toContain('c:사제'));
+    k1.forEach(x => expect(x.keys).toContain('c:궁수'));
+    const html = resultWeekHtml(W) + expWeekHtml(W, carryPlan(W, P), { phase: 1, tab: 'report', pins: [] });
+    expect(html).not.toMatch(/undefined|NaN|\[object/);
+    expect(html).toContain('편성 줄');
   });
 });
