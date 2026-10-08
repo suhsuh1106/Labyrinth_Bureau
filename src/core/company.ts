@@ -2,7 +2,7 @@
 // 여러 용병단이 같은 층에서 전리품을 캐고 같은 시장에 판다. 층마다 캘 수 있는 양이 한정돼 몰리면 나눠 갖고,
 // 모두가 같은 시세에 팔아서 다 같이 많이 팔면 값이 떨어진다. 플레이어는 그중 한 용병단의 행정관이다.
 // 화면에 붙이기 전까지는 상태를 S가 아니라 이 파일의 World 하나로 둔다.
-import { ANOMALIES, CLASSES, CLASS_SHARE, GEARS, GEAR_SHARE, KEYS, MONSTERS, ROOT_LORE } from './data';
+import { ANOMALIES, BUYERS, CLASSES, CLASS_SHARE, FAUNA, GEARS, GEAR_SHARE, KEYS, MAT_TIER, MONSTERS, type Mat, ROOT_LORE } from './data';
 import { rnd } from './rng';
 import { keyWord } from './util';
 
@@ -42,7 +42,33 @@ export const CO = {
   ADAPT_AT: 220,
   // 현장 기록은 오래된 것일수록 흐려진다 (매달 OBS_FADE를 곱한다)
   OBS_FADE: 0.92,
+  // 갈무리 소재: 성공한 직영 파티가 몬스터에게서 얻는 것 (계약 파티는 갈무리하지 않는다). 층이 비어 갈수록 덜 나온다.
+  // 소재는 정산 때 모두 판다 (창고에 두지 않는다). 시세는 시장 전체 물량이 평소(지난 물량의 흐르는 평균)보다 많으면 떨어진다
+  // MAT_VAL: 소재 값 전체에 곱하는 값. 소재는 판매 수입의 한 할 남짓이 되게 맞췄다 (더 크면 모두가 부자가 되고 큰 용병단이 더 앞선다)
+  MAT_VAL: 0.45, MAT_FLOW: 0.25, MAT_EXP: 0.4, MAT_LO: 0.7, MAT_HI: 1.2,
+  // 찾는 곳: 매달 DEM_CHANCE로 새로 생기고(동시에 DEM_MAX까지), DEM_MUL 사이로 값을 더 쳐주며 DEM_LEN달 동안 이어진다
+  DEM_CHANCE: 0.35, DEM_MAX: 4, DEM_MUL: [0.15, 0.5], DEM_LEN: [3, 8],
 };
+// 소재 하나: 이름, 층, 몬스터, 1층 기준 값을 층에 맞춘 값
+export type MatRef = Mat & { f: number; mon: string; val: number };
+// 그 판의 층마다 사는 몬스터 셋(주인 하나와 곁 몬스터 둘)과 소재들
+export const floorMons = (W: World, f: number) => [MONSTERS[W.mons[f]], ...FAUNA[f]].map(m => ({ name: m.name, mats: m.mats.map(x => ({ ...x, f, mon: m.name, val: Math.max(1, Math.round(x.v * MAT_TIER[f] * CO.MAT_VAL)) })) as MatRef[] }));
+export const allMats = (W: World) => FLOORS.flatMap((_, f) => floorMons(W, f).flatMap(m => m.mats));
+// 소재를 찾는 곳 (모든 용병단에 똑같이 값을 더 쳐준다)
+export type Demand = { m: string; who: number; mul: number; at: number; until: number };
+// 도감 기록: 우리 성공 조가 갖춘 것(직업·장비 하나, 또는 둘의 짝)마다 몇 조였고, 그중 몇 조가 그 소재를 얻었나. '*'는 성공한 조 전체
+export type Book = { n: Record<string, number>; got: Record<string, Record<string, number>> };
+export type Mats = { avgQ: Record<string, number>; ref: Record<string, number>; dem: Demand[]; book: Book[] };
+// 편성 지침은 직업 하나와 장비 하나까지 함께 줄 수 있다 ("c:사제+g:은")
+export const guideParts = (g: string | undefined) => (g ? g.split('+').filter(Boolean) : []);
+// 파티가 갖춘 것에서 도감 기록의 조건을 만든다: 하나씩과, 둘씩 짝
+export const condsOf = (keys: string[]) => { const k = [...keys].sort(), out = [...k]; for (let i = 0; i < k.length; i++) for (let j = i + 1; j < k.length; j++) out.push(k[i] + '+' + k[j]); return out; };
+// 소재를 얻을 확률: 조건을 갖췄으면 (1+값)배, 층이 비어 갈수록 줄어든다
+export const matChance = (x: Mat, keys: string[], full: number) =>
+  Math.min(0.95, x.p * (1 + (x.b || []).reduce((a, [c, v]) => a + (c.split('+').every(k => keys.includes(k)) ? v : 0), 0))) * (0.5 + 0.5 * clamp(full, 0, 1));
+// 소재 시세: 기준 값 × 찾는 곳 웃돈 × 물량 (평소보다 많이 팔리면 내려간다)
+export const matPrice = (val: number, mul: number, Q: number, avg: number | undefined) => Math.round(val * mul * (avg && Q ? clamp(Math.pow(avg / Q, CO.MAT_EXP), CO.MAT_LO, CO.MAT_HI) : 1));
+export const demandMul = (W: World, m: string) => (W.mat ? W.mat.dem.filter(d => d.m === m && d.until >= W.month).reduce((a, d) => Math.max(a, 1 + d.mul), 1) : 1);
 // 정보망: 출처마다 0~3단계. 매달 유지비(KEEP)보다 적게 쓰면 한 단계 내려가고, 넘게 쓴 만큼 쌓여 UP에 이르면 한 단계 오른다.
 // 귀환 보고와 입구 출입 기록은 1단계가 공짜로 주어진다. 상단 장부·교회 기록 2단계부터는 그 세력과의 사이가 INTEL_REL 이상이어야 한다
 export type Src = 'ret' | 'mkt' | 'chu' | 'gate' | 'spy';
@@ -130,6 +156,7 @@ export const ROSTER: { id: string; name: string; style: Style; size: number }[] 
 export type CoResult = {
   sent: number[]; hired: number[]; ok: number[]; got: number[]; deaths: number; sold: number[]; sales: number;
   spend: { sortie: number; potion: number; wage: number; train: number; base: number; hire: number; recruit: number; donate: number; root: number; tool: number; proc: number; intel: number }; net: number; recruited: number;
+  matSold: Record<string, number>; matSales: number;   // 정산 때 판 소재 (판매 수입 sales에 들어 있다)
   dF: number[];   // 층별 사망
   potNeed: number; potC: number;   // 이번 달 쓴 포션과 그중 교회 포션
 };
@@ -137,7 +164,8 @@ export type MonthResult = {
   month: number; res: CoResult[]; plans: Plan[]; Q: number[]; price: number[]; potion: number; potQ: number; potionC: number; cartel: boolean;
   floors: { before: number; taken: number; crowd: number }[]; perParty: number[]; opened: number | null; rank: string[];
   // 우리 직영 파티 하나하나: 간 층, 갖춘 직업·장비, 성공, 사망 (귀환 보고에 쓴다)
-  ours: { f: number; keys: string[]; ok: boolean; d: number }[];
+  ours: { f: number; keys: string[]; ok: boolean; d: number; mats: [string, number][]; first: string[] }[];
+  matPrice: Record<string, number>; matRef: Record<string, number>;   // 소재 시세와, 그달 전까지의 평균 시세
   pressure: number; overflow: boolean;
 };
 // 근원: 찾은 달(0이면 아직), 봉인·채굴장 기금, 다 모은 쪽과 그 달
@@ -153,6 +181,7 @@ export type World = {
   pressure?: number; anoms?: number; anomN?: number; roots?: Root[];
   keys?: string[]; keyUse?: number[]; adapted?: number[];   // 층마다 지금의 약점, 약점대로 들어간 파티 누적, 약점이 바뀐 달(0이면 아직)
   intel?: Intel;
+  mat?: Mats;
 };
 export type Cartel = { left: number; churchOut: boolean; donated: number[] };
 // 이번 달 i번 용병단이 교회 포션에 내는 값: 담합 중엔 올라 있고, 교회가 빠진 뒤로는 후원한 용병단에만 예전 값으로 판다
@@ -168,6 +197,7 @@ export function newWorld(): World {
     mons, notes: [], obs: FLOORS.map(() => ({})), potionC: CO.POTION_C0, cartel: null, tension: 0, cool: 0,
     pressure: 0, anoms: 0, anomN: 0, roots: FLOORS.map(() => ({ found: 0, seal: 0, mine: 0, done: '' as const, at: 0 })),
     keys: mons.map(m => MONSTERS[m].key), keyUse: zeros(), adapted: zeros(),
+    mat: { avgQ: {}, ref: {}, dem: [], book: FLOORS.map(() => ({ n: {}, got: {} })) },
     intel: { lv: { ...INTEL.BASE }, acc: { ret: 0, mkt: 0, chu: 0, gate: 0, spy: 0 }, spyOn: [], tenure: {}, est: { floors: FLOORS.map((_, f) => (f === 0 ? { lo: 40, hi: 100, mid: 75 } : null)), rivals: {} } },
     month: 1, unlocked: 1, prog: 0, pool: FLOORS.map(F => F.max), price: ITEMS.map(it => it.P0), potion: CO.POTION0,
     cos: ROSTER.map(r => ({ ...r, members: r.size, cash: r.style === 'crowd' ? 0 : Math.round(CO.START_CASH * Math.pow(r.size / 36, CO.CASH_EXP)),
@@ -283,7 +313,7 @@ export function aiPlan(W: World, i: number): Plan {
 
 // 계약 파티: 군소 용병대를 이번 달만 빌린다. 한 조에 HIRE_FEE를 주고, 캐 온 것의 HIRE_CUT은 그들 몫이다
 export const hireCost = (P: Plan) => P.hire.reduce((a, b) => a + b, 0) * CO.HIRE_FEE;
-export const sortieCost = (P: Plan, potion: number) => FLOORS.map((_, f) => (P.parties[f] + P.hire[f]) * (CO.SORTIE + P.pots[f] * potion + (P.guide && P.guide[f] ? CO.GUIDE_COST : 0)));
+export const sortieCost = (P: Plan, potion: number) => FLOORS.map((_, f) => (P.parties[f] + P.hire[f]) * (CO.SORTIE + P.pots[f] * potion + guideParts(P.guide && P.guide[f]).length * CO.GUIDE_COST));
 export const toolCost = (P: Plan) => P.parties.reduce((a, n, f) => a + (n + P.hire[f]) * (CO.TOOL_COST[P.tool || 0] || 0), 0);
 export const intelCost = (P: Plan) => SRCS.reduce((a, k) => a + Math.max(0, Math.floor((P.intel && P.intel[k]) || 0)), 0);
 
@@ -309,7 +339,9 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
   const gotC = req.map((q, i) => (reqAll <= CO.CHURCH_CAP ? q : Math.min(q, Math.floor(CO.CHURCH_CAP * wt[i] / wtAll))));
   const holy = need.map((n, i) => 1 + (n ? CO.HOLY * gotC[i] / n : 0));
   const res: CoResult[] = W.cos.map(() => ({ sent: zeros(), hired: zeros(), ok: zeros(), got: zeros(), deaths: 0, sold: zeros(), sales: 0,
-    spend: { sortie: 0, potion: 0, wage: 0, train: 0, base: 0, hire: 0, recruit: 0, donate: 0, root: 0, tool: 0, proc: 0, intel: 0 }, net: 0, recruited: 0, potNeed: 0, potC: 0, dF: zeros() }));
+    spend: { sortie: 0, potion: 0, wage: 0, train: 0, base: 0, hire: 0, recruit: 0, donate: 0, root: 0, tool: 0, proc: 0, intel: 0 }, net: 0, recruited: 0, potNeed: 0, potC: 0, dF: zeros(),
+    matSold: {} as Record<string, number>, matSales: 0 }));
+  const bookOld = W.mat ? W.mat.book.map(B => new Set(Object.keys(B.got).filter(m => B.got[m]['*'] > 0))) : null;
   // 현장 기록은 오래된 것일수록 흐려진다 (몬스터가 바뀌면 옛 기록이 덜 속이게)
   W.obs.forEach(o => Object.values(o).forEach(v => { v.n *= CO.OBS_FADE; v.w *= CO.OBS_FADE; }));
   const floors: MonthResult['floors'] = [], ours: MonthResult['ours'] = [];
@@ -317,6 +349,7 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
   FLOORS.forEach((F, f) => {
     const crowd = plans.reduce((a, P) => a + P.parties[f] + P.hire[f], 0);
     const mon = MONSTERS[W.mons[f]], key = keyOf(W, f), seen = { good: false, bad: false }, sealed = rootOf(W, f).done === 'seal';
+    const mons = floorMons(W, f), full = W.pool[f] / Math.max(1, floorMax(W, f)), B = W.mat ? W.mat.book[f] : null;
     const wins = W.cos.map((c, i) => {
       const P = plans[i], n = P.parties[f] + P.hire[f], p = succRate(c, f, P.pots[f], crowd);
       let w = 0, d = 0;
@@ -326,19 +359,32 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
         const hasKey = keys.includes(key), hasBad = keys.includes(mon.bad);
         const ok = rnd() < clamp(p + (hasKey ? CO.KEY_BONUS : 0) - (hasBad ? CO.BAD_PEN : 0) + (sealed && c.style === 'player' ? CO.SEAL_SUCC : 0), 0.05, 0.97);
         let dq = 0;
+        // 성공한 직영 파티는 만난 몬스터를 갈무리한다
+        const got: [string, number][] = [];
+        if (ok && q < P.parties[f]) mons.forEach(m => m.mats.forEach(x => {
+          if (rnd() >= matChance(x, keys, full)) return;
+          const k = x.k ? x.k[0] + Math.floor(rnd() * (x.k[1] - x.k[0] + 1)) : 1;
+          got.push([x.n, k]); res[i].matSold[x.n] = (res[i].matSold[x.n] || 0) + k;
+        }));
         if (ok) w++;
         else if (q < P.parties[f]) dq = Math.round(Math.max(0, CO.PARTY * F.risk * Math.max(0.2, 1.9 - 0.3 * P.pots[f] * holy[i]) * (0.5 + rnd())));   // 계약 파티의 사망은 그들 몫
         d += dq;
         // 우리 직영 파티만 무엇을 갖추고 갔고 어떻게 됐는지 기록해 온다
         if (c.style === 'player' && q < P.parties[f]) {
           ['*', ...keys].forEach(k => { const o = W.obs[f][k] || (W.obs[f][k] = { n: 0, w: 0 }); o.n++; if (ok) o.w++; });   // '*'는 그 층 전체
-          ours.push({ f, keys, ok, d: dq });
+          const first = got.filter(([m]) => bookOld && !bookOld[f].has(m) && !ours.some(o => o.mats.some(g => g[0] === m))).map(([m]) => m);
+          ours.push({ f, keys, ok, d: dq, mats: got, first });
+          if (ok && B) {
+            const cs = ['*', ...condsOf(keys)];
+            cs.forEach(k => { B.n[k] = (B.n[k] || 0) + 1; });
+            got.forEach(([m]) => { const g = B.got[m] || (B.got[m] = {}); cs.forEach(k => { g[k] = (g[k] || 0) + 1; }); });
+          }
           if (ok && hasKey) seen.good = true;
           if (!ok && hasBad) seen.bad = true;
         }
       }
       res[i].sent[f] = P.parties[f]; res[i].hired[f] = P.hire[f]; res[i].ok[f] = w; res[i].deaths += d; res[i].dF[f] = d;
-      if (P.guide && P.guide[f] === key && W.keyUse) W.keyUse[f] += n;
+      if (guideParts(P.guide && P.guide[f]).includes(key) && W.keyUse) W.keyUse[f] += n;
       return w;
     });
     if (f === W.unlocked - 1) deepWins = wins.reduce((a, b) => a + b, 0);
@@ -370,6 +416,16 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
   // 판매: 창고에서 내놓은 만큼 모두가 같은 시세에 판다
   const Q = ITEMS.map((_, j) => plans.reduce((a, P, i) => a + Math.min(P.sell[j], W.cos[i].stock[j]), 0));
   const price = ITEMS.map((it, j) => priceOf(it, Q[j]));
+  // 소재: 모두 정산 때 판다. 시세는 기준 값 × 찾는 곳 웃돈 × 물량
+  const MT = W.mat, mats = allMats(W), matP: Record<string, number> = {}, matRef: Record<string, number> = {};
+  mats.forEach(x => {
+    const Qm = res.reduce((a, r) => a + (r.matSold[x.n] || 0), 0);
+    matRef[x.n] = MT && MT.ref[x.n] ? MT.ref[x.n] : x.val;
+    if (!Qm) return;
+    matP[x.n] = matPrice(x.val, demandMul(W, x.n), Qm, MT ? MT.avgQ[x.n] : undefined);
+    if (MT) { MT.avgQ[x.n] = MT.avgQ[x.n] ? MT.avgQ[x.n] * (1 - CO.MAT_FLOW) + Qm * CO.MAT_FLOW : Qm; MT.ref[x.n] = Math.round(matRef[x.n] * (1 - CO.MAT_FLOW) + matP[x.n] * CO.MAT_FLOW); }
+  });
+  res.forEach(r => { r.matSales = Object.entries(r.matSold).reduce((a, [m, n]) => a + n * (matP[m] || 0), 0); r.sales += r.matSales; });
   W.cos.forEach((c, i) => {
     const P = plans[i], r = res[i];
     // 상단 경매장(가죽·마석)은 단골을 조금 더 쳐준다: 상단과의 사이에 따라 ±5%
@@ -424,10 +480,24 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
   const perParty = FLOORS.map((_, f) => { const n = plans.reduce((a, P) => a + P.parties[f] + P.hire[f], 0); return n ? res.reduce((a, r) => a + r.got[f], 0) * price[f] / n : 0; });
   W.price = price; W.potion = potion; W.potionC = potionC;
   const rank = W.cos.filter(c => c.style !== 'crowd').map(c => [worth(W, c), c.id] as [number, string]).sort((a, b) => b[0] - a[0]).map(x => x[1]);
-  const M: MonthResult = { month: W.month, res, plans, Q, price, potion, potQ, potionC, cartel: !!K, floors, perParty, opened, rank, ours, pressure: Math.round(W.pressure || 0), overflow };
+  const M: MonthResult = { month: W.month, res, plans, Q, price, potion, potQ, potionC, cartel: !!K, floors, perParty, opened, rank, ours, pressure: Math.round(W.pressure || 0), overflow, matPrice: matP, matRef };
   W.last = M; W.history.push(M); W.month++;
+  demands(W);
   estimate(W);
   return M;
+}
+
+// 찾는 곳: 열린 층의 소재 중 하나를 누군가 몇 달 동안 값을 더 쳐주고 찾는다. 흔한 것보다 드문 것을 더 자주 찾는다
+function demands(W: World) {
+  const MT = W.mat; if (!MT) return;
+  MT.dem = MT.dem.filter(d => d.until >= W.month);
+  if (MT.dem.length >= CO.DEM_MAX || rnd() >= CO.DEM_CHANCE) return;
+  const pool = allMats(W).filter(x => x.f < W.unlocked && !MT.dem.some(d => d.m === x.n));
+  if (!pool.length) return;
+  const x = pickW(pool, pool.map(m => (m.p >= 0.5 ? 1 : 2))), who = Math.floor(rnd() * BUYERS.length);
+  const mul = Math.round((CO.DEM_MUL[0] + rnd() * (CO.DEM_MUL[1] - CO.DEM_MUL[0])) * 20) / 20;
+  const len = CO.DEM_LEN[0] + Math.floor(rnd() * (CO.DEM_LEN[1] - CO.DEM_LEN[0] + 1));
+  MT.dem.push({ m: x.n, who, mul, at: W.month, until: W.month + len - 1 });
 }
 
 // 몬스터 적응: 약점대로 갖춘 파티가 오래 몰리면 그 층 몬스터의 약점이 바뀐다. 경쟁 용병단은 다시 깨쳐야 하고,
@@ -522,7 +592,12 @@ export function sanitize(W: World, c: Company, P: Plan): Plan {
   const R = Q.root ? rootOf(W, Q.root.f) : null;
   Q.root = Q.root && R && R.found && !R.done ? { f: Q.root.f, seal: Math.max(0, Math.floor(Q.root.seal || 0)), mine: Math.max(0, Math.floor(Q.root.mine || 0)) } : null;
   if (Q.root && !Q.root.seal && !Q.root.mine) Q.root = null;
-  Q.guide = FLOORS.map((_, f) => (Q.guide && KEYS.includes(Q.guide[f]) && f < W.unlocked ? Q.guide[f] : ''));
+  // 지침은 직업 하나와 장비 하나까지
+  Q.guide = FLOORS.map((_, f) => {
+    if (!Q.guide || f >= W.unlocked) return '';
+    const ps = guideParts(Q.guide[f]).filter(k => KEYS.includes(k));
+    return [ps.find(k => k.startsWith('c:')), ps.find(k => k.startsWith('g:'))].filter(Boolean).join('+');
+  });
   if (Q.base && (Q.base.amt <= 0 || Q.base.f >= W.unlocked)) Q.base = null;
   return Q;
 }
@@ -590,7 +665,7 @@ function depths(W: World, plans: Plan[], res: CoResult[], floors: MonthResult['f
   const P = plans[0];
   FLOORS.forEach((F, f) => {
     const R = rootOf(W, f), key = keyOf(W, f), o = W.obs[f][key];
-    if (!W.roots || R.found || !P.parties[f] || P.guide[f] !== key || !o || o.w < CO.ROOT_WINS) return;
+    if (!W.roots || R.found || !P.parties[f] || !guideParts(P.guide[f]).includes(key) || !o || o.w < CO.ROOT_WINS) return;
     R.found = W.month;
     const n = W.roots.filter(r => r.found).length;
     W.notes.push({ m: W.month, f, t: `${MONSTERS[W.mons[f]].root} ${ROOT_LORE[Math.min(n, ROOT_LORE.length) - 1]}` });
@@ -623,8 +698,10 @@ const pickW = <T,>(xs: T[], ws: number[]) => { let x = rnd() * ws.reduce((a, b) 
 export function rollParty(guide = '') {
   const cls = [0, 1, 2, 3].map(() => pickW(CLASSES, CLASS_SHARE));
   let gear = pickW(GEARS, GEAR_SHARE);
-  if (guide.startsWith('c:') && !cls.includes(guide.slice(2))) cls[0] = guide.slice(2);
-  if (guide.startsWith('g:')) gear = guide.slice(2);
+  guideParts(guide).forEach(g => {
+    if (g.startsWith('c:') && !cls.includes(g.slice(2))) cls[0] = g.slice(2);
+    if (g.startsWith('g:')) gear = g.slice(2);
+  });
   return [...new Set(cls.map(x => 'c:' + x)), ...(gear !== '일반' ? ['g:' + gear] : [])];
 }
 // 현장 증언: 우리 파티가 다녀온 층에서 들은 말을 남긴다. 처음 가면 겉모습, 세 달째 더 자세한 겉모습,

@@ -1,7 +1,8 @@
 // 용병단 행정실 화면: 결정표(위)와 지난달 정산(아래). HTML 문자열을 만들기만 하고 상태는 건드리지 않는다
-import { CO, FLOORS, INTEL, ITEMS, type Plan, SRCS, type World, churchPrice, hireCost, intelBlock, intelCost, lootMul, toolCost, trainBonus, keysAll, maxParties, priceOf, rankOf, sanitize, sortieCost, succRate, us, worth } from '../../core/company';
-import { MONSTERS } from '../../core/data';
+import { CO, FLOORS, INTEL, ITEMS, type Plan, SRCS, type World, churchPrice, guideParts, hireCost, intelBlock, intelCost, lootMul, toolCost, trainBonus, maxParties, priceOf, rankOf, sanitize, sortieCost, succRate, us, worth } from '../../core/company';
+import { CLASSES, GEARS, MONSTERS } from '../../core/data';
 import { keyLabel } from '../../core/util';
+import { condLabel, kitHint } from './book';
 import { paperHtml } from './paper';
 import { SRC_INFO } from './intel';
 // 정보망 단계 (화면이 무엇을 보여 줄지 정한다)
@@ -54,7 +55,7 @@ export function planHtml(W: World, raw: Plan) {
       <td data-l="우리 파티">${stepper('parties', f, raw.parties[f], `${F.name} 파티 수`)}</td>
       <td data-l="계약 파티">${stepper('hire', f, raw.hire[f], `${F.name} 계약 파티`)}</td>
       <td data-l="파티당 포션">${stepper('pots', f, raw.pots[f], `${F.name} 파티당 포션`)}</td>
-      <td data-l="편성 지침"><select class="guide" data-k="guide" data-i="${f}" aria-label="${F.name} 편성 지침"><option value="">지침 없음</option>${keysAll.map(k => `<option value="${k}"${P.guide[f] === k ? ' selected' : ''}>${keyLabel(k)}</option>`).join('')}</select>${P.guide[f] ? `<small>조당 +${CO.GUIDE_COST}G</small>` : ''}</td>
+      <td data-l="챙길 직업 · 장비">${kitSel(F.name, f, P.guide[f])}<small>${guideParts(P.guide[f]).length ? `조당 +${guideParts(P.guide[f]).length * CO.GUIDE_COST}G · ` : ''}${kitHint(W, f, P.guide[f])}</small></td>
       <td class="n" data-l="예상 성공률">${P.parties[f] + P.hire[f] ? pct(p) : '-'}</td>
       <td class="n" data-l="출정 비용">${fmt(sc[f] + P.hire[f] * CO.HIRE_FEE)}G</td></tr>`;
   }).join('');
@@ -77,7 +78,7 @@ export function planHtml(W: World, raw: Plan) {
     <h2>제${W.month}월 결정표</h2>
     <p class="lead">파티는 4명 한 조. 단원 ${c.members}명이면 ${maxParties(c)}조까지 직접 보낼 수 있고, 모자라면 군소 용병대를 계약 파티로 빌려요 (한 조 ${CO.HIRE_FEE}G, 캔 것의 ${pct(CO.HIRE_CUT)}는 그들 몫). 예상치는 경쟁자가 지난달처럼 움직인다고 보고 어림한 값이에요.</p>
     <h3>1 · 어느 층에 몇 조를 보낼까</h3>
-    <div class="tw"><table class="grid cards"><thead><tr><th>층 · 전리품</th><th class="n">지난달 남들</th><th class="n">지난달 우리<br>성공 조당</th><th>우리 파티</th><th>계약 파티</th><th>파티당 포션 (${W.potion}G)</th><th>편성 지침</th><th class="n">예상 성공률</th><th class="n">출정 비용</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="tw"><table class="grid cards"><thead><tr><th>층 · 전리품</th><th class="n">지난달 남들</th><th class="n">지난달 우리<br>성공 조당</th><th>우리 파티</th><th>계약 파티</th><th>파티당 포션 (${W.potion}G)</th><th>챙길 직업 · 장비</th><th class="n">예상 성공률</th><th class="n">출정 비용</th></tr></thead><tbody>${rows}</tbody></table></div>
     <details class="field"${W.notes.length ? ' open' : ''}><summary>현장 기록 · 우리 파티만 가져오는 정보</summary>
       <p class="note">파티마다 직업 넷과 장비 하나가 섞여 들어가요. 그 층에 사는 것의 약점을 갖춘 파티는 잘 돌아오고, 역효과를 갖춘 파티는 크게 당해요. 증언과 성공률을 보고 약점이라 여기는 것을 편성 지침으로 정하면, 우리 파티는 모두 그것을 갖추고 들어가요. 경쟁 용병단도 한 층에 오래 드나들면 약점을 깨쳐요.</p>
       ${fieldHtml(W)}
@@ -97,6 +98,12 @@ export function planHtml(W: World, raw: Plan) {
     ${intelPlanHtml(W, raw)}
     <div class="sum"><div><span>출정</span><b>${sent} + 계약 ${hired}조</b></div><div><span>지출 (급여 ${fmt(Math.round(c.members * CO.WAGE * (1 + c.members / CO.OVERHEAD)))} 포함)</span><b>${fmt(spend)}</b></div><div><span>예상 판매 수입</span><b>${fmt(sales)}</b></div><div><span>예상 순이익</span><b class="${sales - spend < 0 ? 'neg' : 'pos'}">${sgn(sales - spend)}</b></div></div>
     ${warn.length ? `<div class="warn">${warn.join(' · ')}</div>` : ''}`;
+}
+
+// 편성: 모든 우리 조가 꼭 갖출 직업 하나와 장비 하나 (안 고르면 섞인 대로 간다)
+function kitSel(name: string, f: number, g: string) {
+  const ps = guideParts(g), c = ps.find(k => k.startsWith('c:')) || '', e = ps.find(k => k.startsWith('g:')) || '';
+  return `<span class="kit"><select data-k="guideC" data-i="${f}" aria-label="${name} 챙길 직업"><option value="">직업 섞인 대로</option>${CLASSES.map(x => `<option value="c:${x}"${c === 'c:' + x ? ' selected' : ''}>${x}</option>`).join('')}</select><select data-k="guideG" data-i="${f}" aria-label="${name} 챙길 장비"><option value="">장비 섞인 대로</option>${GEARS.filter(x => x !== '일반').map(x => `<option value="g:${x}"${e === 'g:' + x ? ' selected' : ''}>${x} 장비</option>`).join('')}</select></span>`;
 }
 
 // 지난달 정산: 순위표, 층별 채집, 시세표, 동향, 우리 정산
@@ -130,6 +137,7 @@ export function resultsHtml(W: World) {
   const r = L.res[0];
   const mine = `<div class="tw"><table class="grid"><thead><tr><th>층</th><th class="n">우리</th><th class="n">계약</th><th class="n">성공</th><th class="n">캐 온 양</th></tr></thead><tbody>${FLOORS.map((F, f) => (r.sent[f] + r.hired[f] ? `<tr><td>${F.name}</td><td class="n">${r.sent[f]}</td><td class="n">${r.hired[f]}</td><td class="n">${r.ok[f]}</td><td class="n">${r.got[f]}</td></tr>` : '')).join('')}</tbody></table></div>
     <div class="tw"><table class="grid"><thead><tr><th>정산</th><th class="n">금액</th></tr></thead><tbody>${ITEMS.map((it, j) => (r.sold[j] ? `<tr><td>${it.name} ${r.sold[j]}개 × ${fmt(L.price[j])}G</td><td class="n">${fmt(r.sold[j] * L.price[j])}</td></tr>` : '')).join('')}
+      ${r.matSales ? `<tr><td>갈무리 소재 ${Object.values(r.matSold).reduce((a, b) => a + b, 0)}개</td><td class="n">${fmt(r.matSales)}</td></tr>` : ''}
       <tr><td>출정 (포션 ${r.potNeed}병 중 교회 ${r.potC}병 · ${fmt(r.spend.potion)} 포함)</td><td class="n">−${fmt(r.spend.sortie + r.spend.potion)}</td></tr>
       ${r.spend.hire ? `<tr><td>계약 파티 수수료</td><td class="n">−${fmt(r.spend.hire)}</td></tr>` : ''}
       <tr><td>급여</td><td class="n">−${fmt(r.spend.wage)}</td></tr>
@@ -148,7 +156,7 @@ export function resultsHtml(W: World) {
     <h3>동향</h3><ul class="co-news">${newsLines(W).map(t => `<li>${t}</li>`).join('')}</ul>
     <h3>시세표</h3>
     <div class="tw"><table class="grid wide"><thead><tr><th>전리품</th><th class="n">시장 전체 판매</th><th class="n">수요</th><th class="n">시세</th><th class="n">기준 대비</th><th>누가 팔았나</th></tr></thead><tbody>${prices}</tbody></table></div>
-    <h3>귀환 보고 · 우리 직영 파티</h3>
+    <h3>제${L.month}월 탐사 결과 · 우리 직영 조</h3>
     ${returnHtml(W)}
     <h3>우리 정산</h3>
     <div class="mine">${mine}</div>
@@ -209,22 +217,31 @@ export function supplyHtml(W: World, raw: Plan, P: Plan) {
     <p class="note">우리와의 사이 · 상단 ${rel(c.relM)} · 교회 ${rel(c.relC)}. 상단 포션을 사면 상단과, 교회 포션을 사면 교회와 가까워져요. 상단과 가까우면 상단 경매장(가죽·마석)이 조금 더 쳐줘요.</p>`;
 }
 
-// 귀환 보고: 우리 직영 파티 하나하나가 무엇을 갖추고 들어가 어떻게 돌아왔나 (지난달 기록만 읽는다)
+// 탐사 결과: 우리 직영 조 하나하나가 무엇을 갖추고 들어가 무엇을 갈무리해 왔나를 한 줄씩 적고, 판 소재를 늘어놓는다 (지난달 기록만 읽는다)
 const CLS_SHORT = (k: string) => (k.startsWith('c:') ? k.slice(2) : '');
 export function returnHtml(W: World) {
   const L = W.last; if (!L || !L.ours || !L.ours.length) return '<p class="note">이번 달 우리 직영 파티는 미궁에 들어가지 않았어요.</p>';
   const r = L.res[0], P = L.plans[0];
+  let no = 0;
   const blocks = FLOORS.map((F, f) => {
     const ps = L.ours.filter(x => x.f === f); if (!ps.length) return '';
-    const ok = ps.filter(x => x.ok).length, d = ps.reduce((a, x) => a + x.d, 0);
-    const g = P.guide[f], withG = g ? ps.filter(x => x.keys.includes(g)) : [];
-    const chips = ps.map(x => {
+    const ok = ps.filter(x => x.ok).length, d = ps.reduce((a, x) => a + x.d, 0), gs = guideParts(P.guide[f]);
+    const withG = gs.length ? ps.filter(x => gs.every(g => x.keys.includes(g))) : [];
+    const lines = ps.map(x => {
       const cls = x.keys.map(CLS_SHORT).filter(Boolean).join('·'), gear = x.keys.find(k => k.startsWith('g:'));
-      return `<span class="pc ${x.ok ? 'ok' : 'no'}"><i>${x.ok ? '✓' : '–'}</i><span>${cls || '혼성'}</span>${gear ? `<span class="pt-gear">${gear.slice(2)}</span>` : ''}${x.d ? `<b class="neg">${x.d}명</b>` : ''}</span>`;
+      const got = (x.mats || []).map(([m, n]) => `${(x.first || []).includes(m) ? `<b>${m} ×${n}</b><span class="bk-new">처음</span>` : `${m} ×${n}`}`).join(', ');
+      const what = x.ok ? (got || '<span class="dim">갈무리한 것 없음</span>') : `<span class="dim">실패</span>`;
+      return `<div class="ld${(x.first || []).length ? ' first' : ''}"><span class="ld-w">${++no}조 · ${cls || '혼성'}${gear ? ` · ${gear.slice(2)}` : ''}</span><span>${what}${x.d ? ` · <b class="neg">${x.d}명 사망</b>` : ''}</span></div>`;
     }).join('');
-    return `<section class="rf"><div class="rf-h"><b>${F.name}</b><span class="rf-sum">${ps.length}조 중 ${ok}조 성공${d ? ` · <span class="neg">${d}명 사망</span>` : ''} · 캐 온 양 ${r.got[f]}개${r.hired[f] ? ` (계약 ${r.hired[f]}조 몫 포함)` : ''}${g ? ` · 지침 '${keyLabel(g)}' 갖춘 조 ${withG.filter(x => x.ok).length}/${withG.length} 성공` : ''}</span></div><div class="rf-p">${chips}</div></section>`;
+    return `<section class="rf"><div class="rf-h"><b>${F.name}</b><span class="rf-sum">${ps.length}조 중 ${ok}조 성공${d ? ` · <span class="neg">${d}명 사망</span>` : ''} · 캐 온 전리품 ${r.got[f]}개${r.hired[f] ? ` (계약 ${r.hired[f]}조 몫 포함)` : ''}${gs.length ? ` · '${condLabel(P.guide[f])}' 갖춘 조 ${withG.filter(x => x.ok).length}/${withG.length} 성공` : ''}</span></div><div class="ld-list">${lines}</div></section>`;
   }).join('');
-  return `<div class="co-ret">${blocks}</div>`;
+  const sold = Object.entries(r.matSold || {}).filter(([, n]) => n > 0);
+  const tot = sold.reduce((a, [m, n]) => a + n * (L.matPrice[m] || 0), 0);
+  const soldT = sold.length ? `<h3>판 소재</h3><div class="tw"><table class="grid bk-sold"><thead><tr><th>소재</th><th class="n">개수</th><th class="n">받은 값</th><th class="n">평균 시세 대비</th></tr></thead><tbody>${sold.map(([m, n]) => {
+    const p = L.matPrice[m] || 0, ref = L.matRef[m] || p, d = ref ? Math.round((p / ref - 1) * 100) : 0;
+    return `<tr><td>${m}</td><td class="n">${n}</td><td class="n">${fmt(n * p)}</td><td class="n ${d > 0 ? 'pos' : d < 0 ? 'neg' : 'dim'}">${d > 0 ? '+' : d < 0 ? '−' : '±'}${Math.abs(d)}%</td></tr>`;
+  }).join('')}<tr class="tot"><td>모두</td><td class="n">${sold.reduce((a, [, n]) => a + n, 0)}</td><td class="n">${fmt(tot)}</td><td></td></tr></tbody></table></div>` : '';
+  return `<div class="co-ret">${blocks}</div>${soldT}`;
 }
 
 // 미궁의 깊은 곳: 이상 징후와 근원. 압력 숫자는 보이지 않고, 징후가 몇 번 돌았는지로만 짐작한다. 근원 기금은 숫자로 넣는다

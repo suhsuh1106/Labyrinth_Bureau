@@ -5,9 +5,9 @@
 > 전제는 "용병단 행정관"이다(옛 "미궁 관리국장" 게임은 5단계에서 지웠다). 세계관은 `docs/world.md`, 만들어 온 순서와 단계별 기록은 `docs/plan.md`를 따른다.
 
 ## 구조
-- `src/core/company.ts`: 게임 규칙 전부. DOM을 쓰지 않는다. 상태는 `World` 하나이고, 한 달 결재는 `runMonth()`. 층·시장·용병단과 AI·몬스터와 적응·전리품 비율·포션과 세력·압력과 근원·정보망과 짐작이 여기 있다.
-- `src/core/data.ts`: 직업·장비, 몬스터, 근원·이상 징후의 글. `util.ts`는 조사와 지침 이름 도우미.
-- `src/ui/co/`: 화면. HTML 문자열을 만들어 넣는 방식. 결정표·정산서(`view.ts`), 정보실(`intel.ts`, 정보망 단계만큼만 보여 준다), 변경 일보(`paper.ts`), 첫날 장면(`arrival.ts`), 스타일(`base.css`, `co.css`). `core`는 `ui`를 import하지 않는다.
+- `src/core/company.ts`: 게임 규칙 전부. DOM을 쓰지 않는다. 상태는 `World` 하나이고, 한 달 결재는 `runMonth()`. 층·시장·용병단과 AI·몬스터와 적응·전리품 비율·포션과 세력·압력과 근원·정보망과 짐작, 갈무리 소재(찾는 곳·소재 시세·도감 기록)가 여기 있다.
+- `src/core/data.ts`: 직업·장비, 몬스터와 소재(층마다 곁 몬스터 둘, 소재를 찾는 곳), 근원·이상 징후의 글. `util.ts`는 조사와 지침 이름 도우미.
+- `src/ui/co/`: 화면. HTML 문자열을 만들어 넣는 방식. 결정표·정산서(`view.ts`), 정보실(`intel.ts`, 정보망 단계만큼만 보여 준다), 미궁 도감(`book.ts`, 찾는 곳과 수집 기록), 변경 일보(`paper.ts`), 첫날 장면(`arrival.ts`), 스타일(`base.css`, `co.css`). `core`는 `ui`를 import하지 않는다.
 - `index.html`(진입점 `src/coMain.ts`)이 게임이고, 판을 `localStorage`의 `lb-co`에 저장한다.
 - `sim/company.ts`: 플레이어 봇(성향별)과 시뮬레이션. `npm run sim`이 평균 순위, 1위 분포, 범람 횟수를 낸다. 테스트도 이 봇을 쓴다.
 - `proto/budget-potion.html`: 맨 처음 프로토타입. **고치지 않는다.** 기록으로만 남아 있다.

@@ -9,6 +9,8 @@ import { MONSTERS } from '../src/core/data';
 import { depthsHtml, newsLines, planHtml, plaqueHtml, resultsHtml, returnHtml } from '../src/ui/co/view';
 import { coIssue, paperHtml } from '../src/ui/co/paper';
 import { intelHtml } from '../src/ui/co/intel';
+import { bookHtml, demandsNow } from '../src/ui/co/book';
+import { allMats, floorMons, guideParts, matChance, matPrice, sanitize } from '../src/core/company';
 import { INTEL, aiPlan as aiPlanOf } from '../src/core/company';
 import { rnd } from '../src/core/rng';
 import { floorMax, keyOf } from '../src/core/company';
@@ -101,7 +103,7 @@ describe('용병단 행정실 화면', () => {
       for (let m = 0; m < 36; m++) {
         const before = JSON.stringify(W);
         setSeed(1000 + m); const r0 = rnd(); setSeed(1000 + m);
-        const html = plaqueHtml(W) + intelHtml(W) + planHtml(W, plan) + resultsHtml(W) + newsLines(W).join('') + returnHtml(W) + depthsHtml(W, plan) + paperHtml(W);
+        const html = plaqueHtml(W) + intelHtml(W) + bookHtml(W) + planHtml(W, plan) + resultsHtml(W) + newsLines(W).join('') + returnHtml(W) + depthsHtml(W, plan) + paperHtml(W);
         expect(html, `${name} 제${W.month}월`).not.toMatch(/undefined|NaN|Infinity|\[object/);
         expect(JSON.stringify(W)).toBe(before);
         expect(rnd(), '화면을 그려도 난수를 쓰지 않는다').toBe(r0);
@@ -466,5 +468,78 @@ describe('전리품 비율과 몬스터 적응', () => {
     expect(W.adapted![0]).toBe(1);
     expect(W.cos.filter(c => c.style !== 'player').every(c => !c.learned[0])).toBe(true);
     expect(W.log.some(l => /예전 공략이 잘 먹히지 않는다/.test(l.t))).toBe(true);
+  });
+});
+
+describe('갈무리 소재와 미궁 도감', () => {
+  it('소재는 성공한 우리 직영 조만 갈무리해 오고, 판 값은 판매 수입에 들어 있다', () => {
+    setSeed(51); const W: World = newWorld();
+    for (let m = 0; m < 12; m++) {
+      const M = runMonth(W, BOT.smart(W)), r = M.res[0];
+      M.ours.filter(x => !x.ok).forEach(x => expect(x.mats).toEqual([]));
+      const fromOurs: Record<string, number> = {};
+      M.ours.forEach(x => x.mats.forEach(([n, k]) => { fromOurs[n] = (fromOurs[n] || 0) + k; }));
+      expect(fromOurs).toEqual(r.matSold);
+      const items = r.sold.reduce((a, n) => a + n, 0);
+      expect(r.matSales).toBe(Object.entries(r.matSold).reduce((a, [n, k]) => a + k * M.matPrice[n], 0));
+      expect(r.sales).toBeGreaterThanOrEqual(r.matSales);
+      if (!items) expect(r.sales).toBe(r.matSales);
+    }
+  });
+  it('도감은 성공한 우리 조의 수만큼 쌓이고, 소재를 얻은 조는 그 조가 갖춘 조건마다 센다', () => {
+    setSeed(52); const W: World = newWorld();
+    let ok = 0;
+    for (let m = 0; m < 10; m++) { const M = runMonth(W, BOT.even(W)); ok += M.ours.filter(x => x.ok && x.f === 0).length; }
+    const B = W.mat!.book[0];
+    expect(B.n['*']).toBe(ok);
+    Object.values(B.got).forEach(g => Object.entries(g).forEach(([k, a]) => expect(a).toBeLessThanOrEqual(B.n[k])));
+  });
+  it('조건을 갖추면 그 소재가 더 잘 나오고, 층이 비면 덜 나온다', () => {
+    const x = { n: 't', v: 10, p: 0.1, b: [['g:냉기', 3]] as [string, number][] };
+    expect(matChance(x, ['g:냉기'], 1)).toBeCloseTo(0.4);
+    expect(matChance(x, ['c:전사'], 1)).toBeCloseTo(0.1);
+    expect(matChance(x, ['g:냉기'], 0)).toBeCloseTo(0.2);
+    const y = { n: 'u', v: 10, p: 0.05, b: [['c:사제+g:은', 5]] as [string, number][] };
+    expect(matChance(y, ['c:사제'], 1)).toBeCloseTo(0.05);
+    expect(matChance(y, ['c:사제', 'g:은'], 1)).toBeCloseTo(0.3);
+    // 실제 판에서도: 1층 주인 몬스터의 드문 소재를 부르는 조건을 챙기면 더 많이 얻는다
+    let a = 0, b = 0;
+    for (const on of [false, true]) for (let g = 1; g <= 8; g++) {
+      setSeed(g); const W: World = newWorld();
+      const rare = floorMons(W, 0)[0].mats.find(m => m.b && m.p < 0.1)!, kit = rare.b![0][0];
+      for (let m = 0; m < 6; m++) { const P = BOT.even(W); if (on) P.guide[0] = kit; const M = runMonth(W, P); const n = M.res[0].matSold[rare.n] || 0; if (on) b += n; else a += n; }
+    }
+    expect(b).toBeGreaterThan(a * 1.5);
+  });
+  it('편성은 직업 하나와 장비 하나까지만 받고, 파티는 둘 다 갖춘다', () => {
+    setSeed(53); const W: World = newWorld();
+    const P = BOT.even(W); P.guide[0] = 'c:사제+g:은+c:전사+x:모름';
+    const Q = sanitize(W, W.cos[0], P);
+    expect(guideParts(Q.guide[0])).toEqual(['c:사제', 'g:은']);
+    for (let i = 0; i < 30; i++) { const k = rollParty(Q.guide[0]); expect(k).toContain('c:사제'); expect(k).toContain('g:은'); }
+  });
+  it('많이 팔리면 소재 시세가 내려가고, 찾는 곳이 있으면 오른다', () => {
+    expect(matPrice(100, 1, 20, 10)).toBeLessThan(100);
+    expect(matPrice(100, 1, 5, 10)).toBeGreaterThan(100);
+    expect(matPrice(100, 1.4, 10, 10)).toBe(140);
+  });
+  it('찾는 곳 소식은 정보망 단계만큼만 보이고, 안 보이는 것은 수만 알린다', () => {
+    setSeed(54); const W: World = newWorld();
+    for (let m = 0; m < 24; m++) runMonth(W, BOT.even(W));
+    const mats = allMats(W).map(x => x.n);
+    W.mat!.dem = [{ m: mats[0], who: 4, mul: 0.4, at: W.month - 1, until: W.month + 3 }, { m: mats[1], who: 0, mul: 0.2, at: W.month - 1, until: W.month + 3 }];
+    W.intel!.lv.mkt = 0;
+    const d0 = demandsNow(W);
+    expect(d0.seen.map(d => d.m)).toEqual([mats[1]]);
+    expect(d0.hidden).toBe(1);
+    expect(bookHtml(W)).toContain('1곳이 더 찾는다');
+    W.intel!.lv.mkt = 2;
+    expect(demandsNow(W).seen.length).toBe(2);
+  });
+  it('찾는 곳은 판 내내 가끔 생기고 기한이 지나면 사라진다', () => {
+    setSeed(55); const W: World = newWorld();
+    let seen = 0;
+    for (let m = 0; m < 36; m++) { runMonth(W, BOT.even(W)); seen += W.mat!.dem.length; W.mat!.dem.forEach(d => expect(d.until).toBeGreaterThanOrEqual(W.month - 1)); }
+    expect(seen).toBeGreaterThan(0);
   });
 });

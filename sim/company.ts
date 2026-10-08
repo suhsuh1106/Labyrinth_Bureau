@@ -4,7 +4,8 @@
 // 성향: even(고르게) · deep(깊은 층 위주) · hold(시세가 낮으면 쌓아 둠) · hire(계약 파티를 씀) · smart(시장을 읽는 숙련자, 근원에는 채굴장)
 //       smartNoGuide · smartSeal · smartNoRoot: 숙련 봇에서 지침을 빼거나 근원을 달리 다룬 것
 import { setSeed } from '../src/core/rng';
-import { CO, FLOORS, churchPrice, ITEMS, type Plan, type World, defaultPlan, maxParties, newWorld, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
+import { CO, FLOORS, churchPrice, ITEMS, type Plan, type World, defaultPlan, demandMul, floorMons, maxParties, newWorld, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
+import { demandSeen } from '../src/ui/co/book';
 
 const arg = (k: string, d: string) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
 const games = +arg('games', '200'), seed0 = +arg('seed', '1'), only = arg('style', '');
@@ -25,6 +26,8 @@ export const BOT: Record<string, (W: World) => Plan> = {
   smart: W => smartPlan(W),
   // 숙련 봇에서 추리만 뺀 것 (편성 지침이 순위에 얼마나 보태는지 재는 기준)
   smartNoGuide: W => { const P = smartPlan(W); P.guide = P.guide.map(() => ''); return P; },
+  // 숙련 봇에서 도감으로 소재 챙기기만 뺀 것 (갈무리 편성이 순위에 얼마나 보태는지 재는 기준)
+  smartNoKit: W => smartPlan(W, 'mine', false),
   // 숙련 봇이 근원을 봉인하는 쪽과, 근원을 그대로 두는 쪽 (채굴장과 견주는 기준)
   smartSeal: W => smartPlan(W, 'seal'),
   smartNoRoot: W => smartPlan(W, 'none'),
@@ -34,7 +37,7 @@ export const BOT: Record<string, (W: World) => Plan> = {
 // 조당 남는 돈(기준 시세와 지난 시세의 중간으로 어림)에 비례해 기울인다. 포션은 5병, 훈련비는 300(훈련은 갈수록 덜 올라 이 근처가 가장 낫다), 채집 장비 1단계,
 // 크게 남는 층에는 계약 파티를 쓴다.
 // 거점과 쌓아 두기는 지금 규모에서는 손해라 쓰지 않는다 (시뮬레이션으로 확인함)
-export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine'): Plan {
+export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine', kit = true): Plan {
   const c = us(W), P = defaultPlan(W), L = W.last, pots = 5;
   const value = FLOORS.map((F, f) => {
     if (f >= W.unlocked) return 0;
@@ -50,6 +53,7 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine')
   const best = value.indexOf(Math.max(...value));
   if (c.cash > 6000 && value[best] * (1 - CO.HIRE_CUT) - CO.HIRE_FEE > 150) P.hire[best] = 2;
   P.guide = deduce(W);
+  if (kit) P.guide = P.guide.map((g, f) => addKit(W, f, g, P.parties[f]));
   // 포션: 교회 값이 상단보다 싸면(후원해서 교회가 예전 값으로 내줄 때) 교회에서 사고, 담합이 터지면 여유가 있을 때 한 번 후원한다
   const need = P.parties.reduce((a, n, f) => a + (n + P.hire[f]) * P.pots[f], 0);
   P.church = churchPrice(W, 0) < W.potion ? need : 0;
@@ -77,6 +81,25 @@ export function deduce(W: World) {
     });
     return best;
   });
+}
+
+// 도감 기록으로 소재 편성: 약점 지침이 직업이면 장비를, 장비면 직업을 하나 더 고른다. 기록에서 그 조건을 갖춘 조가
+// 평소보다 더 얻어 온 소재의 값(눈에 보이는 찾는 곳 웃돈 포함)이 조당 지침 비용을 넘는 조건 중 가장 큰 것
+export function addKit(W: World, f: number, g: string, n: number) {
+  const B = W.mat && W.mat.book[f]; if (!B || !n || !B.n['*']) return g;
+  const slot = g.startsWith('g:') ? 'c:' : g.startsWith('c:') ? 'g:' : '';
+  const seen = new Set((W.mat!.dem || []).filter(d => d.until >= W.month && demandSeen(W, d.who)).map(d => d.m));
+  let best = '', bv = CO.GUIDE_COST * 1.5;
+  Object.keys(B.n).filter(k => k !== '*' && !k.includes('+') && (!slot || k.startsWith(slot)) && B.n[k] >= 4).forEach(k => {
+    let v = 0;
+    floorMons(W, f).forEach(M => M.mats.forEach(x => {
+      const got = B.got[x.n]; if (!got) return;
+      const lift = (got[k] || 0) / B.n[k] - (got['*'] || 0) / B.n['*'];
+      if (lift > 0) v += lift * (W.mat!.ref[x.n] || x.val) * (x.k ? (x.k[0] + x.k[1]) / 2 : 1) * (seen.has(x.n) ? demandMul(W, x.n) : 1);
+    }));
+    if (v > bv) { bv = v; best = k; }
+  });
+  return best ? [g, best].filter(Boolean).sort().join('+') : g;
 }
 
 export function playGame(seed: number, bot: (W: World) => Plan) {

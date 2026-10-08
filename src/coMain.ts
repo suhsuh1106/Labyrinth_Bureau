@@ -5,10 +5,11 @@ import { setSeed } from './core/rng';
 import { type Plan, SRCS, type World, carryPlan, newWorld, rankOf, runMonth } from './core/company';
 import { planHtml, plaqueHtml, resultsHtml } from './ui/co/view';
 import { intelHtml } from './ui/co/intel';
+import { bookHtml } from './ui/co/book';
 import { advanceArrival, arrivalOpen, closeArrival, playArrival } from './ui/co/arrival';
 
 const $ = (id: string): any => document.getElementById(id);
-const KEY = 'lb-co', VERSION = 5, MONTHS = 36;   // 5: 정보망·전리품 비율·몬스터 적응이 생김 (이전 판은 새 게임으로)
+const KEY = 'lb-co', VERSION = 6, MONTHS = 36;   // 6: 갈무리 소재와 미궁 도감이 생김 (이전 판은 새 게임으로)
 let W: World, plan: Plan;
 
 function save() { try { localStorage.setItem(KEY, JSON.stringify({ v: VERSION, W, plan })); } catch { /* 저장이 막혀도 판은 계속된다 */ } }
@@ -17,6 +18,7 @@ function load() { try { const d = JSON.parse(localStorage.getItem(KEY) || 'null'
 function render() {
   $('stats').innerHTML = plaqueHtml(W);
   $('intel').innerHTML = intelHtml(W);
+  $('book').innerHTML = bookHtml(W);
   $('plan').innerHTML = planHtml(W, plan);
   $('results').innerHTML = resultsHtml(W);
   const over = W.month > MONTHS;
@@ -50,7 +52,14 @@ $('plan').addEventListener('click', (e: any) => {
 });
 $('plan').addEventListener('change', (e: any) => {
   const t = e.target;
-  if (t.dataset.k === 'guide') { plan.guide = plan.guide || []; plan.guide[+t.dataset.i] = t.value; render(); save(); return; }
+  // 편성: 직업과 장비를 따로 골라 "c:사제+g:은"처럼 한 칸에 둔다
+  if (t.dataset.k === 'guideC' || t.dataset.k === 'guideG') {
+    const f = +t.dataset.i, pre = t.dataset.k === 'guideC' ? 'c:' : 'g:';
+    plan.guide = plan.guide || [];
+    const ps = (plan.guide[f] || '').split('+').filter((k: string) => k && !k.startsWith(pre));
+    if (t.value) ps.push(t.value);
+    plan.guide[f] = ps.sort().join('+'); render(); save(); return;
+  }
   if (t.dataset.k === 'spyOn') { const on = [...(plan.spyOn || [])]; on[+t.dataset.i] = t.value; plan.spyOn = on.filter(Boolean); render(); save(); return; }
   if (t.dataset.k === 'rootf') { plan.root = { f: +t.value, seal: plan.root ? plan.root.seal : 0, mine: plan.root ? plan.root.mine : 0 }; render(); save(); return; }
   if (t.dataset.k === 'basef') { plan.base = { f: +t.value, amt: plan.base ? plan.base.amt : 0 }; render(); save(); return; }

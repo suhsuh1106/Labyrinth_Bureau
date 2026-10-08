@@ -1,7 +1,7 @@
 // 정보실: 정보망 단계만큼 보이는 기록을 그래프로 모은다. 층에 남은 양 짐작, 누가 캐 갔나, 장례, 교차 확인, 경쟁 용병단의 다음 수.
 // 지난 기록(W.history, W.log)과 엔진이 매달 만든 짐작(W.intel.est)만 읽는다. 상태를 쓰지 않고 난수도 쓰지 않는다.
 // 정보는 단계가 오르면 지난 달 것까지 함께 열린다 (장부·기록을 열람하는 셈이다)
-import { CO, FLOORS, ITEMS, INTEL, type Src, SRCS, type World, intelBlock, keyOf } from '../../core/company';
+import { CO, FLOORS, ITEMS, INTEL, type Src, SRCS, type World, guideParts, intelBlock, keyOf } from '../../core/company';
 import { keyLabel } from '../../core/util';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
@@ -79,8 +79,12 @@ function deadChart(name: string, months: number[], dead: (number | null)[], yMax
 
 // 지침 상태: 구성별 성공률(귀환 보고 2단계)로 지금 지침을 갖춘 조와 안 갖춘 조를 견준다. 3단계면 바뀐 달을 짚는다
 function guideChip(W: World, f: number) {
-  const g = W.last ? W.last.plans[0].guide[f] : '', ret = lvOf(W, 'ret');
-  if (!g) return '<span class="chip">지침 없음</span>';
+  const gs = guideParts(W.last ? W.last.plans[0].guide[f] : '');
+  if (!gs.length) return '<span class="chip">지침 없음</span>';
+  return gs.map(g => keyChip(W, f, g)).join(' ');
+}
+function keyChip(W: World, f: number, g: string) {
+  const ret = lvOf(W, 'ret');
   if (ret < 2) return `<span class="chip">지침 ${keyLabel(g)}</span>`;
   const all = W.obs[f]['*'], o = W.obs[f][g];
   if (!all || !o || o.n < 2 || all.n - o.n < 2) return `<span class="chip">지침 ${keyLabel(g)} · <b>기록 모자람</b></span>`;
