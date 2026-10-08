@@ -85,3 +85,21 @@ select.guide { font: 12px var(--f-body); padding: 3px; border: 1px solid var(--i
 .co-sheet .co-paper { margin-top: 10px; }
 .co-sheet .co-paper .lead { max-width: none; font-size: inherit; color: inherit; margin: 12px 0 0; }
 .co-sheet .co-paper h2.hed { font-family: inherit; }
+
+/* 조절칸: 표 안에서는 작게 */
+table.grid .step button { width: 24px; height: 28px; }
+table.grid .step input { width: 44px; padding: 4px; }
+table.grid.cards { min-width: 0; }
+@media (min-width: 761px) { table.grid.cards { width: auto; min-width: 0; } table.grid.cards th { white-space: normal; vertical-align: bottom; } table.grid.cards td, table.grid.cards th { padding-left: 10px; padding-right: 10px; } }
+/* 좁은 화면: 결정표의 층·전리품 표는 줄마다 카드로 쌓는다. 칸 이름은 data-l에서 붙인다 */
+@media (max-width: 760px) {
+  table.grid.cards thead { display: none; }
+  table.grid.cards, table.grid.cards tbody { display: block; }
+  table.grid.cards tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; padding: 10px 0; border-bottom: 1px solid var(--rule); }
+  table.grid.cards td { display: block; padding: 0; border: 0; text-align: left; white-space: normal; }
+  table.grid.cards td:first-child { grid-column: 1 / -1; min-width: 0; }
+  table.grid.cards td[colspan] { grid-column: 1 / -1; }
+  table.grid.cards td[data-l]::before { content: attr(data-l); display: block; font: 400 11px var(--f-body); color: var(--ink-soft); margin-bottom: 2px; }
+  table.grid.cards td.n { font-size: 14px; }
+  table.grid.cards select.guide { max-width: 100%; width: 100%; }
+}

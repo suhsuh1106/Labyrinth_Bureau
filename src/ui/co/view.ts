@@ -47,21 +47,21 @@ export function planHtml(W: World, raw: Plan) {
     const lr = L ? L.res[0] : null, per = lr && lr.ok[f] ? (lr.got[f] / lr.ok[f]).toFixed(1) : '-';
     const root = W.roots && W.roots[f].done ? (W.roots[f].done === 'seal' ? ' · 봉인' : ' · 채굴장') : '';
     return `<tr><td><b>${F.name}</b><small>${ITEMS[f].name} · 위험 ${pct(F.risk)}${root}</small></td>
-      <td class="n">${others(f)}조</td><td class="n">${per}${per === '-' ? '' : '개'}<small>가득하면 ${F.take}개</small></td>
-      <td>${stepper('parties', f, raw.parties[f], `${F.name} 파티 수`)}</td>
-      <td>${stepper('hire', f, raw.hire[f], `${F.name} 계약 파티`)}</td>
-      <td>${stepper('pots', f, raw.pots[f], `${F.name} 파티당 포션`)}</td>
-      <td><select class="guide" data-k="guide" data-i="${f}" aria-label="${F.name} 편성 지침"><option value="">지침 없음</option>${keysAll.map(k => `<option value="${k}"${P.guide[f] === k ? ' selected' : ''}>${keyLabel(k)}</option>`).join('')}</select>${P.guide[f] ? `<small>조당 +${CO.GUIDE_COST}G</small>` : ''}</td>
-      <td class="n">${P.parties[f] + P.hire[f] ? pct(p) : '-'}</td>
-      <td class="n">${fmt(sc[f] + P.hire[f] * CO.HIRE_FEE)}G</td></tr>`;
+      <td class="n" data-l="지난달 남들">${others(f)}조</td><td class="n" data-l="지난달 우리 성공 조당">${per}${per === '-' ? '' : '개'}<small>가득하면 ${F.take}개</small></td>
+      <td data-l="우리 파티">${stepper('parties', f, raw.parties[f], `${F.name} 파티 수`)}</td>
+      <td data-l="계약 파티">${stepper('hire', f, raw.hire[f], `${F.name} 계약 파티`)}</td>
+      <td data-l="파티당 포션">${stepper('pots', f, raw.pots[f], `${F.name} 파티당 포션`)}</td>
+      <td data-l="편성 지침"><select class="guide" data-k="guide" data-i="${f}" aria-label="${F.name} 편성 지침"><option value="">지침 없음</option>${keysAll.map(k => `<option value="${k}"${P.guide[f] === k ? ' selected' : ''}>${keyLabel(k)}</option>`).join('')}</select>${P.guide[f] ? `<small>조당 +${CO.GUIDE_COST}G</small>` : ''}</td>
+      <td class="n" data-l="예상 성공률">${P.parties[f] + P.hire[f] ? pct(p) : '-'}</td>
+      <td class="n" data-l="출정 비용">${fmt(sc[f] + P.hire[f] * CO.HIRE_FEE)}G</td></tr>`;
   }).join('');
   const sell = ITEMS.map((it, j) => {
     const s = P.sell[j], Qo = L ? L.Q[j] - L.res[0].sold[j] : it.D, est = priceOf(it, Qo + s);
     if (!c.stock[j] && j >= W.unlocked) return '';
-    return `<tr><td><b>${it.name}</b><small>${it.buyer}</small></td><td class="n">${c.stock[j]}</td>
-      <td>${stepper('sell', j, s, `${it.name} 판매량`, 5)}<small>${s === c.stock[j] ? (s ? '전부' : '') : `${c.stock[j] - s}개는 창고에`}</small></td>
-      <td class="n">${L ? L.Q[j] : '-'}</td><td class="n">${fmt(W.price[j])}G</td><td class="n">${fmt(it.P0)}G</td>
-      <td class="n">${fmt(s * est)}G<small>남들이 지난달만큼 팔면 ${fmt(est)}G</small></td></tr>`;
+    return `<tr><td><b>${it.name}</b><small>${it.buyer}</small></td><td class="n" data-l="창고">${c.stock[j]}</td>
+      <td data-l="이번 달 판매량">${stepper('sell', j, s, `${it.name} 판매량`, 5)}<small>${s === c.stock[j] ? (s ? '전부' : '') : `${c.stock[j] - s}개는 창고에`}</small></td>
+      <td class="n" data-l="지난달 시장 전체">${L ? L.Q[j] : '-'}</td><td class="n" data-l="지난달 시세">${fmt(W.price[j])}G</td><td class="n" data-l="기준 시세">${fmt(it.P0)}G</td>
+      <td class="n" data-l="예상 판매 수입">${fmt(s * est)}G<small>남들이 지난달만큼 팔면 ${fmt(est)}G</small></td></tr>`;
   }).join('');
   const sent = P.parties.reduce((a, b) => a + b, 0), hired = P.hire.reduce((a, b) => a + b, 0);
   const spend = sc.reduce((a, b) => a + b, 0) + hireCost(P) + Math.round(c.members * CO.WAGE * (1 + c.members / CO.OVERHEAD)) + P.train + (P.base ? P.base.amt : 0) + (P.donate || 0) + (P.root ? P.root.seal + P.root.mine : 0);
@@ -74,14 +74,14 @@ export function planHtml(W: World, raw: Plan) {
     <h2>제${W.month}월 결정표</h2>
     <p class="lead">파티는 4명 한 조. 단원 ${c.members}명이면 ${maxParties(c)}조까지 직접 보낼 수 있고, 모자라면 군소 용병대를 계약 파티로 빌려요 (한 조 ${CO.HIRE_FEE}G, 캔 것의 ${pct(CO.HIRE_CUT)}는 그들 몫). 예상치는 경쟁자가 지난달처럼 움직인다고 보고 어림한 값이에요.</p>
     <h3>1 · 어느 층에 몇 조를 보낼까</h3>
-    <div class="tw"><table class="grid"><thead><tr><th>층 · 전리품</th><th class="n">지난달 남들</th><th class="n">지난달 우리<br>성공 조당</th><th>우리 파티</th><th>계약 파티</th><th>파티당 포션 (${W.potion}G)</th><th>편성 지침</th><th class="n">예상 성공률</th><th class="n">출정 비용</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="tw"><table class="grid cards"><thead><tr><th>층 · 전리품</th><th class="n">지난달 남들</th><th class="n">지난달 우리<br>성공 조당</th><th>우리 파티</th><th>계약 파티</th><th>파티당 포션 (${W.potion}G)</th><th>편성 지침</th><th class="n">예상 성공률</th><th class="n">출정 비용</th></tr></thead><tbody>${rows}</tbody></table></div>
     <details class="field"${W.notes.length ? ' open' : ''}><summary>현장 기록 · 우리 파티만 가져오는 정보</summary>
       <p class="note">파티마다 직업 넷과 장비 하나가 섞여 들어가요. 그 층에 사는 것의 약점을 갖춘 파티는 잘 돌아오고, 역효과를 갖춘 파티는 크게 당해요. 증언과 성공률을 보고 약점이라 여기는 것을 편성 지침으로 정하면, 우리 파티는 모두 그것을 갖추고 들어가요. 경쟁 용병단도 한 층에 오래 드나들면 약점을 깨쳐요.</p>
       ${fieldHtml(W)}
     </details>
     <h3>2 · 창고의 전리품을 얼마나 팔까</h3>
     <p class="note">이번 달에 캐 온 것은 정산 때 창고로 들어와요. 창고에 두면 매달 ${pct(CO.SPOIL)}씩 상해요.</p>
-    <div class="tw"><table class="grid"><thead><tr><th>전리품 · 사 가는 곳</th><th class="n">창고</th><th>이번 달 판매량</th><th class="n">지난달 시장 전체</th><th class="n">지난달 시세</th><th class="n">기준 시세</th><th class="n">예상 판매 수입</th></tr></thead><tbody>${sell || '<tr><td colspan="7" class="dim">창고가 비어 있어요</td></tr>'}</tbody></table></div>
+    <div class="tw"><table class="grid cards"><thead><tr><th>전리품 · 사 가는 곳</th><th class="n">창고</th><th>이번 달 판매량</th><th class="n">지난달 시장 전체</th><th class="n">지난달 시세</th><th class="n">기준 시세</th><th class="n">예상 판매 수입</th></tr></thead><tbody>${sell || '<tr><td colspan="7" class="dim">창고가 비어 있어요</td></tr>'}</tbody></table></div>
     <h3>3 · 투자</h3>
     <div class="invest">
       <label class="box">훈련비 ${stepper('train', 0, raw.train, '훈련비', 100)}<small>훈련도 ${c.skill.toFixed(1)} (성공률 +${(trainBonus(c.skill) * 100).toFixed(1)}%p) → 이번 달 +${(raw.train / 200).toFixed(1)}. 매달 5%씩 식고, 이 훈련비를 계속 내면 훈련도 ${Math.round(raw.train / 10)} (성공률 +${(trainBonus(raw.train / 10) * 100).toFixed(1)}%p)에 머물러요. 갈수록 덜 올라요</small></label>
