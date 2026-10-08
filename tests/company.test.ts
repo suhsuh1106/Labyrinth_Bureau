@@ -12,7 +12,7 @@ const planHtml = (W: World, P: Plan) => DOC_TABS.map(([tab]) => infoWeekHtml(W, 
 import { coIssue, paperHtml } from '../src/ui/co/paper';
 import { intelHtml } from '../src/ui/co/intel';
 import { bookHtml, demandsNow } from '../src/ui/co/book';
-import { allMats, floorMons, guideParts, matChance, matPrice, probe, sanitize } from '../src/core/company';
+import { allMats, floorMons, guideParts, matChance, matPrice, potsOf, probe, sanitize } from '../src/core/company';
 import { INTEL, aiPlan as aiPlanOf } from '../src/core/company';
 import { rnd } from '../src/core/rng';
 import { floorMax, keyOf } from '../src/core/company';
@@ -70,13 +70,14 @@ describe('용병단 시장', () => {
       if (M.opened != null) { expect(M.opened).toBe(open); open++; }
     });
   });
-  it('플레이어가 단원보다 많이 보내거나 창고보다 많이 팔려 해도 규칙 안으로 맞춰진다', () => {
+  it('플레이어가 단원보다 많이 보내도 규칙 안으로 맞춰지고, 캐 온 전리품은 그달에 모두 판다', () => {
     setSeed(5); const W = newWorld();
-    const P = emptyPlan(); P.parties = [99, 99, 0, 0, 0]; P.sell = [50, 0, 0, 0, 0];
+    const P = emptyPlan(); P.parties = [99, 99, 0, 0, 0];
     const M = runMonth(W, P);
     expect(M.res[0].sent.reduce((a, b) => a + b, 0)).toBe(Math.floor(36 / CO.PARTY));
     expect(M.res[0].sent[1]).toBe(0);        // 2층은 아직 닫혀 있다
-    expect(M.res[0].sold[0]).toBe(0);        // 첫 달 창고는 비어 있다
+    M.res.forEach((r, i) => { if (W.cos[i].style !== 'crowd') expect(r.sold).toEqual(r.got); });
+    expect(M.Q[0]).toBe(M.res.reduce((a, r) => a + r.sold[0], 0));
   });
   it('계약 파티를 쓰면 수수료가 나가고, 캔 것의 일부는 군소 용병대 몫이 된다', () => {
     setSeed(9); const W = newWorld();
@@ -553,11 +554,11 @@ describe('보급 창고 · 전리품 보관 기한 · 조사 의뢰 · 편성 �
     const M = runMonth(W, P), r = M.res[0];
     expect(r.potUsed).toBeLessThanOrEqual(10);
     expect(r.potShort).toBeGreaterThan(0);
-    expect(us(W).sup!.pot + us(W).sup!.holy).toBe(10 - r.potUsed);
+    expect(potsOf(us(W)).pot + potsOf(us(W)).holy).toBe(10 - r.potUsed);
     const P2 = BOT.even(W); P2.buy = { pot: 500 };
     const M2 = runMonth(W, P2);
     expect(M2.res[0].potShort).toBe(0);
-    expect(us(W).sup!.pot).toBeGreaterThan(400);
+    expect(potsOf(us(W)).pot).toBeGreaterThan(400);
   });
   it('장비는 한 벌을 조 하나가 들고 가고, 모자라면 그만큼은 장비 없이 가며, 망가진 만큼 창고에서 빠진다', () => {
     setSeed(62); const W: World = newWorld();
@@ -568,22 +569,20 @@ describe('보급 창고 · 전리품 보관 기한 · 조사 의뢰 · 편성 �
     expect(us(W).sup!.gear['냉기']).toBe(4 - (r.gearLost['냉기'] || 0));
     expect(r.spend.gear).toBe(4 * CO.GEAR_PRICE);
   });
-  it('전리품은 들어온 달별로 쌓이고, 오래된 것부터 팔리며, 보관 기한이 지나면 묶음째 상한다', () => {
+  it('포션은 산 달별로 쌓여 오래된 것부터 쓰이고, 기한이 지나면 그 묶음이 상한다', () => {
     setSeed(63); const W: World = newWorld();
-    let spoiled = 0;
-    for (let m = 0; m < 8; m++) {
-      const P = BOT.even(W); P.sell = P.sell.map(() => 0);
-      const M = runMonth(W, P); spoiled += M.res[0].spoiled[0];
-      const c = us(W);
-      c.stock.forEach((n, j) => expect(n).toBe((c.lots![j] || []).reduce((a, b) => a + (b || 0), 0)));
-      expect((c.lots![0] || []).length).toBeLessThanOrEqual(CO.KEEP[0] + 1);
+    const P = BOT.even(W); P.buy = { pot: 300 };
+    const M0 = runMonth(W, P), left = potsOf(us(W)).pot;
+    expect(left).toBe(300 - M0.res[0].potUsed);
+    let spoiled = 0, used = 0;
+    for (let m = 0; m < CO.POT_KEEP + 1; m++) {
+      const Q = BOT.even(W); Q.parties = Q.parties.map(() => 0); Q.buy = { pot: 0 };
+      const M = runMonth(W, Q); spoiled += M.res[0].potSpoil; used += M.res[0].potUsed;
     }
-    expect(spoiled).toBeGreaterThan(0);
-    // 다 팔면 창고가 빈다
-    const P = BOT.even(W); P.sell = [...us(W).stock];
-    const before = us(W).stock[0], M = runMonth(W, P);
-    expect(M.res[0].sold[0]).toBe(before);
-    expect(us(W).stock[0]).toBe(M.res[0].got[0]);
+    expect(used).toBe(0);
+    expect(spoiled).toBe(left);
+    expect(potsOf(us(W)).pot).toBe(0);
+    expect(us(W).sup!.pot.length).toBeLessThanOrEqual(CO.POT_KEEP + 1);
   });
   it('조사 의뢰는 한 달에 정해진 횟수까지, 값은 그달 정산에 나가고, 타 용병단 조사는 실제 계획과 같다', () => {
     setSeed(64); const W: World = newWorld();

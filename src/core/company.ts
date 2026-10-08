@@ -18,7 +18,7 @@ export const CO = {
   // 사망을 더 줄인다 (모두 교회 포션이면 한 병이 1+HOLY병 몫)
   POTION_C0: 32, CHURCH_CAP: 360, HOLY: 0.25,
   // 담합: 포션 수요와 사망이 쌓이면 긴장이 차고, 넘치면 상단과 교회가 함께 값을 올린다. 교회 후원이 쌓이면 교회가 빠진다
-  CARTEL_MARKUP: 1.4, CARTEL_MONTHS: 5, CARTEL_COOL: 8, BREAK_DONATION: 3000, TENSION_Q: 300,
+  CARTEL_MARKUP: 1.4, CARTEL_MONTHS: 5, CARTEL_COOL: 8, BREAK_DONATION: 3000, TENSION_Q: 220,
   // 죽은 자리를 채우는 신입에게 주는 계약금 (한 명당)
   RECRUIT: 80,
   // 큰 조직일수록 사람 하나 굴리는 데 드는 관리비가 오른다: 급여 × (1 + 단원 수 / OVERHEAD). 시작 금고는 규모^CASH_EXP에 비례
@@ -46,8 +46,9 @@ export const CO = {
   // 소재는 정산 때 모두 판다 (창고에 두지 않는다). 시세는 시장 전체 물량이 평소(지난 물량의 흐르는 평균)보다 많으면 떨어진다
   // MAT_VAL: 소재 값 전체에 곱하는 값. 소재는 판매 수입의 한 할 남짓이 되게 맞췄다 (더 크면 모두가 부자가 되고 큰 용병단이 더 앞선다)
   MAT_VAL: 0.45, MAT_FLOW: 0.25, MAT_EXP: 0.4, MAT_LO: 0.7, MAT_HI: 1.2,
-  // 창고: 전리품은 들어온 달별로 쌓이고, KEEP달이 지나도록 팔지 않으면 그 묶음이 통째로 상한다 (가죽은 금방, 유물은 오래 간다)
-  KEEP: [3, 6, 6, 12, 12],
+  // 보급 창고: 포션은 산 달별 묶음으로 쌓이고 오래된 것부터 꺼내 쓴다. 산 뒤 POT_KEEP달(성수는 HOLY_KEEP달)이 지나면 그 묶음이 상한다
+  // (전리품은 창고에 두지 않고 캐 온 달에 모두 판다)
+  POT_KEEP: 2, HOLY_KEEP: 4,
   // 보급: 포션과 장비는 내정에서 사 두고 탐험에 꺼내 쓴다. 포션은 쓴 만큼 줄고, 장비는 한 벌을 조 하나가 들고 가서
   // 성공하면 GEAR_BREAK, 실패하면 GEAR_LOST로 망가지거나 잃어버린다. 직업을 꼭 넣는 데는 조당 GUIDE_COST가 든다
   GEAR_PRICE: 80, GEAR_BREAK: 0.1, GEAR_LOST: 0.35,
@@ -137,22 +138,22 @@ export type Style = 'player' | 'volume' | 'steady' | 'deep' | 'chaser' | 'hoarde
 export type Company = {
   id: string; name: string; style: Style; size: number;
   members: number; cash: number; skill: number; bases: number[]; pendingBase: { f: number; amt: number } | null;
-  stock: number[]; losses: number;
+  losses: number;
   know: number[]; learned: boolean[];   // 층마다 드나든 달 수와 약점을 깨쳤는지 (경쟁 용병단)
   relM?: number; relC?: number;   // 상단·교회와의 사이 (0~100, 50이 보통)
   exp?: number[]; proc?: number; pendingProc?: number;
-  lots?: number[][];   // 창고 전리품을 들어온 달별로: lots[j][a]는 a달 묵은 것 (stock[j]는 그 합)
   sup?: Supply;        // 사 둔 포션과 장비   // 층별 탐사 숙련(그 층에서 쌓은 성공), 갈무리장 단계와 공사 중인 투자
   // 판마다 조금씩 다른 성격: 지난달 벌이에 얼마나 민감한지, 포션을 더 쓰는지, 얼마나 값이 올라야 파는지
-  trait?: { resp: number; pots: number; sellBar: number };
+  trait?: { resp: number; pots: number };
 };
 // guide: 층마다 편성 지침 (KEYS 중 하나, 없으면 빈 문자열)
 // donate: 교회 후원금, root: 찾아낸 근원 하나에 봉인·채굴장 기금으로 넣는 돈
 // tool: 채집 장비 수준(0~2), proc: 갈무리장 투자, intel: 출처별 정보비, spyOn: 정보원을 붙일 경쟁 용병단
-export type Supply = { pot: number; holy: number; gear: Record<string, number> };
+// 보급 창고: 포션은 산 달별 묶음(pot[a]는 a달 전에 산 것), 장비는 종류별 벌 수
+export type Supply = { pot: number[]; holy: number[]; gear: Record<string, number> };
 // 편성 줄: n조가 g를 꼭 챙긴다 ("c:사제+g:은" 꼴, 빈 문자열이면 섞인 대로)
 export type Kit = { n: number; g: string };
-export type Plan = { parties: number[]; pots: number[]; sell: number[]; train: number; base: { f: number; amt: number } | null; hire: number[]; guide: string[]; donate?: number;
+export type Plan = { parties: number[]; pots: number[]; train: number; base: { f: number; amt: number } | null; hire: number[]; guide: string[]; donate?: number;
   root?: { f: number; seal: number; mine: number } | null; tool?: number; proc?: number; intel?: Partial<Record<Src, number>>; spyOn?: string[];
   // buy: 이번 달 사 둘 보급. 비워 둔 칸은 "필요한 만큼" (포션은 모자란 만큼 상단에서, 장비는 편성에 모자란 만큼)
   buy?: { pot?: number; holy?: number; gear?: Record<string, number> };
@@ -176,7 +177,7 @@ export const ROSTER: { id: string; name: string; style: Style; size: number }[] 
 export type CoResult = {
   sent: number[]; hired: number[]; ok: number[]; got: number[]; deaths: number; sold: number[]; sales: number;
   spend: { sortie: number; potion: number; wage: number; train: number; base: number; hire: number; recruit: number; donate: number; root: number; tool: number; proc: number; intel: number; gear: number; probe: number }; net: number; recruited: number;
-  spoiled: number[];   // 보관 기한이 지나 버린 전리품
+  potSpoil: number;   // 기한이 지나 버린 포션
   potUsed: number; potShort: number; gearUsed: Record<string, number>; gearLost: Record<string, number>;   // 꺼내 쓴 포션과 모자랐던 병, 들고 간 장비와 망가진 것
   matSold: Record<string, number>; matSales: number;   // 정산 때 판 소재 (판매 수입 sales에 들어 있다)
   dF: number[];   // 층별 사망
@@ -224,9 +225,9 @@ export function newWorld(): World {
     intel: { lv: { ...INTEL.BASE }, acc: { ret: 0, mkt: 0, chu: 0, gate: 0, spy: 0 }, spyOn: [], tenure: {}, est: { floors: FLOORS.map((_, f) => (f === 0 ? { lo: 40, hi: 100, mid: 75 } : null)), rivals: {} } },
     month: 1, unlocked: 1, prog: 0, pool: FLOORS.map(F => F.max), price: ITEMS.map(it => it.P0), potion: CO.POTION0,
     cos: ROSTER.map(r => ({ ...r, members: r.size, cash: r.style === 'crowd' ? 0 : Math.round(CO.START_CASH * Math.pow(r.size / 36, CO.CASH_EXP)),
-      skill: 0, bases: zeros(), pendingBase: null, stock: zeros(), losses: 0, know: zeros(), learned: FLOORS.map(() => false), relM: 50, relC: 50, exp: zeros(), proc: 0, pendingProc: 0,
-      lots: ITEMS.map(() => [] as number[]), sup: { pot: 0, holy: 0, gear: {} },
-      trait: { resp: 0.8 + 0.4 * rnd(), pots: rnd() < 0.3 ? 1 : 0, sellBar: 0.95 * (0.9 + 0.2 * rnd()) } })),
+      skill: 0, bases: zeros(), pendingBase: null, losses: 0, know: zeros(), learned: FLOORS.map(() => false), relM: 50, relC: 50, exp: zeros(), proc: 0, pendingProc: 0,
+      sup: { pot: [], holy: [], gear: {} },
+      trait: { resp: 0.8 + 0.4 * rnd(), pots: rnd() < 0.3 ? 1 : 0 } })),
     last: null, history: [], log: [], probes: [],
   };
 }
@@ -244,13 +245,18 @@ export const floorMax = (W: World, f: number) => Math.round(FLOORS[f].max * (roo
 // 층이 압력에 보태는 배율: 봉인하면 줄고, 채굴장을 내면 는다
 export const pressOf = (W: World, f: number) => { const d = rootOf(W, f).done; return d === 'seal' ? CO.SEAL_PRESS : d === 'mine' ? CO.MINE_PRESS : 1; };
 export const maxParties = (c: Company) => Math.floor(c.members / CO.PARTY);
-// 평가액: 금고 + 창고 전리품을 지난 시세로 매긴 값. 순위의 기준이다
-export const worth = (W: World, c: Company) => c.cash + c.stock.reduce((a, n, j) => a + n * W.price[j], 0);
-// 창고 묶음: 없으면 지금 있는 것을 모두 이번 달 것으로 본다
-export const lotsOf = (c: Company) => (c.lots || (c.lots = c.stock.map(n => (n ? [n] : []))));
-// 이번 달 팔지 않으면 정산 때 상하는 양 (가장 오래 묵은 묶음)
-export const expiring = (c: Company, j: number) => lotsOf(c)[j][CO.KEEP[j]] || 0;
-export const supOf = (c: Company): Supply => c.sup || (c.sup = { pot: 0, holy: 0, gear: {} });
+// 평가액: 금고. 순위의 기준이다 (전리품은 캐 온 달에 모두 팔고, 보급은 쓰는 물건이라 셈하지 않는다)
+export const worth = (_W: World, c: Company) => c.cash;
+export const supOf = (c: Company): Supply => c.sup || (c.sup = { pot: [], holy: [], gear: {} });
+const sumOf = (a: number[]) => a.reduce((x, y) => x + (y || 0), 0);
+// 창고에 있는 포션 (상단 · 성수)
+export const potsOf = (c: Company) => { const S = supOf(c); return { pot: sumOf(S.pot), holy: sumOf(S.holy) }; };
+// 이번 달 쓰지 않으면 정산 때 상하는 포션 (가장 오래된 묶음)
+export const potsExpiring = (c: Company) => { const S = supOf(c); return { pot: S.pot[CO.POT_KEEP] || 0, holy: S.holy[CO.HOLY_KEEP] || 0 }; };
+// 묶음에서 오래된 것부터 n개를 꺼낸다 (꺼낸 수를 돌려준다)
+function takeOld(a: number[], n: number) { let left = n; for (let i = a.length - 1; i >= 0 && left > 0; i--) { const d = Math.min(left, a[i] || 0); a[i] = (a[i] || 0) - d; left -= d; } return n - left; }
+// 한 달 묵히기: keep달을 넘긴 묶음은 상해서 버린다 (버린 수를 돌려준다)
+function ageLots(a: number[], keep: number) { a.unshift(0); const lost = sumOf(a.slice(keep + 1)); a.length = Math.min(a.length, keep + 1); while (a.length && !a[a.length - 1]) a.pop(); return lost; }
 // 직업을 꼭 넣는 값 (장비는 사 둔 것을 들고 가므로 따로 들지 않는다)
 const classCost = (g: string) => guideParts(g).filter(k => k.startsWith('c:')).length * CO.GUIDE_COST;
 // q번째 조가 챙겨 가는 것: 편성 줄이 있으면 줄 순서대로, 줄 밖의 우리 조와 계약 파티는 섞인 대로
@@ -292,13 +298,13 @@ function spread(W: World, n: number, w: number[]) {
   return out;
 }
 
-export function emptyPlan(): Plan { return { parties: zeros(), pots: FLOORS.map(() => 3), sell: zeros(), train: 0, base: null, hire: zeros(), guide: FLOORS.map(() => '') }; }
+export function emptyPlan(): Plan { return { parties: zeros(), pots: FLOORS.map(() => 3), train: 0, base: null, hire: zeros(), guide: FLOORS.map(() => '') }; }
 
-// 플레이어 기본안: 열린 층에 고르게, 포션 3병, 창고는 다 판다
+// 플레이어 기본안: 열린 층에 고르게, 포션 3병
 export function defaultPlan(W: World): Plan {
   const c = us(W), P = emptyPlan();
   P.parties = spread(W, maxParties(c), FLOORS.map((_, f) => 1 + f * 0.2));
-  P.sell = [...c.stock]; P.train = 300;
+  P.train = 300;
   return P;
 }
 
@@ -328,7 +334,7 @@ const STYLE: Record<Style, { prior: (W: World, f: number) => number; resp: numbe
 // 성향대로 결정표를 채우고, 지난달 결과에 반응한다. 우리처럼 시세와 붐빔을 보지만 정보는 지난달 것뿐이다
 export function aiPlan(W: World, i: number): Plan {
   const c = W.cos[i], P = emptyPlan(), n = maxParties(c), L = W.last, S = STYLE[c.style];
-  const t = c.trait || { resp: 1, pots: 0, sellBar: 0.95 };
+  const t = c.trait || { resp: 1, pots: 0 };
   const pots = Math.min(6, S.pots + t.pots + (L && L.res[i].deaths / Math.max(1, L.res[i].sent.reduce((a, b) => a + b, 0)) > 0.6 ? 1 : 0));
   // 조당 남는 돈(전망 - 출정 비용)이 평균보다 좋은 층에 더 보낸다. 반응 정도는 성향과 성격이 정한다
   const look = outlook(W), cost = CO.SORTIE + pots * W.potion;
@@ -342,8 +348,12 @@ export function aiPlan(W: World, i: number): Plan {
   const need = FLOORS.reduce((a, _, f) => a + P.parties[f] * pots, 0);
   // 교회 값이 상단보다 싸지면(교회가 담합에서 빠지면) 모두 교회로 몰린다
   const cheap = churchPrice(W, i) < W.potion;
-  const S0 = supOf(c), holyWant = Math.round(need * (cheap ? 1 : c.style === 'steady' ? 0.6 : 0.15));
+  const S0 = potsOf(c), holyWant = Math.round(need * (cheap ? 1 : c.style === 'steady' ? 0.6 : 0.15));
   P.buy = { holy: Math.max(0, holyWant - S0.holy) };
+  // 쟁여 두는 용병단: 상단 포션 값이 평소 아래면 두 달 치를 사 둔다 (오래 두면 상한다)
+  if (c.style === 'hoarder' && W.potion <= CO.POTION0) P.buy.pot = Math.max(0, need * 2 - S0.pot - S0.holy - P.buy.holy!);
+  // 안정형은 늘 쓸 양의 절반만큼 더 쟁여 둔다 (모자라서 덜 들고 가는 일이 없게. 대신 일부는 상한다)
+  if (c.style === 'steady') P.buy.pot = Math.max(0, Math.ceil(need * 1.5) - S0.pot - S0.holy - P.buy.holy!);
   P.donate = c.style === 'steady' && W.cartel && (!W.cartel.churchOut || !W.cartel.donated[i]) && c.cash > 8000 ? 800 : 0;
   // 깨친 층에서는 약점대로 갖춰 들어간다
   P.guide = FLOORS.map((_, f) => (c.learned && c.learned[f] ? keyOf(W, f) : ''));
@@ -354,16 +364,6 @@ export function aiPlan(W: World, i: number): Plan {
     const best = margin.indexOf(Math.max(...margin));
     if (look[best] * (1 - CO.HIRE_CUT) - cost - CO.HIRE_FEE > 60) P.hire[best] = Math.floor(c.size / 16);
   }
-  // 파는 법: 투기형은 시세가 기준의 sellBar 아래면 안 팔고, 안정형은 80% 아래면 절반만. 금고가 바닥나면 다 판다
-  P.sell = c.stock.map((s, j) => {
-    const low = W.price[j] / ITEMS[j].P0;
-    if (c.cash < 3000) return s;
-    if (c.style === 'hoarder' && low < t.sellBar) return 0;
-    if (c.style === 'steady' && low < 0.8) return Math.floor(s / 2);
-    return s;
-  });
-  // 이번 달 팔지 않으면 상하는 묶음은 누구든 판다
-  P.sell = P.sell.map((s, j) => Math.max(s, expiring(c, j)));
   if (c.style === 'deep' && W.month % 4 === 1 && c.cash > 9000) P.base = { f: W.unlocked - 1, amt: CO.BASE_STEP };
   // 두 달 넘게 적자면 허리띠를 졸라맨다
   if (c.style !== 'crowd' && (c.cash < 3000 || c.losses >= 2)) { P.train = 0; P.base = null; P.proc = 0; P.tool = 0; P.hire = zeros(); P.pots = P.pots.map(v => Math.max(2, v - 1)); }
@@ -407,7 +407,8 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
   const reqAll = reqH.reduce((a, b) => a + b, 0);
   const wt = reqH.map((q, i) => q * (0.5 + (W.cos[i].relC ?? 50) / 100)), wtAll = wt.reduce((a, b) => a + b, 0);
   const gotC = reqH.map((q, i) => (reqAll <= CO.CHURCH_CAP ? q : Math.min(q, Math.floor(CO.CHURCH_CAP * wt[i] / wtAll))));
-  const buyM = plans.map((P, i) => (P.buy && P.buy.pot != null ? Math.max(0, Math.floor(P.buy.pot)) : Math.max(0, need[i] - sups[i].pot - sups[i].holy - gotC[i])));
+  const have0 = W.cos.map(c => potsOf(c));
+  const buyM = plans.map((P, i) => (P.buy && P.buy.pot != null ? Math.max(0, Math.floor(P.buy.pot)) : Math.max(0, need[i] - have0[i].pot - have0[i].holy - gotC[i])));
   const potQ = buyM.reduce((a, b) => a + b, 0) + gotC.reduce((a, b) => a + b, 0);
   // 포션 값: 상단은 수요를 따라, 교회는 정해진 값. 담합 중이면 둘 다 오르고, 교회가 빠졌으면 교회 값은 돌아온다
   const K = W.cartel;
@@ -417,12 +418,12 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
   // 산 것은 창고로 들어오고, 탐험에는 창고에서 꺼낸다. 모자라면 층마다 조당 포션을 같은 비율로 줄인다. 성수부터 쓴다
   const gearB = W.cos.map((c, i) => gearBuy(c, plans[i]));
   const potUse = W.cos.map((c, i) => {
-    const S = sups[i]; S.pot += buyM[i]; S.holy += gotC[i];
+    const S = sups[i]; S.pot[0] = (S.pot[0] || 0) + buyM[i]; S.holy[0] = (S.holy[0] || 0) + gotC[i];
     Object.entries(gearB[i]).forEach(([g, n]) => { S.gear[g] = (S.gear[g] || 0) + n; });
-    const P = plans[i], have = S.pot + S.holy;
+    const P = plans[i], have = sumOf(S.pot) + sumOf(S.holy);
     if (need[i] > have) { const r = have / need[i]; P.pots = P.pots.map(v => Math.floor(v * r)); }
-    const used = needOf(P).pot, h = Math.min(S.holy, used);
-    S.holy -= h; S.pot -= used - h;
+    const used = needOf(P).pot, h = takeOld(S.holy, used);
+    takeOld(S.pot, used - h);
     return { used, h, short: Math.max(0, need[i] - used) };
   });
   const holy = potUse.map(u => 1 + (u.used ? CO.HOLY * u.h / u.used : 0));
@@ -430,7 +431,7 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
   const gearLeft = sups.map(S => ({ ...S.gear }));
   const res: CoResult[] = W.cos.map(() => ({ sent: zeros(), hired: zeros(), ok: zeros(), got: zeros(), deaths: 0, sold: zeros(), sales: 0,
     spend: { sortie: 0, potion: 0, wage: 0, train: 0, base: 0, hire: 0, recruit: 0, donate: 0, root: 0, tool: 0, proc: 0, intel: 0, gear: 0, probe: 0 }, net: 0, recruited: 0, potNeed: 0, potC: 0, dF: zeros(),
-    matSold: {} as Record<string, number>, matSales: 0, spoiled: zeros(), potUsed: 0, potShort: 0, gearUsed: {} as Record<string, number>, gearLost: {} as Record<string, number> }));
+    matSold: {} as Record<string, number>, matSales: 0, potSpoil: 0, potUsed: 0, potShort: 0, gearUsed: {} as Record<string, number>, gearLost: {} as Record<string, number> }));
   const bookOld = W.mat ? W.mat.book.map(B => new Set(Object.keys(B.got).filter(m => B.got[m]['*'] > 0))) : null;
   // 현장 기록은 오래된 것일수록 흐려진다 (몬스터가 바뀌면 옛 기록이 덜 속이게)
   W.obs.forEach(o => Object.values(o).forEach(v => { v.n *= CO.OBS_FADE; v.w *= CO.OBS_FADE; }));
@@ -502,17 +503,18 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
   });
   const overflow = depths(W, plans, res, floors);
   adapt(W);
-  // 계약 파티가 캔 것 중 그들 몫은 군소 용병대 창고로 간다
+  // 계약 파티가 캔 것 중 그들 몫은 군소 용병대가 판다
+  const sold = res.map(r => [...r.got]);
   if (ci >= 0) W.cos.forEach((_, i) => {
     if (i === ci) return;
     FLOORS.forEach((_, f) => {
       const P = plans[i], n = P.parties[f] + P.hire[f]; if (!P.hire[f] || !n) return;
       const share = Math.floor(res[i].got[f] * P.hire[f] / n * CO.HIRE_CUT);
-      res[i].got[f] -= share; W.cos[ci].stock[f] += share; lotsOf(W.cos[ci])[f][0] = (lotsOf(W.cos[ci])[f][0] || 0) + share;
+      res[i].got[f] -= share; sold[i][f] -= share; sold[ci][f] += share;
     });
   });
-  // 판매: 창고에서 내놓은 만큼 모두가 같은 시세에 판다
-  const Q = ITEMS.map((_, j) => plans.reduce((a, P, i) => a + Math.min(P.sell[j], W.cos[i].stock[j]), 0));
+  // 판매: 캐 온 것은 창고에 두지 않고 그달에 모두 판다. 모두가 같은 시세에 판다
+  const Q = ITEMS.map((_, j) => sold.reduce((a, x) => a + x[j], 0));
   const price = ITEMS.map((it, j) => priceOf(it, Q[j]));
   // 소재: 모두 정산 때 판다. 시세는 기준 값 × 찾는 곳 웃돈 × 물량
   const MT = W.mat, mats = allMats(W), matP: Record<string, number> = {}, matRef: Record<string, number> = {};
@@ -528,18 +530,9 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
     const P = plans[i], r = res[i];
     // 상단 경매장(가죽·마석)은 단골을 조금 더 쳐준다: 상단과의 사이에 따라 ±5%
     const favor = (j: number) => (j <= 1 ? 1 + ((c.relM ?? 50) - 50) / 1000 : 1);
-    // 창고: 오래 묵은 묶음부터 판다. 이번 달 캐 온 것을 새 묶음으로 넣고, 한 달씩 묵힌다. KEEP달을 넘긴 묶음은 상해서 버린다
-    const L = lotsOf(c);
-    ITEMS.forEach((_, j) => {
-      const s = Math.min(P.sell[j], c.stock[j]); r.sold[j] = s; r.sales += Math.round(s * price[j] * favor(j));
-      let left = s; for (let a = L[j].length - 1; a >= 0 && left > 0; a--) { const d = Math.min(left, L[j][a] || 0); L[j][a] = (L[j][a] || 0) - d; left -= d; }
-      L[j][0] = (L[j][0] || 0) + (r.got[j] || 0);
-      L[j].unshift(0);
-      r.spoiled[j] = L[j].slice(CO.KEEP[j] + 1).reduce((a, b) => a + (b || 0), 0);
-      L[j] = L[j].slice(0, CO.KEEP[j] + 1);
-      while (L[j].length && !L[j][L[j].length - 1]) L[j].pop();
-      c.stock[j] = L[j].reduce((a, b) => a + (b || 0), 0);
-    });
+    ITEMS.forEach((_, j) => { r.sold[j] = sold[i][j]; r.sales += Math.round(sold[i][j] * price[j] * favor(j)); });
+    // 보급 창고를 한 달 묵힌다: 기한을 넘긴 포션 묶음은 상해서 버린다
+    const S = supOf(c); r.potSpoil = ageLots(S.pot, CO.POT_KEEP) + ageLots(S.holy, CO.HOLY_KEEP);
     const pot = gotC[i] * pc[i] + buyM[i] * potion;
     const sortie = sortieCost(P).reduce((a, b) => a + b, 0);
     r.potNeed = buyM[i] + gotC[i]; r.potC = gotC[i]; r.potUsed = potUse[i].used; r.potShort = potUse[i].short;
@@ -677,7 +670,7 @@ function estimate(W: World) {
   I.est.rivals = rivals;
 }
 
-// 플레이어 결정표를 규칙 안으로 맞춘다: 열린 층만, 단원 수만큼, 계약 파티는 군소 용병대가 가진 만큼, 창고에 있는 만큼만 판다
+// 플레이어 결정표를 규칙 안으로 맞춘다: 열린 층만, 단원 수만큼, 계약 파티는 군소 용병대가 가진 만큼
 export function sanitize(W: World, c: Company, P: Plan): Plan {
   const Q: Plan = JSON.parse(JSON.stringify(P));
   Q.parties = Q.parties.map((n, f) => (f < W.unlocked ? Math.max(0, Math.floor(n)) : 0));
@@ -687,7 +680,6 @@ export function sanitize(W: World, c: Company, P: Plan): Plan {
   let free = crowd ? maxParties(crowd) : 0;
   Q.hire = Q.hire.map((n, f) => { const h = f < W.unlocked ? clamp(Math.floor(n), 0, free) : 0; free -= h; return h; });
   Q.pots = Q.pots.map(v => clamp(Math.floor(v), 1, 8));
-  Q.sell = Q.sell.map((v, j) => clamp(Math.floor(v), 0, c.stock[j]));
   Q.train = Math.max(0, Math.floor(Q.train));
   Q.donate = Math.max(0, Math.floor(Q.donate || 0));
   Q.tool = clamp(Math.floor(Q.tool || 0), 0, CO.TOOL_COST.length - 1);
@@ -844,12 +836,11 @@ export const keysAll = KEYS;
 export const rankOf = (W: World, id = 'us') => (W.last ? W.last.rank.indexOf(id) + 1 : 0);
 
 // 다음 달 결정표: 지난달에 고른 파티·포션·훈련·계약 파티는 그대로 두고, 단원 수와 열린 층에 맞춰 고친다.
-// 거점 투자는 한 번 나가는 돈이라 비우고, 창고는 기본으로 다 판다
+// 거점 투자와 보급 사기는 한 번 나가는 돈이라 비운다
 export function carryPlan(W: World, prev: Plan | null): Plan {
   if (!prev) return defaultPlan(W);
   const c = us(W), P: Plan = JSON.parse(JSON.stringify(prev));
   P.base = null; P.donate = 0; P.root = null; P.proc = 0; P.buy = {};
-  P.sell = [...c.stock];
   P.parties = P.parties.map((n, f) => (f < W.unlocked ? n : 0));
   let over = P.parties.reduce((a, b) => a + b, 0) - maxParties(c);
   for (let f = 0; f < NF && over > 0; f++) { const d = Math.min(over, P.parties[f]); P.parties[f] -= d; over -= d; }

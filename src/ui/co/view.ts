@@ -12,8 +12,8 @@ export const COLORS: Record<string, string> = {
   fox: '#c07a2a', bridge: '#7a5c99', free: '#9a9a8c',
 };
 const STYLE_NOTE: Record<string, string> = {
-  volume: '대형 · 얕은 층에 많이 보내고 바로 판다', steady: '대형 · 포션을 넉넉히, 값이 낮으면 쌓아 둔다', deep: '중형 · 깊은 층, 훈련과 거점',
-  chaser: '중형 · 지난달 벌이가 좋았던 층으로', hoarder: '중형 · 값이 낮으면 팔지 않고 버틴다', shallow: '소형 · 1층에서만', second: '소형 · 2층에서만',
+  volume: '대형 · 얕은 층에 많이 보내고 바로 판다', steady: '대형 · 포션을 넉넉히, 교회 성수 위주', deep: '중형 · 깊은 층, 훈련과 거점',
+  chaser: '중형 · 지난달 벌이가 좋았던 층으로', hoarder: '중형 · 포션이 쌀 때 쟁여 둔다', shallow: '소형 · 1층에서만', second: '소형 · 2층에서만',
   crowd: '한 파티짜리 여럿 · 벌이에 따라 늘고 준다',
 };
 export const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
@@ -80,7 +80,7 @@ export function resultsHtml(W: World) {
       ${r.spend.root ? `<tr><td>근원 기금</td><td class="n">−${fmt(r.spend.root)}</td></tr>` : ''}
       ${r.spend.donate ? `<tr><td>교회 후원금</td><td class="n">−${fmt(r.spend.donate)}</td></tr>` : ''}
       ${r.spend.train + r.spend.base ? `<tr><td>훈련 · 거점</td><td class="n">−${fmt(r.spend.train + r.spend.base)}</td></tr>` : ''}
-      ${r.spoiled && r.spoiled.some(Boolean) ? `<tr><td class="neg">창고에서 상해 버림 · ${ITEMS.map((it, j) => (r.spoiled[j] ? `${it.name} ${r.spoiled[j]}개` : '')).filter(Boolean).join(', ')}</td><td class="n dim">-</td></tr>` : ''}
+      ${r.potSpoil ? `<tr><td class="neg">보급 창고에서 상해 버린 포션 ${r.potSpoil}병</td><td class="n dim">-</td></tr>` : ''}
       <tr class="tot"><td>순이익</td><td class="n ${r.net < 0 ? 'neg' : 'pos'}">${sgn(r.net)}</td></tr></tbody></table></div>`;
   return `<div class="kind">변경 용병단 연합 · 월례 정산</div>
     <h2>제${L.month}월 용병단 순위</h2>
@@ -113,7 +113,6 @@ export function newsLines(W: World) {
     if (c.style === 'crowd') { const n = r.sent.reduce((a, b) => a + b, 0); out.push(`군소 용병대는 이번 달 ${n}개 파티가 입구 앞에 줄을 섰다.`); return; }
     if (P.base) out.push(`${c.name}이 ${FLOORS[P.base.f].name}에 전진 거점을 짓기 시작했다는 소문이다.`);
     if (r.deaths >= 8) out.push(`${c.name}에서 이번 입장에만 ${r.deaths}명이 돌아오지 못했다.`);
-    if (ITEMS.some((_, j) => c.stock[j] > 20 && r.sold[j] === 0)) out.push(`${c.name}이 창고 문을 걸어 잠갔다는 말이 돈다. 값이 오르기를 기다리는 모양이다.`);
   });
   return out.slice(0, 7);
 }

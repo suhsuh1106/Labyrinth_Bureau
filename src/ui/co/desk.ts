@@ -2,7 +2,7 @@
 // 정보 주차 — 자료(보고서·신문·소문·정보실·도감·조사 결과)를 읽고, 조사 의뢰를 걸고, 정보망과 내정(건물·보급·창고·세력)을 정한다.
 // 탐험 주차 — 작전 메모를 옆에 두고 층마다 몇 조를 무엇을 챙겨 보낼지 정하고 도장을 찍는다. 결과는 다음 달 보고서가 된다.
 // 화면은 HTML 문자열만 만든다. 상태를 쓰지 않고 난수도 쓰지 않는다
-import { CO, FLOORS, INTEL, ITEMS, type Plan, SRCS, type World, churchPrice, expiring, gearBuy, hireCost, intelBlock, intelCost, lootMul, lotsOf, maxParties, needOf, priceOf, probeCost, probesLeft, sanitize, sortieCost, succRate, supOf, toolCost, trainBonus, us } from '../../core/company';
+import { CO, FLOORS, INTEL, ITEMS, type Plan, SRCS, type World, churchPrice, gearBuy, hireCost, intelBlock, intelCost, lootMul, maxParties, needOf, potsExpiring, potsOf, probeCost, probesLeft, sanitize, sortieCost, succRate, supOf, toolCost, trainBonus, us } from '../../core/company';
 import { CLASSES, GEARS, BUYERS } from '../../core/data';
 import { bookHtml, condLabel, kitHint } from './book';
 import { SRC_INFO, intelHtml } from './intel';
@@ -96,27 +96,18 @@ function netPanel(W: World, raw: Plan) {
 }
 
 function homePanel(W: World, raw: Plan, P: Plan) {
-  const c = us(W), S = supOf(c), need = needOf(P), gb = gearBuy(c, P);
-  const buyPot = raw.buy && raw.buy.pot != null ? raw.buy.pot : null, autoPot = Math.max(0, need.pot - S.pot - S.holy - ((raw.buy && raw.buy.holy) || 0));
+  const c = us(W), S = supOf(c), H = potsOf(c), X = potsExpiring(c), need = needOf(P), gb = gearBuy(c, P);
+  const buyPot = raw.buy && raw.buy.pot != null ? raw.buy.pot : null, autoPot = Math.max(0, need.pot - H.pot - H.holy - ((raw.buy && raw.buy.holy) || 0));
   const bf = raw.base ? raw.base.f : Math.max(0, W.unlocked - 1), ba = raw.base ? raw.base.amt : 0;
   const rel = (v: number | undefined) => { const x = Math.round(v ?? 50); return `${x} ${x >= 65 ? '(가까움)' : x <= 35 ? '(멀어짐)' : '(보통)'}`; };
   const K = W.cartel;
   const cartel = K ? (K.churchOut ? `담합 중 · 교회는 빠졌어요 (${K.left}개월 남음)${K.donated[0] ? '' : '. 후원하면 교회 성수를 예전 값으로 살 수 있어요'}` : `<b class="neg">담합 중</b> · 상단과 교회가 값을 ${Math.round((CO.CARTEL_MARKUP - 1) * 100)}% 올렸어요 (${K.left}개월 남음). 교회 후원이 모두 합쳐 ${fmt(CO.BREAK_DONATION)}G 쌓이면 교회가 빠져요 (지금 ${fmt(K.donated.reduce((a, b) => a + b, 0))}G)`) : '담합 없음';
-  const store = ITEMS.map((it, j) => {
-    const L = lotsOf(c)[j], s = P.sell[j], ex = expiring(c, j);
-    if (!c.stock[j] && j >= W.unlocked) return '';
-    const mk = lvOf(W, 'mkt') >= 1, Qo = W.last ? W.last.Q[j] - W.last.res[0].sold[j] : it.D, est = mk ? priceOf(it, Qo + s) : W.price[j];
-    const ages = L.map((n, a) => (n && a ? `${n}개 ${CO.KEEP[j] - a + 1}달 남음` : '')).filter(Boolean).reverse().join(' · ');
-    return `<tr><td><b>${it.name}</b><small>보관 ${CO.KEEP[j]}달 · 지난달 ${fmt(W.price[j])}G</small></td><td class="n">${c.stock[j]}</td>
-      <td>${ex ? `<b class="neg">${ex}개는 이번 달 안 팔면 상해요</b><small>${ages}</small>` : `<small>${ages || '-'}</small>`}</td>
-      <td>${stepper('sell', j, s, `${it.name} 판매량`, 5)}</td><td class="n">${fmt(s * est)}G<small>${mk ? '남들이 지난달만큼 팔면' : '지난달 시세로 어림'}</small></td></tr>`;
-  }).join('');
   const gearRows = GEAR_NAMES.map((g, i) => {
     const b = raw.buy && raw.buy.gear && raw.buy.gear[g] != null ? raw.buy.gear[g] : gb[g] || 0, n = need.gear[g] || 0;
     return `<div class="hrow"><span>${g} 장비 <span class="dim">· 창고 ${S.gear[g] || 0}벌</span></span>${stepper('buyGear', i, b, `${g} 장비 살 벌 수`)}<small>${n ? `이번 편성에 ${n}벌 필요` : '이번 편성에는 안 씀'} · 한 벌 ${CO.GEAR_PRICE}G. 성공한 조는 ${pct(CO.GEAR_BREAK)}, 실패한 조는 ${pct(CO.GEAR_LOST)} 확률로 망가뜨려요</small></div>`;
   }).join('');
   const roots = depthsHtml(W, raw);
-  return `<div class="panel"><header><h2>내정</h2><span class="sub">건물을 올리고, 보급을 사 두고, 창고를 정리해요</span></header>
+  return `<div class="panel"><header><h2>내정</h2><span class="sub">건물을 올리고 보급을 사 둬요</span></header>
     <div class="home">
       <div class="hbox"><h3>건물</h3>
         <div class="hrow"><span>훈련장</span>${stepper('train', 0, raw.train, '훈련비', 100)}<small>훈련도 ${c.skill.toFixed(1)} (성공률 +${(trainBonus(c.skill) * 100).toFixed(1)}%p). 이 값을 계속 내면 +${(trainBonus(raw.train / 10) * 100).toFixed(1)}%p에 머물러요</small></div>
@@ -125,13 +116,10 @@ function homePanel(W: World, raw: Plan, P: Plan) {
         <div class="hrow"><span>채집 도구</span>${stepper('tool', 0, raw.tool || 0, '채집 도구 수준')}<small>0~2단계 · 조당 ${CO.TOOL_COST.slice(1).join(' / ')}G로 캐 오는 양 +${CO.TOOL_BONUS.slice(1).map(v => Math.round(v * 100) + '%').join(' / ')}</small></div>
       </div>
       <div class="hbox"><h3>보급 · 사 두기</h3>
-        <div class="hrow"><span>상단 포션 <span class="num">${W.potion}G</span> <span class="dim">· 창고 ${S.pot}병</span></span>${stepper('buyPot', 0, buyPot ?? autoPot, '상단 포션 살 병 수', 10)}<small>${buyPot == null ? `<b>필요한 만큼 자동</b> · 탐험 편성에 ${need.pot}병이 들어요` : `<button type="button" class="link" data-act="auto-pot">필요한 만큼 자동으로</button> · 편성에 ${need.pot}병이 들어요`}</small></div>
-        <div class="hrow"><span>교회 성수 <span class="num">${churchPrice(W, 0)}G</span> <span class="dim">· 창고 ${S.holy}병</span></span>${stepper('buyHoly', 0, (raw.buy && raw.buy.holy) || 0, '교회 성수 살 병 수', 10)}<small>교회는 한 달 ${CO.CHURCH_CAP}병까지만 내고 모자라면 사이가 좋은 곳부터 줘요. 성수부터 꺼내 쓰고, 같은 병 수라도 사망이 더 줄어요</small></div>
+        <div class="hrow"><span>상단 포션 <span class="num">${W.potion}G</span> <span class="dim">· 창고 ${H.pot}병</span></span>${stepper('buyPot', 0, buyPot ?? autoPot, '상단 포션 살 병 수', 10)}<small>${buyPot == null ? `<b>필요한 만큼 자동</b> · 탐험 편성에 ${need.pot}병이 들어요` : `<button type="button" class="link" data-act="auto-pot">필요한 만큼 자동으로</button> · 편성에 ${need.pot}병이 들어요`}</small></div>
+        <div class="hrow"><span>교회 성수 <span class="num">${churchPrice(W, 0)}G</span> <span class="dim">· 창고 ${H.holy}병</span></span>${stepper('buyHoly', 0, (raw.buy && raw.buy.holy) || 0, '교회 성수 살 병 수', 10)}<small>교회는 한 달 ${CO.CHURCH_CAP}병까지만 내고 모자라면 사이가 좋은 곳부터 줘요. 성수부터 꺼내 쓰고, 같은 병 수라도 사망이 더 줄어요</small></div>
         ${gearRows}
-      </div>
-      <div class="hbox wide"><h3>창고 · 전리품 팔기</h3>
-        <p class="note">들어온 달별로 쌓여요. 보관 기한이 지나도록 팔지 않으면 그 묶음이 통째로 상해요.</p>
-        <div class="tw"><table class="grid slim"><thead><tr><th>전리품</th><th class="n">창고</th><th>묶음</th><th>이번 달 판매량</th><th class="n">예상 수입</th></tr></thead><tbody>${store || '<tr><td colspan="5" class="dim">창고가 비어 있어요</td></tr>'}</tbody></table></div>
+        <p class="note">포션은 산 달별로 쌓이고 오래된 것부터 꺼내 써요. 상단 포션은 산 뒤 ${CO.POT_KEEP}달, 성수는 ${CO.HOLY_KEEP}달이 지나면 상해요.${X.pot + X.holy ? ` <b class="neg">이번 달 안 쓰면 ${X.pot + X.holy}병이 상해요.</b>` : ''} 전리품은 캐 온 달에 모두 팔아요.</p>
       </div>
       <div class="hbox"><h3>세력</h3>
         <p class="note">상단 ${rel(c.relM)} · 교회 ${rel(c.relC)}. ${cartel}</p>
@@ -146,8 +134,8 @@ function homePanel(W: World, raw: Plan, P: Plan) {
 
 // 이번 달 결재에 드는 돈 (정보 주차에 정한 것 + 탐험 주차에 정한 것)
 export function monthCost(W: World, raw: Plan) {
-  const c = us(W), P = sanitize(W, c, raw), S = supOf(c), need = needOf(P);
-  const holy = (P.buy && P.buy.holy) || 0, pot = P.buy && P.buy.pot != null ? P.buy.pot : Math.max(0, need.pot - S.pot - S.holy - holy);
+  const c = us(W), P = sanitize(W, c, raw), H = potsOf(c), need = needOf(P);
+  const holy = (P.buy && P.buy.holy) || 0, pot = P.buy && P.buy.pot != null ? P.buy.pot : Math.max(0, need.pot - H.pot - H.holy - holy);
   const gear = Object.values(gearBuy(c, P)).reduce((a, b) => a + b, 0);
   const info = probeCost(W) + intelCost(P);
   const home = P.train + (P.base ? P.base.amt : 0) + (P.proc || 0) + (P.donate || 0) + (P.root ? P.root.seal + P.root.mine : 0) + pot * W.potion + holy * churchPrice(W, 0) + gear * CO.GEAR_PRICE;
@@ -191,8 +179,8 @@ export function expWeekHtml(W: World, raw: Plan, ui: DeskUi) {
   const c = us(W), P = sanitize(W, c, raw), L = W.last, S = supOf(c), need = needOf(P), gb = gearBuy(c, P), cost = monthCost(W, raw);
   const others = (f: number) => (L ? L.plans.reduce((a, Q, i) => a + (i ? Q.parties[f] + Q.hire[f] : 0), 0) : f === 0 ? 75 : 0);
   const sc = sortieCost(P);
-  const holyB = (P.buy && P.buy.holy) || 0, potB = P.buy && P.buy.pot != null ? P.buy.pot : Math.max(0, need.pot - S.pot - S.holy - holyB);
-  const potHave = S.pot + S.holy + potB + holyB;
+  const H = potsOf(c), holyB = (P.buy && P.buy.holy) || 0, potB = P.buy && P.buy.pot != null ? P.buy.pot : Math.max(0, need.pot - H.pot - H.holy - holyB);
+  const potHave = H.pot + H.holy + potB + holyB;
   const floors = FLOORS.map((F, f) => {
     if (f >= W.unlocked) return f === W.unlocked ? `<div class="floor closed"><div class="fh"><b>${F.name}</b><span class="meta">${ITEMS[f].name} · 아직 닫혀 있다 · 길 뚫기 ${Math.min(99, Math.round(W.prog / CO.OPEN_WINS[W.unlocked - 1] * 100))}%</span></div></div>` : '';
     const crowd = P.parties[f] + P.hire[f] + others(f), p = succRate(c, f, P.pots[f], crowd);
