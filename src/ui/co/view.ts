@@ -2,7 +2,7 @@
 import { CO, FLOORS, INTEL, ITEMS, type Plan, SRCS, type World, churchPrice, guideParts, hireCost, intelBlock, intelCost, lootMul, toolCost, trainBonus, maxParties, priceOf, rankOf, sanitize, sortieCost, succRate, us, worth } from '../../core/company';
 import { CLASSES, GEARS, MONSTERS } from '../../core/data';
 import { keyLabel } from '../../core/util';
-import { cashChart, flowChart, priceBoard } from './charts';
+import { cashChart, flowChart, incomeMix, moneySeries, perHeadChart, perPartyChart, priceBoard, shareChart, spendMix } from './charts';
 import { condLabel, kitHint } from './book';
 import { SRC_INFO } from './intel';
 // 정보망 단계 (화면이 무엇을 보여 줄지 정한다)
@@ -65,21 +65,28 @@ export function resultsHtml(W: World) {
       ${r.spend.train + r.spend.base ? `<tr><td>훈련 · 거점</td><td class="n">−${fmt(r.spend.train + r.spend.base)}</td></tr>` : ''}
       ${r.potSpoil ? `<tr><td class="neg">보급 창고에서 상해 버린 포션 ${r.potSpoil}병</td><td class="n dim">-</td></tr>` : ''}
       <tr class="tot"><td>순이익</td><td class="n ${r.net < 0 ? 'neg' : 'pos'}">${sgn(r.net)}</td></tr></tbody></table></div>`;
-  const r0 = L.res[0];
+  const r0 = L.res[0], S = moneySeries(W), k = S.months.length - 1;
+  const perParty = S.parties[k] ? r0.sales / S.parties[k] : 0, perHead = r0.net / S.heads[k];
+  const prevNet = k > 0 ? S.net[k - 1] : null;
   return `<div class="kind">제${L.month}월 정산</div>
     <div class="kpi">
-      <div><span>금고</span><b>${fmt(us(W).cash)}G</b><small class="${r0.net < 0 ? 'neg' : 'pos'}">${sgn(r0.net)}</small></div>
+      <div><span>금고</span><b>${fmt(us(W).cash)}G</b><small>시작 ${fmt(S.start)}G</small></div>
+      <div><span>순이익</span><b class="${r0.net < 0 ? 'neg' : 'pos'}">${sgn(r0.net)}</b><small>${prevNet == null ? '첫 달' : `지난달 ${sgn(prevNet)}`}</small></div>
       <div><span>수입</span><b>${fmt(r0.sales)}G</b><small>지출 ${fmt(r0.sales - r0.net)}</small></div>
       <div><span>순위</span><b>${rk0}위</b><small class="${pr0 && pr0 > rk0 ? 'pos' : pr0 && pr0 < rk0 ? 'neg' : ''}">${pr0 && pr0 !== rk0 ? (pr0 > rk0 ? '▲' : '▼') + Math.abs(pr0 - rk0) : '그대로'}</small></div>
-      <div><span>성공 · 사망</span><b>${r0.ok.reduce((a, b) => a + b, 0)}/${r0.sent.reduce((a, b) => a + b, 0) + r0.hired.reduce((a, b) => a + b, 0)}조</b><small class="${r0.deaths ? 'neg' : ''}">${r0.deaths}명 사망</small></div>
+      <div><span>조당 수입</span><b>${fmt(perParty)}G</b><small>${S.parties[k]}조 보냄</small></div>
+      <div><span>한 명당 순이익</span><b class="${perHead < 0 ? 'neg' : ''}">${sgn(perHead)}</b><small>단원 ${S.heads[k]}명</small></div>
     </div>
-    <div class="charts">${cashChart(W)}${flowChart(W)}</div>
-    <div class="two">
-      <section><h3>순위 · 평가액</h3><div class="tw"><table class="grid rank"><thead><tr><th>순위</th><th>용병단</th><th class="n">단원</th><th class="n">출정</th><th class="n">평가액</th></tr></thead><tbody>${order.map(row).join('')}</tbody></table></div></section>
-      <section><h3>시세</h3><div class="tw">${priceBoard(W)}</div></section>
-    </div>
-    <h3>탐사 결과</h3>
-    ${returnHtml(W)}
+    <section class="rp"><h3>돈</h3>
+      <div class="charts">${cashChart(W)}${flowChart(W)}</div>
+      <div class="charts">${incomeMix(W)}${spendMix(W)}</div>
+    </section>
+    <section class="rp"><h3>효율</h3><div class="charts three">${perPartyChart(W)}${perHeadChart(W)}${shareChart(W)}</div></section>
+    <section class="rp"><h3>시장</h3><div class="two">
+      <section><h4>순위 · 평가액</h4><div class="tw"><table class="grid rank"><thead><tr><th>순위</th><th>용병단</th><th class="n">단원</th><th class="n">출정</th><th class="n">평가액</th></tr></thead><tbody>${order.map(row).join('')}</tbody></table></div></section>
+      <section><h4>시세</h4><div class="tw">${priceBoard(W)}</div></section>
+    </div></section>
+    <section class="rp"><h3>탐사</h3>${returnHtml(W)}</section>
     <details class="fold"><summary>우리 정산 자세히</summary><div class="mine">${mine}</div></details>`;
 }
 
