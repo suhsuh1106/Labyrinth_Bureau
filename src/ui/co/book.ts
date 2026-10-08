@@ -53,7 +53,7 @@ export function bookHtml(W: World) {
   const wanted = new Set(seen.map(d => d.m));
   const floors = FLOORS.slice(0, W.unlocked).map((F, f) => {
     const B = W.mat ? W.mat.book[f] : null;
-    if (!B || !B.n['*']) return `<div class="bk-floor"><h4>${F.name}</h4><p class="note">아직 우리 조가 이 층에서 성공해 돌아온 적이 없어요.</p></div>`;
+    if (!B || !B.n['*']) return `<div class="bk-floor"><h4>${F.name}</h4><p class="note">아직 기록 없음</p></div>`;
     const mons = floorMons(W, f).map(M => `<div class="bk-mon"><b class="bk-mn">${M.name}</b>${M.mats.map(x => {
       const rows = matRows(W, f, x.n), want = wanted.has(x.n) ? '<span class="dim"> · 찾는 곳 있음</span>' : '';
       if (!rows) return `<div class="bk-mat"><b>${rows === null && !wanted.has(x.n) ? '이름 모를 소재' : x.n}${want}</b><div class="bk-none">아직 못 얻음 · 어떻게 나오는지 몰라요</div></div>`;
@@ -61,13 +61,10 @@ export function bookHtml(W: World) {
     }).join('')}</div>`).join('');
     return `<div class="bk-floor"><h4>${F.name} <span class="dim">· 성공한 우리 조 ${B.n['*']}조</span></h4><div class="bk-mons">${mons}</div></div>`;
   }).join('');
-  return `<div class="kind">회색늑대 용병단 · 미궁 도감</div>
-    <h2>소재를 찾는 곳과 얻는 법</h2>
-    <h3>① 어디서 무엇을 찾나</h3>
-    <p class="note">찾는 곳이 있는 소재는 그 기간 동안 모든 용병단에게 값을 더 쳐줘요. 게시판은 누구나 보고, 상단 시세표와 교회 소식지는 정보망 단계만큼 들려요.</p>
+  return `<h3>어디서 무엇을 찾나</h3>
     <div class="tw"><table class="grid bk-sold"><thead><tr><th>찾는 곳</th><th>소재</th><th class="n">값</th><th>기한</th><th>들은 곳</th></tr></thead>
       <tbody>${news || (hidden ? '' : '<tr><td colspan="5" class="dim">지금 들려오는 소식이 없어요</td></tr>')}${lock}</tbody></table></div>
-    <h3>② 어떻게 얻었나</h3>
-    <p class="note">성공한 우리 직영 조가 몬스터를 갈무리해 온 기록이에요. 소재를 골라 캘 수는 없고, 어떤 직업이나 장비를 갖춘 조에서 더 잘 나왔는지만 쌓여요. 막대는 그런 조 중 그 소재를 얻어 온 비율이에요.${lvOf(W, 'ret') < 2 ? ' 직업과 장비의 짝은 귀환 보고 2단계부터 나눠 봐요.' : ''}</p>
+    <h3>어떻게 얻었나 · 막대는 그 조건으로 간 조 중 얻어 온 비율</h3>
+    ${lvOf(W, 'ret') < 2 ? '<p class="note">직업·장비의 짝은 귀환 보고 2단계부터 보여요</p>' : ''}
     ${floors}`;
 }

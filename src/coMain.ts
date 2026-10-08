@@ -22,9 +22,9 @@ function render() {
   if (over && ui.phase !== 2) ui.phase = 2;
   $('weeks').innerHTML = weeksHtml(W, ui.phase);
   $('desk').innerHTML = ui.phase === 0 ? infoWeekHtml(W, plan, ui) : ui.phase === 1 ? expWeekHtml(W, plan, ui) : resultWeekHtml(W);
-  if (over) { const b = document.querySelector('#desk .resultwrap .next') as HTMLButtonElement | null; if (b) { b.disabled = true; b.textContent = `임기가 끝났어요. 최종 ${rankOf(W)}위`; } }
+  if (over) { const b = document.querySelector('#desk .resultwrap .btn-next') as HTMLButtonElement | null; if (b) { b.disabled = true; b.textContent = `임기가 끝났어요. 최종 ${rankOf(W)}위`; } }
 }
-function setPhase(p: number) { ui.phase = p; render(); save(); window.scrollTo({ top: 0 }); }
+function setPhase(p: number) { ui.phase = p; ui.open = false; render(); save(); window.scrollTo({ top: 0 }); }
 
 function start(fresh = false) {
   const d = fresh ? null : load();
@@ -37,7 +37,11 @@ function start(fresh = false) {
 // 첫날 장면: 화면을 누르거나 다음 단추로 넘기고, 건너뛰기나 Esc로 닫는다
 $('ar-scene').addEventListener('click', (e: any) => { if (!e.target.closest('#ar-skip')) advanceArrival(); });
 $('ar-skip').addEventListener('click', () => closeArrival());
-document.addEventListener('keydown', e => { if (arrivalOpen() && e.key === 'Escape') closeArrival(); });
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (arrivalOpen()) closeArrival();
+  else if (ui && ui.open) { ui.open = false; render(); save(); }
+});
 
 function say(t: string) {
   const el = $('toast'); el.textContent = t; el.classList.add('show');
@@ -52,6 +56,8 @@ function act(b: HTMLElement) {
     if (r) { ui.tab = 'probe'; say(a === 'probe-mkt' ? '시장 조사 답이 왔어요' : '타 용병단 조사 답이 왔어요'); }
     render(); save(); return;
   }
+  if (a === 'open-doc') { ui.tab = b.dataset.tab || 'report'; ui.open = true; render(); save(); (document.querySelector('.reader .close') as HTMLElement | null)?.focus(); return; }
+  if (a === 'close-doc') { ui.open = false; render(); save(); return; }
   if (a === 'auto-pot') { plan.buy = { ...(plan.buy || {}) }; delete plan.buy.pot; render(); save(); return; }
   if (a === 'kit-add') { const f = +(b.dataset.f || 0); plan.kits = plan.kits || []; plan.kits[f] = [...(plan.kits[f] || []), { n: 0, g: '' }]; render(); save(); return; }
   if (a === 'kit-del') { const f = +(b.dataset.f || 0), k = +(b.dataset.j || 0); if (plan.kits && plan.kits[f]) plan.kits[f].splice(k, 1); render(); save(); return; }

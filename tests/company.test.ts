@@ -8,7 +8,7 @@ import { churchPrice, type Plan, type World } from '../src/core/company';
 import { MONSTERS } from '../src/core/data';
 import { depthsHtml, newsLines, plaqueHtml, resultsHtml, returnHtml } from '../src/ui/co/view';
 import { DOC_TABS, expWeekHtml, infoWeekHtml, resultWeekHtml } from '../src/ui/co/desk';
-const planHtml = (W: World, P: Plan) => DOC_TABS.map(([tab]) => infoWeekHtml(W, P, { phase: 0, tab, pins: DOC_TABS.map(t => t[0]) })).join('') + expWeekHtml(W, P, { phase: 1, tab: 'report', pins: DOC_TABS.map(t => t[0]) }) + (W.last ? resultWeekHtml(W) : '');
+const planHtml = (W: World, P: Plan) => DOC_TABS.map(([tab]) => infoWeekHtml(W, P, { phase: 0, tab, pins: DOC_TABS.map(t => t[0]), open: true })).join('') + expWeekHtml(W, P, { phase: 1, tab: 'report', pins: DOC_TABS.map(t => t[0]) }) + (W.last ? resultWeekHtml(W) : '');
 import { coIssue, paperHtml } from '../src/ui/co/paper';
 import { intelHtml } from '../src/ui/co/intel';
 import { bookHtml, demandsNow } from '../src/ui/co/book';
