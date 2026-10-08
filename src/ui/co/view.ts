@@ -1,5 +1,5 @@
 // 용병단 행정실 화면: 결정표(위)와 지난달 정산(아래). HTML 문자열을 만들기만 하고 상태는 건드리지 않는다
-import { CO, FLOORS, ITEMS, type Plan, type World, churchPrice, floorMax, hireCost, trainBonus, keysAll, maxParties, priceOf, rankOf, sanitize, sortieCost, succRate, us, worth } from '../../core/company';
+import { CO, FLOORS, ITEMS, type Plan, type World, churchPrice, hireCost, trainBonus, keysAll, maxParties, priceOf, rankOf, sanitize, sortieCost, succRate, us, worth } from '../../core/company';
 import { MONSTERS } from '../../core/data';
 import { keyLabel } from '../../core/util';
 import { paperHtml } from './paper';
@@ -41,17 +41,18 @@ export function planHtml(W: World, raw: Plan) {
   const sc = sortieCost(P, unitP);
   const rows = FLOORS.map((F, f) => {
     const open = f < W.unlocked;
-    if (!open) return `<tr class="closed"><td><b>${F.name}</b><small>${ITEMS[f].name}</small></td><td colspan="9">${f === W.unlocked ? `아직 닫혀 있다 · 길 뚫기 ${Math.min(99, Math.round(W.prog / CO.OPEN_WINS[W.unlocked - 1] * 100))}%` : '아직 닫혀 있다'}</td></tr>`;
+    if (!open) return `<tr class="closed"><td><b>${F.name}</b><small>${ITEMS[f].name}</small></td><td colspan="8">${f === W.unlocked ? `아직 닫혀 있다 · 길 뚫기 ${Math.min(99, Math.round(W.prog / CO.OPEN_WINS[W.unlocked - 1] * 100))}%` : '아직 닫혀 있다'}</td></tr>`;
     const crowd = P.parties[f] + P.hire[f] + others(f), p = succRate(c, f, P.pots[f], crowd);
-    const want = crowd * p * F.take, k = want ? Math.min(1, W.pool[f] / want) : 1;
-    return `<tr><td><b>${F.name}</b><small>${ITEMS[f].name} · 위험 ${pct(F.risk)}</small></td>
-      <td class="n">${W.pool[f]}<small>/ ${floorMax(W, f)}${W.roots && W.roots[f].done ? (W.roots[f].done === 'seal' ? ' · 봉인' : ' · 채굴장') : ''}</small></td><td class="n">${others(f)}조</td>
+    // 층에 남은 양은 보이지 않는다. 지난달 우리 성공 파티가 캐 온 양을 가득할 때의 양과 견줘 짐작한다
+    const lr = L ? L.res[0] : null, per = lr && lr.ok[f] ? (lr.got[f] / lr.ok[f]).toFixed(1) : '-';
+    const root = W.roots && W.roots[f].done ? (W.roots[f].done === 'seal' ? ' · 봉인' : ' · 채굴장') : '';
+    return `<tr><td><b>${F.name}</b><small>${ITEMS[f].name} · 위험 ${pct(F.risk)}${root}</small></td>
+      <td class="n">${others(f)}조</td><td class="n">${per}${per === '-' ? '' : '개'}<small>가득하면 ${F.take}개</small></td>
       <td>${stepper('parties', f, raw.parties[f], `${F.name} 파티 수`)}</td>
       <td>${stepper('hire', f, raw.hire[f], `${F.name} 계약 파티`)}</td>
       <td>${stepper('pots', f, raw.pots[f], `${F.name} 파티당 포션`)}</td>
       <td><select class="guide" data-k="guide" data-i="${f}" aria-label="${F.name} 편성 지침"><option value="">지침 없음</option>${keysAll.map(k => `<option value="${k}"${P.guide[f] === k ? ' selected' : ''}>${keyLabel(k)}</option>`).join('')}</select>${P.guide[f] ? `<small>조당 +${CO.GUIDE_COST}G</small>` : ''}</td>
       <td class="n">${P.parties[f] + P.hire[f] ? pct(p) : '-'}</td>
-      <td class="n">${(F.take * k).toFixed(1)}개<small>${k < 1 ? `몰려서 ${pct(k)}만` : '넉넉함'}</small></td>
       <td class="n">${fmt(sc[f] + P.hire[f] * CO.HIRE_FEE)}G</td></tr>`;
   }).join('');
   const sell = ITEMS.map((it, j) => {
@@ -73,7 +74,7 @@ export function planHtml(W: World, raw: Plan) {
     <h2>제${W.month}월 결정표</h2>
     <p class="lead">파티는 4명 한 조. 단원 ${c.members}명이면 ${maxParties(c)}조까지 직접 보낼 수 있고, 모자라면 군소 용병대를 계약 파티로 빌려요 (한 조 ${CO.HIRE_FEE}G, 캔 것의 ${pct(CO.HIRE_CUT)}는 그들 몫). 예상치는 경쟁자가 지난달처럼 움직인다고 보고 어림한 값이에요.</p>
     <h3>1 · 어느 층에 몇 조를 보낼까</h3>
-    <div class="tw"><table class="grid"><thead><tr><th>층 · 전리품</th><th class="n">층에 남은 양</th><th class="n">지난달 남들</th><th>우리 파티</th><th>계약 파티</th><th>파티당 포션 (${W.potion}G)</th><th>편성 지침</th><th class="n">예상 성공률</th><th class="n">성공 조당 채집</th><th class="n">출정 비용</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="tw"><table class="grid"><thead><tr><th>층 · 전리품</th><th class="n">지난달 남들</th><th class="n">지난달 우리<br>성공 조당</th><th>우리 파티</th><th>계약 파티</th><th>파티당 포션 (${W.potion}G)</th><th>편성 지침</th><th class="n">예상 성공률</th><th class="n">출정 비용</th></tr></thead><tbody>${rows}</tbody></table></div>
     <details class="field"${W.notes.length ? ' open' : ''}><summary>현장 기록 · 우리 파티만 가져오는 정보</summary>
       <p class="note">파티마다 직업 넷과 장비 하나가 섞여 들어가요. 그 층에 사는 것의 약점을 갖춘 파티는 잘 돌아오고, 역효과를 갖춘 파티는 크게 당해요. 증언과 성공률을 보고 약점이라 여기는 것을 편성 지침으로 정하면, 우리 파티는 모두 그것을 갖추고 들어가요. 경쟁 용병단도 한 층에 오래 드나들면 약점을 깨쳐요.</p>
       ${fieldHtml(W)}
@@ -111,7 +112,7 @@ export function resultsHtml(W: World) {
   };
   const floors = FLOORS.slice(0, Math.max(...L.res.map(r => r.sent.reduce((m, n, f) => (n ? f + 1 : m), 1)))).map((F, f) => {
     const I = L.floors[f], got = L.res.map(r => r.got[f]);
-    return `<div class="frow"><b>${F.name}</b><div class="bar" role="img" aria-label="${F.name}에 있던 ${I.before}개 중 ${I.taken}개를 캐 감, 우리 ${got[0]}개">${got.map((n, i) => (n ? `<span style="width:${n / Math.max(1, I.before) * 100}%;background:${COLORS[W.cos[i].id]}" title="${W.cos[i].name} ${n}개"></span>` : '')).join('')}</div><span class="r">우리 ${got[0]} · 모두 ${I.taken} / 있던 ${I.before} · ${I.crowd}조</span></div>`;
+    return `<div class="frow"><b>${F.name}</b><div class="bar" role="img" aria-label="${F.name}에서 모두 ${I.taken}개를 캐 감, 우리 ${got[0]}개">${got.map((n, i) => (n ? `<span style="width:${n / Math.max(1, I.taken) * 100}%;background:${COLORS[W.cos[i].id]}" title="${W.cos[i].name} ${n}개"></span>` : '')).join('')}</div><span class="r">우리 ${got[0]} · 모두 ${I.taken} · ${I.crowd}조</span></div>`;
   }).join('');
   const prices = ITEMS.map((it, j) => {
     if (!L.Q[j] && j >= W.unlocked) return '';

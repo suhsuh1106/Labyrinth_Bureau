@@ -366,13 +366,24 @@ describe('미궁의 압력과 근원', () => {
 });
 
 describe('첫날 장면', () => {
-  it('세 세력이 한두 문장씩 말하고, 판에는 아무것도 쓰지 않는다', async () => {
+  it('전제만 몇 줄 깔고 인물 대사 없이 결정표로 넘어가며, 게임 규칙을 건드리지 않는다', async () => {
     const { ARRIVAL } = await import('../src/ui/co/arrival');
-    const who = ARRIVAL.filter(l => l.who).map(l => l.who);
-    expect(who).toEqual(['하르덴 백작', '대사제 엘마', '오르반 조합장']);
-    ARRIVAL.filter(l => l.who).forEach(l => expect(l.t.split(/[.?!]\s/).length, l.who).toBeLessThanOrEqual(2));
+    expect(ARRIVAL.length).toBeGreaterThan(0);
+    expect(ARRIVAL.filter(l => l.who)).toEqual([]);
     // 장면은 DOM만 만지고 게임 규칙을 import하지 않는다
     const src = (await import('node:fs')).readFileSync('src/ui/co/arrival.ts', 'utf8');
     expect(src).not.toMatch(/core\/|rnd\(/);
+  });
+});
+
+describe('숨긴 정보', () => {
+  it('층에 남은 양은 결정표와 정산서에 드러나지 않는다', () => {
+    setSeed(12); const W = newWorld();
+    for (let m = 0; m < 8; m++) runMonth(W, BOT.even(W));
+    const plan = carryPlan(W, null), draw = () => planHtml(W, plan) + resultsHtml(W);
+    const before = draw();
+    W.pool = W.pool.map(p => p + 37);
+    W.history.forEach(M => M.floors.forEach(F => { F.before += 37; }));
+    expect(draw()).toBe(before);
   });
 });
