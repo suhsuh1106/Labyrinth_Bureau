@@ -23,6 +23,9 @@ export const CO = {
   RECRUIT: 80,
   // 큰 조직일수록 사람 하나 굴리는 데 드는 관리비가 오른다: 급여 × (1 + 단원 수 / OVERHEAD). 시작 금고는 규모^CASH_EXP에 비례
   OVERHEAD: 100, CASH_EXP: 1,
+  // 몸집과 질: 훈련과 탐사 숙련은 사람 머릿수로 나뉜다. 같은 훈련비·같은 성공이라도 SIZE_REF명보다 크면 한 사람에게 덜 돌아간다.
+  // 큰 용병단은 조를 많이 보내고 건물 값을 여럿이 나눠 내지만, 한 조 한 조는 무뎌진다. 작은 용병단은 그 반대다
+  SIZE_REF: 36,
   // 훈련: 훈련도는 매달 5%씩 식고 훈련비/200만큼 찬다(훈련비를 계속 내면 훈련비/10에 머문다).
   // 성공률 보너스는 갈수록 덜 오른다: TRAIN_MAX × 훈련도 / (훈련도 + TRAIN_K)
   TRAIN_MAX: 0.2, TRAIN_K: 20,
@@ -238,7 +241,7 @@ export const keyOf = (W: World, f: number) => (W.keys && W.keys[f]) || MONSTERS[
 // 전리품 비율: 성공 한 번에 캐 오는 양에 곱하는 값
 export const expBonus = (n: number) => CO.EXP_MAX * n / (n + CO.EXP_K);
 export const lootMul = (c: Company, f: number, tool = 0) =>
-  1 + expBonus((c.exp && c.exp[f]) || 0) + CO.PROC_BONUS * Math.min(CO.PROC_MAX, c.proc || 0) + (CO.TOOL_BONUS[tool] || 0);
+  1 + expBonus(((c.exp && c.exp[f]) || 0) * CO.SIZE_REF / Math.max(CO.SIZE_REF / 2, c.members)) + CO.PROC_BONUS * Math.min(CO.PROC_MAX, c.proc || 0) + (CO.TOOL_BONUS[tool] || 0);
 const rootOf = (W: World, f: number): Root => (W.roots && W.roots[f]) || { found: 0, seal: 0, mine: 0, done: '', at: 0 };
 // 층의 크기: 봉인한 층은 조금 작아진다 (모두가 덜 캔다)
 export const floorMax = (W: World, f: number) => Math.round(FLOORS[f].max * (rootOf(W, f).done === 'seal' ? CO.SEAL_MAX : 1));
@@ -322,7 +325,7 @@ export function outlook(W: World) {
 const STYLE: Record<Style, { prior: (W: World, f: number) => number; resp: number; pots: number; train: number; tool: number; proc: boolean }> = {
   volume: { prior: (_, f) => 1 / (f + 1) ** 1.5, resp: 0.5, pots: 2, train: 0, tool: 0, proc: true },
   steady: { prior: () => 1, resp: 0.3, pots: 4, train: 300, tool: 1, proc: true },
-  deep: { prior: (W, f) => (f >= W.unlocked - 2 ? (f === W.unlocked - 1 ? 2 : 1) : 0.15), resp: 0.4, pots: 5, train: 600, tool: 1, proc: false },
+  deep: { prior: (W, f) => (f >= W.unlocked - 2 ? (f === W.unlocked - 1 ? 2 : 1) : 0.15), resp: 0.4, pots: 5, train: 400, tool: 1, proc: false },
   chaser: { prior: () => 1, resp: 1, pots: 3, train: 300, tool: 0, proc: false },
   crowd: { prior: () => 1, resp: 1.2, pots: 2, train: 0, tool: 0, proc: false },
   hoarder: { prior: (_, f) => (f === 0 ? 0.6 : 1), resp: 0.6, pots: 3, train: 300, tool: 1, proc: false },
@@ -544,7 +547,7 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
     r.net = r.sales - Object.values(r.spend).reduce((a, b) => a + b, 0);
     c.cash += r.net;
     c.losses = r.net < 0 ? c.losses + 1 : 0;
-    c.skill = c.skill * 0.95 + P.train / 200;
+    c.skill = c.skill * 0.95 + P.train / 200 * CO.SIZE_REF / Math.max(CO.SIZE_REF / 2, c.members);
     if (c.pendingBase) { c.bases[c.pendingBase.f] += c.pendingBase.amt / CO.BASE_STEP; c.pendingBase = null; }
     // 갈무리장: 이번 달 넣은 돈은 다음 달부터 효과가 난다
     if (c.pendingProc) { c.proc = (c.proc || 0) + c.pendingProc / CO.PROC_STEP; c.pendingProc = 0; }

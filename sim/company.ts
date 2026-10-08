@@ -4,7 +4,7 @@
 // 성향: even(고르게) · deep(깊은 층 위주) · hire(계약 파티를 씀) · smart(시장을 읽는 숙련자, 근원에는 채굴장)
 //       smartNoGuide · smartSeal · smartNoRoot: 숙련 봇에서 지침을 빼거나 근원을 달리 다룬 것
 import { setSeed } from '../src/core/rng';
-import { CO, FLOORS, churchPrice, ITEMS, type Plan, type World, defaultPlan, demandMul, potsOf, floorMons, maxParties, newWorld, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
+import { CO, FLOORS, churchPrice, ITEMS, type Plan, type World, defaultPlan, demandMul, potsOf, probe, floorMons, maxParties, newWorld, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
 import { demandSeen } from '../src/ui/co/book';
 
 const arg = (k: string, d: string) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
@@ -27,6 +27,8 @@ export const BOT: Record<string, (W: World) => Plan> = {
   smartNoGuide: W => { const P = smartPlan(W); P.guide = P.guide.map(() => ''); return P; },
   // 숙련 봇에서 도감으로 소재 챙기기만 뺀 것 (갈무리 편성이 순위에 얼마나 보태는지 재는 기준)
   smartNoKit: W => smartPlan(W, 'mine', false),
+  // 숙련 봇에 조사 의뢰(큰 용병단 둘의 이번 달 계획 사 보기)로 붐빔을 읽어 나누기를 더한 것 (아직 숙련 봇보다 못하다)
+  smartScout: W => smartPlan(W, 'mine', true, true),
   // 숙련 봇이 근원을 봉인하는 쪽과, 근원을 그대로 두는 쪽 (채굴장과 견주는 기준)
   smartSeal: W => smartPlan(W, 'seal'),
   smartNoRoot: W => smartPlan(W, 'none'),
@@ -36,7 +38,7 @@ export const BOT: Record<string, (W: World) => Plan> = {
 // 조당 남는 돈(기준 시세와 지난 시세의 중간으로 어림)에 비례해 기울인다. 포션은 5병, 훈련비는 300(훈련은 갈수록 덜 올라 이 근처가 가장 낫다), 채집 장비 1단계,
 // 크게 남는 층에는 계약 파티를 쓴다.
 // 거점과 쌓아 두기는 지금 규모에서는 손해라 쓰지 않는다 (시뮬레이션으로 확인함)
-export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine', kit = true): Plan {
+export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine', kit = true, scout = false): Plan {
   const c = us(W), P = defaultPlan(W), L = W.last, pots = 5;
   const value = FLOORS.map((F, f) => {
     if (f >= W.unlocked) return 0;
@@ -47,6 +49,7 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
   P.parties = value.map(v => Math.floor(n * v / sum));
   const order = value.map((v, f) => [v, f]).sort((a, b) => b[0] - a[0]);
   for (let k = 0, rest = n - P.parties.reduce((a, b) => a + b, 0); rest > 0; k++, rest--) P.parties[order[k % W.unlocked][1]]++;
+  if (scout) P.parties = scoutSplit(W, n, pots, value);
   P.pots = FLOORS.map(() => pots);
   P.tool = 1;   // 채집 장비 1단계가 가장 낫다 (2단계와 갈무리장은 이 규모에서 본전이 안 된다)
   const best = value.indexOf(Math.max(...value));
@@ -80,6 +83,44 @@ export function deduce(W: World) {
     });
     return best;
   });
+}
+
+// 조사 의뢰로 붐빔 읽기: 금고가 넉넉하면 지난달 가장 많이 보낸 경쟁 용병단 둘의 이번 달 계획을 사 보고, 나머지는 지난달만큼 온다고 본다.
+// 층마다 모두가 캐 갈 양이 층의 크기를 넘으면 나눠 갖는다고 보고(층에 남은 양은 모르므로 가득의 3/4로 어림), 사망의 값까지 빼서
+// 한 조를 더 보냈을 때 우리 몫이 가장 많이 느는 층에 한 조씩 나눈다. 조사할 수 없는 달은 원래 나누기(base)를 쓴다
+export function scoutSplit(W: World, n: number, pots: number, value: number[]) {
+  const c = us(W), L = W.last;
+  if (!L || W.month < 3 || c.cash < 4000) return spreadBy(n, value, W.unlocked);
+  const big = W.cos.map((x, i) => [i, L.res[i].sent.reduce((a, b) => a + b, 0)] as [number, number]).filter(([i]) => W.cos[i].style !== 'player' && W.cos[i].style !== 'crowd').sort((a, b) => b[1] - a[1]).slice(0, 2).map(([i]) => W.cos[i].id);
+  big.forEach(id => { if (!(W.probes || []).some(x => x.m === W.month && x.id === id)) probe(W, 'riv', id); });
+  const known: Record<string, number[]> = {};
+  (W.probes || []).filter(x => x.m === W.month && x.k === 'riv').forEach(x => { known[x.id!] = x.parties!.map((v, f) => v + x.hire![f]); });
+  // 사 보지 않은 곳은 지난 두 달의 평균만큼 온다고 본다 (지난달 벌이를 쫓아 층을 오가므로 한 달 치는 잘 틀린다)
+  const H = W.history.slice(-2);
+  const others = FLOORS.map((_, f) => H.reduce((s0, M) => s0 + M.plans.reduce((a, Q, i) => a + (i && !known[W.cos[i].id] ? Q.parties[f] + Q.hire[f] : 0), 0), 0) / H.length + Object.values(known).reduce((a, v) => a + v[f], 0));
+  const unit = FLOORS.map((_, f) => ((L.Q[f] ? W.price[f] : ITEMS[f].P0) + ITEMS[f].P0) / 2);
+  const DEATH = CO.RECRUIT + 200;
+  const total = (f: number, k: number) => {
+    if (!k) return 0;
+    const F = FLOORS[f], all = others[f] + k, p = succRate(c, f, pots, all);
+    const share = Math.min(1, F.max * 0.75 / Math.max(1, all * p * F.take));
+    const die = (1 - p) * CO.PARTY * F.risk * Math.max(0.2, 1.9 - 0.3 * pots);
+    return k * (p * F.take * share * unit[f] - CO.SORTIE - pots * W.potion - die * DEATH);
+  };
+  const out = FLOORS.map(() => 0);
+  for (let q = 0; q < n; q++) {
+    let bf = -1, bv = -Infinity;
+    // 한 층에 절반 넘게 몰지 않는다 (짐작이 틀렸을 때 한꺼번에 무너지지 않게)
+    for (let f = 0; f < W.unlocked; f++) { if (out[f] >= Math.ceil(n / 2) && W.unlocked > 1) continue; const v = total(f, out[f] + 1) - total(f, out[f]); if (v > bv) { bv = v; bf = f; } }
+    out[bf]++;
+  }
+  return out;
+}
+function spreadBy(n: number, value: number[], open: number) {
+  const sum = value.reduce((a, b) => a + b, 0) || 1, out = value.map(v => Math.floor(n * v / sum));
+  const order = value.map((v, f) => [v, f]).sort((a, b) => b[0] - a[0]);
+  for (let k = 0, rest = n - out.reduce((a, b) => a + b, 0); rest > 0; k++, rest--) out[order[k % open][1]]++;
+  return out;
 }
 
 // 도감 기록으로 소재 편성: 약점 지침이 직업이면 장비를, 장비면 직업을 하나 더 고른다. 기록에서 그 조건을 갖춘 조가
