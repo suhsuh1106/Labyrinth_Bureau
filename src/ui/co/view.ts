@@ -1,8 +1,11 @@
 // 용병단 행정실 화면: 결정표(위)와 지난달 정산(아래). HTML 문자열을 만들기만 하고 상태는 건드리지 않는다
-import { CO, FLOORS, ITEMS, type Plan, type World, churchPrice, hireCost, trainBonus, keysAll, maxParties, priceOf, rankOf, sanitize, sortieCost, succRate, us, worth } from '../../core/company';
+import { CO, FLOORS, INTEL, ITEMS, type Plan, SRCS, type World, churchPrice, hireCost, intelBlock, intelCost, lootMul, toolCost, trainBonus, keysAll, maxParties, priceOf, rankOf, sanitize, sortieCost, succRate, us, worth } from '../../core/company';
 import { MONSTERS } from '../../core/data';
 import { keyLabel } from '../../core/util';
 import { paperHtml } from './paper';
+import { SRC_INFO } from './intel';
+// 정보망 단계 (화면이 무엇을 보여 줄지 정한다)
+const lvOf = (W: World, k: keyof typeof INTEL.BASE) => (W.intel ? W.intel.lv[k] : INTEL.BASE[k]);
 
 export const COLORS: Record<string, string> = {
   us: 'var(--merchant)', red: '#b8452f', holy: '#a57a12', iron: '#5b6670', crow: '#3b3346', silver: '#2f7d7a',
@@ -43,11 +46,11 @@ export function planHtml(W: World, raw: Plan) {
     const open = f < W.unlocked;
     if (!open) return `<tr class="closed"><td><b>${F.name}</b><small>${ITEMS[f].name}</small></td><td colspan="8">${f === W.unlocked ? `아직 닫혀 있다 · 길 뚫기 ${Math.min(99, Math.round(W.prog / CO.OPEN_WINS[W.unlocked - 1] * 100))}%` : '아직 닫혀 있다'}</td></tr>`;
     const crowd = P.parties[f] + P.hire[f] + others(f), p = succRate(c, f, P.pots[f], crowd);
-    // 층에 남은 양은 보이지 않는다. 지난달 우리 성공 파티가 캐 온 양을 가득할 때의 양과 견줘 짐작한다
+    // 층에 남은 양은 보이지 않는다. 지난달 우리 성공 파티가 캐 온 양의 흐름을 정보실 그래프로 보고 짐작한다
     const lr = L ? L.res[0] : null, per = lr && lr.ok[f] ? (lr.got[f] / lr.ok[f]).toFixed(1) : '-';
     const root = W.roots && W.roots[f].done ? (W.roots[f].done === 'seal' ? ' · 봉인' : ' · 채굴장') : '';
     return `<tr><td><b>${F.name}</b><small>${ITEMS[f].name} · 위험 ${pct(F.risk)}${root}</small></td>
-      <td class="n" data-l="지난달 남들">${others(f)}조</td><td class="n" data-l="지난달 우리 성공 조당">${per}${per === '-' ? '' : '개'}<small>가득하면 ${F.take}개</small></td>
+      <td class="n" data-l="지난달 남들">${others(f)}조</td><td class="n" data-l="지난달 우리 성공 조당">${per}${per === '-' ? '' : '개'}<small>전리품 비율 ×${lootMul(c, f, P.tool || 0).toFixed(2)}</small></td>
       <td data-l="우리 파티">${stepper('parties', f, raw.parties[f], `${F.name} 파티 수`)}</td>
       <td data-l="계약 파티">${stepper('hire', f, raw.hire[f], `${F.name} 계약 파티`)}</td>
       <td data-l="파티당 포션">${stepper('pots', f, raw.pots[f], `${F.name} 파티당 포션`)}</td>
@@ -56,15 +59,15 @@ export function planHtml(W: World, raw: Plan) {
       <td class="n" data-l="출정 비용">${fmt(sc[f] + P.hire[f] * CO.HIRE_FEE)}G</td></tr>`;
   }).join('');
   const sell = ITEMS.map((it, j) => {
-    const s = P.sell[j], Qo = L ? L.Q[j] - L.res[0].sold[j] : it.D, est = priceOf(it, Qo + s);
+    const mk = lvOf(W, 'mkt') >= 1, s = P.sell[j], Qo = L ? L.Q[j] - L.res[0].sold[j] : it.D, est = mk ? priceOf(it, Qo + s) : W.price[j];
     if (!c.stock[j] && j >= W.unlocked) return '';
     return `<tr><td><b>${it.name}</b><small>${it.buyer}</small></td><td class="n" data-l="창고">${c.stock[j]}</td>
       <td data-l="이번 달 판매량">${stepper('sell', j, s, `${it.name} 판매량`, 5)}<small>${s === c.stock[j] ? (s ? '전부' : '') : `${c.stock[j] - s}개는 창고에`}</small></td>
-      <td class="n" data-l="지난달 시장 전체">${L ? L.Q[j] : '-'}</td><td class="n" data-l="지난달 시세">${fmt(W.price[j])}G</td><td class="n" data-l="기준 시세">${fmt(it.P0)}G</td>
-      <td class="n" data-l="예상 판매 수입">${fmt(s * est)}G<small>남들이 지난달만큼 팔면 ${fmt(est)}G</small></td></tr>`;
+      <td class="n" data-l="지난달 시장 전체">${L && mk ? L.Q[j] : '?'}</td><td class="n" data-l="지난달 시세">${fmt(W.price[j])}G</td><td class="n" data-l="기준 시세">${fmt(it.P0)}G</td>
+      <td class="n" data-l="예상 판매 수입">${fmt(s * est)}G<small>${mk ? `남들이 지난달만큼 팔면 ${fmt(est)}G` : '남들 판매량을 몰라 지난달 시세로 어림'}</small></td></tr>`;
   }).join('');
   const sent = P.parties.reduce((a, b) => a + b, 0), hired = P.hire.reduce((a, b) => a + b, 0);
-  const spend = sc.reduce((a, b) => a + b, 0) + hireCost(P) + Math.round(c.members * CO.WAGE * (1 + c.members / CO.OVERHEAD)) + P.train + (P.base ? P.base.amt : 0) + (P.donate || 0) + (P.root ? P.root.seal + P.root.mine : 0);
+  const spend = sc.reduce((a, b) => a + b, 0) + hireCost(P) + Math.round(c.members * CO.WAGE * (1 + c.members / CO.OVERHEAD)) + P.train + (P.base ? P.base.amt : 0) + (P.donate || 0) + (P.root ? P.root.seal + P.root.mine : 0) + toolCost(P) + (P.proc || 0) + intelCost(P);
   const sales = ITEMS.reduce((a, it, j) => { const Qo = L ? L.Q[j] - L.res[0].sold[j] : it.D; return a + P.sell[j] * priceOf(it, Qo + P.sell[j]); }, 0);
   const warn: string[] = [];
   if (raw.parties.reduce((a, b) => a + b, 0) > maxParties(c)) warn.push(`단원이 모자라 ${maxParties(c)}조까지만 보내요`);
@@ -85,10 +88,13 @@ export function planHtml(W: World, raw: Plan) {
     <h3>3 · 투자</h3>
     <div class="invest">
       <label class="box">훈련비 ${stepper('train', 0, raw.train, '훈련비', 100)}<small>훈련도 ${c.skill.toFixed(1)} (성공률 +${(trainBonus(c.skill) * 100).toFixed(1)}%p) → 이번 달 +${(raw.train / 200).toFixed(1)}. 매달 5%씩 식고, 이 훈련비를 계속 내면 훈련도 ${Math.round(raw.train / 10)} (성공률 +${(trainBonus(raw.train / 10) * 100).toFixed(1)}%p)에 머물러요. 갈수록 덜 올라요</small></label>
+      <label class="box">채집 장비 ${stepper('tool', 0, raw.tool || 0, '채집 장비 수준')}<small>0~2단계. 조당 ${CO.TOOL_COST.slice(1).map(v => `${v}G`).join(' / ')}로 성공 한 번에 캐 오는 양 +${CO.TOOL_BONUS.slice(1).map(v => Math.round(v * 100) + '%').join(' / ')}. 이번 달 ${fmt(toolCost(P))}G</small></label>
+      <label class="box">갈무리장 ${stepper('proc', 0, raw.proc || 0, '갈무리장 투자', 500)}<small>${fmt(CO.PROC_STEP)}G마다 1단계 (최대 ${CO.PROC_MAX}). 다음 달부터 캐 오는 양 +${Math.round(CO.PROC_BONUS * 100)}%. 지금 ${(c.proc || 0).toFixed(1)}단계${c.pendingProc ? ' · 공사 중' : ''}</small></label>
       <label class="box">전진 거점 <span class="step"><select data-k="basef" aria-label="거점을 둘 층">${FLOORS.slice(0, W.unlocked).map((F, f) => `<option value="${f}"${f === bf ? ' selected' : ''}>${F.name}</option>`).join('')}</select></span> ${stepper('base', 0, ba, '거점 투자', 500)}<small>${fmt(CO.BASE_STEP)}G마다 1단계 (최대 ${CO.BASE_MAX}). 다음 달부터 그 층 성공률 +5%p, 2단계면 조당 채집 +1. 지금 ${FLOORS.slice(0, W.unlocked).map((F, f) => c.bases[f] ? `${F.name} ${c.bases[f].toFixed(1)}` : '').filter(Boolean).join(' · ') || '없음'}${c.pendingBase ? ` · ${FLOORS[c.pendingBase.f].name} 공사 중` : ''}</small></label>
     </div>
     ${supplyHtml(W, raw, P)}
     ${depthsHtml(W, raw)}
+    ${intelPlanHtml(W, raw)}
     <div class="sum"><div><span>출정</span><b>${sent} + 계약 ${hired}조</b></div><div><span>지출 (급여 ${fmt(Math.round(c.members * CO.WAGE * (1 + c.members / CO.OVERHEAD)))} 포함)</span><b>${fmt(spend)}</b></div><div><span>예상 판매 수입</span><b>${fmt(sales)}</b></div><div><span>예상 순이익</span><b class="${sales - spend < 0 ? 'neg' : 'pos'}">${sgn(sales - spend)}</b></div></div>
     ${warn.length ? `<div class="warn">${warn.join(' · ')}</div>` : ''}`;
 }
@@ -101,24 +107,25 @@ export function resultsHtml(W: World) {
   const prev = W.history.length > 1 ? W.history[W.history.length - 2].rank : null;
   const order = L.rank.map(id => W.cos.findIndex(c => c.id === id));
   const ci = W.cos.findIndex(c => c.style === 'crowd');
+  // 남의 출정·판매·사망은 정보망 2단계부터 보인다 (순위와 평가액은 연합이 발표한다). 금고는 우리 것만 안다
+  const see = { gate: lvOf(W, 'gate') >= 2, mkt: lvOf(W, 'mkt') >= 2, chu: lvOf(W, 'chu') >= 2 };
   const row = (i: number) => {
-    const c = W.cos[i], r = L.res[i], rk = L.rank.indexOf(c.id) + 1, pr = prev ? prev.indexOf(c.id) + 1 : 0, mv = pr && rk ? pr - rk : 0;
+    const me = i === 0, c = W.cos[i], r = L.res[i], rk = L.rank.indexOf(c.id) + 1, pr = prev ? prev.indexOf(c.id) + 1 : 0, mv = pr && rk ? pr - rk : 0;
     const got = r.got.reduce((a, b, f) => a + b * ITEMS[f].P0, 0), all = L.res.reduce((a, x) => a + x.got.reduce((s, b, f) => s + b * ITEMS[f].P0, 0), 0);
     return `<tr class="${c.style === 'player' ? 'us' : ''}"><td>${rk ? `<b class="rk">${rk}</b>${mv ? `<span class="mv ${mv > 0 ? 'up' : 'dn'}">${mv > 0 ? '▲' : '▼'}${Math.abs(mv)}</span>` : ''}` : '-'}</td>
       <td><span class="co">${sw(c.id)}${c.name}</span><small>${c.style === 'player' ? '우리' : STYLE_NOTE[c.style]}</small></td>
-      <td class="n">${c.members}</td><td class="n">${r.sent.reduce((a, b) => a + b, 0) + r.hired.reduce((a, b) => a + b, 0)}조</td><td class="n">${all ? pct(got / all) : '-'}</td>
-      <td class="n">${fmt(r.sales)}</td><td class="n ${r.net < 0 ? 'neg' : 'pos'}">${sgn(r.net)}</td>
-      <td class="n">${c.style === 'crowd' ? '-' : fmt(c.cash)}</td><td class="n">${c.style === 'crowd' ? '-' : fmt(worth(W, c))}</td><td class="n">${r.deaths}</td></tr>`;
+      <td class="n">${c.members}</td><td class="n">${me || see.gate ? `${r.sent.reduce((a, b) => a + b, 0) + r.hired.reduce((a, b) => a + b, 0)}조` : '?'}</td><td class="n">${me || see.mkt ? (all ? pct(got / all) : '-') : '?'}</td>
+      <td class="n">${me || see.mkt ? fmt(r.sales) : '?'}</td><td class="n ${me || see.mkt ? (r.net < 0 ? 'neg' : 'pos') : ''}">${me || see.mkt ? sgn(r.net) : '?'}</td>
+      <td class="n">${me ? fmt(c.cash) : '-'}</td><td class="n">${c.style === 'crowd' ? '-' : fmt(worth(W, c))}</td><td class="n">${me || see.chu ? r.deaths : '?'}</td></tr>`;
   };
-  const floors = FLOORS.slice(0, Math.max(...L.res.map(r => r.sent.reduce((m, n, f) => (n ? f + 1 : m), 1)))).map((F, f) => {
-    const I = L.floors[f], got = L.res.map(r => r.got[f]);
-    return `<div class="frow"><b>${F.name}</b><div class="bar" role="img" aria-label="${F.name}에서 모두 ${I.taken}개를 캐 감, 우리 ${got[0]}개">${got.map((n, i) => (n ? `<span style="width:${n / Math.max(1, I.taken) * 100}%;background:${COLORS[W.cos[i].id]}" title="${W.cos[i].name} ${n}개"></span>` : '')).join('')}</div><span class="r">우리 ${got[0]} · 모두 ${I.taken} · ${I.crowd}조</span></div>`;
-  }).join('');
   const prices = ITEMS.map((it, j) => {
     if (!L.Q[j] && j >= W.unlocked) return '';
-    const sold = L.res.map(r => r.sold[j]);
-    return `<tr><td><b>${it.name}</b><small>${it.buyer}</small></td><td class="n">${L.Q[j]}</td><td class="n">${it.D}</td><td class="n"><b>${fmt(L.price[j])}G</b></td><td class="n ${L.price[j] < it.P0 ? 'neg' : 'pos'}">${pct(L.price[j] / it.P0)}</td>
-      <td><div class="bar">${sold.map((n, i) => (n ? `<span style="width:${n / Math.max(1, L.Q[j]) * 100}%;background:${COLORS[W.cos[i].id]}" title="${W.cos[i].name} ${n}개"></span>` : '')).join('')}</div></td></tr>`;
+    // 누가 팔았나: 상단 장부 2단계면 용병단별, 1단계면 우리와 남들, 0단계면 우리 것만
+    const mk = lvOf(W, 'mkt'), sold = L.res.map((r, i) => (mk >= 2 || i === 0 ? r.sold[j] : 0));
+    if (mk === 1) sold[1] = L.Q[j] - L.res[0].sold[j];
+    const col = (i: number) => (mk === 1 && i === 1 ? 'var(--ink-soft)' : COLORS[W.cos[i].id]), nm = (i: number) => (mk === 1 && i === 1 ? '남들' : W.cos[i].name);
+    return `<tr><td><b>${it.name}</b><small>${it.buyer}</small></td><td class="n">${mk ? L.Q[j] : '?'}</td><td class="n">${it.D}</td><td class="n"><b>${fmt(L.price[j])}G</b></td><td class="n ${L.price[j] < it.P0 ? 'neg' : 'pos'}">${pct(L.price[j] / it.P0)}</td>
+      <td><div class="bar">${sold.map((n, i) => (n ? `<span style="width:${n / Math.max(1, mk ? L.Q[j] : n) * 100}%;background:${col(i)}" title="${nm(i)} ${n}개"></span>` : '')).join('')}</div></td></tr>`;
   }).join('');
   const r = L.res[0];
   const mine = `<div class="tw"><table class="grid"><thead><tr><th>층</th><th class="n">우리</th><th class="n">계약</th><th class="n">성공</th><th class="n">캐 온 양</th></tr></thead><tbody>${FLOORS.map((F, f) => (r.sent[f] + r.hired[f] ? `<tr><td>${F.name}</td><td class="n">${r.sent[f]}</td><td class="n">${r.hired[f]}</td><td class="n">${r.ok[f]}</td><td class="n">${r.got[f]}</td></tr>` : '')).join('')}</tbody></table></div>
@@ -127,6 +134,9 @@ export function resultsHtml(W: World) {
       ${r.spend.hire ? `<tr><td>계약 파티 수수료</td><td class="n">−${fmt(r.spend.hire)}</td></tr>` : ''}
       <tr><td>급여</td><td class="n">−${fmt(r.spend.wage)}</td></tr>
       ${r.spend.recruit ? `<tr><td>신입 계약금 (${r.recruited}명)</td><td class="n">−${fmt(r.spend.recruit)}</td></tr>` : ''}
+      ${r.spend.tool ? `<tr><td>채집 장비</td><td class="n">−${fmt(r.spend.tool)}</td></tr>` : ''}
+      ${r.spend.intel ? `<tr><td>정보비</td><td class="n">−${fmt(r.spend.intel)}</td></tr>` : ''}
+      ${r.spend.proc ? `<tr><td>갈무리장</td><td class="n">−${fmt(r.spend.proc)}</td></tr>` : ''}
       ${r.spend.root ? `<tr><td>근원 기금</td><td class="n">−${fmt(r.spend.root)}</td></tr>` : ''}
       ${r.spend.donate ? `<tr><td>교회 후원금</td><td class="n">−${fmt(r.spend.donate)}</td></tr>` : ''}
       ${r.spend.train + r.spend.base ? `<tr><td>훈련 · 거점</td><td class="n">−${fmt(r.spend.train + r.spend.base)}</td></tr>` : ''}
@@ -135,10 +145,7 @@ export function resultsHtml(W: World) {
     <h2>제${L.month}월 용병단 순위</h2>
     <div class="tw"><table class="grid wide"><thead><tr><th>순위</th><th>용병단</th><th class="n">단원</th><th class="n">출정</th><th class="n">채집 점유율</th><th class="n">판매 수입</th><th class="n">순이익</th><th class="n">금고</th><th class="n">평가액</th><th class="n">사망</th></tr></thead>
       <tbody>${order.map(row).join('')}${ci >= 0 ? row(ci) : ''}</tbody></table></div>
-    <div class="cols2">
-      <div><h3>층별로 누가 캐 갔나</h3><div class="floors">${floors}</div><div class="legend">${named.concat(ci >= 0 ? [ci] : []).map(i => `<span class="co">${sw(W.cos[i].id)}${W.cos[i].name}</span>`).join('')}</div></div>
-      <div><h3>동향</h3><ul class="co-news">${newsLines(W).map(t => `<li>${t}</li>`).join('')}</ul></div>
-    </div>
+    <h3>동향</h3><ul class="co-news">${newsLines(W).map(t => `<li>${t}</li>`).join('')}</ul>
     <h3>시세표</h3>
     <div class="tw"><table class="grid wide"><thead><tr><th>전리품</th><th class="n">시장 전체 판매</th><th class="n">수요</th><th class="n">시세</th><th class="n">기준 대비</th><th>누가 팔았나</th></tr></thead><tbody>${prices}</tbody></table></div>
     <h3>귀환 보고 · 우리 직영 파티</h3>
@@ -176,13 +183,13 @@ export function fieldHtml(W: World) {
   const open = FLOORS.slice(0, W.unlocked).map((F, f) => {
     const notes = W.notes.filter(n => n.f === f).slice(-4).reverse(), all = W.obs[f]['*'];
     if (!notes.length && !all) return `<div class="fblock"><b>${F.name}</b><p class="note">아직 우리 파티가 가 보지 않았어요.</p></div>`;
-    const rows = Object.entries(W.obs[f]).filter(([k, v]) => k !== '*' && v.n >= 3).map(([k, v]) => {
+    const rows = lvOf(W, 'ret') < 2 ? [] : Object.entries(W.obs[f]).filter(([k, v]) => k !== '*' && v.n >= 3).map(([k, v]) => {
       const off = all.n - v.n, offR = off ? (all.w - v.w) / off : 0, r = v.w / v.n, d = off >= 3 ? r - offR : 0;
       return { k, n: v.n, r, d, off };
     }).sort((a, b) => b.d - a.d);
-    return `<div class="fblock"><b>${F.name}</b> <span class="dim">우리 파티 ${all ? all.n : 0}조 출정 · 성공 ${all ? pct(all.w / all.n) : '-'}</span>
+    return `<div class="fblock"><b>${F.name}</b> <span class="dim">최근 우리 파티 ${all ? Math.round(all.n) : 0}조 · 성공 ${all && all.n ? pct(all.w / all.n) : '-'}${lvOf(W, 'ret') < 2 ? ' · 구성별 성공률은 귀환 보고 2단계부터' : ''}</span>
       <ul class="notes">${notes.map(n => `<li><span class="dim">제${n.m}월</span> ${n.t}</li>`).join('')}</ul>
-      ${rows.length ? `<div class="chips">${rows.map(x => `<span class="chip ${x.off >= 3 && x.d >= 0.12 ? 'up' : x.off >= 3 && x.d <= -0.12 ? 'dn' : ''}" title="갖춘 파티 ${x.n}조 성공 ${pct(x.r)}">${keyLabel(x.k)} ${pct(x.r)}${x.off >= 3 ? ` (${x.d >= 0 ? '+' : '−'}${Math.round(Math.abs(x.d) * 100)}%p)` : ''}</span>`).join('')}</div>` : ''}</div>`;
+      ${rows.length ? `<div class="chips">${rows.map(x => `<span class="chip ${x.off >= 3 && x.d >= 0.12 ? 'up' : x.off >= 3 && x.d <= -0.12 ? 'dn' : ''}" title="갖춘 파티 ${Math.round(x.n)}조 성공 ${pct(x.r)}">${keyLabel(x.k)} ${pct(x.r)}${x.off >= 3 ? ` (${x.d >= 0 ? '+' : '−'}${Math.round(Math.abs(x.d) * 100)}%p)` : ''}</span>`).join('')}</div>` : ''}</div>`;
   });
   return `<div class="fgrid">${open.join('')}</div>`;
 }
@@ -237,3 +244,20 @@ export function depthsHtml(W: World, raw: Plan) {
       <label class="box">채굴장 기금 ${stepper('mine', 0, raw.root ? raw.root.mine : 0, '채굴장 기금', 250)}<small>다 차면 그 층에서 우리 성공 조당 ${CO.MINE_TAKE}개를 더 캐요. 대신 그 층이 미궁을 ${CO.MINE_PRESS}배로 채워요. 상단은 반기고 교회는 멀어져요. 기금은 먼저 ${fmt(CO.ROOT_COST)}G가 찬 쪽으로 정해져요.</small></label>
     </div>` : ''}`;
 }
+
+// 6 · 정보비: 출처마다 이번 달 넣을 돈과, 정보원을 붙일 경쟁 용병단
+export function intelPlanHtml(W: World, raw: Plan) {
+  const I = W.intel, rivals = W.cos.filter(c => c.style !== 'player' && c.style !== 'crowd');
+  const box = SRCS.map((k, i) => {
+    const lv = lvOf(W, k), keep = INTEL.KEEP[k][lv], b = (raw.intel && raw.intel[k]) || 0;
+    const blk = intelBlock(W, k);
+    const note = b < keep ? `<span class="neg">유지비 ${fmt(keep)}G보다 적어 다음 달 한 단계 내려가요</span>` : blk && b > keep ? `<span class="neg">${blk.who}과 사이가 ${INTEL.REL} 이상이어야 ${lv + 1}단계로 올라요 (지금 ${blk.now}). 유지비만 넣어도 돼요</span>` : lv >= 3 ? '가장 높은 단계 유지' : b > keep ? `${fmt(b - keep)}G씩 쌓여 ${lv + 1}단계로 (${fmt((I ? I.acc[k] : 0))} / ${fmt(INTEL.UP[k][lv])}G)` : `유지 ${fmt(keep)}G · 더 넣으면 ${lv + 1}단계로 쌓여요`;
+    return `<label class="box">${SRC_INFO[k].n} · ${lv}단계 ${stepper('intel', i, b, `${SRC_INFO[k].n} 정보비`, 50)}<small>${note}</small></label>`;
+  }).join('');
+  const slots = Math.max(1, lvOf(W, 'spy')), on = raw.spyOn || [];
+  const sel = Array.from({ length: slots }, (_, s) => `<select data-k="spyOn" data-i="${s}" aria-label="정보원 ${s + 1}"><option value="">붙이지 않음</option>${rivals.map(c => `<option value="${c.id}"${on[s] === c.id ? ' selected' : ''}>${c.name}</option>`).join('')}</select>`).join(' ');
+  return `<h3>6 · 정보비</h3>
+    <p class="note">정보망 단계를 지키고 올리는 돈이에요. 정보실의 그래프와 짐작이 이 단계만큼 촘촘해져요. 이번 달 ${fmt(intelCost(sanitizeIntel(raw)))}G</p>
+    <div class="invest">${box}<label class="box">정보원을 붙일 곳 <span class="step">${sel}</span><small>정보원 단계만큼 붙어요 (지금 ${lvOf(W, 'spy')}곳). 같은 곳에 오래 붙일수록 정확해져요.</small></label></div>`;
+}
+const sanitizeIntel = (P: Plan) => ({ ...P, intel: Object.fromEntries(SRCS.map(k => [k, Math.max(0, Math.floor((P.intel && P.intel[k]) || 0))])) }) as Plan;

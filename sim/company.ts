@@ -31,7 +31,7 @@ export const BOT: Record<string, (W: World) => Plan> = {
 };
 
 // 숙련 봇: 경쟁자와 군소 용병대가 지난달 벌이를 쫓아 몰려다니므로, 한 층에 몰아넣지 않고 열린 층에 고르게 나누되
-// 조당 남는 돈(기준 시세와 지난 시세의 중간으로 어림)에 비례해 기울인다. 포션은 5병, 훈련비는 300(훈련은 갈수록 덜 올라 이 근처가 가장 낫다),
+// 조당 남는 돈(기준 시세와 지난 시세의 중간으로 어림)에 비례해 기울인다. 포션은 5병, 훈련비는 300(훈련은 갈수록 덜 올라 이 근처가 가장 낫다), 채집 장비 1단계,
 // 크게 남는 층에는 계약 파티를 쓴다.
 // 거점과 쌓아 두기는 지금 규모에서는 손해라 쓰지 않는다 (시뮬레이션으로 확인함)
 export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine'): Plan {
@@ -46,6 +46,7 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine')
   const order = value.map((v, f) => [v, f]).sort((a, b) => b[0] - a[0]);
   for (let k = 0, rest = n - P.parties.reduce((a, b) => a + b, 0); rest > 0; k++, rest--) P.parties[order[k % W.unlocked][1]]++;
   P.pots = FLOORS.map(() => pots);
+  P.tool = 1;   // 채집 장비 1단계가 가장 낫다 (2단계와 갈무리장은 이 규모에서 본전이 안 된다)
   const best = value.indexOf(Math.max(...value));
   if (c.cash > 6000 && value[best] * (1 - CO.HIRE_CUT) - CO.HIRE_FEE > 150) P.hire[best] = 2;
   P.guide = deduce(W);
