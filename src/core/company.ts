@@ -91,11 +91,13 @@ export const INTEL = {
   UP: { ret: [0, 300, 500], mkt: [300, 500, 800], chu: [300, 500, 700], gate: [0, 400, 600], spy: [400, 600, 900] } as Record<Src, number[]>,
   BASE: { ret: 1, mkt: 0, chu: 0, gate: 1, spy: 0 } as Record<Src, number>,
   REL: 55,
+  // 세력(상단·교회와의 사이) 시스템은 지금 닫아 두었다. 닫혀 있는 동안 2단계부터의 사이 조건을 따지지 않는다
+  GATE: false,
 };
 // 다음 단계로 오르는 데 세력과의 사이가 모자라 막혀 있으면, 어느 세력과 지금 사이를 돌려준다
 export function intelBlock(W: World, k: Src): { who: string; now: number } | null {
   const lv = W.intel ? W.intel.lv[k] : INTEL.BASE[k], c = W.cos[0];
-  if (lv + 1 < 2 || lv >= 3) return null;
+  if (!INTEL.GATE || lv + 1 < 2 || lv >= 3) return null;
   if (k === 'mkt' && (c.relM ?? 50) < INTEL.REL) return { who: '상단', now: Math.round(c.relM ?? 50) };
   if (k === 'chu' && (c.relC ?? 50) < INTEL.REL) return { who: '교회', now: Math.round(c.relC ?? 50) };
   return null;
@@ -164,6 +166,8 @@ export type Supply = { pot: number[]; holy: number[]; gear: Record<string, numbe
 export type Kit = { n: number; g: string };
 export type Plan = { parties: number[]; pots: number[]; train: number; base: { f: number; amt: number } | null; hire: number[]; guide: string[]; donate?: number;
   root?: { f: number; seal: number; mine: number } | null; tool?: number; proc?: number; intel?: Partial<Record<Src, number>>; spyOn?: string[];
+  // 정보망을 화면에서 정하는 꼴: 유지비는 저절로 내고(cut에 든 출처는 끊는다), up만큼 더 넣어 넓힌다. 있으면 intel을 이것으로 다시 셈한다
+  intelUp?: Partial<Record<Src, number>>; intelCut?: Src[];
   // buy: 이번 달 사 둘 보급. 비워 둔 칸은 "필요한 만큼" (포션은 모자란 만큼 상단에서, 장비는 편성에 모자란 만큼)
   buy?: { pot?: number; holy?: number; gear?: Record<string, number> };
   // kits: 층마다 편성 줄 (플레이어). 있으면 guide 대신 이것을 따르고, 줄에 들지 않은 우리 조와 계약 파티는 섞인 대로 간다
@@ -627,7 +631,7 @@ function fundIntel(W: World, P: Plan) {
   const I = W.intel, c = us(W); if (!I) return;
   SRCS.forEach(k => {
     const b = Math.max(0, Math.floor((P.intel && P.intel[k]) || 0)), lv = I.lv[k], keep = INTEL.KEEP[k][lv];
-    const relOk = (to: number) => to < 2 || (k === 'mkt' ? (c.relM ?? 50) >= INTEL.REL : k === 'chu' ? (c.relC ?? 50) >= INTEL.REL : true);
+    const relOk = (to: number) => !INTEL.GATE || to < 2 || (k === 'mkt' ? (c.relM ?? 50) >= INTEL.REL : k === 'chu' ? (c.relC ?? 50) >= INTEL.REL : true);
     if (b < keep) { I.lv[k] = Math.max(INTEL.BASE[k], lv - 1); I.acc[k] = 0; return; }
     if (lv >= 2 && !relOk(lv)) { I.lv[k] = 1; I.acc[k] = 0; return; }
     // 다음 단계에 필요한 만큼까지만 쌓인다 (사이가 모자라 막혀 있으면 그 이상 쌓이지 않는다)
@@ -693,6 +697,10 @@ export function sanitize(W: World, c: Company, P: Plan): Plan {
   Q.donate = Math.max(0, Math.floor(Q.donate || 0));
   Q.tool = clamp(Math.floor(Q.tool || 0), 0, CO.TOOL_COST.length - 1);
   Q.proc = (c.proc || 0) + (c.pendingProc || 0) / CO.PROC_STEP >= CO.PROC_MAX ? 0 : Math.max(0, Math.floor(Q.proc || 0));
+  if (Q.intelUp || Q.intelCut) {
+    const lv = W.intel ? W.intel.lv : INTEL.BASE;
+    Q.intel = Object.fromEntries(SRCS.map(k => [k, ((Q.intelCut || []).includes(k) ? 0 : INTEL.KEEP[k][lv[k]]) + Math.max(0, Math.floor((Q.intelUp && Q.intelUp[k]) || 0))]));
+  }
   Q.intel = Object.fromEntries(SRCS.map(k => [k, Math.max(0, Math.floor((Q.intel && Q.intel[k]) || 0))]));
   const named = W.cos.filter(x => x.style !== 'player' && x.style !== 'crowd').map(x => x.id);
   Q.spyOn = [...new Set((Q.spyOn || []).filter(id => named.includes(id)))].slice(0, 3);

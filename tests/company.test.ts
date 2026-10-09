@@ -412,6 +412,7 @@ describe('정보망', () => {
     expect(W.intel!.lv.gate).toBe(1);
   });
   it('상단 장부 2단계는 상단과 사이가 넉넉해야 오른다', () => {
+    INTEL.GATE = true;   // 세력 시스템이 열려 있을 때의 규칙
     setSeed(32); const W: World = newWorld();
     us(W).relM = 30;
     for (let m = 0; m < 12; m++) { runMonth(W, pay('mkt', 400)(W)); us(W).relM = 30; }
@@ -419,7 +420,9 @@ describe('정보망', () => {
     us(W).relM = 80;
     for (let m = 0; m < 3; m++) { runMonth(W, pay('mkt', 400)(W)); us(W).relM = 80; }
     expect(W.intel!.lv.mkt).toBeGreaterThanOrEqual(2);
+    INTEL.GATE = false;
   });
+
   it('층에 남은 양 짐작은 참값을 품고, 상단 장부 단계가 오르면 폭이 좁아진다', () => {
     const width = (lv: number) => {
       setSeed(33); const W: World = newWorld(); let sum = 0, n = 0;
@@ -638,5 +641,19 @@ describe('층의 성격', () => {
     expect(ok / s).toBeGreaterThan(0.6);
     expect(d / s).toBeLessThan(0.1);
     for (let f = 1; f < FLOORS.length; f++) { expect(FLOORS[f].base).toBeLessThan(FLOORS[f - 1].base); expect(FLOORS[f].risk * FLOORS[f].harm).toBeGreaterThan(FLOORS[f - 1].risk * FLOORS[f - 1].harm); }
+  });
+});
+
+describe('정보망 넓히기', () => {
+  it('유지비는 저절로 내고 넓히는 돈만 쌓여 단계가 오르며, 유지비를 끊으면 한 단계 내려간다', () => {
+    setSeed(81); const W: World = newWorld();
+    for (let m = 0; m < 6; m++) { const P = BOT.even(W); P.intelUp = { mkt: 100 }; runMonth(W, P); }
+    expect(W.intel!.lv.mkt).toBeGreaterThanOrEqual(1);
+    const lv = W.intel!.lv.mkt, keeps = (['ret', 'mkt', 'chu', 'gate', 'spy'] as const).reduce((x, k) => x + INTEL.KEEP[k][W.intel!.lv[k]], 0);
+    const P = BOT.even(W); P.intelUp = {}; const M = runMonth(W, P);
+    expect(M.res[0].spend.intel).toBe(keeps);
+    expect(W.intel!.lv.mkt).toBe(lv);
+    const Q = BOT.even(W); Q.intelUp = {}; Q.intelCut = ['mkt']; runMonth(W, Q);
+    expect(W.intel!.lv.mkt).toBe(lv - 1);
   });
 });
