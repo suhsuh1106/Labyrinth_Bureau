@@ -46,7 +46,9 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
     if (f >= W.unlocked) return 0;
     const p = succRate(c, f, pots, F.cap), unit = ((L && L.Q[f] ? W.price[f] : ITEMS[f].P0) + ITEMS[f].P0) / 2;
     const model = p * F.take * unit, got = model;
-    const die = (1 - p) * CO.PARTY * F.risk * Math.max(F.harm, 1.9 - 0.3 * pots) * (CO.RECRUIT + 250);
+    // 위기 하나는 포션이 있으면 harm만큼, 없으면 그대로 사망으로 이어진다 (조당 포션이 위기 수보다 넉넉하다고 본다)
+    const crises = CO.PARTY * ((1 - p) * Math.min(0.95, F.risk * CO.CRISIS_FAIL) + p * F.risk * CO.CRISIS_OK);
+    const die = crises * CO.CRISIS_DEATH * F.harm * (CO.RECRUIT + 250);
     return Math.max(1, got - (CO.SORTIE + pots * W.potion) - die);
   });
   const sum = value.reduce((a, b) => a + b, 0), n = maxParties(c);

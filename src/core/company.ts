@@ -18,7 +18,7 @@ export const CO = {
   // 사망을 더 줄인다 (모두 교회 포션이면 한 병이 1+HOLY병 몫)
   POTION_C0: 32, CHURCH_CAP: 360, HOLY: 0.25,
   // 담합: 포션 수요와 사망이 쌓이면 긴장이 차고, 넘치면 상단과 교회가 함께 값을 올린다. 교회 후원이 쌓이면 교회가 빠진다
-  CARTEL_MARKUP: 1.4, CARTEL_MONTHS: 5, CARTEL_COOL: 8, BREAK_DONATION: 3000, TENSION_Q: 220,
+  CARTEL_MARKUP: 1.4, CARTEL_MONTHS: 5, CARTEL_COOL: 8, BREAK_DONATION: 3000, TENSION_Q: 110,
   // 죽은 자리를 채우는 신입에게 주는 계약금 (한 명당)
   RECRUIT: 80,
   // 큰 조직일수록 사람 하나 굴리는 데 드는 관리비가 오른다: 급여 × (1 + 단원 수 / OVERHEAD). 시작 금고는 규모^CASH_EXP에 비례
@@ -52,6 +52,10 @@ export const CO = {
   // 보급 창고: 포션은 산 달별 묶음으로 쌓이고 오래된 것부터 꺼내 쓴다. 산 뒤 POT_KEEP달(성수는 HOLY_KEEP달)이 지나면 그 묶음이 상한다
   // (전리품은 창고에 두지 않고 캐 온 달에 모두 판다)
   POT_KEEP: 2, HOLY_KEEP: 4,
+  // 위기와 포션: 조마다 사람 하나하나가 위기를 맞을 수 있다(실패한 조는 층 위험 × CRISIS_FAIL, 성공한 조는 × CRISIS_OK).
+  // 위기마다 들고 간 포션을 한 병 꺼내 쓰고, 그래도 층의 harm만큼은 막지 못한다. 포션이 떨어진 뒤의 위기는 그대로 맞는다.
+  // 맞은 위기는 CRISIS_DEATH로 사망이 된다 (성수는 그 몫을 HOLY만큼 줄인다). 쓰지 않은 포션은 창고로 돌아온다
+  CRISIS_FAIL: 2.2, CRISIS_OK: 0.35, CRISIS_DEATH: 0.6,
   // 보급: 포션과 장비는 내정에서 사 두고 탐험에 꺼내 쓴다. 포션은 쓴 만큼 줄고, 장비는 한 벌을 조 하나가 들고 가서
   // 성공하면 GEAR_BREAK, 실패하면 GEAR_LOST로 망가지거나 잃어버린다. 직업을 꼭 넣는 데는 조당 GUIDE_COST가 든다
   GEAR_PRICE: 80, GEAR_BREAK: 0.1, GEAR_LOST: 0.35,
@@ -200,7 +204,7 @@ export type MonthResult = {
   month: number; res: CoResult[]; plans: Plan[]; Q: number[]; price: number[]; potion: number; potQ: number; potionC: number; cartel: boolean;
   floors: { before: number; taken: number; crowd: number }[]; perParty: number[]; opened: number | null; rank: string[];
   // 우리 직영 파티 하나하나: 간 층, 갖춘 직업·장비, 성공, 사망 (귀환 보고에 쓴다)
-  ours: { f: number; keys: string[]; ok: boolean; d: number; mats: [string, number][]; first: string[]; kit: number; g: string }[];   // kit: 편성 줄 번호(-1이면 섞인 대로), g: 챙겨 간 것
+  ours: { f: number; keys: string[]; ok: boolean; d: number; mats: [string, number][]; first: string[]; kit: number; g: string; crisis?: number; pots?: number }[];   // kit: 편성 줄 번호(-1이면 섞인 대로), g: 챙겨 간 것
   matPrice: Record<string, number>; matRef: Record<string, number>;   // 소재 시세와, 그달 전까지의 평균 시세
   pressure: number; overflow: boolean;
 };
@@ -239,7 +243,8 @@ export function newWorld(): World {
     month: 1, unlocked: 1, prog: 0, pool: FLOORS.map(F => F.max), price: ITEMS.map(it => it.P0), potion: CO.POTION0,
     cos: ROSTER.map(r => ({ ...r, members: r.size, cash: r.style === 'crowd' ? 0 : Math.round(CO.START_CASH * Math.pow(r.size / 36, CO.CASH_EXP)),
       skill: 0, bases: zeros(), pendingBase: null, losses: 0, know: zeros(), learned: FLOORS.map(() => false), relM: 50, relC: 50, exp: zeros(), proc: 0, pendingProc: 0,
-      sup: { pot: [], holy: [], gear: {} },
+      // 처음 들어올 때 조마다 포션 세 병씩은 챙겨 온다
+      sup: { pot: [Math.floor(r.size / CO.PARTY) * 3], holy: [], gear: {} },
       trait: { resp: 0.8 + 0.4 * rnd(), pots: rnd() < 0.3 ? 1 : 0 } })),
     last: null, history: [], log: [], probes: [],
   };
@@ -299,7 +304,7 @@ export function gearBuy(c: Company, P: Plan) {
 }
 export const trainBonus = (skill: number) => CO.TRAIN_MAX * skill / (skill + CO.TRAIN_K);
 export const succRate = (c: Company, f: number, pots: number, crowd: number) =>
-  clamp(FLOORS[f].base + 0.035 * (pots - 3) + trainBonus(c.skill) + Math.min(CO.BASE_MAX, c.bases[f]) * 0.05 - 0.008 * Math.max(0, crowd - FLOORS[f].cap), 0.1, 0.95);
+  clamp(FLOORS[f].base + trainBonus(c.skill) + Math.min(CO.BASE_MAX, c.bases[f]) * 0.05 - 0.008 * Math.max(0, crowd - FLOORS[f].cap), 0.1, 0.95);
 
 // 층별 파티 수를 가중치대로 나눈다. 열린 층에만 보낸다
 function spread(W: World, n: number, w: number[]) {
@@ -435,11 +440,9 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
     Object.entries(gearB[i]).forEach(([g, n]) => { S.gear[g] = (S.gear[g] || 0) + n; });
     const P = plans[i], have = sumOf(S.pot) + sumOf(S.holy);
     if (need[i] > have) { const r = have / need[i]; P.pots = P.pots.map(v => Math.floor(v * r)); }
-    const used = needOf(P).pot, h = takeOld(S.holy, used);
-    takeOld(S.pot, used - h);
-    return { used, h, short: Math.max(0, need[i] - used) };
+    // 조마다 들고 가는 상한만 정해 두고, 실제로 쓴 만큼은 탐험이 끝난 뒤 창고에서 뺀다 (성수부터)
+    return { used: 0, h: 0, holyLeft: sumOf(S.holy), short: Math.max(0, need[i] - needOf(P).pot) };
   });
-  const holy = potUse.map(u => 1 + (u.used ? CO.HOLY * u.h / u.used : 0));
   // 장비: 이번 달 들고 나갈 수 있는 벌 수 (한 벌은 조 하나만)
   const gearLeft = sups.map(S => ({ ...S.gear }));
   const res: CoResult[] = W.cos.map(() => ({ sent: zeros(), hired: zeros(), ok: zeros(), got: zeros(), deaths: 0, sold: zeros(), sales: 0,
@@ -480,13 +483,26 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
         }
         if (W.keyUse && guideParts(gk).includes(key)) W.keyUse[f]++;
         if (ok) w++;
-        else if (q < P.parties[f]) dq = Math.round(Math.max(0, CO.PARTY * F.risk * Math.max(F.harm, 1.9 - 0.3 * P.pots[f] * holy[i]) * (0.5 + rnd())));   // 계약 파티의 사망은 그들 몫
+        // 위기: 사람마다 위기를 맞을 수 있고, 위기마다 들고 간 포션을 한 병 쓴다 (계약 파티의 사망은 그들 몫)
+        let crisis = 0, potsIn = P.pots[f], pu = 0;
+        const cp = Math.min(0.95, F.risk * (ok ? CO.CRISIS_OK : CO.CRISIS_FAIL));
+        for (let m = 0; m < CO.PARTY; m++) {
+          if (rnd() >= cp) continue;
+          crisis++;
+          let die = CO.CRISIS_DEATH;
+          if (potsIn > 0) {
+            potsIn--; pu++; potUse[i].used++;
+            const holyNow = potUse[i].holyLeft > 0; if (holyNow) { potUse[i].holyLeft--; potUse[i].h++; }
+            die *= F.harm * (holyNow ? 1 - CO.HOLY : 1);
+          }
+          if (rnd() < die && q < P.parties[f]) dq++;
+        }
         d += dq;
         // 우리 직영 파티만 무엇을 갖추고 갔고 어떻게 됐는지 기록해 온다
         if (c.style === 'player' && q < P.parties[f]) {
           ['*', ...keys].forEach(k => { const o = W.obs[f][k] || (W.obs[f][k] = { n: 0, w: 0 }); o.n++; if (ok) o.w++; });   // '*'는 그 층 전체
           const first = got.filter(([m]) => bookOld && !bookOld[f].has(m) && !ours.some(o => o.mats.some(g => g[0] === m))).map(([m]) => m);
-          ours.push({ f, keys, ok, d: dq, mats: got, first, kit: kit.k, g: gk });
+          ours.push({ f, keys, ok, d: dq, mats: got, first, kit: kit.k, g: gk, crisis, pots: pu });
           if (ok && B) {
             const cs = ['*', ...condsOf(keys)];
             cs.forEach(k => { B.n[k] = (B.n[k] || 0) + 1; });
@@ -514,6 +530,8 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
     W.pool[f] = Math.min(W.pool[f], floorMax(W, f));
     W.pool[f] += Math.round((floorMax(W, f) - W.pool[f]) * CO.REGEN);
   });
+  // 탐험에서 실제로 쓴 포션만 창고에서 뺀다 (성수부터)
+  potUse.forEach((u, i) => { takeOld(sups[i].holy, u.h); takeOld(sups[i].pot, u.used - u.h); });
   const overflow = depths(W, plans, res, floors);
   adapt(W);
   // 계약 파티가 캔 것 중 그들 몫은 군소 용병대가 판다
