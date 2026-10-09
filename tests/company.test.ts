@@ -621,6 +621,14 @@ describe('층의 성격', () => {
     expect(drop[0]).toBeGreaterThan(0.75);
     expect(drop[ITEMS.length - 1]).toBeLessThan(0.5);
   });
+  it('공급과 수요는 상단 장부 1단계부터 시세판에 보인다', () => {
+    setSeed(71); const W: World = newWorld();
+    for (let m = 0; m < 3; m++) runMonth(W, BOT.even(W));
+    expect(resultsHtml(W)).toContain('상단 장부 1단계부터');
+    expect(resultsHtml(W)).not.toContain(`/ ${ITEMS[0].D}</small>`);
+    W.intel!.lv.mkt = 1;
+    expect(resultsHtml(W)).toContain(`${W.last!.Q[0]} / ${ITEMS[0].D}</small>`);
+  });
   it('얕은 층 전리품은 시세 폭이 좁고 깊은 층 전리품은 넓다', () => {
     for (let j = 1; j < ITEMS.length; j++) expect(ITEMS[j].hi / ITEMS[j].lo).toBeGreaterThan(ITEMS[j - 1].hi / ITEMS[j - 1].lo);
   });

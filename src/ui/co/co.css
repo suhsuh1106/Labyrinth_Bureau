@@ -483,4 +483,4 @@ table.grid.board td small { display: block; font: 400 10.5px var(--f-body); colo
 .sd-bar i.over { background: var(--c-red); }
 .sd-bar b { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 2px; background: var(--ink); }
 .sd small { font: 500 10.5px var(--f-num); color: var(--ink-soft); white-space: nowrap; }
-.sd-bar i.mine { background: var(--c-us); opacity: .55; }
+.sd-lock { font-size: 11px; color: var(--ink-soft); white-space: nowrap; }
