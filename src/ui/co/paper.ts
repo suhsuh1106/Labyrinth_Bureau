@@ -1,6 +1,6 @@
 // 변경 일보 (용병단 판): 지난달 정산과 기록(W.log)만 읽어 1면을 꾸민다. 상인 조합이 내는 신문이라 장사 쪽 눈으로 본다.
 // 상태를 쓰지 않고 난수도 쓰지 않는다. 같은 달이면 늘 같은 신문이 나온다.
-import { CO, FLOORS, ITEMS, type MonthResult, type World, us } from '../../core/company';
+import { bedsOf, dormKeep, townOf, CO, FLOORS, ITEMS, type MonthResult, type World, us } from '../../core/company';
 
 export type CoIssue = {
   no: number; extra: boolean; date: string; ears: [string, string];
@@ -69,6 +69,13 @@ function stories(W: World, M: MonthResult, prev: MonthResult | null, logs: strin
   ITEMS.forEach((it, j) => {
     if (M.Q[j] && M.price[j] < it.P0 * 0.6) add({ p: 30, kicker: '시장', hed: `${it.name} 값 무너졌다`, dek: `${it.buyer} 시세 ${fmt(M.price[j])}G… 기준의 ${Math.round(M.price[j] / it.P0 * 100)}%`, body: [`이달 ${it.name}${jo(it.name, '이', '가')} ${M.Q[j]}개 풀렸다. 사 가는 쪽이 감당할 양을 넘었다.`] });
   });
+  // 일손 구하기: 찾는 신입이 지원자보다 한참 많으면 계약금이 오른다. 숙소를 늘린 경쟁 용병단은 소문이 난다
+  const rw = M.res.reduce((a, r) => a + r.recruitWant, 0), rg = M.res.reduce((a, r) => a + r.recruited, 0);
+  if (rw >= M.apps * 1.5 && rw > 4) add({ p: 35, kicker: '마을', hed: '일손 구하기 경쟁 붙었다', dek: `지원자 ${M.apps}명에 용병단들 ${rw}명 찾아… 계약금 ${fmt(M.res[0].recruitPrice)}G`,
+    body: [`이달 미궁 일을 찾아 하르덴에 온 젊은이는 ${M.apps}명, 용병단들이 찾은 신입은 ${rw}명이었다. ${rg}명이 계약서를 썼고, 계약금은 한 명에 ${fmt(M.res[0].recruitPrice)}G까지 올랐다. 지원자들은 이름난 곳부터 문을 두드렸다고 한다.`] });
+  const built = W.cos.filter((c, i) => c.style !== 'player' && c.style !== 'crowd' && M.res[i].spend.dorm > dormKeep(bedsOf(c)));
+  if (built.length) add({ p: 33, kicker: '용병단', hed: `${built[0].name}, 숙소 늘린다`, dek: built.length > 1 ? `${built.slice(1).map(c => c.name).join(', ')}도 공사 중` : '남문 밖에 목수들 모여',
+    body: [`${built[0].name}${jo(built[0].name, '이', '가')} 숙소를 늘리는 공사를 시작했다. 다음 달이면 침상이 들어선다. 사람을 더 들이겠다는 뜻으로 읽힌다.`] });
   const n = partiesOf(M), grew = prev ? n - partiesOf(prev) : 0;
   add({ p: 5, kicker: '미궁', hed: grew >= 6 ? '입구 앞 줄이 길어졌다' : '변경은 조용했다', dek: `이달 ${n}개 파티 입장 · ${dead}명 돌아오지 못해`,
     body: [grew >= 6 ? `미궁 입구 앞 줄이 지난달보다 ${grew}개 파티 길어졌다. 벌이가 좋다는 소문이 돌면 줄은 늘 이렇게 길어진다. 같은 층에 몰리면 나눠 가질 몫은 줄어든다.`
@@ -94,6 +101,7 @@ export function coIssue(W: World): CoIssue | null {
     { label: '교회 포션 한 병', value: `${M.potionC}G`, delta: dt(M.potionC, prev?.potionC), dir: dir(M.potionC, prev?.potionC ?? M.potionC) },
     ...ITEMS.map((it, j) => (M.Q[j] || (prev && prev.Q[j]) ? { label: it.name, value: `${fmt(M.price[j])}G`, delta: dt(M.price[j], prev?.price[j]), dir: dir(M.price[j], prev?.price[j] ?? M.price[j]) } : null)).filter(Boolean) as CoIssue['figures'],
     { label: '입장한 파티', value: `${n}개`, delta: '', dir: '' },
+    { label: '하르덴 주민', value: `약 ${fmt(townOf(W))}명`, delta: '', dir: '' },
     { label: '사망', value: `${dead}명`, delta: prev ? dt(dead, deathsOf(prev)) : '', dir: '' },
   ];
 

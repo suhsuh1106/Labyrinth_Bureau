@@ -1,5 +1,5 @@
 // 용병단 행정실 화면: 결정표(위)와 지난달 정산(아래). HTML 문자열을 만들기만 하고 상태는 건드리지 않는다
-import { CO, FLOORS, INTEL, ITEMS, type Plan, SRCS, type World, churchPrice, guideParts, hireCost, intelBlock, intelCost, lootMul, toolCost, trainBonus, maxParties, priceOf, rankOf, sanitize, sortieCost, succRate, us, worth } from '../../core/company';
+import { CO, FLOORS, INTEL, ITEMS, type Plan, SRCS, type World, bedsOf, churchPrice, dormKeep, guideParts, hireCost, intelBlock, intelCost, lootMul, toolCost, trainBonus, maxParties, priceOf, rankOf, sanitize, sortieCost, succRate, us, worth } from '../../core/company';
 import { CLASSES, GEARS, MONSTERS } from '../../core/data';
 import { keyLabel } from '../../core/util';
 import { cashChart, flowChart, incomeMix, moneySeries, perHeadChart, perPartyChart, priceBoard, shareChart, spendMix } from './charts';
@@ -43,7 +43,7 @@ export function resultsHtml(W: World) {
   const row = (i: number) => {
     const c = W.cos[i], r = L.res[i], rk = L.rank.indexOf(c.id) + 1, pr = prev ? prev.indexOf(c.id) + 1 : 0, mv = pr && rk ? pr - rk : 0;
     return `<tr class="${c.style === 'player' ? 'us' : ''}"><td><b class="rk">${rk}</b>${mv ? `<span class="mv ${mv > 0 ? 'up' : 'dn'}">${mv > 0 ? '▲' : '▼'}${Math.abs(mv)}</span>` : ''}</td>
-      <td><span class="co">${sw(c.id)}${c.name}</span></td><td class="n">${c.members}명</td>
+      <td><span class="co">${sw(c.id)}${c.name}</span></td><td class="n">${c.members}명${c.style !== 'crowd' && r.recruited - r.deaths ? `<small class="${r.recruited > r.deaths ? 'pos' : 'neg'}">${sgn(r.recruited - r.deaths)}</small>` : ''}</td>
       <td class="n">${i === 0 || seeGate ? `${r.sent.reduce((a, b) => a + b, 0) + r.hired.reduce((a, b) => a + b, 0)}조` : '?'}</td><td class="n">${fmt(worth(W, c))}</td></tr>`;
   };
   const r = L.res[0];
@@ -57,7 +57,9 @@ export function resultsHtml(W: World) {
       ${r.spend.probe ? `<tr><td>조사 의뢰</td><td class="n">−${fmt(r.spend.probe)}</td></tr>` : ''}
       ${r.spend.hire ? `<tr><td>계약 파티 수수료</td><td class="n">−${fmt(r.spend.hire)}</td></tr>` : ''}
       <tr><td>급여</td><td class="n">−${fmt(r.spend.wage)}</td></tr>
-      ${r.spend.recruit ? `<tr><td>신입 계약금 (${r.recruited}명)</td><td class="n">−${fmt(r.spend.recruit)}</td></tr>` : ''}
+      ${r.recruitWant ? `<tr><td>신입 ${r.recruited}명 × ${fmt(r.recruitPrice)}G${r.recruited < r.recruitWant ? ` <span class="dim">(찾은 ${r.recruitWant}명 · 지원자가 모자람)</span>` : ''}</td><td class="n">−${fmt(r.spend.recruit)}</td></tr>` : ''}
+      ${r.rookDone || r.rookDead ? `<tr><td class="dim">수습${r.rookDone ? ` ${r.rookDone}명이 대원이 됨` : ''}${r.rookDead ? `${r.rookDone ? ',' : ''} ${r.rookDead}명 사망` : ''}</td><td class="n dim">-</td></tr>` : ''}
+      ${r.spend.dorm ? `<tr><td>숙소 ${r.spend.dorm > dormKeep(bedsOf(us(W))) ? '유지비 · 증축' : '유지비'}</td><td class="n">−${fmt(r.spend.dorm)}</td></tr>` : ''}
       ${r.spend.tool ? `<tr><td>채집 장비</td><td class="n">−${fmt(r.spend.tool)}</td></tr>` : ''}
       ${r.spend.intel ? `<tr><td>정보비</td><td class="n">−${fmt(r.spend.intel)}</td></tr>` : ''}
       ${r.spend.proc ? `<tr><td>갈무리장</td><td class="n">−${fmt(r.spend.proc)}</td></tr>` : ''}

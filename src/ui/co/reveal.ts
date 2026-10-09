@@ -15,7 +15,7 @@ export function revealHtml(W: World, live: boolean, mute = false) {
   FLOORS.forEach((F, f) => L.ours.filter(x => x.f === f).forEach(x => {
     const cls = x.keys.filter(k => k.startsWith('c:')).map(k => k.slice(2)).join('·'), gear = x.keys.find(k => k.startsWith('g:'));
     const mats = (x.mats || []).map(([m, n]) => `${m} ×${n}`).join(', ');
-    lines.push({ k: x.ok ? 'ok' : x.d ? 'die' : 'no', v: 0, t: `<b>${++no}조</b> ${F.name} <span class="dim">${cls || '혼성'}${gear ? ` · ${gear.slice(2)}` : ''}</span>`,
+    lines.push({ k: x.ok ? 'ok' : x.d ? 'die' : 'no', v: 0, t: `<b>${++no}조</b> ${F.name} <span class="dim">${cls || '혼성'}${gear ? ` · ${gear.slice(2)}` : ''}${x.n && x.n < 4 ? ` · ${x.n}명` : ''}</span>`,
       amt: `${x.ok ? `성공${mats ? ` · ${mats}` : ''}` : '실패'}${x.crisis ? ` · 위기 ${x.crisis}${x.pots ? ` · 포션 ${x.pots}` : ''}` : ''}${x.d ? ` · ${x.d}명 사망` : ''}` });
   }));
   // 층마다 판 전리품 (상단 단골 값을 얹은 실제 판매 수입을 층별 몫으로 나눈다)
@@ -27,7 +27,7 @@ export function revealHtml(W: World, live: boolean, mute = false) {
     lines.push({ k: 'gain', v, t: `${ITEMS[j].name} ${r.sold[j]}개 × ${fmt(L.price[j])}G`, amt: sgn(v) });
   });
   if (r.matSales) lines.push({ k: 'gain', v: r.matSales, t: `갈무리 소재 ${Object.values(r.matSold).reduce((a, b) => a + b, 0)}개`, amt: sgn(r.matSales) });
-  const costs: [string, number][] = [['급여 · 신입', s.wage + s.recruit], ['출정 · 계약', s.sortie + s.hire + s.tool], ['포션 · 장비', s.potion + s.gear], ['정보 · 조사', s.intel + s.probe], ['훈련 · 건물 · 후원', s.train + s.base + s.proc + s.donate + s.root]];
+  const costs: [string, number][] = [['급여 · 신입', s.wage + s.recruit], ['출정 · 계약', s.sortie + s.hire + s.tool], ['포션 · 장비', s.potion + s.gear], ['정보 · 조사', s.intel + s.probe], ['훈련 · 숙소 · 건물', s.train + s.base + s.proc + s.donate + s.root + (s.dorm || 0)]];
   costs.filter(([, v]) => v > 0).forEach(([t, v]) => lines.push({ k: 'cost', v: -v, t, amt: sgn(-v) }));
   lines.push({ k: 'net', v: 0, t: '순이익', amt: sgn(r.net) });
   const ok = r.ok.reduce((a, b) => a + b, 0), sent = r.sent.reduce((a, b) => a + b, 0) + r.hired.reduce((a, b) => a + b, 0);
