@@ -614,6 +614,13 @@ describe('보급 창고 · 전리품 보관 기한 · 조사 의뢰 · 편성 �
 });
 
 describe('층의 성격', () => {
+  it('시세는 수요와 공급으로 정해지고, 공급이 수요의 두 배가 되면 깊은 층 전리품일수록 크게 떨어진다', () => {
+    const drop = ITEMS.map(it => priceOf(it, it.D * 2) / priceOf(it, it.D));
+    ITEMS.forEach(it => expect(priceOf(it, it.D)).toBe(it.P0));
+    for (let j = 1; j < ITEMS.length; j++) expect(drop[j]).toBeLessThan(drop[j - 1]);
+    expect(drop[0]).toBeGreaterThan(0.75);
+    expect(drop[ITEMS.length - 1]).toBeLessThan(0.5);
+  });
   it('얕은 층 전리품은 시세 폭이 좁고 깊은 층 전리품은 넓다', () => {
     for (let j = 1; j < ITEMS.length; j++) expect(ITEMS[j].hi / ITEMS[j].lo).toBeGreaterThan(ITEMS[j - 1].hi / ITEMS[j - 1].lo);
   });
