@@ -2,14 +2,14 @@
 import './ui/co/base.css';
 import './ui/co/co.css';
 import { setSeed } from './core/rng';
-import { type Plan, SRCS, type World, carryPlan, newWorld, probe, rankOf, runMonth } from './core/company';
-import { GEARS } from './core/data';
+import { CO, type Plan, SRCS, type World, carryPlan, fillTeams, formTeams, newWorld, probe, rankOf, runMonth, sanitize, us } from './core/company';
+import { CLASSES, GEARS } from './core/data';
 import { plaqueHtml } from './ui/co/view';
 import { type DeskUi, expWeekHtml, infoWeekHtml, resultWeekHtml, weeksHtml } from './ui/co/desk';
 import { advanceArrival, arrivalOpen, closeArrival, playArrival } from './ui/co/arrival';
 
 const $ = (id: string): any => document.getElementById(id);
-const KEY = 'lb-co', VERSION = 9, MONTHS = 36;   // 9: 숙소 · 신입 모집 · 수습 · 명성, 모두 작게 시작 (이전 판은 새 게임으로)
+const KEY = 'lb-co', VERSION = 9, MONTHS = 36;   // 9: 숙소 · 신입 모집 · 수습 · 명성 · 우리 조 편성, 모두 작게 시작 (이전 판은 새 게임으로)
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
 let W: World, plan: Plan, ui: DeskUi;
 // 도장을 막 찍은 결과 화면이면 귀환 장부를 한 줄씩 띄운다 (저장하지 않는 화면 상태)
@@ -33,6 +33,7 @@ function start(fresh = false) {
   if (d) { W = d.W; plan = d.plan; ui = d.ui || { phase: 0, tab: 'report', pins: [] }; }
   else { setSeed((Date.now() ^ 0x5bd1e995) >>> 0); W = newWorld(); plan = carryPlan(W, null); ui = { phase: 0, tab: 'report', pins: [] }; }
   plan.intelUp = plan.intelUp || {};   // 정보망은 유지비를 저절로 내고, 넓히는 돈만 따로 정한다
+  tidyTeams();
   render(); save();
   if (!d) { window.scrollTo(0, 0); playArrival(() => window.scrollTo(0, 0)); }
 }
@@ -45,6 +46,42 @@ document.addEventListener('keydown', e => {
   if (arrivalOpen()) closeArrival();
   else if (ui && ui.open) { ui.open = false; render(); save(); }
 });
+
+// 우리 조 편성: 고칠 때마다 규칙 안으로 맞춰 둔다 (없는 사람·겹친 자리·빈 조를 지우고 조 수를 다시 센다)
+function tidyTeams() {
+  if (!us(W).crew) return;
+  const Q = sanitize(W, us(W), plan);
+  plan.teams = Q.teams; plan.tpl = Q.tpl; plan.parties = Q.parties;
+}
+function teamAct(a: string, b: HTMLElement) {
+  const c = us(W), T = plan.teams || [], tpl = plan.tpl || CO.TPL0, pick = ui.pick;
+  if (a === 'refill') { plan.teams = formTeams(c, plan.parties, tpl, false).filter(x => x.m.some(y => y != null)); ui.pick = null; }
+  else if (a === 'fill-rest') { fillTeams(c, T, tpl); ui.pick = null; }
+  else if (a === 'bench') { const id = +(b.dataset.id || 0); ui.pick = pick && pick.id === id ? null : { id }; }
+  else if (a === 'to-bench') { if (pick && pick.t != null && T[pick.t]) T[pick.t].m[pick.s!] = null; ui.pick = null; }
+  else if (a === 'slot') {
+    const t = +(b.dataset.t || 0), s = +(b.dataset.s || 0);
+    if (pick && pick.id != null) { T[t].m[s] = pick.id; ui.pick = null; }   // 대기 인원을 넣는다 (있던 사람은 대기로)
+    else if (pick && pick.t != null) { const x = T[pick.t].m[pick.s!]; T[pick.t].m[pick.s!] = T[t].m[s]; T[t].m[s] = x; ui.pick = null; }   // 두 자리를 바꾼다
+    else if (T[t].m[s] != null) ui.pick = { t, s };
+  }
+  tidyTeams(); render(); save();
+}
+// 한 층의 조 수를 바꾼다: 늘리면 대기 인원으로 기본 편성대로 짠 조를 더하고, 줄이면 그 층의 마지막 조를 대기로 돌린다
+function setTeams(f: number, n: number) {
+  const c = us(W), tpl = plan.tpl || CO.TPL0;
+  let T = plan.teams || [];
+  const now = T.filter(x => x.f === f).length;
+  for (let k = now; k > n; k--) { const last = T.map((x, i) => [x, i] as const).filter(([x]) => x.f === f).pop(); if (last) T = T.filter((_, i) => i !== last[1]); }
+  for (let k = now; k < n; k++) {
+    const on = new Set(T.flatMap(x => x.m)), rest = { ...c, crew: (c.crew || []).filter(x => !on.has(x.id)) };
+    const add = formTeams(rest, FLOORS_ONE(f), tpl, true);
+    if (!add.length) break;
+    T = [...T, add[0]];
+  }
+  plan.teams = T; tidyTeams();
+}
+const FLOORS_ONE = (f: number) => [0, 1, 2, 3, 4].map(x => (x === f ? 1 : 0));
 
 function say(t: string) {
   const el = $('toast'); el.textContent = t; el.classList.add('show');
@@ -63,7 +100,8 @@ function act(b: HTMLElement) {
   if (a === 'close-doc') { ui.open = false; render(); save(); return; }
   if (a === 'intel-cut') { const k = b.dataset.src as any, cut = new Set(plan.intelCut || []); cut.has(k) ? cut.delete(k) : cut.add(k); plan.intelCut = [...cut] as any; render(); save(); return; }
   if (a === 'dorm') { plan.dorm = !plan.dorm; render(); save(); return; }
-  if (a === 'auto-recruit') { delete plan.recruit; render(); save(); return; }
+  if (a === 'auto-recruit') { delete plan.recruit; delete plan.recruitC; render(); save(); return; }
+  if (a === 'refill' || a === 'fill-rest' || a === 'bench' || a === 'to-bench' || a === 'slot') return teamAct(a, b);
   if (a === 'auto-pot') { plan.buy = { ...(plan.buy || {}) }; delete plan.buy.pot; render(); save(); return; }
   if (a === 'kit-add') { const f = +(b.dataset.f || 0); plan.kits = plan.kits || []; plan.kits[f] = [...(plan.kits[f] || []), { n: 0, g: '' }]; render(); save(); return; }
   if (a === 'kit-del') { const f = +(b.dataset.f || 0), k = +(b.dataset.j || 0); if (plan.kits && plan.kits[f]) plan.kits[f].splice(k, 1); render(); save(); return; }
@@ -75,7 +113,7 @@ function act(b: HTMLElement) {
 function stamp() {
   if (W.month > MONTHS) return;
   const M = runMonth(W, plan);
-  plan = carryPlan(W, plan);
+  plan = carryPlan(W, plan); ui.pick = null; tidyTeams();
   ui.phase = 2; live = true; render(); save(); window.scrollTo({ top: 0 });
   playRun();
   const r = M.res[0];
@@ -100,6 +138,8 @@ $('desk').addEventListener('change', (e: any) => {
     if (t.value) ps.push(t.value);
     K.g = ps.sort().join('+'); render(); save(); return;
   }
+  if (k === 'tpl') { const tp = [...(plan.tpl || CO.TPL0)]; tp[+t.dataset.i] = t.value; plan.tpl = tp; render(); save(); return; }
+  if (k === 'teamG') { const T = plan.teams && plan.teams[+t.dataset.i]; if (T) T.g = t.value; render(); save(); return; }
   if (k === 'spyOn') { const on = [...(plan.spyOn || [])]; on[+t.dataset.i] = t.value; plan.spyOn = on.filter(Boolean); render(); save(); return; }
   if (k === 'rootf') { plan.root = { f: +t.value, seal: plan.root ? plan.root.seal : 0, mine: plan.root ? plan.root.mine : 0 }; render(); save(); return; }
   if (k === 'basef') { plan.base = { f: +t.value, amt: plan.base ? plan.base.amt : 0 }; render(); save(); return; }
@@ -112,6 +152,12 @@ function edit(k: string, i: number, fn: (v: number) => number, j = 0) {
   else if (k === 'donate') plan.donate = Math.max(0, fn(plan.donate || 0));
   else if (k === 'tool') plan.tool = Math.max(0, Math.min(2, fn(plan.tool || 0)));
   else if (k === 'proc') plan.proc = Math.max(0, fn(plan.proc || 0));
+  else if (k === 'recruitC') {
+    const cls = CLASSES[i], cur = +(document.querySelector(`input[data-k="recruitC"][data-i="${i}"]`) as HTMLInputElement)?.value || 0;
+    if (!plan.recruitC) plan.recruitC = Object.fromEntries(CLASSES.map((x, j) => [x, +(document.querySelector(`input[data-k="recruitC"][data-i="${j}"]`) as HTMLInputElement)?.value || 0]));
+    plan.recruitC[cls] = Math.max(0, fn(plan.recruitC[cls] != null ? plan.recruitC[cls] : cur));
+  }
+  else if (k === 'parties' && us(W).crew) setTeams(i, Math.max(0, fn((plan.teams || []).filter(x => x.f === i).length)));
   else if (k === 'recruit') { const cur = +(document.querySelector('input[data-k="recruit"]') as HTMLInputElement)?.value || 0; plan.recruit = Math.max(0, fn(plan.recruit != null ? plan.recruit : cur)); }
   else if (k === 'buyPot') { const cur = +(document.querySelector('input[data-k="buyPot"]') as HTMLInputElement)?.value || 0; buy().pot = Math.max(0, fn(plan.buy && plan.buy.pot != null ? plan.buy.pot : cur)); }
   else if (k === 'buyHoly') buy().holy = Math.max(0, fn((plan.buy && plan.buy.holy) || 0));

@@ -6,6 +6,7 @@
 import { setSeed } from '../src/core/rng';
 import { CO, FLOORS, churchPrice, ITEMS, type Plan, type World, defaultPlan, dormCost, partyMargin, roomOf, demandMul, potsOf, probe, floorMons, maxParties, newWorld, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
 import { demandSeen } from '../src/ui/co/book';
+import { CLASSES } from '../src/core/data';
 
 const arg = (k: string, d: string) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
 const games = +arg('games', '200'), seed0 = +arg('seed', '1'), only = arg('style', '');
@@ -33,7 +34,7 @@ export const BOT: Record<string, (W: World) => Plan> = {
   smartStay: W => { const P = smartPlan(W); P.dorm = false; return P; },
   smart: W => smartPlan(W),
   // 숙련 봇에서 추리만 뺀 것 (편성 지침이 순위에 얼마나 보태는지 재는 기준)
-  smartNoGuide: W => { const P = smartPlan(W); P.guide = P.guide.map(() => ''); return P; },
+  smartNoGuide: W => { const P = smartPlan(W); P.guide = P.guide.map(() => ''); P.tplF = undefined; return P; },
   // 숙련 봇에서 도감으로 소재 챙기기만 뺀 것 (갈무리 편성이 순위에 얼마나 보태는지 재는 기준)
   smartNoKit: W => smartPlan(W, 'mine', false),
   // 숙련 봇에 조사 의뢰(큰 용병단 둘의 이번 달 계획 사 보기)로 붐빔을 읽어 나누기를 더한 것 (아직 숙련 봇보다 못하다)
@@ -72,6 +73,8 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
   if (c.cash > 6000 && value[best] * (1 - CO.HIRE_CUT) - CO.HIRE_FEE > 150) P.hire[best] = 2;
   P.guide = deduce(W);
   if (kit) P.guide = P.guide.map((g, f) => addKit(W, f, g, P.parties[f]));
+  // 조 모양: 층마다 지침 직업은 두 자리에, 기록상 손해 보는 직업은 빼고 전사로
+  P.tplF = FLOORS.map((_, f) => floorTpl(W, f, P.guide[f]));
   // 포션: 교회 값이 상단보다 싸면(후원해서 교회가 예전 값으로 내줄 때) 교회에서 사고, 담합이 터지면 여유가 있을 때 한 번 후원한다
   const need = P.parties.reduce((a, n, f) => a + (n + P.hire[f]) * P.pots[f], 0);
   P.buy = { holy: churchPrice(W, 0) < W.potion ? Math.max(0, need - potsOf(us(W)).holy) : 0 };
@@ -82,6 +85,22 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
   if (rf >= 0 && c.cash > 8000) P.root = rootMode === 'none' ? null : { f: rf, seal: rootMode === 'seal' ? CO.ROOT_COST / 4 : 0, mine: rootMode === 'mine' ? CO.ROOT_COST / 2 : 0 };
   // 몸집: 조당 남는 돈이 급여보다 넉넉하면 숙소를 늘린다
   return grow(W, P, GROW_K, GROW_M);
+}
+
+// 층의 조 모양: 기록상 갖추면 성공률이 10%p 넘게 떨어지는 직업은 빼고, 지침 직업은 두 자리에 넣는다
+export function floorTpl(W: World, f: number, guide: string) {
+  const all = W.obs[f]['*']; const avoid = new Set<string>();
+  if (all) Object.entries(W.obs[f]).forEach(([k, v]) => {
+    if (!k.startsWith('c:')) return; const off = all.n - v.n;
+    if (v.n >= 6 && off >= 6 && v.w / v.n - (all.w - v.w) / off < -0.1) avoid.add(k.slice(2));
+  });
+  // 지침이 아직 없는 층은 달마다 다른 직업을 둘씩 넣어 본다 (모든 조가 같은 모양이면 기록으로 견줄 수가 없다)
+  const g = (guide.split('+').find(k => k.startsWith('c:')) || '').slice(2) || (guide ? '' : CLASSES[(W.month + f) % CLASSES.length]);
+  const base = CO.TPL0.filter(x => x !== g && !avoid.has(x));
+  const filler = ['전사', '도적', '궁수', '사제', '마법사'].find(x => !avoid.has(x) && x !== g) || '전사';
+  const out = [...(g ? [g, g] : []), ...base];
+  while (out.length < CO.PARTY) out.push(filler);
+  return out.slice(0, CO.PARTY);
 }
 
 // 현장 기록으로 약점 추리: 그 구성을 갖춘 파티와 안 갖춘 파티의 성공률을 견줘, 양쪽 다 여섯 번 넘게 나갔고

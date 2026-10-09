@@ -561,3 +561,46 @@ span.wk { cursor: default; }
 .tog:focus-visible { outline: 2px solid var(--bl-accent); outline-offset: 1px; }
 .bld .ctl2 small { font-size: 10.5px; color: var(--bl-soft); }
 table.grid td.n small { display: block; font-family: var(--f-num); font-size: 10.5px; }
+
+/* 우리 조 편성판: 기본 편성 줄, 직업 표, 조 카드(자리 넷), 대기 */
+:root { --k-war: #d9826a; --k-arc: #8cc77a; --k-mag: #8fa8ec; --k-pri: #e8d48a; --k-thf: #b892d9; }
+.cls { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; font: 600 10.5px var(--f-body); font-style: normal; color: var(--bl-1); background: var(--bl-soft); flex: none; }
+.cls.war { background: var(--k-war); } .cls.arc { background: var(--k-arc); } .cls.mag { background: var(--k-mag); } .cls.pri { background: var(--k-pri); } .cls.thf { background: var(--k-thf); }
+.panel .tpl { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; padding: 8px 10px; background: var(--bl-3); border: 1px solid var(--bl-line); border-radius: 3px; }
+.panel .tpl b { font-size: 13px; margin-right: 4px; }
+.panel .tpl .ghost { margin-left: auto; }
+.panel .roster { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--bl-soft); }
+.panel .roster span { display: inline-flex; align-items: center; gap: 5px; }
+.panel .roster b { color: var(--bl-ink); font: 500 12.5px var(--f-num); }
+.teams { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px; }
+.team { background: var(--bl-3); border: 1px solid var(--bl-line); border-radius: 4px; padding: 7px; display: grid; gap: 5px; min-width: 0; }
+.team.short { border-color: var(--bl-accent); }
+.team header { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--bl-soft); }
+.team header b { color: var(--bl-ink); font-size: 13px; }
+.team header select { margin-left: auto; max-width: 52%; font-size: 12px; }
+.team .tslots { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+.slot { min-height: 46px; border-radius: 3px; border: 1px solid var(--bl-line); background: var(--bl-2); color: var(--bl-ink); display: grid; place-items: center; align-content: center; gap: 1px; cursor: pointer; padding: 3px 2px; min-width: 0; font: inherit; }
+.slot small { font-size: 10.5px; color: var(--bl-soft); line-height: 1.2; text-align: center; }
+.slot small.rk { color: var(--bl-accent); }
+.slot.rook { border-style: dashed; border-color: var(--bl-accent); }
+.slot.empty { border-style: dashed; background: transparent; }
+.slot.empty small:first-child { color: var(--bl-accent); }
+.slot[aria-pressed="true"], .chip[aria-pressed="true"] { outline: 2px solid var(--bl-accent); outline-offset: 1px; }
+.slot:focus-visible, .chip:focus-visible { outline: 2px solid var(--bl-accent); outline-offset: 1px; }
+.team .tfoot { display: flex; justify-content: space-between; gap: 6px; font-size: 11px; color: var(--bl-soft); }
+.team .tfoot b { color: var(--bl-ink); font: 500 12px var(--f-num); }
+.bench { display: grid; gap: 6px; padding: 9px 10px; border: 1px dashed var(--bl-accent); border-radius: 4px; }
+.bench h3 { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.bench h3 .link { margin-left: auto; }
+.bench .pool { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip { display: inline-flex; align-items: center; gap: 5px; min-height: 26px; padding: 0 9px 0 4px; border-radius: 13px; border: 1px solid var(--bl-line); background: var(--bl-2); color: var(--bl-ink); font: 12.5px var(--f-body); cursor: pointer; }
+.chip.rook { border-style: dashed; border-color: var(--bl-accent); }
+.chip small { font-size: 10px; color: var(--bl-accent); }
+.bench .ghost { justify-self: start; }
+.rbox { grid-template-columns: 26px minmax(0, 1fr) auto; }
+.rbox .rcls { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px; }
+.rbox .rcls label { display: grid; gap: 4px; padding: 6px 7px; border: 1px solid var(--bl-line); border-radius: 3px; background: var(--bl-2); }
+.rbox .rcls .step input { width: 44px; padding: 3px 4px; }
+.rbox .rcls label > span { display: grid; grid-template-columns: auto 1fr; column-gap: 5px; align-items: center; font-size: 12.5px; }
+.rbox .rcls label small { grid-column: 2; font-size: 10.5px; color: var(--bl-soft); }
+@media (max-width: 520px) { .rbox { grid-template-columns: 26px minmax(0, 1fr); } .rbox > .ctl2 { grid-column: 2; } }
