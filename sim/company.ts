@@ -40,10 +40,14 @@ export const BOT: Record<string, (W: World) => Plan> = {
 // 거점과 쌓아 두기는 지금 규모에서는 손해라 쓰지 않는다 (시뮬레이션으로 확인함)
 export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine', kit = true, scout = false): Plan {
   const c = us(W), P = defaultPlan(W), L = W.last, pots = 5;
+  // 조당 남는 돈: 성공해서 캐 올 값(모형과 지난달 실제 조당 벌이의 중간) − 출정·포션 − 사망의 값(신입 계약금과 빈자리)
+  const real = L ? L.perParty : null;
   const value = FLOORS.map((F, f) => {
     if (f >= W.unlocked) return 0;
     const p = succRate(c, f, pots, F.cap), unit = ((L && L.Q[f] ? W.price[f] : ITEMS[f].P0) + ITEMS[f].P0) / 2;
-    return Math.max(1, p * F.take * unit - (CO.SORTIE + pots * W.potion));
+    const model = p * F.take * unit, got = model;
+    const die = (1 - p) * CO.PARTY * F.risk * Math.max(F.harm, 1.9 - 0.3 * pots) * (CO.RECRUIT + 250);
+    return Math.max(1, got - (CO.SORTIE + pots * W.potion) - die);
   });
   const sum = value.reduce((a, b) => a + b, 0), n = maxParties(c);
   P.parties = value.map(v => Math.floor(n * v / sum));

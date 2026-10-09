@@ -46,7 +46,8 @@ describe('용병단 시장', () => {
       expect(priceOf(it, it.D)).toBe(it.P0);
       expect(priceOf(it, it.D * 2)).toBeLessThan(it.P0);
       expect(priceOf(it, it.D / 2)).toBeGreaterThan(it.P0);
-      expect(priceOf(it, it.D * 100)).toBeGreaterThanOrEqual(Math.round(it.P0 * 0.35));
+      expect(priceOf(it, it.D * 100)).toBe(Math.round(it.P0 * it.lo));
+      expect(priceOf(it, 1)).toBe(Math.round(it.P0 * it.hi));
     });
     expect(potionPrice(CO.POTION_Q0 * 2)).toBeGreaterThan(potionPrice(CO.POTION_Q0));
   });
@@ -186,7 +187,7 @@ describe('몬스터와 편성 지침', () => {
         }
       }
     }
-    expect(good / n - bad / n).toBeGreaterThan(0.2);
+    expect(good / n - bad / n).toBeGreaterThan(0.1);   // 1층은 순해서 약점 차이가 작다
   });
   it('경쟁 용병단은 한 층에 오래 드나들면 약점을 깨치고, 그 소문이 기록에 남는다', () => {
     const W = playGame(8, BOT.smart);
@@ -609,5 +610,33 @@ describe('보급 창고 · 전리품 보관 기한 · 조사 의뢰 · 편성 �
     const html = resultWeekHtml(W) + expWeekHtml(W, carryPlan(W, P), { phase: 1, tab: 'report', pins: [] });
     expect(html).not.toMatch(/undefined|NaN|\[object/);
     expect(html).toContain('편성 줄');
+  });
+});
+
+describe('층의 성격', () => {
+  it('시세는 수요와 공급으로 정해지고, 공급이 수요의 두 배가 되면 깊은 층 전리품일수록 크게 떨어진다', () => {
+    const drop = ITEMS.map(it => priceOf(it, it.D * 2) / priceOf(it, it.D));
+    ITEMS.forEach(it => expect(priceOf(it, it.D)).toBe(it.P0));
+    for (let j = 1; j < ITEMS.length; j++) expect(drop[j]).toBeLessThan(drop[j - 1]);
+    expect(drop[0]).toBeGreaterThan(0.75);
+    expect(drop[ITEMS.length - 1]).toBeLessThan(0.5);
+  });
+  it('공급과 수요는 상단 장부 1단계부터 시세판에 보인다', () => {
+    setSeed(71); const W: World = newWorld();
+    for (let m = 0; m < 3; m++) runMonth(W, BOT.even(W));
+    expect(resultsHtml(W)).toContain('상단 장부 1단계부터');
+    expect(resultsHtml(W)).not.toContain(`/ ${ITEMS[0].D}</small>`);
+    W.intel!.lv.mkt = 1;
+    expect(resultsHtml(W)).toContain(`${W.last!.Q[0]} / ${ITEMS[0].D}</small>`);
+  });
+  it('얕은 층 전리품은 시세 폭이 좁고 깊은 층 전리품은 넓다', () => {
+    for (let j = 1; j < ITEMS.length; j++) expect(ITEMS[j].hi / ITEMS[j].lo).toBeGreaterThan(ITEMS[j - 1].hi / ITEMS[j - 1].lo);
+  });
+  it('1층은 첫 달에 모두가 몰려도 대부분 성공하고 거의 죽지 않으며, 깊을수록 성공이 어렵고 포션으로 막지 못하는 사망이 커진다', () => {
+    let s = 0, ok = 0, d = 0;
+    for (let g = 1; g <= 20; g++) { setSeed(g); const W = newWorld(); const M = runMonth(W, BOT.even(W)); M.res.forEach(r => { s += r.sent[0]; ok += r.ok[0]; d += r.dF[0]; }); }
+    expect(ok / s).toBeGreaterThan(0.6);
+    expect(d / s).toBeLessThan(0.1);
+    for (let f = 1; f < FLOORS.length; f++) { expect(FLOORS[f].base).toBeLessThan(FLOORS[f - 1].base); expect(FLOORS[f].risk * FLOORS[f].harm).toBeGreaterThan(FLOORS[f - 1].risk * FLOORS[f - 1].harm); }
   });
 });

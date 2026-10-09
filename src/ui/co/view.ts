@@ -34,7 +34,7 @@ export function stepper(k: string, i: number, v: number, label: string, step = 1
 // 지난달 정산: 숫자 넷, 금고와 수입·순이익 그래프, 순위, 시세 흐름, 탐사 결과, 우리 정산 (자세한 것은 접어 둔다)
 export function resultsHtml(W: World) {
   const L = W.last;
-  if (!L) return `<h2>첫 정산 전</h2><p class="note">첫 달 결재가 끝나면 여기에 결과가 붙어요.</p>`;
+  if (!L) return `<h2>첫 정산 전</h2><p class="note">첫 달 결재가 끝나면 여기에 결과가 붙어요.</p><section class="rp"><h3>시세</h3><div class="tw">${priceBoard(W)}</div></section>`;
   const prev = W.history.length > 1 ? W.history[W.history.length - 2].rank : null;
   const order = L.rank.map(id => W.cos.findIndex(c => c.id === id));
   // 남의 출정은 입구 출입 기록 2단계부터 보인다 (순위와 평가액은 연합이 발표한다)
