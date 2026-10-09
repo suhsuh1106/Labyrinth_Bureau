@@ -71,10 +71,10 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
   P.tool = 1;   // 채집 장비 1단계가 가장 낫다 (2단계와 갈무리장은 이 규모에서 본전이 안 된다)
   const best = value.indexOf(Math.max(...value));
   if (c.cash > 6000 && value[best] * (1 - CO.HIRE_CUT) - CO.HIRE_FEE > 150) P.hire[best] = 2;
-  P.guide = deduce(W);
-  if (kit) P.guide = P.guide.map((g, f) => addKit(W, f, g, P.parties[f]));
-  // 조 모양: 층마다 지침 직업은 두 자리에, 기록상 손해 보는 직업은 빼고 전사로
-  P.tplF = FLOORS.map((_, f) => floorTpl(W, f, P.guide[f]));
+  const key = deduce(W);
+  P.guide = kit ? key.map((g, f) => addKit(W, f, g, P.parties[f])) : key;
+  // 조 모양: 층마다 추리한 약점 직업은 두 자리에(소재용으로 더한 직업이 아니라), 기록상 손해 보는 직업은 빼고 전사로
+  P.tplF = FLOORS.map((_, f) => floorTpl(W, f, key[f], P.guide[f]));
   // 포션: 교회 값이 상단보다 싸면(후원해서 교회가 예전 값으로 내줄 때) 교회에서 사고, 담합이 터지면 여유가 있을 때 한 번 후원한다
   const need = P.parties.reduce((a, n, f) => a + (n + P.hire[f]) * P.pots[f], 0);
   P.buy = { holy: churchPrice(W, 0) < W.potion ? Math.max(0, need - potsOf(us(W)).holy) : 0 };
@@ -88,7 +88,7 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
 }
 
 // 층의 조 모양: 기록상 갖추면 성공률이 10%p 넘게 떨어지는 직업은 빼고, 지침 직업은 두 자리에 넣는다
-export function floorTpl(W: World, f: number, guide: string) {
+export function floorTpl(W: World, f: number, guide: string, kitG = guide) {
   const all = W.obs[f]['*']; const avoid = new Set<string>();
   if (all) Object.entries(W.obs[f]).forEach(([k, v]) => {
     if (!k.startsWith('c:')) return; const off = all.n - v.n;
@@ -96,7 +96,9 @@ export function floorTpl(W: World, f: number, guide: string) {
   });
   // 지침이 아직 없는 층은 달마다 다른 직업을 둘씩 넣어 본다 (모든 조가 같은 모양이면 기록으로 견줄 수가 없다)
   const g = (guide.split('+').find(k => k.startsWith('c:')) || '').slice(2) || (guide ? '' : CLASSES[(W.month + f) % CLASSES.length]);
-  const base = CO.TPL0.filter(x => x !== g && !avoid.has(x));
+  // 소재용으로 더한 직업은 한 자리 (기본 편성에 없으면 넣는다)
+  const extra = (kitG.split('+').find(k => k.startsWith('c:') && k.slice(2) !== g) || '').slice(2);
+  const base = [...(extra && !CO.TPL0.includes(extra) ? [extra] : []), ...CO.TPL0.filter(x => x !== g && !avoid.has(x))];
   const filler = ['전사', '도적', '궁수', '사제', '마법사'].find(x => !avoid.has(x) && x !== g) || '전사';
   const out = [...(g ? [g, g] : []), ...base];
   while (out.length < CO.PARTY) out.push(filler);
