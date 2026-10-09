@@ -130,7 +130,7 @@ export function shareChart(W: World) {
 // 공급과 수요: 가운데 눈금이 수요(시장이 한 달에 사 가는 양), 막대가 그달 공급. 수요를 넘으면 주황(값이 떨어짐)
 // 공급과 수요는 상단 장부(시장 정보망) 1단계부터 보인다. 가운데 눈금이 수요, 막대가 그달 시장 전체 공급, 수요를 넘으면 주황
 function sdBar(D: number, Q: number | null, see: boolean) {
-  if (!see) return '<span class="sd-lock">상단 장부 1단계부터</span>';
+  if (!see) return '';
   const pctQ = Q == null ? 0 : Math.min(100, (Q / D) * 50);
   return `<span class="sd" title="${Q == null ? `수요 ${D} · 아직 안 팔림` : `공급 ${Q} / 수요 ${D}`}"><span class="sd-bar"><i class="${Q != null && Q > D ? 'over' : ''}" style="width:${pctQ}%"></i><b></b></span><small>${Q == null ? `- / ${D}` : `${Q} / ${D}`}</small></span>`;
 }
@@ -145,7 +145,7 @@ export function priceBoard(W: World) {
     const X = (k: number) => 4 + (k / Math.max(1, n - 1)) * (w - 8), Y = (v: number) => 3 + (1 - (v - yLo) / Math.max(1, yHi - yLo)) * (h - 6);
     const band = `<rect class="band" x="2" y="${Y(hi)}" width="${w - 4}" height="${Y(lo) - Y(hi)}"/><line class="base" x1="2" x2="${w - 2}" y1="${Y(it.P0)}" y2="${Y(it.P0)}"/>`;
     if (!have.length) return `<tr><td><b>${it.name}</b><small>${it.buyer}</small></td><td><svg class="spark" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="${it.name} 아직 안 팔림">${band}</svg></td>
-      <td class="n"><b>${fmt(it.P0)}G</b><small>기준</small></td><td class="n dim">-</td><td>${sdBar(it.D, null, seeQ)}</td><td class="n dim">${fmt(lo)}~${fmt(hi)}G</td></tr>`;
+      <td class="n"><b>${fmt(it.P0)}G</b><small>기준</small></td><td class="n dim">-</td>${seeQ ? `<td>${sdBar(it.D, null, seeQ)}</td>` : ''}<td class="n dim range">${fmt(lo)}~${fmt(hi)}G</td></tr>`;
     const now = ps[ps.length - 1] ?? have[have.length - 1], prevV = [...ps.slice(0, -1)].reverse().find(v => v != null) ?? null;
     const d = prevV ? Math.round((now / prevV - 1) * 100) : 0;
     let path = '', pen = false;
@@ -154,7 +154,7 @@ export function priceBoard(W: World) {
     const hs = ps.map((v, k) => (v == null ? '' : `<rect class="hit" x="${X(k) - w / n / 2}" y="0" width="${w / n}" height="${h}" data-tip="${it.name} · 제${H[k].month}월|${fmt(v)}G${seeQ ? `|공급 ${H[k].Q[j]} / 수요 ${it.D}` : ''}"/>`)).join('');
     return `<tr><td><b>${it.name}</b><small>${it.buyer}</small></td><td><svg class="spark" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="${it.name} 시세 흐름">
       ${band}<path class="sp" d="${path}"/><circle class="spend ${d < 0 ? 'dn' : d > 0 ? 'up' : ''}" cx="${X(lastK)}" cy="${Y(now)}" r="3"/>${hs}</svg></td>
-      <td class="n"><b>${fmt(now)}G</b><small>기준 ${fmt(it.P0)}</small></td><td class="n ${d > 0 ? 'pos' : d < 0 ? 'neg' : 'dim'}">${d > 0 ? '▲' : d < 0 ? '▼' : ''}${d ? Math.abs(d) + '%' : '±0%'}</td><td>${sdBar(it.D, H[H.length - 1].Q[j], seeQ)}</td><td class="n dim">${fmt(lo)}~${fmt(hi)}G</td></tr>`;
+      <td class="n"><b>${fmt(now)}G</b><small>기준 ${fmt(it.P0)}</small></td><td class="n ${d > 0 ? 'pos' : d < 0 ? 'neg' : 'dim'}">${d > 0 ? '▲' : d < 0 ? '▼' : ''}${d ? Math.abs(d) + '%' : '±0%'}</td>${seeQ ? `<td>${sdBar(it.D, H[H.length - 1].Q[j], seeQ)}</td>` : ''}<td class="n dim range">${fmt(lo)}~${fmt(hi)}G</td></tr>`;
   }).join('');
-  return `<table class="grid board"><thead><tr><th>전리품</th><th>흐름</th><th class="n">시세</th><th class="n">전월 대비</th><th>공급 / 수요</th><th class="n">가격대</th></tr></thead><tbody>${rows}</tbody></table>`;
+  return `<table class="grid board"><thead><tr><th>전리품</th><th>흐름</th><th class="n">시세</th><th class="n">전월 대비</th>${seeQ ? '<th>공급 / 수요</th>' : ''}<th class="n range">가격대</th></tr></thead><tbody>${rows}</tbody></table>${seeQ ? '' : '<p class="note sd-lock">공급 / 수요는 상단 장부 1단계부터 보여요</p>'}`;
 }

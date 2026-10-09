@@ -412,7 +412,7 @@ details.fold { border-top: 1px solid var(--rule); padding-top: 6px; }
 details.fold > summary { cursor: pointer; font-size: 12.5px; font-weight: 600; color: var(--ink-soft); padding: 2px 0; }
 details.fold[open] > summary { margin-bottom: 6px; }
 @media (max-width: 560px) {
-  table.grid.rank th:nth-child(3), table.grid.rank td:nth-child(3), table.grid.board td:nth-child(5) { display: none; }
+  table.grid.rank th:nth-child(3), table.grid.rank td:nth-child(3) { display: none; }
   .spark { width: 110px; }
 }
 
@@ -475,7 +475,7 @@ details.fold[open] > summary { margin-bottom: 6px; }
 
 .spark .band { fill: var(--ink); opacity: .05; }
 table.grid.board td small { display: block; font: 400 10.5px var(--f-body); color: var(--ink-soft); }
-@media (max-width: 560px) { table.grid.board th:nth-child(6), table.grid.board td:nth-child(6), table.grid.board th:nth-child(5), table.grid.board td:nth-child(5) { display: none; } }
+@media (max-width: 560px) { table.grid.board .range { display: none; } }
 
 .sd { display: inline-grid; gap: 2px; min-width: 84px; }
 .sd-bar { position: relative; display: block; height: 8px; width: 84px; background: var(--rule); border-radius: 2px; }
