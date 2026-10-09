@@ -538,3 +538,26 @@ span.wk { cursor: default; }
 .panel table.grid.buy td small { display: block; font-size: 10.5px; }
 .panel table.grid.buy td .link { margin-left: 6px; font-size: 11px; }
 .panel table.grid.buy tfoot td { border-top: 1px solid var(--bl-line); border-bottom: 0; font-size: 12.5px; }
+
+/* 인원: 숫자 넷, 침상 그림(칸 하나가 침상 하나), 숙소 · 신입 모집 */
+.st-kpi { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+@media (max-width: 520px) { .st-kpi { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.st-kpi > div { background: var(--bl-3); border: 1px solid var(--bl-line); border-radius: 3px; padding: 6px 9px; display: grid; gap: 1px; min-width: 0; }
+.st-kpi small { font-size: 11px; color: var(--bl-soft); }
+.st-kpi b { font: 500 17px var(--f-num); font-variant-numeric: tabular-nums; }
+.st-kpi i { font: normal 11px var(--f-body); color: var(--bl-soft); }
+.staff .beds { display: flex; flex-wrap: wrap; gap: 3px; padding: 8px; background: var(--bl-3); border: 1px solid var(--bl-line); border-radius: 3px; }
+.bed { display: inline-block; width: 13px; height: 9px; border-radius: 2px; border: 1px solid var(--bl-line); background: transparent; }
+.bed.gap { margin-left: 5px; }
+.bed.vet { background: var(--bl-good); border-color: var(--bl-good); }
+.bed.rook { background: var(--bl-accent); border-color: var(--bl-accent); }
+.bed.new { border-color: var(--bl-accent); background: repeating-linear-gradient(45deg, var(--bl-accent) 0 2px, transparent 2px 4px); }
+.bed.build { border-style: dashed; border-color: var(--bl-accent); opacity: .75; }
+.staff .legend { display: flex; flex-wrap: wrap; gap: 3px 12px; font-size: 11px; color: var(--bl-soft); }
+.staff .legend span { display: inline-flex; align-items: center; gap: 5px; }
+.staff .legend .bed.gap { margin-left: 0; }
+.tog { font: 500 12px var(--f-body); padding: 5px 10px; border-radius: 3px; border: 1px solid var(--bl-accent); background: transparent; color: var(--bl-accent); cursor: pointer; white-space: nowrap; }
+.tog[aria-pressed="true"] { background: var(--bl-accent); color: var(--bl-1); }
+.tog:focus-visible { outline: 2px solid var(--bl-accent); outline-offset: 1px; }
+.bld .ctl2 small { font-size: 10.5px; color: var(--bl-soft); }
+table.grid td.n small { display: block; font-family: var(--f-num); font-size: 10.5px; }

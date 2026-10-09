@@ -27,7 +27,7 @@ export function revealHtml(W: World, live: boolean, mute = false) {
     lines.push({ k: 'gain', v, t: `${ITEMS[j].name} ${r.sold[j]}개 × ${fmt(L.price[j])}G`, amt: sgn(v) });
   });
   if (r.matSales) lines.push({ k: 'gain', v: r.matSales, t: `갈무리 소재 ${Object.values(r.matSold).reduce((a, b) => a + b, 0)}개`, amt: sgn(r.matSales) });
-  const costs: [string, number][] = [['급여 · 신입', s.wage + s.recruit], ['출정 · 계약', s.sortie + s.hire + s.tool], ['포션 · 장비', s.potion + s.gear], ['정보 · 조사', s.intel + s.probe], ['훈련 · 건물 · 후원', s.train + s.base + s.proc + s.donate + s.root]];
+  const costs: [string, number][] = [['급여 · 신입', s.wage + s.recruit], ['출정 · 계약', s.sortie + s.hire + s.tool], ['포션 · 장비', s.potion + s.gear], ['정보 · 조사', s.intel + s.probe], ['훈련 · 숙소 · 건물', s.train + s.base + s.proc + s.donate + s.root + (s.dorm || 0)]];
   costs.filter(([, v]) => v > 0).forEach(([t, v]) => lines.push({ k: 'cost', v: -v, t, amt: sgn(-v) }));
   lines.push({ k: 'net', v: 0, t: '순이익', amt: sgn(r.net) });
   const ok = r.ok.reduce((a, b) => a + b, 0), sent = r.sent.reduce((a, b) => a + b, 0) + r.hired.reduce((a, b) => a + b, 0);

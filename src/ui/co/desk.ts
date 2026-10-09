@@ -2,7 +2,7 @@
 // 정보 주차 — 자료함(보고서·신문·도감·조사 결과)을 열어 읽고, 조사 의뢰를 걸고, 정보망과 내정(건물·보급·창고·세력)을 정한다.
 // 탐험 주차 — 작전 메모를 옆에 두고 층마다 몇 조를 무엇을 챙겨 보낼지 정하고 도장을 찍는다. 결과는 다음 달 보고서가 된다.
 // 화면은 HTML 문자열만 만든다. 상태를 쓰지 않고 난수도 쓰지 않는다
-import { CO, FLOORS, INTEL, ITEMS, type Plan, SRCS, type World, churchPrice, gearBuy, hireCost, intelBlock, intelCost, lootMul, maxParties, needOf, potsExpiring, potsOf, probeCost, probesLeft, sanitize, sortieCost, succRate, supOf, toolCost, trainBonus, us } from '../../core/company';
+import { CO, FLOORS, INTEL, ITEMS, type Plan, SRCS, type World, bedsOf, churchPrice, dormCost, dormKeep, roomOf, wageOf, gearBuy, hireCost, intelBlock, intelCost, lootMul, maxParties, needOf, potsExpiring, potsOf, probeCost, probesLeft, sanitize, sortieCost, succRate, supOf, toolCost, trainBonus, us } from '../../core/company';
 import { CLASSES, GEARS, BUYERS } from '../../core/data';
 import { bookHtml, condLabel, kitHint } from './book';
 import { SRC_INFO, intelHtml, rumorsHtml } from './intel';
@@ -13,7 +13,7 @@ import { KTAG, depthsHtml, fieldHtml, fmt, newsLines, pct, resultsHtml, sgn, ste
 export type DeskUi = { phase: number; tab: string; pins: string[]; rival?: string; open?: boolean; mute?: boolean };
 const lvOf = (W: World, k: keyof typeof INTEL.BASE) => (W.intel ? W.intel.lv[k] : INTEL.BASE[k]);
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
-const wage = (W: World) => { const c = us(W); return Math.round(c.members * CO.WAGE * (1 + c.members / CO.OVERHEAD)); };
+const wage = (W: World) => wageOf(us(W).members);
 
 // 이번 달 들어온 조사 결과 (시장 조사 · 타 용병단 조사)
 function probesHtml(W: World) {
@@ -98,6 +98,8 @@ const ICON: Record<string, string> = {
   candle: '<path d="M6 7h4v7H6z"/><path d="M8 7V5.5"/><path d="M8 2.2c1 1.1 1.2 2 0 3.3-1.2-1.3-1-2.2 0-3.3z"/>',
   cross: '<path d="M6.5 2h3v4.5H14v3H9.5V14h-3V9.5H2v-3h4.5z"/>',
   door: '<path d="M3.5 14V2.5h9V14"/><path d="M2 14h12"/><circle cx="10" cy="8.5" r=".8"/>',
+  house: '<path d="M2 7.5 8 2.5l6 5V14H2z"/><path d="M6 14v-3.5h4V14"/>',
+  recruit: '<circle cx="6" cy="5" r="2.2"/><path d="M1.8 13.5c.4-2.8 2-4.3 4.2-4.3s3.8 1.5 4.2 4.3"/><path d="M12.5 4.5v4M10.5 6.5h4"/>',
   people: '<circle cx="5.5" cy="5" r="2"/><circle cx="11" cy="5.5" r="1.7"/><path d="M1.8 13c.4-2.6 1.8-4 3.7-4s3.3 1.4 3.7 4M8.8 13c.3-2.1 1.2-3.3 2.4-3.3s2.3 1.2 2.6 3.3"/>',
   mask: '<path d="M2 5c2-1 4-1.3 6-1.3S12 4 14 5c0 4-2.5 6.5-6 6.5S2 9 2 5z"/><path d="M4.8 7.2h1.8M9.4 7.2h1.8"/>',
 };
@@ -158,12 +160,41 @@ function homePanel(W: World, raw: Plan, P: Plan) {
       ${bld('grid', '갈무리장', `${(c.proc || 0).toFixed(1)} / ${CO.PROC_MAX}단계${c.pendingProc ? ' · 공사 중' : ''}`, `${fmt(CO.PROC_STEP)}G마다 캐 오는 양 +${Math.round(CO.PROC_BONUS * 100)}%`, stepper('proc', 0, raw.proc || 0, '갈무리장 공사비', 500))}
       ${bld('door', '전진 거점', c.bases.some(Boolean) ? FLOORS.slice(0, W.unlocked).map((F, f) => (c.bases[f] ? `${F.name} ${c.bases[f].toFixed(1)}` : '')).filter(Boolean).join(' · ') : '없음', `${fmt(CO.BASE_STEP)}G마다 그 층 성공률 +5%p`, `<span class="ctl2"><select data-k="basef" aria-label="거점을 둘 층">${FLOORS.slice(0, W.unlocked).map((F, f) => `<option value="${f}"${f === bf ? ' selected' : ''}>${F.name}</option>`).join('')}</select>${stepper('base', 0, ba, '거점 공사비', 500)}</span>`)}
       ${bld('bars', '채집 도구', `${raw.tool || 0} / 2단계`, `조당 ${CO.TOOL_COST.slice(1).join(' / ')}G · 캐 오는 양 +${CO.TOOL_BONUS.slice(1).map(v => Math.round(v * 100) + '%').join(' / ')}`, stepper('tool', 0, raw.tool || 0, '채집 도구 단계'))}
-      <div class="bld soon">${icon('people')}<div><b>신입 모집</b><span class="lvl">준비 중</span><small>인사 기능과 함께</small></div></div>
     </div>
     <h3 class="sec">보급 구매 <span class="dim">포션 보관 ${CO.POT_KEEP}달 · 성수 ${CO.HOLY_KEEP}달</span></h3>
     <div class="tw"><table class="grid buy"><thead><tr><th>품목</th><th class="n">단가</th><th class="n">창고</th><th class="n">편성에 필요</th><th>구매</th><th class="n">금액</th></tr></thead><tbody>${rows.join('')}</tbody>
       <tfoot><tr><td colspan="5">보급 합계</td><td class="n"><b>${fmt(supTotal)}G</b></td></tr></tfoot></table></div>
     ${roots ? `<div class="hbox wide">${roots}</div>` : ''}
+  </div>`;
+}
+
+// ---------- 인원: 숙소(침상이 상한)와 신입 모집. 신입은 수습으로 들어와 낀 조가 성공을 쌓으면 대원이 된다 ----------
+// 이번 달 찾을 신입 (비워 두면 빈 침상만큼)
+const recruitOf = (W: World, raw: Plan) => { const room = roomOf(us(W)); return raw.recruit == null ? room : Math.max(0, Math.min(room, Math.floor(raw.recruit))); };
+function staffPanel(W: World, raw: Plan) {
+  const c = us(W), beds = bedsOf(c), rook = (c.rook || []).length, pend = c.pendingBeds || 0, L = W.last;
+  const want = recruitOf(W, raw), build = !!raw.dorm && !pend, est = W.intel && W.intel.est.apps;
+  const fames = W.cos.filter(x => x.style !== 'crowd').map(x => x.fame || 0).sort((a, b) => b - a), fr = fames.indexOf(c.fame || 0) + 1;
+  // 침상 그림: 칸 하나가 침상 하나 (대원 · 수습 · 이번 달 뽑을 신입 · 빈 침상 · 공사 중)
+  const cells = [...Array(c.members - rook).fill('vet'), ...Array(rook).fill('rook'), ...Array(want).fill('new'), ...Array(Math.max(0, beds - c.members - want)).fill(''), ...Array(pend || (build ? CO.DORM_ADD : 0)).fill('build')];
+  const lastW = L ? L.res.reduce((a, r) => a + r.recruitWant, 0) : 0, lastG = L ? L.res.reduce((a, r) => a + r.recruited, 0) : 0;
+  const bld = (ic: string, name: string, lv: string, body: string, ctl: string) => `<div class="bld">${icon(ic)}<div><b>${name}</b><span class="lvl">${lv}</span><small>${body}</small></div>${ctl}</div>`;
+  return `<div class="panel staff"><header><h2>인원</h2><span class="sub">명성 ${Math.round(c.fame || 0)}${L ? ` · 변경 ${fr}위` : ''}</span></header>
+    <div class="st-kpi">
+      <div><small>인원</small><b>${c.members}</b><i>${rook ? `수습 ${rook}명` : '모두 대원'}</i></div>
+      <div><small>침상</small><b>${beds}</b><i>${pend ? `공사 중 +${pend}` : `빈 침상 ${beds - c.members}`}</i></div>
+      <div><small>보낼 수 있는 조</small><b>${Math.floor(c.members / CO.PARTY)}</b><i>4명이 한 조</i></div>
+      <div><small>월 급여</small><b>${fmt(wage(W))}G</b><i>${want ? `신입 들면 ${fmt(wageOf(c.members + want))}G` : '1인 30G + 관리비'}</i></div>
+    </div>
+    <div class="beds" role="img" aria-label="침상 ${beds}개 중 대원 ${c.members - rook}, 수습 ${rook}, 이번 달 뽑을 신입 ${want}">${cells.map((k, i) => `<i class="bed ${k}${i && i % 4 === 0 ? ' gap' : ''}"></i>`).join('')}</div>
+    <div class="legend"><span><i class="bed vet"></i>대원</span><span><i class="bed rook"></i>수습</span><span><i class="bed new"></i>이번 달 신입</span><span><i class="bed"></i>빈 침상</span><span><i class="bed build"></i>공사 중</span></div>
+    <div class="blds">
+      ${bld('house', '숙소', `침상 ${beds}${pend ? ` → ${beds + pend}` : ''}`, pend ? `증축 공사 중 · 다음 달 정산 때 침상 +${pend}` : `증축하면 다음 달 침상 +${CO.DORM_ADD} · 공사비 ${fmt(dormCost(c))}G · 침상마다 유지비 월 ${CO.DORM_KEEP}G`,
+        pend ? '<span class="lvl dim">공사 중</span>' : `<button type="button" class="tog" data-act="dorm" aria-pressed="${build}">${build ? '증축 취소' : '증축하기'}</button>`)}
+      ${bld('recruit', '신입 모집', `1인 ${CO.RECRUIT}G부터`, `빈 침상 ${roomOf(c)}개까지 · 다음 달부터 수습으로 조에 끼고, 낀 조가 ${CO.ROOK_WINS}번 성공하면 대원`,
+        `<span class="ctl2">${stepper('recruit', 0, want, '뽑을 신입 수')}${raw.recruit == null ? '<small>빈 침상만큼</small>' : '<button type="button" class="link" data-act="auto-recruit">빈 침상만큼</button>'}</span>`)}
+    </div>
+    <p class="note">마을 지원자 이번 달 ${est ? (est.lo === est.hi ? `${est.lo}명` : `${est.lo}~${est.hi}명`) : '?'}${L ? (lastW ? ` · 지난달엔 모두 ${lastW}명을 찾아 ${lastG}명이 들어갔고 1인 ${fmt(L.res[0].recruitPrice || CO.RECRUIT)}G` : ' · 지난달엔 신입을 찾은 곳이 없었어요') : ''}. 찾는 사람이 더 많으면 값이 오르고, 명성이 높은 곳에 먼저 가요.</p>
   </div>`;
 }
 
@@ -173,7 +204,8 @@ export function monthCost(W: World, raw: Plan) {
   const holy = (P.buy && P.buy.holy) || 0, pot = P.buy && P.buy.pot != null ? P.buy.pot : Math.max(0, need.pot - H.pot - H.holy - holy);
   const gear = Object.values(gearBuy(c, P)).reduce((a, b) => a + b, 0);
   const info = probeCost(W) + intelCost(P);
-  const home = P.train + (P.base ? P.base.amt : 0) + (P.proc || 0) + (P.donate || 0) + (P.root ? P.root.seal + P.root.mine : 0) + pot * W.potion + holy * churchPrice(W, 0) + gear * CO.GEAR_PRICE;
+  const staff = recruitOf(W, raw) * CO.RECRUIT + dormKeep(bedsOf(c) + (c.pendingBeds || 0)) + (P.dorm ? dormCost(c) : 0);
+  const home = staff + P.train + (P.base ? P.base.amt : 0) + (P.proc || 0) + (P.donate || 0) + (P.root ? P.root.seal + P.root.mine : 0) + pot * W.potion + holy * churchPrice(W, 0) + gear * CO.GEAR_PRICE;
   const exp = sortieCost(P).reduce((a, b) => a + b, 0) + hireCost(P) + toolCost(P);
   return { info, home, exp, wage: wage(W), all: info + home + exp + wage(W) };
 }
@@ -198,7 +230,7 @@ export function infoWeekHtml(W: World, raw: Plan, ui: DeskUi) {
   return `<div class="panel"><header><h2>자료함</h2></header>${shelfHtml(W)}</div>
     <div class="main even">
       <div class="col">${probePanel(W, ui)}${netPanel(W, raw)}</div>
-      <div class="col">${homePanel(W, raw, P)}</div>
+      <div class="col">${staffPanel(W, raw)}${homePanel(W, raw, P)}</div>
     </div>
     <div class="foot"><span class="tot">정보 <b>${fmt(cost.info)}G</b> · 내정 <b>${fmt(cost.home)}G</b> · 급여 ${fmt(cost.wage)}G</span><button type="button" class="btn-next" data-act="phase" data-phase="1">탐험 주차로 →</button></div>
     ${readerHtml(W, ui)}`;
@@ -259,6 +291,7 @@ export function expWeekHtml(W: World, raw: Plan, ui: DeskUi) {
     </div>
     <div class="col">
       <div class="panel"><header><h2>어느 층에 몇 조를</h2><span class="sub">계약 조 한 조 ${CO.HIRE_FEE}G, 캔 것의 ${pct(CO.HIRE_CUT)}는 그들 몫</span><span class="right">보낼 조 <b>${sent}</b>/${maxParties(c)}${hired ? ` + 계약 ${hired}` : ''}</span></header>
+        ${(c.rook || []).length ? `<p class="note">수습 ${(c.rook || []).length}명은 얕은 층 조부터 한 명씩 껴요. 수습 한 명당 그 조 성공률 −${Math.round(CO.ROOK_PEN * 100)}%p</p>` : ''}
         <div class="floors">${floors}</div></div>
       ${warn.length ? `<div class="warn">${warn.join(' · ')}</div>` : ''}
       <div class="foot"><button type="button" class="ghost" data-act="phase" data-phase="0">← 정보 주차</button><span class="tot">이번 달 나갈 돈 <b>${fmt(cost.all)}G</b> <span class="dim">(정보 ${fmt(cost.info)} · 내정 ${fmt(cost.home)} · 출정 ${fmt(cost.exp)} · 급여 ${fmt(cost.wage)})</span></span><button type="button" class="seal" id="go" data-act="go">결재 도장 찍기</button></div>
