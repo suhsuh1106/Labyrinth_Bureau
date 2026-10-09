@@ -86,54 +86,85 @@ function probePanel(W: World, ui: DeskUi) {
     </div>${probeCost(W) ? `<p class="note">이번 달 조사비 ${fmt(probeCost(W))}G</p>` : ''}</div>`;
 }
 
+// ---------- 정보망: 출처마다 단계가 이어진 줄 (스킬트리) ----------
+// 작은 그림: 16×16, 선으로만 그린다 (색은 글자색을 따른다)
+const ICON: Record<string, string> = {
+  scroll: '<path d="M4 2h7l2 2v10H4z"/><path d="M6 6h5M6 8.5h5M6 11h3"/>',
+  grid: '<rect x="2.5" y="3" width="11" height="10" rx="1"/><path d="M2.5 6.5h11M2.5 10h11M6.5 3v10"/>',
+  eye: '<path d="M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/>',
+  bars: '<path d="M3 13V8M6.5 13V4.5M10 13V7M13.5 13V2.5"/><path d="M2 13.5h12.5"/>',
+  flags: '<path d="M3 14V2.5M3 3h6l-1 2 1 2H3"/><path d="M9.5 14V7.5M9.5 8h4l-.8 1.5.8 1.5h-4"/>',
+  letter: '<rect x="2" y="3.5" width="12" height="9" rx="1"/><path d="M2.5 4.5 8 9l5.5-4.5"/>',
+  candle: '<path d="M6 7h4v7H6z"/><path d="M8 7V5.5"/><path d="M8 2.2c1 1.1 1.2 2 0 3.3-1.2-1.3-1-2.2 0-3.3z"/>',
+  cross: '<path d="M6.5 2h3v4.5H14v3H9.5V14h-3V9.5H2v-3h4.5z"/>',
+  door: '<path d="M3.5 14V2.5h9V14"/><path d="M2 14h12"/><circle cx="10" cy="8.5" r=".8"/>',
+  people: '<circle cx="5.5" cy="5" r="2"/><circle cx="11" cy="5.5" r="1.7"/><path d="M1.8 13c.4-2.6 1.8-4 3.7-4s3.3 1.4 3.7 4M8.8 13c.3-2.1 1.2-3.3 2.4-3.3s2.3 1.2 2.6 3.3"/>',
+  mask: '<path d="M2 5c2-1 4-1.3 6-1.3S12 4 14 5c0 4-2.5 6.5-6 6.5S2 9 2 5z"/><path d="M4.8 7.2h1.8M9.4 7.2h1.8"/>',
+};
+const icon = (k: string) => `<svg class="ico" viewBox="0 0 16 16" aria-hidden="true">${ICON[k] || ''}</svg>`;
+// 출처마다: 대표 그림, 단계마다 그림과 짧은 이름
+export const NET_TREE: Record<string, { ico: string; lv: [string, string][] }> = {
+  ret: { ico: 'scroll', lv: [['scroll', '조당 캐 온 양'], ['grid', '구성별 성공률'], ['eye', '몬스터가 바뀐 달']] },
+  mkt: { ico: 'bars', lv: [['bars', '시장 전체 판매'], ['flags', '용병단별 판매'], ['letter', '다음 달 주문']] },
+  chu: { ico: 'candle', lv: [['candle', '층별 장례'], ['flags', '용병단별 장례'], ['cross', '부상자까지']] },
+  gate: { ico: 'door', lv: [['door', '층별 파티 수'], ['flags', '용병단별 파티 수'], ['people', '파티 구성']] },
+  spy: { ico: 'mask', lv: [['mask', '한 곳'], ['mask', '두 곳'], ['mask', '세 곳']] },
+};
 function netPanel(W: World, raw: Plan) {
-  const I = W.intel, rivals = W.cos.filter(c => c.style !== 'player' && c.style !== 'crowd');
+  const I = W.intel, rivals = W.cos.filter(c => c.style !== 'player' && c.style !== 'crowd'), P = sanitize(W, us(W), raw);
   const rows = SRCS.map((k, i) => {
-    const lv = lvOf(W, k), keep = INTEL.KEEP[k][lv], b = (raw.intel && raw.intel[k]) || 0, blk = intelBlock(W, k);
-    const note = b < keep ? `<span class="neg">유지비 ${fmt(keep)}G보다 적어 다음 달 한 단계 내려가요</span>` : blk && b > keep ? `<span class="neg">${blk.who}과 사이가 ${INTEL.REL} 이상이어야 올라요 (지금 ${blk.now})</span>` : lv >= 3 ? '가장 높은 단계' : b > keep ? `${fmt(b - keep)}G씩 쌓여 ${lv + 1}단계로 (${fmt(I ? I.acc[k] : 0)}/${fmt(INTEL.UP[k][lv])})` : `유지 ${fmt(keep)}G${INTEL.BASE[k] ? ' (1단계는 공짜)' : ''} · 더 넣으면 쌓여요`;
-    return `<div class="netrow"><span>${SRC_INFO[k].n}</span><span class="pips" aria-label="${lv}단계">${[1, 2, 3].map(n => `<i class="${n <= lv ? 'on' : ''}"></i>`).join('')}</span><span class="nnote">${note}</span>${stepper('intel', i, b, `${SRC_INFO[k].n} 정보비`, 50)}</div>`;
+    const T = NET_TREE[k], lv = lvOf(W, k), keep = INTEL.KEEP[k][lv], up = (raw.intelUp && raw.intelUp[k]) || 0, cut = (raw.intelCut || []).includes(k), blk = intelBlock(W, k);
+    const acc = I ? I.acc[k] : 0, need = lv < 3 ? INTEL.UP[k][lv] : 0;
+    const st = cut && keep ? ['bad', '축소 예정'] : lv >= 3 ? ['top', '최고 단계'] : blk && up ? ['bad', `막힘 · ${blk.who}과 사이 ${INTEL.REL} 필요 (지금 ${blk.now})`] : up ? ['up', '확장 중'] : ['', '유지'];
+    const nodes = T.lv.map(([ic, name], n) => {
+      const L = n + 1, on = L <= lv, next = L === lv + 1;
+      return `<div class="nt-node${on ? ' on' : ''}${next ? ' next' : ''}" title="${SRC_INFO[k].n} ${L}단계 · ${name}">${icon(ic)}<b>${L}</b><span>${name}</span>${next ? `<i class="nt-prog"><i style="width:${Math.min(100, Math.round(acc / Math.max(1, need) * 100))}%"></i></i>` : ''}</div>`;
+    }).join('<span class="nt-edge" aria-hidden="true"></span>');
+    return `<div class="nt-track">
+      <div class="src-h">${icon(T.ico)}<b>${SRC_INFO[k].n}</b><span class="lvl">${lv}단계</span><span class="st ${st[0]}">${st[1]}</span></div>
+      <div class="nt-nodes">${nodes}</div>
+      <div class="src-c"><span>유지비 <b>${fmt(keep)}G</b>/월${keep ? ` <button type="button" class="tgl" data-act="intel-cut" data-src="${k}" aria-pressed="${!cut}">${cut ? '끊음' : '내는 중'}</button>` : ''}</span>
+        ${lv < 3 ? `<span>다음 단계 <b>${fmt(acc)} / ${fmt(need)}G</b></span><label class="exp">영향력 넓히기 ${stepper('intelUp', i, up, `${SRC_INFO[k].n} 확장 투자`, 50)}</label>` : ''}</div>
+    </div>`;
   }).join('');
   const slots = Math.max(1, lvOf(W, 'spy')), on = raw.spyOn || [];
   const sel = Array.from({ length: slots }, (_, s) => `<select data-k="spyOn" data-i="${s}" aria-label="정보원 ${s + 1}"><option value="">붙이지 않음</option>${rivals.map(c => `<option value="${c.id}"${on[s] === c.id ? ' selected' : ''}>${c.name}</option>`).join('')}</select>`).join(' ');
-  return `<div class="panel"><header><h2>정보망</h2><span class="sub">단계만큼 자료가 자세해져요</span><span class="right">이번 달 <b>${fmt(intelCost(raw))}G</b></span></header>
-    <div class="nets">${rows}<div class="netrow"><span>정보원 붙일 곳</span><span class="nnote" style="grid-column: 2 / -1">${sel}</span></div></div></div>`;
+  return `<div class="panel"><header><h2>정보망</h2><span class="right">이번 달 <b>${fmt(intelCost(P))}G</b></span></header>
+    <div class="nt-tree">${rows}</div>
+    <div class="spyrow">${icon('mask')}<span>정보원 붙일 곳</span>${sel}</div></div>`;
 }
 
+// ---------- 내정: 건물 · 훈련, 보급 구매 ----------
 function homePanel(W: World, raw: Plan, P: Plan) {
   const c = us(W), S = supOf(c), H = potsOf(c), X = potsExpiring(c), need = needOf(P), gb = gearBuy(c, P);
   const buyPot = raw.buy && raw.buy.pot != null ? raw.buy.pot : null, autoPot = Math.max(0, need.pot - H.pot - H.holy - ((raw.buy && raw.buy.holy) || 0));
   const bf = raw.base ? raw.base.f : Math.max(0, W.unlocked - 1), ba = raw.base ? raw.base.amt : 0;
-  const rel = (v: number | undefined) => { const x = Math.round(v ?? 50); return `${x} ${x >= 65 ? '(가까움)' : x <= 35 ? '(멀어짐)' : '(보통)'}`; };
-  const K = W.cartel;
-  const cartel = K ? (K.churchOut ? `담합 중 · 교회는 빠졌어요 (${K.left}개월 남음)${K.donated[0] ? '' : '. 후원하면 교회 성수를 예전 값으로 살 수 있어요'}` : `<b class="neg">담합 중</b> · 상단과 교회가 값을 ${Math.round((CO.CARTEL_MARKUP - 1) * 100)}% 올렸어요 (${K.left}개월 남음). 교회 후원이 모두 합쳐 ${fmt(CO.BREAK_DONATION)}G 쌓이면 교회가 빠져요 (지금 ${fmt(K.donated.reduce((a, b) => a + b, 0))}G)`) : '담합 없음';
-  const gearRows = GEAR_NAMES.map((g, i) => {
-    const b = raw.buy && raw.buy.gear && raw.buy.gear[g] != null ? raw.buy.gear[g] : gb[g] || 0, n = need.gear[g] || 0;
-    return `<div class="hrow"><span>${g} 장비 <span class="dim">· 창고 ${S.gear[g] || 0}벌</span></span>${stepper('buyGear', i, b, `${g} 장비 살 벌 수`)}${n ? `<small>편성에 ${n}벌</small>` : ''}</div>`;
-  }).join('');
+  const potN = buyPot ?? autoPot, holyN = (raw.buy && raw.buy.holy) || 0;
+  const rows: string[] = [
+    `<tr><td><b>상단 포션</b>${X.pot ? `<small class="neg">${X.pot}병 이번 달 지나면 상함</small>` : ''}</td><td class="n">${W.potion}G</td><td class="n">${H.pot}</td><td class="n">${need.pot}</td><td>${stepper('buyPot', 0, potN, '상단 포션 구매', 10)}${buyPot == null ? '<small>자동</small>' : '<button type="button" class="link" data-act="auto-pot">자동</button>'}</td><td class="n">${fmt(potN * W.potion)}G</td></tr>`,
+    `<tr><td><b>교회 성수</b><small>${X.holy ? `<span class="neg">${X.holy}병 이번 달 지나면 상함</span> · ` : ''}사망을 더 줄임</small></td><td class="n">${churchPrice(W, 0)}G</td><td class="n">${H.holy}</td><td class="n dim">-</td><td>${stepper('buyHoly', 0, holyN, '교회 성수 구매', 10)}</td><td class="n">${fmt(holyN * churchPrice(W, 0))}G</td></tr>`,
+    ...GEAR_NAMES.map((g, i) => {
+      const b = raw.buy && raw.buy.gear && raw.buy.gear[g] != null ? raw.buy.gear[g] : gb[g] || 0;
+      return `<tr><td><b>${g} 장비</b></td><td class="n">${CO.GEAR_PRICE}G</td><td class="n">${S.gear[g] || 0}</td><td class="n">${need.gear[g] || '-'}</td><td>${stepper('buyGear', i, b, `${g} 장비 구매`)}</td><td class="n">${fmt(b * CO.GEAR_PRICE)}G</td></tr>`;
+    }),
+  ];
+  const supTotal = potN * W.potion + holyN * churchPrice(W, 0) + GEAR_NAMES.reduce((a, g) => a + (raw.buy && raw.buy.gear && raw.buy.gear[g] != null ? raw.buy.gear[g] : gb[g] || 0) * CO.GEAR_PRICE, 0);
+  const bld = (ic: string, name: string, lv: string, body: string, ctl: string) => `<div class="bld">${icon(ic)}<div><b>${name}</b><span class="lvl">${lv}</span><small>${body}</small></div>${ctl}</div>`;
   const roots = depthsHtml(W, raw);
-  return `<div class="panel"><header><h2>내정</h2><span class="sub">건물을 올리고 보급을 사 둬요</span></header>
-    <div class="home">
-      <div class="hbox"><h3>건물</h3>
-        <div class="hrow"><span>훈련장</span>${stepper('train', 0, raw.train, '훈련비', 100)}<small>성공률 +${(trainBonus(c.skill) * 100).toFixed(1)}%p → 이대로면 +${(trainBonus(raw.train / 10 * CO.SIZE_REF / Math.max(CO.SIZE_REF / 2, c.members)) * 100).toFixed(1)}%p</small></div>
-        <div class="hrow"><span>갈무리장 · ${(c.proc || 0).toFixed(1)}단계${c.pendingProc ? ' · 공사 중' : ''}</span>${stepper('proc', 0, raw.proc || 0, '갈무리장 투자', 500)}<small>${fmt(CO.PROC_STEP)}G마다 캐 오는 양 +${Math.round(CO.PROC_BONUS * 100)}%</small></div>
-        <div class="hrow"><span>전진 거점 <select data-k="basef" aria-label="거점을 둘 층">${FLOORS.slice(0, W.unlocked).map((F, f) => `<option value="${f}"${f === bf ? ' selected' : ''}>${F.name}</option>`).join('')}</select></span>${stepper('base', 0, ba, '거점 투자', 500)}<small>${fmt(CO.BASE_STEP)}G마다 그 층 성공률 +5%p${c.bases.some(Boolean) ? ` · 지금 ${FLOORS.slice(0, W.unlocked).map((F, f) => (c.bases[f] ? `${F.name} ${c.bases[f].toFixed(1)}` : '')).filter(Boolean).join(' · ')}` : ''}</small></div>
-        <div class="hrow"><span>채집 도구</span>${stepper('tool', 0, raw.tool || 0, '채집 도구 수준')}<small>조당 ${CO.TOOL_COST.slice(1).join(' / ')}G · 캐 오는 양 +${CO.TOOL_BONUS.slice(1).map(v => Math.round(v * 100) + '%').join(' / ')}</small></div>
-      </div>
-      <div class="hbox"><h3>보급 · 사 두기</h3>
-        <div class="hrow"><span>상단 포션 <span class="num">${W.potion}G</span> <span class="dim">· 창고 ${H.pot}병</span></span>${stepper('buyPot', 0, buyPot ?? autoPot, '상단 포션 살 병 수', 10)}<small>${buyPot == null ? '필요한 만큼 자동' : '<button type="button" class="link" data-act="auto-pot">자동으로</button>'} · 쓸 양 ${need.pot}병${X.pot ? ` · <b class="neg">${X.pot}병 이번 달 지나면 상함</b>` : ''}</small></div>
-        <div class="hrow"><span>교회 성수 <span class="num">${churchPrice(W, 0)}G</span> <span class="dim">· 창고 ${H.holy}병</span></span>${stepper('buyHoly', 0, (raw.buy && raw.buy.holy) || 0, '교회 성수 살 병 수', 10)}<small>사망을 더 줄여요${X.holy ? ` · <b class="neg">${X.holy}병 이번 달 지나면 상함</b>` : ''}</small></div>
-        ${gearRows}
-        <p class="note">포션 보관 ${CO.POT_KEEP}달(성수 ${CO.HOLY_KEEP}달) · 장비 한 벌 ${CO.GEAR_PRICE}G</p>
-      </div>
-      <div class="hbox"><h3>세력</h3>
-        <p class="note">상단 ${rel(c.relM)} · 교회 ${rel(c.relC)}. ${cartel}</p>
-        <div class="hrow"><span>교회 후원금</span>${stepper('donate', 0, raw.donate || 0, '교회 후원금', 100)}</div>
-      </div>
-      <div class="hbox soon"><h3>고용 <span class="soon-tag">나중에</span></h3>
-        <div class="hrow"><span>신입 모집</span><span class="step"><button type="button" disabled aria-label="신입 줄이기">−</button><input type="number" disabled value="0" aria-label="신입 모집"><button type="button" disabled aria-label="신입 늘리기">+</button></span><small>준비 중</small></div>
-      </div>
-      ${roots ? `<div class="hbox wide">${roots}</div>` : ''}
-    </div></div>`;
+  return `<div class="panel"><header><h2>내정</h2></header>
+    <h3 class="sec">건물 · 훈련</h3>
+    <div class="blds">
+      ${bld('people', '훈련장', `+${(trainBonus(c.skill) * 100).toFixed(1)}%p`, `월 훈련비 → 성공률 +${(trainBonus(raw.train / 10 * CO.SIZE_REF / Math.max(CO.SIZE_REF / 2, c.members)) * 100).toFixed(1)}%p까지`, stepper('train', 0, raw.train, '월 훈련비', 100))}
+      ${bld('grid', '갈무리장', `${(c.proc || 0).toFixed(1)} / ${CO.PROC_MAX}단계${c.pendingProc ? ' · 공사 중' : ''}`, `${fmt(CO.PROC_STEP)}G마다 캐 오는 양 +${Math.round(CO.PROC_BONUS * 100)}%`, stepper('proc', 0, raw.proc || 0, '갈무리장 공사비', 500))}
+      ${bld('door', '전진 거점', c.bases.some(Boolean) ? FLOORS.slice(0, W.unlocked).map((F, f) => (c.bases[f] ? `${F.name} ${c.bases[f].toFixed(1)}` : '')).filter(Boolean).join(' · ') : '없음', `${fmt(CO.BASE_STEP)}G마다 그 층 성공률 +5%p`, `<span class="ctl2"><select data-k="basef" aria-label="거점을 둘 층">${FLOORS.slice(0, W.unlocked).map((F, f) => `<option value="${f}"${f === bf ? ' selected' : ''}>${F.name}</option>`).join('')}</select>${stepper('base', 0, ba, '거점 공사비', 500)}</span>`)}
+      ${bld('bars', '채집 도구', `${raw.tool || 0} / 2단계`, `조당 ${CO.TOOL_COST.slice(1).join(' / ')}G · 캐 오는 양 +${CO.TOOL_BONUS.slice(1).map(v => Math.round(v * 100) + '%').join(' / ')}`, stepper('tool', 0, raw.tool || 0, '채집 도구 단계'))}
+      <div class="bld soon">${icon('people')}<div><b>신입 모집</b><span class="lvl">준비 중</span><small>인사 기능과 함께</small></div></div>
+    </div>
+    <h3 class="sec">보급 구매 <span class="dim">포션 보관 ${CO.POT_KEEP}달 · 성수 ${CO.HOLY_KEEP}달</span></h3>
+    <div class="tw"><table class="grid buy"><thead><tr><th>품목</th><th class="n">단가</th><th class="n">창고</th><th class="n">편성에 필요</th><th>구매</th><th class="n">금액</th></tr></thead><tbody>${rows.join('')}</tbody>
+      <tfoot><tr><td colspan="5">보급 합계</td><td class="n"><b>${fmt(supTotal)}G</b></td></tr></tfoot></table></div>
+    ${roots ? `<div class="hbox wide">${roots}</div>` : ''}
+  </div>`;
 }
 
 // 이번 달 결재에 드는 돈 (정보 주차에 정한 것 + 탐험 주차에 정한 것)
@@ -240,5 +271,6 @@ export function resultWeekHtml(W: World, live = false, mute = false) {
     <div class="foot"><button type="button" class="btn-next" data-act="phase" data-phase="0">제${W.month}월 정보 주차로 →</button></div></div>`;
 }
 
+// 이번 달 진행 표시: 보여 주기만 한다 (주차를 옮기는 것은 각 화면 아래의 단추로)
 export const weeksHtml = (W: World, phase: number) => [['정보 주차', 0], ['탐험 주차', 1], ['결과', 2]].map(([n, p], i) =>
-  `<button type="button" class="wk${(p as number) < phase ? ' done' : ''}" data-act="phase" data-phase="${p}"${p === phase ? ' aria-current="step"' : ''}${p === 2 && !W.last ? ' disabled' : ''}><i>${i + 1}</i>${n}</button>`).join('');
+  `<span class="wk${(p as number) < phase ? ' done' : ''}"${p === phase ? ' aria-current="step"' : ''}><i>${i + 1}</i>${n}</span>`).join('');

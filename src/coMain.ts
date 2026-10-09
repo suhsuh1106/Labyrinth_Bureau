@@ -9,7 +9,7 @@ import { type DeskUi, expWeekHtml, infoWeekHtml, resultWeekHtml, weeksHtml } fro
 import { advanceArrival, arrivalOpen, closeArrival, playArrival } from './ui/co/arrival';
 
 const $ = (id: string): any => document.getElementById(id);
-const KEY = 'lb-co', VERSION = 7, MONTHS = 36;   // 7: 두 주차 · 보급 창고 · 전리품 보관 기한 · 조사 의뢰 · 편성 줄 (이전 판은 새 게임으로)
+const KEY = 'lb-co', VERSION = 8, MONTHS = 36;   // 8: 정보망은 유지비를 저절로 내고 넓히는 돈만 정한다 (이전 판은 새 게임으로)
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
 let W: World, plan: Plan, ui: DeskUi;
 // 도장을 막 찍은 결과 화면이면 귀환 장부를 한 줄씩 띄운다 (저장하지 않는 화면 상태)
@@ -32,6 +32,7 @@ function start(fresh = false) {
   const d = fresh ? null : load();
   if (d) { W = d.W; plan = d.plan; ui = d.ui || { phase: 0, tab: 'report', pins: [] }; }
   else { setSeed((Date.now() ^ 0x5bd1e995) >>> 0); W = newWorld(); plan = carryPlan(W, null); ui = { phase: 0, tab: 'report', pins: [] }; }
+  plan.intelUp = plan.intelUp || {};   // 정보망은 유지비를 저절로 내고, 넓히는 돈만 따로 정한다
   render(); save();
   if (!d) { window.scrollTo(0, 0); playArrival(() => window.scrollTo(0, 0)); }
 }
@@ -60,6 +61,7 @@ function act(b: HTMLElement) {
   }
   if (a === 'open-doc') { ui.tab = b.dataset.tab || 'report'; ui.open = true; render(); save(); (document.querySelector('.reader .close') as HTMLElement | null)?.focus(); return; }
   if (a === 'close-doc') { ui.open = false; render(); save(); return; }
+  if (a === 'intel-cut') { const k = b.dataset.src as any, cut = new Set(plan.intelCut || []); cut.has(k) ? cut.delete(k) : cut.add(k); plan.intelCut = [...cut] as any; render(); save(); return; }
   if (a === 'auto-pot') { plan.buy = { ...(plan.buy || {}) }; delete plan.buy.pot; render(); save(); return; }
   if (a === 'kit-add') { const f = +(b.dataset.f || 0); plan.kits = plan.kits || []; plan.kits[f] = [...(plan.kits[f] || []), { n: 0, g: '' }]; render(); save(); return; }
   if (a === 'kit-del') { const f = +(b.dataset.f || 0), k = +(b.dataset.j || 0); if (plan.kits && plan.kits[f]) plan.kits[f].splice(k, 1); render(); save(); return; }
@@ -78,7 +80,6 @@ function stamp() {
   say(`제${M.month}월 결재 · 순이익 ${r.net >= 0 ? '+' : '−'}${Math.abs(Math.round(r.net)).toLocaleString('ko-KR')}G · ${rankOf(W)}위${M.opened != null ? ` · ${M.opened + 1}층이 열렸어요` : ''}${M.overflow ? ' · 미궁이 넘쳤어요' : ''}${W.log.some(l => l.m === M.month && /근원 발견/.test(l.t)) ? ' · 근원을 찾았어요' : ''}`);
 }
 
-$('weeks').addEventListener('click', (e: any) => { const b = e.target.closest('button[data-act]'); if (b && !b.disabled) act(b); });
 $('desk').addEventListener('click', (e: any) => {
   const t = e.target.closest('button'); if (!t || t.disabled) return;
   if (t.dataset.act) return act(t);
@@ -116,6 +117,7 @@ function edit(k: string, i: number, fn: (v: number) => number, j = 0) {
     const B = buy(); B.gear = { ...(B.gear || {}) }; B.gear[g] = Math.max(0, fn(B.gear[g] != null ? B.gear[g] : cur));
   }
   else if (k === 'kitN') { const K = plan.kits && plan.kits[i] && plan.kits[i][j]; if (K) K.n = Math.max(0, fn(K.n)); }
+  else if (k === 'intelUp') { const s = SRCS[i]; plan.intelUp = { ...(plan.intelUp || {}) }; plan.intelUp[s] = Math.max(0, fn(plan.intelUp[s] || 0)); }
   else if (k === 'intel') { const s = SRCS[i]; plan.intel = { ...(plan.intel || {}) }; plan.intel[s] = Math.max(0, fn(plan.intel[s] || 0)); }
   else if (k === 'seal' || k === 'mine') {
     const f = plan.root ? plan.root.f : (W.roots || []).findIndex(r => r.found && !r.done);
