@@ -236,7 +236,7 @@ export function expWeekHtml(W: World, raw: Plan, ui: DeskUi) {
       <div class="fctl">
         <label>우리 조 ${stepper('parties', f, raw.parties[f], `${F.name} 우리 조`)}</label>
         <label>계약 조 ${stepper('hire', f, raw.hire[f], `${F.name} 계약 조`)}</label>
-        <label>조당 포션 ${stepper('pots', f, raw.pots[f], `${F.name} 조당 포션`)}</label>
+        <label title="위기가 올 때만 한 병씩 쓰고 남은 것은 창고로 돌아와요">포션 상한 ${stepper('pots', f, raw.pots[f], `${F.name} 조당 포션 상한`)}</label>
         <span class="cost">출정비 <b>${fmt(sc[f] + P.hire[f] * CO.HIRE_FEE)}G</b></span>
       </div>
       ${lines}${restLine}
@@ -254,7 +254,7 @@ export function expWeekHtml(W: World, raw: Plan, ui: DeskUi) {
     <div class="col">
       <div class="panel"><header><h2>작전 메모</h2></header><div class="memo">${memoHtml(W, ui)}</div></div>
       <div class="panel"><header><h2>보급</h2></header>
-        <div class="stock"><span>포션 <b>${potHave}</b>병 <span class="dim">/ 쓸 양 ${need.pot}</span></span>${GEAR_NAMES.map(g => ((S.gear[g] || 0) + (gb[g] || 0) || need.gear[g] ? `<span>${g} 장비 <b>${(S.gear[g] || 0) + (gb[g] || 0)}</b>벌 <span class="dim">/ ${need.gear[g] || 0}</span></span>` : '')).join('')}</div>
+        <div class="stock"><span>포션 <b>${potHave}</b>병 <span class="dim">/ 들고 갈 양 ${need.pot}</span></span>${GEAR_NAMES.map(g => ((S.gear[g] || 0) + (gb[g] || 0) || need.gear[g] ? `<span>${g} 장비 <b>${(S.gear[g] || 0) + (gb[g] || 0)}</b>벌 <span class="dim">/ ${need.gear[g] || 0}</span></span>` : '')).join('')}</div>
 </div>
     </div>
     <div class="col">

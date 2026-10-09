@@ -51,7 +51,8 @@ export function resultsHtml(W: World) {
     <div class="tw"><table class="grid"><thead><tr><th>정산</th><th class="n">금액</th></tr></thead><tbody>${ITEMS.map((it, j) => (r.sold[j] ? `<tr><td>${it.name} ${r.sold[j]}개 × ${fmt(L.price[j])}G</td><td class="n">${fmt(r.sold[j] * L.price[j])}</td></tr>` : '')).join('')}
       ${r.matSales ? `<tr><td>갈무리 소재 ${Object.values(r.matSold).reduce((a, b) => a + b, 0)}개</td><td class="n">${fmt(r.matSales)}</td></tr>` : ''}
       <tr><td>출정</td><td class="n">−${fmt(r.spend.sortie)}</td></tr>
-      ${r.spend.potion ? `<tr><td>포션 ${r.potNeed}병 (교회 ${r.potC}병)</td><td class="n">−${fmt(r.spend.potion)}</td></tr>` : ''}
+      ${r.spend.potion ? `<tr><td>포션 구매 ${r.potNeed}병 (교회 ${r.potC}병)</td><td class="n">−${fmt(r.spend.potion)}</td></tr>` : ''}
+      ${r.potUsed ? `<tr><td class="dim">위기에 쓴 포션 ${r.potUsed}병 (나머지는 창고로)</td><td class="n dim">-</td></tr>` : ''}
       ${r.spend.gear ? `<tr><td>장비 ${r.spend.gear / CO.GEAR_PRICE}벌</td><td class="n">−${fmt(r.spend.gear)}</td></tr>` : ''}
       ${r.spend.probe ? `<tr><td>조사 의뢰</td><td class="n">−${fmt(r.spend.probe)}</td></tr>` : ''}
       ${r.spend.hire ? `<tr><td>계약 파티 수수료</td><td class="n">−${fmt(r.spend.hire)}</td></tr>` : ''}
@@ -141,7 +142,7 @@ export function returnHtml(W: World) {
     const rows = ps.map(x => {
       const cls = x.keys.map(CLS_SHORT).filter(Boolean).join('·'), gear = x.keys.find(k => k.startsWith('g:'));
       const got = (x.mats || []).map(([m, n]) => `${(x.first || []).includes(m) ? `<b>${m} ×${n}</b><span class="bk-new">처음</span>` : `${m} ×${n}`}`).join(', ');
-      const what = x.ok ? (got || '<span class="dim">갈무리한 것 없음</span>') : `<span class="dim">실패</span>`;
+      const what = (x.ok ? (got || '<span class="dim">갈무리한 것 없음</span>') : `<span class="dim">실패</span>`) + (x.crisis ? ` <span class="dim">· 위기 ${x.crisis}${x.pots ? ` · 포션 ${x.pots}` : ''}</span>` : '');
       return `<div class="ld${(x.first || []).length ? ' first' : ''}"><span class="ld-w">${x.kit >= 0 ? `<span class="ktag">${KTAG[x.kit]}</span>` : ''}${++no}조 · ${cls || '혼성'}${gear ? ` · ${gear.slice(2)}` : ''}</span><span>${what}${x.d ? ` · <b class="neg">${x.d}명 사망</b>` : ''}</span></div>`;
     }).join('');
     // 같은 층의 편성 줄끼리 견주기: 줄마다 조 · 성공 · 사망 · 조당 소재 값, 그리고 줄 사이에 차이가 난 소재 둘

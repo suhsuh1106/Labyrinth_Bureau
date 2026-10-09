@@ -553,7 +553,7 @@ describe('갈무리 소재와 미궁 도감', () => {
 
 describe('보급 창고 · 전리품 보관 기한 · 조사 의뢰 · 편성 줄', () => {
   it('포션은 사 둔 것에서 쓴 만큼 줄고, 모자라면 조당 포션을 줄여 보낸다', () => {
-    setSeed(61); const W: World = newWorld();
+    setSeed(61); const W: World = newWorld(); us(W).sup = { pot: [], holy: [], gear: {} };   // 처음 챙겨 온 포션 없이
     const P = BOT.even(W); P.buy = { pot: 10 };
     const M = runMonth(W, P), r = M.res[0];
     expect(r.potUsed).toBeLessThanOrEqual(10);
@@ -574,7 +574,7 @@ describe('보급 창고 · 전리품 보관 기한 · 조사 의뢰 · 편성 �
     expect(r.spend.gear).toBe(4 * CO.GEAR_PRICE);
   });
   it('포션은 산 달별로 쌓여 오래된 것부터 쓰이고, 기한이 지나면 그 묶음이 상한다', () => {
-    setSeed(63); const W: World = newWorld();
+    setSeed(63); const W: World = newWorld(); us(W).sup = { pot: [], holy: [], gear: {} };   // 처음 챙겨 온 포션 없이
     const P = BOT.even(W); P.buy = { pot: 300 };
     const M0 = runMonth(W, P), left = potsOf(us(W)).pot;
     expect(left).toBe(300 - M0.res[0].potUsed);
@@ -655,5 +655,26 @@ describe('정보망 넓히기', () => {
     expect(W.intel!.lv.mkt).toBe(lv);
     const Q = BOT.even(W); Q.intelUp = {}; Q.intelCut = ['mkt']; runMonth(W, Q);
     expect(W.intel!.lv.mkt).toBe(lv - 1);
+  });
+});
+
+describe('위기와 포션', () => {
+  it('포션은 위기가 온 만큼만 쓰이고, 남은 것은 창고로 돌아온다', () => {
+    setSeed(91); const W: World = newWorld(); us(W).sup = { pot: [], holy: [], gear: {} };   // 처음 챙겨 온 포션 없이
+    const P = BOT.even(W); P.buy = { pot: 100 };
+    const M = runMonth(W, P), r = M.res[0];
+    const carried = M.plans[0].parties.reduce((a, n, f) => a + (n + M.plans[0].hire[f]) * M.plans[0].pots[f], 0);
+    expect(r.potUsed).toBeLessThan(carried);
+    expect(r.potUsed).toBeGreaterThanOrEqual(M.ours.reduce((a, x) => a + (x.pots || 0), 0));   // 계약 파티가 쓴 것까지
+    expect(potsOf(us(W)).pot).toBe(100 - r.potUsed);
+    M.ours.forEach(x => expect(x.pots || 0).toBeLessThanOrEqual(x.crisis || 0));
+  });
+  it('포션이 떨어지면 깊은 층 실패가 더 많은 사망으로 이어진다', () => {
+    let withP = 0, noP = 0;
+    for (let g = 1; g <= 15; g++) for (const pots of [0, 4]) {
+      setSeed(g); const W: World = newWorld(); W.unlocked = 3;
+      for (let m = 0; m < 4; m++) { const P = BOT.even(W); P.parties = [0, 0, 9, 0, 0]; P.pots = FLOORS.map(() => pots); P.buy = { pot: 200 }; const M = runMonth(W, P); if (pots) withP += M.res[0].dF[2]; else noP += M.res[0].dF[2]; }
+    }
+    expect(noP).toBeGreaterThan(withP * 1.3);
   });
 });
