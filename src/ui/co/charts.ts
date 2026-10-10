@@ -4,6 +4,9 @@ import { type Forecast, ITEMS, type MonthResult, type World, fcRank, us } from '
 
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
 const sgn = (n: number) => (n > 0 ? '+' : n < 0 ? '−' : '±') + fmt(Math.abs(n));
+// 전리품 한 개 값: 0.1G 단위까지 (7.6G), 딱 떨어지면 정수로
+export const fmtG = (n: number) => { const t = Math.round(n * 10); return t % 10 ? (t / 10).toFixed(1) : fmt(t / 10); };
+const r1 = (n: number) => Math.round(n * 10) / 10;
 // 눈금 끝값: 1 · 1.2 · 1.5 · 2 · 2.5 · 3 · 4 · 5 · 6 · 8 · 10 꼴로 올린다
 function nice(v: number) {
   if (v <= 0) return 1;
@@ -139,13 +142,13 @@ export function priceBoard(W: World) {
   const rows = ITEMS.map((it, j) => {
     const ps = H.map(M => (M.Q[j] ? M.price[j] : null)), have = ps.filter((v): v is number => v != null);
     if (j >= W.unlocked && !have.length) return '';
-    const lo = Math.round(it.P0 * it.lo), hi = Math.round(it.P0 * it.hi);
+    const lo = r1(it.P0 * it.lo), hi = r1(it.P0 * it.hi);
     // 세로 눈금은 모든 전리품이 같은 비율(기준 시세의 가장 낮은 바닥 ~ 가장 높은 천장)이라 출렁임의 크기를 서로 견줄 수 있다
     const w = 150, h = 40, n = Math.max(2, ps.length), yLo = it.P0 * Math.min(...ITEMS.map(x => x.lo)), yHi = it.P0 * Math.max(...ITEMS.map(x => x.hi));
     const X = (k: number) => 4 + (k / Math.max(1, n - 1)) * (w - 8), Y = (v: number) => 3 + (1 - (v - yLo) / Math.max(1, yHi - yLo)) * (h - 6);
     const band = `<rect class="band" x="2" y="${Y(hi)}" width="${w - 4}" height="${Y(lo) - Y(hi)}"/><line class="base" x1="2" x2="${w - 2}" y1="${Y(it.P0)}" y2="${Y(it.P0)}"/>`;
     if (!have.length) return `<tr><td><b>${it.name}</b><small>${it.buyer}</small></td><td><svg class="spark" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="${it.name} 아직 안 팔림">${band}</svg></td>
-      <td class="n"><b>${fmt(it.P0)}G</b><small>기준</small></td><td class="n dim">-</td>${seeQ ? `<td>${sdBar(it.D, null, seeQ)}</td>` : ''}<td class="n dim range">${fmt(lo)}~${fmt(hi)}G</td></tr>`;
+      <td class="n"><b>${fmtG(it.P0)}G</b><small>기준</small></td><td class="n dim">-</td>${seeQ ? `<td>${sdBar(it.D, null, seeQ)}</td>` : ''}<td class="n dim range">${fmtG(lo)}~${fmtG(hi)}G</td></tr>`;
     const now = ps[ps.length - 1] ?? have[have.length - 1], prevV = [...ps.slice(0, -1)].reverse().find(v => v != null) ?? null;
     const d = prevV ? Math.round((now / prevV - 1) * 100) : 0;
     let path = '', pen = false;
@@ -154,7 +157,7 @@ export function priceBoard(W: World) {
     const hs = ps.map((v, k) => (v == null ? '' : `<rect class="hit" x="${X(k) - w / n / 2}" y="0" width="${w / n}" height="${h}" data-tip="${it.name} · 제${H[k].month}월|${fmt(v)}G${seeQ ? `|공급 ${H[k].Q[j]} / 수요 ${it.D}` : ''}"/>`)).join('');
     return `<tr><td><b>${it.name}</b><small>${it.buyer}</small></td><td><svg class="spark" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img" aria-label="${it.name} 시세 흐름">
       ${band}<path class="sp" d="${path}"/><circle class="spend ${d < 0 ? 'dn' : d > 0 ? 'up' : ''}" cx="${X(lastK)}" cy="${Y(now)}" r="3"/>${hs}</svg></td>
-      <td class="n"><b>${fmt(now)}G</b><small>기준 ${fmt(it.P0)}</small></td><td class="n ${d > 0 ? 'pos' : d < 0 ? 'neg' : 'dim'}">${d > 0 ? '▲' : d < 0 ? '▼' : ''}${d ? Math.abs(d) + '%' : '±0%'}</td>${seeQ ? `<td>${sdBar(it.D, H[H.length - 1].Q[j], seeQ)}</td>` : ''}<td class="n dim range">${fmt(lo)}~${fmt(hi)}G</td></tr>`;
+      <td class="n"><b>${fmtG(now)}G</b><small>기준 ${fmtG(it.P0)}</small></td><td class="n ${d > 0 ? 'pos' : d < 0 ? 'neg' : 'dim'}">${d > 0 ? '▲' : d < 0 ? '▼' : ''}${d ? Math.abs(d) + '%' : '±0%'}</td>${seeQ ? `<td>${sdBar(it.D, H[H.length - 1].Q[j], seeQ)}</td>` : ''}<td class="n dim range">${fmtG(lo)}~${fmtG(hi)}G</td></tr>`;
   }).join('');
   return `<table class="grid board"><thead><tr><th>전리품</th><th>흐름</th><th class="n">시세</th><th class="n">전월 대비</th>${seeQ ? '<th>공급 / 수요</th>' : ''}<th class="n range">가격대</th></tr></thead><tbody>${rows}</tbody></table>${seeQ ? '' : '<p class="note sd-lock">공급 / 수요는 상단 장부 1단계부터 보여요</p>'}`;
 }

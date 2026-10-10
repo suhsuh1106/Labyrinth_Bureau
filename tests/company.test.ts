@@ -51,8 +51,8 @@ describe('용병단 시장', () => {
       expect(priceOf(it, it.D)).toBe(it.P0);
       expect(priceOf(it, it.D * 2)).toBeLessThan(it.P0);
       expect(priceOf(it, it.D / 2)).toBeGreaterThan(it.P0);
-      expect(priceOf(it, it.D * 100)).toBe(Math.round(it.P0 * it.lo));
-      expect(priceOf(it, 1)).toBe(Math.round(it.P0 * it.hi));
+      expect(priceOf(it, it.D * 100)).toBe(Math.round(it.P0 * it.lo * 10) / 10);
+      expect(priceOf(it, 1)).toBe(Math.round(it.P0 * it.hi * 10) / 10);
     });
     expect(potionPrice(CO.POTION_Q0 * 2)).toBeGreaterThan(potionPrice(CO.POTION_Q0));
   });

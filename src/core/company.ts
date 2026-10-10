@@ -8,7 +8,8 @@ import { keyWord } from './util';
 
 export const CO = {
   PARTY: 4, WAGE: 30, SORTIE: 60, POTION0: 35, POTION_Q0: 500,
-  BASE_STEP: 3000, BASE_MAX: 2, REGEN: 0.5,
+  // 거점 2단계면 성공 한 번에 BASE_TAKE개를 더 캔다
+  BASE_STEP: 3000, BASE_MAX: 2, BASE_TAKE: 10, REGEN: 0.5,
   HIRE_FEE: 120, HIRE_CUT: 0.4,
   // 시작 금고: START_SIZE명인 용병단이 START_CASH를 들고 온다 (규모^CASH_EXP에 비례)
   START_CASH: 8000, START_SIZE: 16,
@@ -54,7 +55,7 @@ export const CO = {
   // 기금이 ROOT_COST에 차면 봉인이나 채굴장이 된다. 봉인: 교회가 같은 돈을 보태고(SEAL_MATCH), 압력이 SEAL_DRAIN 빠지고,
   // 그 층 압력 ×SEAL_PRESS, 층 크기 ×SEAL_MAX, 길을 아는 우리 파티 성공률 +SEAL_SUCC. 채굴장: 우리 조당 채집 +MINE_TAKE, 그 층 압력 ×MINE_PRESS
   ROOT_WINS: 12, ROOT_COST: 5000, SEAL_PRESS: 0.3, SEAL_MAX: 0.9, SEAL_SUCC: 0.15, SEAL_MATCH: 1, SEAL_DRAIN: 25,
-  MINE_TAKE: 2, MINE_PRESS: 2.5,
+  MINE_TAKE: 20, MINE_PRESS: 2.5,
   // 전리품 비율: 성공 한 번에 캐 오는 양 = 층의 기본 양 × (1 + 탐사 숙련도 + 갈무리장 + 채집 장비)
   // 숙련도는 그 층에서 쌓은 성공 수에서 나오고 갈수록 덜 오른다: EXP_MAX × 성공 / (성공 + EXP_K)
   // 이 값들은 손익이 맞을 듯 말 듯하게 맞췄다. 더 키우면 작은 우리가 공유하는 층에서 몫을 너무 빨리 넓혀 혼자 앞서 나간다
@@ -140,11 +141,11 @@ const LEARN_AT: Record<string, number> = { deep: 5, steady: 6, shallow: 6, secon
 // harm: 포션을 들고 위기를 맞았을 때 죽는 몫 (나머지는 다친다). 깊은 층은 포션으로 다 막지 못한다
 export type Floor = { name: string; max: number; take: number; base: number; risk: number; cap: number; harm: number };
 export const FLOORS: Floor[] = [
-  { name: '1층', max: 240, take: 5, base: 0.86, risk: 0.04, cap: 90, harm: 0.08 },
-  { name: '2층', max: 120, take: 4, base: 0.70, risk: 0.13, cap: 35, harm: 0.1 },
-  { name: '3층', max: 70, take: 3, base: 0.55, risk: 0.24, cap: 18, harm: 0.18 },
-  { name: '4층', max: 36, take: 3, base: 0.42, risk: 0.36, cap: 10, harm: 0.3 },
-  { name: '5층', max: 16, take: 2, base: 0.28, risk: 0.55, cap: 6, harm: 0.5 },
+  { name: '1층', max: 2400, take: 50, base: 0.86, risk: 0.04, cap: 90, harm: 0.08 },
+  { name: '2층', max: 1200, take: 40, base: 0.70, risk: 0.13, cap: 35, harm: 0.1 },
+  { name: '3층', max: 700, take: 30, base: 0.55, risk: 0.24, cap: 18, harm: 0.18 },
+  { name: '4층', max: 360, take: 30, base: 0.42, risk: 0.36, cap: 10, harm: 0.3 },
+  { name: '5층', max: 160, take: 20, base: 0.28, risk: 0.55, cap: 6, harm: 0.5 },
 ];
 // 층마다 전리품 한 가지. P0는 수요(D)만큼 팔렸을 때의 시세다
 // 시세는 수요와 공급으로 정해진다: D는 한 달에 시장이 사 가는 양(수요), 공급은 그달 모든 용병단이 판 양.
@@ -153,11 +154,11 @@ export const FLOORS: Floor[] = [
 // 깊은 층: 사는 곳이 몇 안 되고(수요가 작고) 공급도 적다. 여럿이 몰려 공급이 수요를 넘으면 값이 크게 무너진다
 export type Item = { name: string; buyer: string; P0: number; D: number; el: number; lo: number; hi: number };
 export const ITEMS: Item[] = [
-  { name: '가죽과 점액', buyer: '상단 경매장', P0: 80, D: 85, el: 0.35, lo: 0.8, hi: 1.15 },
-  { name: '마석 조각', buyer: '마법학교 · 상단', P0: 230, D: 55, el: 0.55, lo: 0.6, hi: 1.3 },
-  { name: '정령 결정', buyer: '마법학교', P0: 340, D: 30, el: 0.75, lo: 0.45, hi: 1.5 },
-  { name: '고대 유물', buyer: '수도 수집가 · 교회', P0: 560, D: 15, el: 0.95, lo: 0.35, hi: 1.7 },
-  { name: '심층의 핵', buyer: '수도', P0: 1200, D: 6, el: 1.15, lo: 0.25, hi: 2.0 },
+  { name: '가죽과 점액', buyer: '상단 경매장', P0: 8, D: 850, el: 0.35, lo: 0.8, hi: 1.15 },
+  { name: '마석 조각', buyer: '마법학교 · 상단', P0: 23, D: 550, el: 0.55, lo: 0.6, hi: 1.3 },
+  { name: '정령 결정', buyer: '마법학교', P0: 34, D: 300, el: 0.75, lo: 0.45, hi: 1.5 },
+  { name: '고대 유물', buyer: '수도 수집가 · 교회', P0: 56, D: 150, el: 0.95, lo: 0.35, hi: 1.7 },
+  { name: '심층의 핵', buyer: '수도', P0: 120, D: 60, el: 1.15, lo: 0.25, hi: 2.0 },
 ];
 const NF = FLOORS.length;
 export const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
@@ -165,7 +166,8 @@ const zeros = () => FLOORS.map(() => 0);
 
 // ---------- 시장 ----------
 // 시장 전체 판매량 Q가 수요 D보다 많으면 값이 떨어지고(바닥 lo), 적으면 오른다(천장 hi). 얼마나 민감한지는 el
-export const priceOf = (it: Item, Q: number) => Math.round(it.P0 * (Q ? clamp(Math.pow(it.D / Q, it.el), it.lo, it.hi) : it.hi));
+// 값은 0.1G 단위까지 (싼 전리품은 개수가 많고 한 개 값이 몇 G라서, 정수로 자르면 출렁임이 뚝뚝 끊긴다)
+export const priceOf = (it: Item, Q: number) => Math.round(it.P0 * (Q ? clamp(Math.pow(it.D / Q, it.el), it.lo, it.hi) : it.hi) * 10) / 10;
 // 포션은 모든 용병단이 많이 살수록 비싸진다
 export const potionPrice = (Q: number) => Math.round(CO.POTION0 * clamp(Math.sqrt(Q / CO.POTION_Q0), 0.8, 1.6));
 
@@ -461,7 +463,7 @@ const STYLE: Record<Style, { prior: (W: World, f: number) => number; resp: numbe
 // margin은 조 하나를 더 보냈을 때 남아야 하는 돈
 const GROW: Record<Style, { build: number; cap: number; margin: number }> = {
   volume: { build: 1.5, cap: 140, margin: 60 }, steady: { build: 2.5, cap: 100, margin: 120 }, deep: { build: 3.5, cap: 48, margin: 150 }, chaser: { build: 2, cap: 80, margin: 100 },
-  hoarder: { build: 3, cap: 64, margin: 120 }, shallow: { build: 3, cap: 20, margin: 120 }, second: { build: 3, cap: 20, margin: 120 }, crowd: { build: 0, cap: 0, margin: 0 }, player: { build: 0, cap: 0, margin: 0 },
+  hoarder: { build: 3, cap: 64, margin: 120 }, shallow: { build: 3, cap: 20, margin: 120 }, second: { build: 3, cap: 16, margin: 120 }, crowd: { build: 0, cap: 0, margin: 0 }, player: { build: 0, cap: 0, margin: 0 },
 };
 // 조 하나를 더 보냈을 때 남을 돈 어림: 지난달 그 용병단이 보낸 층들의 조당 벌이(평균) − 출정비와 포션 − 늘어날 급여
 export function partyMargin(W: World, i: number) {
@@ -683,7 +685,7 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
     const mined = rootOf(W, f).done === 'mine';
     // 성공 한 번에 캐 오는 양: 층의 기본 양 × 전리품 비율(숙련·갈무리장·장비) + 거점 2단계 + 채굴장
     // 성공한 조가 캐 오는 양 (빈자리가 있던 조는 사람 수만큼만)
-    const want = W.cos.map((c, i) => lootW[f][i] * (F.take * lootMul(c, f, plans[i].tool || 0) + Math.floor(Math.min(CO.BASE_MAX, c.bases[f]) / 2) + (mined && c.style === 'player' ? CO.MINE_TAKE : 0)));
+    const want = W.cos.map((c, i) => lootW[f][i] * (F.take * lootMul(c, f, plans[i].tool || 0) + Math.floor(Math.min(CO.BASE_MAX, c.bases[f]) / 2) * CO.BASE_TAKE + (mined && c.style === 'player' ? CO.MINE_TAKE : 0)));
     W.cos.forEach((c, i) => { if (c.exp) c.exp[f] += wins[i]; });
     const total = want.reduce((a, b) => a + b, 0), before = W.pool[f], k = total ? Math.min(1, before / total) : 0;
     // 손에 쥐는 양은 몫보다 조금 적을 수 있다 (흘리고 깨뜨린다). 몫을 넘지는 않아서 층에 남은 양을 넘겨 캐지 못한다
@@ -1094,7 +1096,7 @@ export function forecast(W: World, P: Plan): Forecast {
     const cut = L && L.floors[f] && L.floors[f].cut ? Math.min(1, L.floors[f].cut!) : 1;
     const est = I && I.est.floors[f], full = est ? est.mid / 100 : 0.75;
     // 손에 쥐는 양은 몫의 85~100%(평균 0.925)이고 낱개로 내림한다 (층마다 평균 반 개쯤 덜 쥔다)
-    const per = (F.take * lootMul(c, f, P.tool || 0) + Math.floor(Math.min(CO.BASE_MAX, c.bases[f]) / 2) + (rootOf(W, f).done === 'mine' ? CO.MINE_TAKE : 0)) * cut * 0.925 * W.price[f] / CO.PARTY;
+    const per = (F.take * lootMul(c, f, P.tool || 0) + Math.floor(Math.min(CO.BASE_MAX, c.bases[f]) / 2) * CO.BASE_TAKE + (rootOf(W, f).done === 'mine' ? CO.MINE_TAKE : 0)) * cut * 0.925 * W.price[f] / CO.PARTY;
     floorLoss += 0.5 * W.price[f];
     const crew = new Map((c.crew || []).map(x => [x.id, x])), mons = floorMons(W, f);
     const teams = P.teams ? P.teams.filter(T => T.f === f) : [];

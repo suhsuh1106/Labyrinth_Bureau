@@ -2,6 +2,7 @@
 // 줄마다 data-v(장부에 더할 금액)와 data-k(종류: ok·no·die·gain·cost·net)를 달아 두고, 한 줄씩 띄우는 것은 coMain이 한다.
 // 기록을 읽어 HTML만 만든다. 상태를 쓰지 않고 난수도 쓰지 않는다
 import { FLOORS, ITEMS, type World, gradeOf } from '../../core/company';
+import { fmtG } from './charts';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
 const sgn = (n: number) => (n > 0 ? '+' : n < 0 ? '−' : '±') + fmt(Math.abs(n));
@@ -27,7 +28,7 @@ export function revealHtml(W: World, live: boolean, mute = false) {
   const sold = ITEMS.map((_, j) => j).filter(j => r.sold[j] > 0);
   sold.forEach((j, i) => {
     const v = i === sold.length - 1 ? left : Math.round(loot * base[j] / Math.max(1, bsum)); left -= v;
-    lines.push({ k: 'gain', v, t: `${ITEMS[j].name} ${r.sold[j]}개 × ${fmt(L.price[j])}G`, amt: sgn(v) });
+    lines.push({ k: 'gain', v, t: `${ITEMS[j].name} ${fmt(r.sold[j])}개 × ${fmtG(L.price[j])}G`, amt: sgn(v) });
   });
   if (r.matSales) lines.push({ k: 'gain', v: r.matSales, t: `갈무리 소재 ${Object.values(r.matSold).reduce((a, b) => a + b, 0)}개`, amt: sgn(r.matSales) });
   const costs: [string, number][] = [['급여 · 신입 · 치료', s.wage + s.recruit + (s.heal || 0)], ['출정 · 계약', s.sortie + s.hire + s.tool], ['포션 · 장비', s.potion + s.gear], ['정보 · 조사', s.intel + s.probe], ['훈련 · 숙소 · 건물', s.train + s.base + s.proc + s.donate + s.root + (s.dorm || 0)]];
