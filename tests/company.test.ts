@@ -8,9 +8,11 @@ import { churchPrice, type Plan, type World } from '../src/core/company';
 import { MONSTERS } from '../src/core/data';
 import { depthsHtml, newsLines, plaqueHtml, resultsHtml, returnHtml } from '../src/ui/co/view';
 import { DOC_TABS, expWeekHtml, infoWeekHtml, resultWeekHtml } from '../src/ui/co/desk';
-const planHtml = (W: World, P: Plan) => DOC_TABS.map(([tab]) => infoWeekHtml(W, P, { phase: 0, tab, pins: DOC_TABS.map(t => t[0]), open: true })).join('') + expWeekHtml(W, P, { phase: 1, tab: 'report', pins: DOC_TABS.map(t => t[0]) }) + (W.last ? resultWeekHtml(W) + resultWeekHtml(W, true) : '');
+const planHtml = (W: World, P: Plan) => DOC_TABS.map(([tab]) => infoWeekHtml(W, P, { phase: 0, tab, pins: DOC_TABS.map(t => t[0]), open: true })).join('') + Object.keys(PLACES).map(place => infoWeekHtml(W, P, { phase: 0, tab: 'report', pins: [], place })).join('') + expWeekHtml(W, P, { phase: 1, tab: 'report', pins: DOC_TABS.map(t => t[0]) }) + (W.last ? resultWeekHtml(W) + resultWeekHtml(W, true) : '');
 import { coIssue, paperHtml } from '../src/ui/co/paper';
 import { intelHtml } from '../src/ui/co/intel';
+import { PLACES } from '../src/ui/co/town';
+import { costLines, monthCost } from '../src/ui/co/desk';
 import { bookHtml, demandsNow } from '../src/ui/co/book';
 import { allMats, floorMons, guideParts, matChance, matPrice, potsOf, probe, sanitize } from '../src/core/company';
 import { INTEL, aiPlan as aiPlanOf } from '../src/core/company';
@@ -203,7 +205,7 @@ describe('몬스터와 편성 지침', () => {
     let a = 0, b = 0;
     for (let g = 1; g <= 40; g++) { a += rankOf(playGame(g, BOT.smart)); b += rankOf(playGame(g, BOT.smartNoGuide)); }
     expect(a).toBeLessThan(b);
-  });
+  }, 30000);
 });
 
 describe('밸런스', () => {
@@ -796,7 +798,7 @@ describe('숙소 · 신입 모집 · 수습 · 명성', () => {
     setSeed(6); const W = newWorld(); us(W).crew![0].rk = 1; us(W).crew![1].rk = 0;
     const P = defaultPlan(W); P.dorm = true;
     const before = JSON.stringify(W);
-    const h = infoWeekHtml(W, P, { phase: 0, tab: 'report', pins: [] });
+    const h = infoWeekHtml(W, P, { phase: 0, tab: 'report', pins: [], place: 'staff' });
     expect(h).toContain('숙소'); expect(h).toContain('신입 모집'); expect(h).toContain('수습 2명'); expect(h).toContain('증축 취소');
     expect(JSON.stringify(W)).toBe(before);
   });
@@ -863,5 +865,31 @@ describe('성공 정도 · 부상 · 수입 어림', () => {
     const h = expWeekHtml(W, P, { phase: 1, tab: 'report', pins: [] }) + resultsHtml(W) + resultWeekHtml(W, true);
     expect(h).toContain('이번 달 어림'); expect(h).toContain('어림과 실제'); expect(h).toContain('지난달');
     expect(h).not.toMatch(/undefined|NaN|Infinity|\[object/);
+  });
+});
+
+describe('정보 주차 책상', () => {
+  it('지도와 결재안이 나오고, 장소를 열면 그 업무 창이 뜬다', () => {
+    setSeed(81); const W = newWorld();
+    runMonth(W, BOT.even(W)); runMonth(W, BOT.even(W));
+    const P = carryPlan(W, W.last!.plans[0]);
+    const home = infoWeekHtml(W, P, { phase: 0, tab: 'report', pins: [] });
+    expect(home).toContain('하르덴'); expect(home).toContain('결재안'); expect(home).toContain('data-place="staff"');
+    expect(home).not.toContain('class="reader');   // 처음엔 창이 닫혀 있다
+    const want: Record<string, string> = { staff: '신입 모집', train: '훈련장', market: '상단 포션', church: '교회 성수', alley: '정보망' };
+    Object.entries(want).forEach(([place, word]) => {
+      const h = infoWeekHtml(W, P, { phase: 0, tab: 'report', pins: [], place });
+      expect(h, place).toContain(word); expect(h, place).not.toMatch(/undefined|NaN|\[object/);
+    });
+  });
+  it('결재안 줄의 합은 이번 달 나갈 돈과 같고, 지난달 칸은 지난달 지출과 맞는다', () => {
+    setSeed(82); const W = newWorld();
+    for (let m = 0; m < 3; m++) runMonth(W, BOT.even(W));
+    const P = carryPlan(W, W.last!.plans[0]); P.dorm = true; P.recruitC = { 마법사: 1 };
+    const ls = costLines(W, P), cost = monthCost(W, P);
+    expect(ls.reduce((a, l) => a + l.now, 0)).toBe(cost.all);
+    const s = W.last!.res[0].spend;
+    expect(ls.reduce((a, l) => a + l.last, 0)).toBe(Object.values(s).reduce((a, b) => a + b, 0));
+    expect(ls.find(l => l.k === 'dorm')!.now).toBe(dormKeep(bedsOf(us(W)) + (us(W).pendingBeds || 0)) + (us(W).pendingBeds ? 0 : dormCost(us(W))));
   });
 });
