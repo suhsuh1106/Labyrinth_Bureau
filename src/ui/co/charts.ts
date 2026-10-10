@@ -1,6 +1,6 @@
 // 결과 그래프: 금고의 흐름(시작 금고부터), 수입과 순이익, 수입 구성, 지출 구성, 인당·조당 효율, 채집 점유율, 시세 흐름.
 // 기록을 읽어 SVG 문자열만 만든다. 상태를 쓰지 않고 난수도 쓰지 않는다. 숫자는 마우스를 올리면 data-tip으로 보인다
-import { ITEMS, type MonthResult, type World, us } from '../../core/company';
+import { type Forecast, ITEMS, type MonthResult, type World, fcRank, us } from '../../core/company';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
 const sgn = (n: number) => (n > 0 ? '+' : n < 0 ? '−' : '±') + fmt(Math.abs(n));
@@ -22,7 +22,7 @@ export function moneySeries(W: World) {
   return {
     months: H.map(M => M.month), cash, start: c,
     sales: H.map(M => r(M).sales), loot: H.map(M => r(M).sales - r(M).matSales), mats: H.map(M => r(M).matSales), net: H.map(M => r(M).net),
-    spend: H.map(M => { const s = r(M).spend; return { people: s.wage + s.recruit, sortie: s.sortie + s.hire + s.tool, supply: s.potion + s.gear, info: s.intel + s.probe, invest: s.train + s.base + s.proc + s.donate + s.root }; }),
+    spend: H.map(M => { const s = r(M).spend; return { people: s.wage + s.recruit + (s.heal || 0), sortie: s.sortie + s.hire + s.tool, supply: s.potion + s.gear, info: s.intel + s.probe, invest: s.train + s.base + s.proc + s.donate + s.root + (s.dorm || 0) }; }),
     parties: H.map(M => sum(r(M).sent) + sum(r(M).hired)), heads: headsOf(W),
     share: H.map(M => { const mine = sum(r(M).got.map((g, f) => g * ITEMS[f].P0)), all = sum(M.res.map(x => sum(x.got.map((g, f) => g * ITEMS[f].P0)))); return all ? mine / all : 0; }),
     deaths: H.map(M => r(M).deaths), ok: H.map(M => sum(r(M).ok)),
@@ -157,4 +157,31 @@ export function priceBoard(W: World) {
       <td class="n"><b>${fmt(now)}G</b><small>기준 ${fmt(it.P0)}</small></td><td class="n ${d > 0 ? 'pos' : d < 0 ? 'neg' : 'dim'}">${d > 0 ? '▲' : d < 0 ? '▼' : ''}${d ? Math.abs(d) + '%' : '±0%'}</td>${seeQ ? `<td>${sdBar(it.D, H[H.length - 1].Q[j], seeQ)}</td>` : ''}<td class="n dim range">${fmt(lo)}~${fmt(hi)}G</td></tr>`;
   }).join('');
   return `<table class="grid board"><thead><tr><th>전리품</th><th>흐름</th><th class="n">시세</th><th class="n">전월 대비</th>${seeQ ? '<th>공급 / 수요</th>' : ''}<th class="n range">가격대</th></tr></thead><tbody>${rows}</tbody></table>${seeQ ? '' : '<p class="note sd-lock">공급 / 수요는 상단 장부 1단계부터 보여요</p>'}`;
+}
+
+// 수입 어림 그림: 이번 달 전리품 · 소재 수입이 얼마쯤 나올지 (막대는 그 값이 나올 가능성, 옅은 띠는 열에 여덟이 드는 폭).
+// 이번 달 나갈 돈(cost)과 실제로 나온 값(actual)이 있으면 선으로 긋는다
+export function fcChart(fc: Forecast, cost: number | null, actual: number | null, aria: string) {
+  const W = 640, H = 130, L = 8, R = 8, T = 10, B = 22;
+  // 가로축: 어림이 거의 다 들어가는 곳(누적 99.5%)과 비용 · 실제 중 큰 값까지, 보기 좋은 끝값으로
+  let acc = 0, last = 0; fc.bins.forEach((p, b) => { acc += p; if (acc < 0.995) last = b + 1; });
+  const hi = nice(Math.max((last + 1) * fc.step, cost || 0, actual || 0, fc.p90 * 1.1)), top = Math.max(...fc.bins, 0.001);
+  const X = (v: number) => L + (W - L - R) * Math.min(1, v / hi), Y = (p: number) => T + (H - T - B) * (1 - p / top);
+  const bw = Math.max(1, (X(fc.step) - X(0)) - 1.5);
+  const bars = fc.bins.map((p, b) => (p > 0.0005 && b * fc.step < hi ? `<rect x="${X(b * fc.step).toFixed(1)}" y="${Y(p).toFixed(1)}" width="${bw.toFixed(1)}" height="${(H - B - Y(p)).toFixed(1)}" rx="1" class="fc-bar"/>` : '')).join('');
+  const band = `<rect x="${X(fc.p10).toFixed(1)}" y="${T}" width="${(X(fc.p90) - X(fc.p10)).toFixed(1)}" height="${H - B - T}" class="fc-band"/>`;
+  const vline = (v: number, cls: string) => `<line x1="${X(v).toFixed(1)}" x2="${X(v).toFixed(1)}" y1="${T - 4}" y2="${H - B}" class="${cls}"/>`;
+  const tk = (v: number) => (v >= 1000 ? `${Math.round(v / 100) / 10}k` : `${Math.round(v)}`);
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map(f => `<text x="${X(hi * f).toFixed(1)}" y="${H - 6}" text-anchor="${f === 0 ? 'start' : f === 1 ? 'end' : 'middle'}" class="fc-tick">${tk(hi * f)}</text>`).join('');
+  const key = `<div class="fc-key"><span><i class="k-mean"></i>기대 ${fmt(fc.mean)}</span><span><i class="k-band"></i>열에 여덟 ${fmt(fc.p10)} ~ ${fmt(fc.p90)}</span>${cost != null ? `<span><i class="k-cost"></i>나갈 돈 ${fmt(cost)}</span>` : ''}${actual != null ? `<span><i class="k-act"></i>실제 ${fmt(actual)}</span>` : ''}</div>`;
+  return `<figure class="fc-fig"><svg class="fc-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${aria}">
+    ${band}${bars}<line x1="${L}" x2="${W - R}" y1="${H - B}" y2="${H - B}" class="fc-axis"/>
+    ${vline(fc.mean, 'fc-mean')}${cost != null ? vline(cost, 'fc-cost') : ''}${actual != null ? vline(actual, 'fc-act') : ''}${ticks}</svg>${key}</figure>`;
+}
+// 어림 숫자 한 줄: 기대 · 나쁜 달 · 좋은 달 (그리고 나갈 돈이 있으면 기대 순이익과 적자 가능성)
+export function fcNums(fc: Forecast, cost: number | null) {
+  const loss = cost != null ? fcRank(fc, cost) : null;
+  return `<dl class="fc-nums"><div><dt>기대 수입</dt><dd>${fmt(fc.mean)}G</dd></div><div><dt>나쁜 달 · 좋은 달</dt><dd>${fmt(fc.p10)} ~ ${fmt(fc.p90)}G</dd></div>
+    ${cost != null ? `<div><dt>기대 순이익</dt><dd class="${fc.mean - cost < 0 ? 'neg' : 'pos'}">${sgn(fc.mean - cost)}G</dd></div><div><dt>적자 가능성</dt><dd class="${loss! > 0.3 ? 'neg' : ''}">${Math.round(loss! * 100)}%</dd></div>` : ''}
+    <div><dt>사망 · 부상 어림</dt><dd>${fc.dead.toFixed(1)} · ${fc.hurt.toFixed(1)}명</dd></div></dl>`;
 }
