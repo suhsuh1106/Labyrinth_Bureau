@@ -26,7 +26,7 @@ function render() {
   $('desk').innerHTML = ui.phase === 0 ? infoWeekHtml(W, plan, ui) : ui.phase === 1 ? expWeekHtml(W, plan, ui) : resultWeekHtml(W, live, !!ui.mute);
   if (over) { const b = document.querySelector('#desk .resultwrap .btn-next') as HTMLButtonElement | null; if (b) { b.disabled = true; b.textContent = `임기가 끝났어요. 최종 ${rankOf(W)}위`; } }
 }
-function setPhase(p: number) { stopRun(); ui.phase = p; ui.open = false; render(); save(); window.scrollTo({ top: 0 }); }
+function setPhase(p: number) { stopRun(); ui.phase = p; ui.open = false; ui.place = undefined; render(); save(); window.scrollTo({ top: 0 }); }
 
 function start(fresh = false) {
   const d = fresh ? null : load();
@@ -45,6 +45,7 @@ document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   if (arrivalOpen()) closeArrival();
   else if (ui && ui.open) { ui.open = false; render(); save(); }
+  else if (ui && ui.place) { ui.place = undefined; render(); save(); }
 });
 
 // 우리 조 편성: 고칠 때마다 규칙 안으로 맞춰 둔다 (없는 사람·겹친 자리·빈 조를 지우고 조 수를 다시 센다)
@@ -96,7 +97,9 @@ function act(b: HTMLElement) {
     if (r) { ui.tab = 'probe'; say(a === 'probe-mkt' ? '시장 조사 답이 왔어요' : '타 용병단 조사 답이 왔어요'); }
     render(); save(); return;
   }
-  if (a === 'open-doc') { ui.tab = b.dataset.tab || 'report'; ui.open = true; render(); save(); (document.querySelector('.reader .close') as HTMLElement | null)?.focus(); return; }
+  if (a === 'place') { ui.place = b.dataset.place; ui.open = false; render(); save(); (document.querySelector('.place .close') as HTMLElement | null)?.focus(); return; }
+  if (a === 'close-place') { const k = ui.place; ui.place = undefined; render(); save(); (document.querySelector(`.spot[data-place="${k}"]`) as HTMLElement | null)?.focus(); return; }
+  if (a === 'open-doc') { ui.tab = b.dataset.tab || 'report'; ui.open = true; ui.place = undefined; render(); save(); (document.querySelector('.reader .close') as HTMLElement | null)?.focus(); return; }
   if (a === 'close-doc') { ui.open = false; render(); save(); return; }
   if (a === 'intel-cut') { const k = b.dataset.src as any, cut = new Set(plan.intelCut || []); cut.has(k) ? cut.delete(k) : cut.add(k); plan.intelCut = [...cut] as any; render(); save(); return; }
   if (a === 'dorm') { plan.dorm = !plan.dorm; render(); save(); return; }
@@ -121,11 +124,17 @@ function stamp() {
 }
 
 $('desk').addEventListener('click', (e: any) => {
-  const t = e.target.closest('button'); if (!t || t.disabled) return;
+  // 버튼과, 지도 · 책상 위 물건(SVG의 data-act)을 누른다
+  const t = e.target.closest('button, .spot[data-act]'); if (!t || t.disabled) return;
   if (t.dataset.act) return act(t);
   if (t.dataset.tab) { ui.tab = t.dataset.tab; render(); save(); return; }
   if (t.dataset.pin) { const p = t.dataset.pin; ui.pins = ui.pins.includes(p) ? ui.pins.filter(x => x !== p) : [...ui.pins, p]; render(); save(); return; }
   if (t.dataset.k) edit(t.dataset.k, +t.dataset.i, (v: number) => v + +t.dataset.d, +(t.dataset.j || 0));
+});
+// 지도 위 장소는 Tab으로 고르고 Enter · Space로 연다
+$('desk').addEventListener('keydown', (e: any) => {
+  const t = e.target; if (!(t instanceof Element) || !t.classList.contains('spot') || (e.key !== 'Enter' && e.key !== ' ')) return;
+  e.preventDefault(); act(t as HTMLElement);
 });
 $('desk').addEventListener('change', (e: any) => {
   const t = e.target, k = t.dataset.k;
