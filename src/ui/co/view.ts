@@ -2,7 +2,7 @@
 import { CO, FLOORS, INTEL, ITEMS, type Plan, SRCS, type World, bedsOf, fcRank, gradeOf, churchPrice, dormKeep, guideParts, hireCost, intelBlock, intelCost, lootMul, toolCost, trainBonus, maxParties, priceOf, rankOf, sanitize, sortieCost, succRate, us, worth } from '../../core/company';
 import { CLASSES, GEARS, MONSTERS } from '../../core/data';
 import { keyLabel } from '../../core/util';
-import { cashChart, fcChart, flowChart, incomeMix, moneySeries, perHeadChart, perPartyChart, priceBoard, shareChart, spendMix } from './charts';
+import { cashChart, fcChart, flowChart, fmtG, incomeMix, moneySeries, perHeadChart, perPartyChart, priceBoard, shareChart, spendMix } from './charts';
 import { condLabel, kitHint } from './book';
 import { SRC_INFO } from './intel';
 // 정보망 단계 (화면이 무엇을 보여 줄지 정한다)
@@ -48,7 +48,7 @@ export function resultsHtml(W: World) {
   };
   const r = L.res[0];
   const mine = `<div class="tw"><table class="grid"><thead><tr><th>층</th><th class="n">우리</th><th class="n">계약</th><th class="n">성공</th><th class="n">캐 온 양</th></tr></thead><tbody>${FLOORS.map((F, f) => (r.sent[f] + r.hired[f] ? `<tr><td>${F.name}</td><td class="n">${r.sent[f]}</td><td class="n">${r.hired[f]}</td><td class="n">${r.ok[f]}</td><td class="n">${r.got[f]}</td></tr>` : '')).join('')}</tbody></table></div>
-    <div class="tw"><table class="grid"><thead><tr><th>정산</th><th class="n">금액</th></tr></thead><tbody>${ITEMS.map((it, j) => (r.sold[j] ? `<tr><td>${it.name} ${r.sold[j]}개 × ${fmt(L.price[j])}G</td><td class="n">${fmt(r.sold[j] * L.price[j])}</td></tr>` : '')).join('')}
+    <div class="tw"><table class="grid"><thead><tr><th>정산</th><th class="n">금액</th></tr></thead><tbody>${ITEMS.map((it, j) => (r.sold[j] ? `<tr><td>${it.name} ${fmt(r.sold[j])}개 × ${fmtG(L.price[j])}G</td><td class="n">${fmt(r.sold[j] * L.price[j])}</td></tr>` : '')).join('')}
       ${r.matSales ? `<tr><td>갈무리 소재 ${Object.values(r.matSold).reduce((a, b) => a + b, 0)}개</td><td class="n">${fmt(r.matSales)}</td></tr>` : ''}
       <tr><td>출정</td><td class="n">−${fmt(r.spend.sortie)}</td></tr>
       ${r.spend.potion ? `<tr><td>포션 구매 ${r.potNeed}병 (교회 ${r.potC}병)</td><td class="n">−${fmt(r.spend.potion)}</td></tr>` : ''}
@@ -117,8 +117,8 @@ export function newsLines(W: World) {
   if (L.opened != null) out.push(`${FLOORS[L.opened].name}으로 가는 길이 열렸다. 다음 달부터 ${ITEMS[L.opened].name}이 나온다.`);
   ITEMS.forEach((it, j) => {
     if (!L.Q[j]) return;
-    if (L.price[j] < it.P0 * 0.7) out.push(`${it.name}이 쏟아져 ${it.buyer} 시세가 ${fmt(L.price[j])}G까지 떨어졌다.`);
-    else if (L.price[j] > prevP[j] * 1.15) out.push(`${it.name} 시세가 ${fmt(L.price[j])}G로 뛰었다. 물건이 귀하다.`);
+    if (L.price[j] < it.P0 * 0.7) out.push(`${it.name}이 쏟아져 ${it.buyer} 시세가 ${fmtG(L.price[j])}G까지 떨어졌다.`);
+    else if (L.price[j] > prevP[j] * 1.15) out.push(`${it.name} 시세가 ${fmtG(L.price[j])}G로 뛰었다. 물건이 귀하다.`);
   });
   W.cos.forEach((c, i) => {
     if (c.style === 'player') return;

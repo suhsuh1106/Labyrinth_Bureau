@@ -1,5 +1,6 @@
 // 변경 일보 (용병단 판): 지난달 정산과 기록(W.log)만 읽어 1면을 꾸민다. 상인 조합이 내는 신문이라 장사 쪽 눈으로 본다.
 // 상태를 쓰지 않고 난수도 쓰지 않는다. 같은 달이면 늘 같은 신문이 나온다.
+import { fmtG } from './charts';
 import { bedsOf, dormKeep, townOf, CO, FLOORS, ITEMS, type MonthResult, type World, us } from '../../core/company';
 
 export type CoIssue = {
@@ -67,7 +68,7 @@ function stories(W: World, M: MonthResult, prev: MonthResult | null, logs: strin
   if (prev && prev.rank[0] !== M.rank[0]) add({ p: 45, kicker: '순위', hed: `${nameOf(W, M.rank[0])}, 변경 1위에 올랐다`, dek: `${nameOf(W, prev.rank[0])}${jo(nameOf(W, prev.rank[0]), '은', '는')} 한 계단 아래로`, body: [`이달 정산에서 ${nameOf(W, M.rank[0])}의 평가액이 ${nameOf(W, prev.rank[0])}${jo(nameOf(W, prev.rank[0]), '을', '를')} 앞질렀다.`] });
   if (dead >= 25) add({ p: 40, kicker: '미궁', hed: `이달 미궁에서 ${dead}명을 잃었다`, dek: '장례 미사 줄 이어', body: [`이달 미궁에서 돌아오지 못한 용병이 ${dead}명이다. 숙소에는 빈 침상이 늘었다.`] });
   ITEMS.forEach((it, j) => {
-    if (M.Q[j] && M.price[j] < it.P0 * 0.6) add({ p: 30, kicker: '시장', hed: `${it.name} 값 무너졌다`, dek: `${it.buyer} 시세 ${fmt(M.price[j])}G… 기준의 ${Math.round(M.price[j] / it.P0 * 100)}%`, body: [`이달 ${it.name}${jo(it.name, '이', '가')} ${M.Q[j]}개 풀렸다. 사 가는 쪽이 감당할 양을 넘었다.`] });
+    if (M.Q[j] && M.price[j] < it.P0 * 0.6) add({ p: 30, kicker: '시장', hed: `${it.name} 값 무너졌다`, dek: `${it.buyer} 시세 ${fmtG(M.price[j])}G… 기준의 ${Math.round(M.price[j] / it.P0 * 100)}%`, body: [`이달 ${it.name}${jo(it.name, '이', '가')} ${M.Q[j]}개 풀렸다. 사 가는 쪽이 감당할 양을 넘었다.`] });
   });
   // 일손 구하기: 찾는 신입이 지원자보다 한참 많으면 계약금이 오른다. 숙소를 늘린 경쟁 용병단은 소문이 난다
   const rw = M.res.reduce((a, r) => a + r.recruitWant, 0), rg = M.res.reduce((a, r) => a + r.recruited, 0);
@@ -95,11 +96,11 @@ export function coIssue(W: World): CoIssue | null {
   if (prev && M.potion > prev.potion) body.push(`상단 포션 값은 한 병 ${M.potion}G로 지난달보다 ${M.potion - prev.potion}G 올랐다. 상인 조합은 "값이 오른 데는 다 사정이 있다"고 했다.`);
 
   const dir = (a: number, b: number): 'up' | 'dn' | '' => (a > b ? 'up' : a < b ? 'dn' : '');
-  const dt = (a: number, b: number | undefined) => (b == null ? '' : a === b ? '–' : `${a > b ? '▲' : '▼'}${fmt(Math.abs(a - b))}`);
+  const dt = (a: number, b: number | undefined) => (b == null ? '' : a === b ? '–' : `${a > b ? '▲' : '▼'}${fmtG(Math.abs(a - b))}`);
   const figures: CoIssue['figures'] = [
     { label: '상단 포션 한 병', value: `${M.potion}G`, delta: dt(M.potion, prev?.potion), dir: dir(M.potion, prev?.potion ?? M.potion) },
     { label: '교회 포션 한 병', value: `${M.potionC}G`, delta: dt(M.potionC, prev?.potionC), dir: dir(M.potionC, prev?.potionC ?? M.potionC) },
-    ...ITEMS.map((it, j) => (M.Q[j] || (prev && prev.Q[j]) ? { label: it.name, value: `${fmt(M.price[j])}G`, delta: dt(M.price[j], prev?.price[j]), dir: dir(M.price[j], prev?.price[j] ?? M.price[j]) } : null)).filter(Boolean) as CoIssue['figures'],
+    ...ITEMS.map((it, j) => (M.Q[j] || (prev && prev.Q[j]) ? { label: it.name, value: `${fmtG(M.price[j])}G`, delta: dt(M.price[j], prev?.price[j]), dir: dir(M.price[j], prev?.price[j] ?? M.price[j]) } : null)).filter(Boolean) as CoIssue['figures'],
     { label: '입장한 파티', value: `${n}개`, delta: '', dir: '' },
     { label: '하르덴 주민', value: `약 ${fmt(townOf(W))}명`, delta: '', dir: '' },
     { label: '사망', value: `${dead}명`, delta: prev ? dt(dead, deathsOf(prev)) : '', dir: '' },

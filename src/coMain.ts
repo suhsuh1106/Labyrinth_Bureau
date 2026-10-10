@@ -9,7 +9,7 @@ import { type DeskUi, expWeekHtml, infoWeekHtml, resultWeekHtml, weeksHtml } fro
 import { advanceArrival, arrivalOpen, closeArrival, playArrival } from './ui/co/arrival';
 
 const $ = (id: string): any => document.getElementById(id);
-const KEY = 'lb-co', VERSION = 10, MONTHS = 36;   // 10: 성공 정도 · 부상 · 수입 어림 (이전 판은 새 게임으로)
+const KEY = 'lb-co', VERSION = 11, MONTHS = 36;   // 11: 전리품 개수 10배 · 값 10분의 1 (이전 판은 새 게임으로)
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
 let W: World, plan: Plan, ui: DeskUi;
 // 도장을 막 찍은 결과 화면이면 귀환 장부를 한 줄씩 띄운다 (저장하지 않는 화면 상태)
