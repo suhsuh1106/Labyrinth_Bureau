@@ -463,7 +463,7 @@ const STYLE: Record<Style, { prior: (W: World, f: number) => number; resp: numbe
 // margin은 조 하나를 더 보냈을 때 남아야 하는 돈
 const GROW: Record<Style, { build: number; cap: number; margin: number }> = {
   volume: { build: 1.5, cap: 140, margin: 60 }, steady: { build: 2.5, cap: 100, margin: 120 }, deep: { build: 3.5, cap: 48, margin: 150 }, chaser: { build: 2, cap: 80, margin: 100 },
-  hoarder: { build: 3, cap: 64, margin: 120 }, shallow: { build: 3, cap: 20, margin: 120 }, second: { build: 3, cap: 20, margin: 120 }, crowd: { build: 0, cap: 0, margin: 0 }, player: { build: 0, cap: 0, margin: 0 },
+  hoarder: { build: 3, cap: 64, margin: 120 }, shallow: { build: 3, cap: 20, margin: 120 }, second: { build: 3, cap: 16, margin: 120 }, crowd: { build: 0, cap: 0, margin: 0 }, player: { build: 0, cap: 0, margin: 0 },
 };
 // 조 하나를 더 보냈을 때 남을 돈 어림: 지난달 그 용병단이 보낸 층들의 조당 벌이(평균) − 출정비와 포션 − 늘어날 급여
 export function partyMargin(W: World, i: number) {
