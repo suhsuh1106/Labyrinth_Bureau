@@ -2,12 +2,13 @@
 // 정보 주차 — 자료함(보고서·신문·도감·조사 결과)을 열어 읽고, 조사 의뢰를 걸고, 정보망과 내정(건물·보급·창고·세력)을 정한다.
 // 탐험 주차 — 작전 메모를 옆에 두고 층마다 몇 조를 무엇을 챙겨 보낼지 정하고 도장을 찍는다. 결과는 다음 달 보고서가 된다.
 // 화면은 HTML 문자열만 만든다. 상태를 쓰지 않고 난수도 쓰지 않는다
-import { CO, FLOORS, INTEL, ITEMS, type Person, type Plan, SRCS, type World, bedsOf, classCap, isRook, recruitWants, rookCount, churchPrice, dormCost, dormKeep, roomOf, wageOf, gearBuy, hireCost, intelBlock, intelCost, lootMul, maxParties, needOf, potsExpiring, potsOf, probeCost, probesLeft, sanitize, sortieCost, succRate, supOf, toolCost, trainBonus, us } from '../../core/company';
+import { CO, FLOORS, INTEL, ITEMS, type Person, fcRank, forecast, type Plan, SRCS, type World, bedsOf, classCap, isRook, recruitWants, rookCount, churchPrice, dormCost, dormKeep, roomOf, wageOf, gearBuy, hireCost, intelBlock, intelCost, lootMul, maxParties, needOf, potsExpiring, potsOf, probeCost, probesLeft, sanitize, sortieCost, succRate, supOf, toolCost, trainBonus, us } from '../../core/company';
 import { CLASSES, GEARS, BUYERS } from '../../core/data';
 import { bookHtml, condLabel, kitHint } from './book';
 import { SRC_INFO, intelHtml, rumorsHtml } from './intel';
 import { coIssue, paperHtml } from './paper';
 import { revealHtml } from './reveal';
+import { fcChart, fcNums } from './charts';
 import { KTAG, depthsHtml, fieldHtml, fmt, newsLines, pct, resultsHtml, sgn, stepper } from './view';
 
 export type DeskUi = { phase: number; tab: string; pins: string[]; rival?: string; open?: boolean; mute?: boolean;
@@ -186,7 +187,7 @@ function recruitBox(W: World, raw: Plan) {
     <div class="rcls">${CLASSES.map((k, i) => `<label><span>${pip({ id: -1, c: k })}${k}<small>${fmt(Math.round(CO.RECRUIT * (CO.CLASS_COST[k] || 1)))}G · 약 ${classCap(A, k)}명</small></span>${stepper('recruitC', i, by[k] || 0, `${k} 신입`)}</label>`).join('')}</div></div>`;
 }
 function staffPanel(W: World, raw: Plan) {
-  const c = us(W), beds = bedsOf(c), rook = rookCount(c), pend = c.pendingBeds || 0, L = W.last;
+  const c = us(W), beds = bedsOf(c), rook = rookCount(c), hurtN = (c.crew || []).filter(x => x.hurt).length, pend = c.pendingBeds || 0, L = W.last;
   const want = recruitOf(W, raw), build = !!raw.dorm && !pend, est = W.intel && W.intel.est.apps;
   const fames = W.cos.filter(x => x.style !== 'crowd').map(x => x.fame || 0).sort((a, b) => b - a), fr = fames.indexOf(c.fame || 0) + 1;
   // 침상 그림: 칸 하나가 침상 하나 (대원 · 수습 · 이번 달 뽑을 신입 · 빈 침상 · 공사 중)
@@ -195,9 +196,9 @@ function staffPanel(W: World, raw: Plan) {
   const bld = (ic: string, name: string, lv: string, body: string, ctl: string) => `<div class="bld">${icon(ic)}<div><b>${name}</b><span class="lvl">${lv}</span><small>${body}</small></div>${ctl}</div>`;
   return `<div class="panel staff"><header><h2>인원</h2><span class="sub">명성 ${Math.round(c.fame || 0)}${L ? ` · 변경 ${fr}위` : ''}</span></header>
     <div class="st-kpi">
-      <div><small>인원</small><b>${c.members}</b><i>${rook ? `수습 ${rook}명` : '모두 대원'}</i></div>
+      <div><small>인원</small><b>${c.members}</b><i>${rook ? `수습 ${rook}명` : '모두 대원'}${hurtN ? ` · 부상 ${hurtN}명` : ''}</i></div>
       <div><small>침상</small><b>${beds}</b><i>${pend ? `공사 중 +${pend}` : `빈 침상 ${beds - c.members}`}</i></div>
-      <div><small>보낼 수 있는 조</small><b>${Math.floor(c.members / CO.PARTY)}</b><i>4명이 한 조</i></div>
+      <div><small>보낼 수 있는 조</small><b>${maxParties(c)}</b><i>${hurtN ? '부상자 빼고 · ' : ''}4명이 한 조</i></div>
       <div><small>월 급여</small><b>${fmt(wage(W))}G</b><i>${want ? `신입 들면 ${fmt(wageOf(c.members + want))}G` : '1인 30G + 관리비'}</i></div>
     </div>
     <div class="beds" role="img" aria-label="침상 ${beds}개 중 대원 ${c.members - rook}, 수습 ${rook}, 이번 달 뽑을 신입 ${want}">${cells.map((k, i) => `<i class="bed ${k}${i && i % 4 === 0 ? ' gap' : ''}"></i>`).join('')}</div>
@@ -279,11 +280,11 @@ function teamCard(W: World, P: Plan, t: number, p0: number, ui: DeskUi) {
     <div class="tfoot"><span>${rooks ? `수습 ${rooks} · −${Math.round(rooks * CO.ROOK_PEN * 100)}%p` : '모두 대원'}${n < CO.PARTY ? ` · 빈자리 ${CO.PARTY - n} · −${Math.round((CO.PARTY - n) * CO.SHORT_PEN * 100)}%p` : ''}</span><span>예상 <b>${pct(p)}</b></span></div></div>`;
 }
 function benchHtml(W: World, P: Plan, ui: DeskUi) {
-  const c = us(W), on = new Set((P.teams || []).flatMap(T => T.m)), rest = (c.crew || []).filter(x => !on.has(x.id));
+  const c = us(W), on = new Set((P.teams || []).flatMap(T => T.m)), rest = (c.crew || []).filter(x => !on.has(x.id) && !x.hurt), hurt = (c.crew || []).filter(x => x.hurt);
   const empty = (P.teams || []).reduce((a, T) => a + T.m.filter(x => x == null).length, 0);
   const moving = ui.pick && ui.pick.t != null;
-  return `<div class="bench"><h3>대기 <span class="dim">${rest.length}명 · 빈자리 ${empty}</span>${moving ? '<button type="button" class="link" data-act="to-bench">집은 사람을 대기로</button>' : ''}</h3>
-    <div class="pool">${rest.length ? rest.map(x => `<button type="button" class="chip${isRook(x) ? ' rook' : ''}" data-act="bench" data-id="${x.id}" aria-pressed="${!!(ui.pick && ui.pick.id === x.id)}">${pip(x)}${x.c}${isRook(x) ? '<small>수습</small>' : ''}</button>`).join('') : '<span class="dim">대기 인원 없음</span>'}</div>
+  return `<div class="bench"><h3>대기 <span class="dim">${rest.length}명 · 빈자리 ${empty}${hurt.length ? ` · 부상 ${hurt.length}명` : ''}</span>${moving ? '<button type="button" class="link" data-act="to-bench">집은 사람을 대기로</button>' : ''}</h3>
+    <div class="pool">${rest.length ? rest.map(x => `<button type="button" class="chip${isRook(x) ? ' rook' : ''}" data-act="bench" data-id="${x.id}" aria-pressed="${!!(ui.pick && ui.pick.id === x.id)}">${pip(x)}${x.c}${isRook(x) ? '<small>수습</small>' : ''}</button>`).join('') : '<span class="dim">대기 인원 없음</span>'}${hurt.map(x => `<span class="chip hurt" title="이번 달은 쉬어요">${pip(x)}${x.c}<small>부상 · 다음 달 복귀</small></span>`).join('')}</div>
     <p class="note">사람을 누르고 자리를 누르면 들어가거나 서로 바뀌어요. 빈자리는 빈 채로 나가요 (빈자리 하나당 성공률 −${Math.round(CO.SHORT_PEN * 100)}%p, 캐 오는 양도 사람 수만큼).</p>
     ${rest.length && empty ? '<button type="button" class="ghost" data-act="fill-rest">남은 사람으로 빈자리 채우기</button>' : ''}</div>`;
 }
@@ -325,6 +326,7 @@ export function expWeekHtml(W: World, raw: Plan, ui: DeskUi) {
       <div class="panel"><header><h2>보급</h2></header>
         <div class="stock"><span>포션 <b>${potHave}</b>병 <span class="dim">/ 들고 갈 양 ${need.pot}</span></span>${GEAR_NAMES.map(g => ((S.gear[g] || 0) + (gb[g] || 0) || need.gear[g] ? `<span>${g} 장비 <b>${(S.gear[g] || 0) + (gb[g] || 0)}</b>벌 <span class="dim">/ ${need.gear[g] || 0}</span></span>` : '')).join('')}</div>
 </div>
+      ${fcPanel(W, P, cost.all)}
     </div>
     <div class="col">
       <div class="panel"><header><h2>어느 층에 몇 조를</h2><span class="sub">계약 조 한 조 ${CO.HIRE_FEE}G, 캔 것의 ${pct(CO.HIRE_CUT)}는 그들 몫</span><span class="right">보낼 조 <b>${sent}</b>/${maxParties(c)}${hired ? ` + 계약 ${hired}` : ''}</span></header>
@@ -335,6 +337,16 @@ export function expWeekHtml(W: World, raw: Plan, ui: DeskUi) {
       ${warn.length ? `<div class="warn">${warn.join(' · ')}</div>` : ''}
       <div class="foot"><button type="button" class="ghost" data-act="phase" data-phase="0">← 정보 주차</button><span class="tot">이번 달 나갈 돈 <b>${fmt(cost.all)}G</b> <span class="dim">(정보 ${fmt(cost.info)} · 내정 ${fmt(cost.home)} · 출정 ${fmt(cost.exp)} · 급여 ${fmt(cost.wage)})</span></span><button type="button" class="seal" id="go" data-act="go">결재 도장 찍기</button></div>
     </div></div>`;
+}
+
+// 이번 달 어림: 결정표대로 보내면 전리품 · 소재 수입이 얼마쯤 나올지, 나갈 돈과 견준다. 지난달 어림과 실제도 함께
+function fcPanel(W: World, P: Plan, cost: number) {
+  const fc = forecast(W, P), L = W.last, f0 = L && L.fc;
+  const last = f0 ? (() => { const a = L!.res[0].sales, r = fcRank(f0, a); return `<div class="fc-last"><b>지난달</b> 어림 ${fmt(f0.mean)}G (${fmt(f0.p10)} ~ ${fmt(f0.p90)}) → 실제 <b class="${a < f0.p10 ? 'neg' : a > f0.p90 ? 'pos' : ''}">${fmt(a)}G</b> <span class="dim">· 어림의 아래에서 ${Math.round(r * 100)}%</span></div>`; })() : '';
+  return `<div class="panel fc"><header><h2>이번 달 어림</h2><span class="sub">전리품 · 소재 수입</span></header>
+    ${fc.mean ? fcChart(fc, cost, null, `이번 달 수입 어림: 기대 ${fmt(fc.mean)}G, 열에 여덟은 ${fmt(fc.p10)}~${fmt(fc.p90)}G, 나갈 돈 ${fmt(cost)}G`) + fcNums(fc, cost) : '<p class="note">보낼 조가 없어요.</p>'}
+    ${last}
+    <p class="note">성공률은 조 카드에 보이는 값(약점 · 역효과는 모르는 채로), 시세와 붐빔은 지난달만큼으로 셈해요. 실제가 어림보다 꾸준히 높으면 편성이 약점을 맞힌 거예요.</p></div>`;
 }
 
 // ---------- 결과 ----------

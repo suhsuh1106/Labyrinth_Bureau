@@ -59,7 +59,8 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
     const model = p * F.take * unit, got = model;
     // 위기 하나는 포션이 있으면 harm만큼, 없으면 그대로 사망으로 이어진다 (조당 포션이 위기 수보다 넉넉하다고 본다)
     const crises = CO.PARTY * ((1 - p) * Math.min(0.95, F.risk * CO.CRISIS_FAIL) + p * F.risk * CO.CRISIS_OK);
-    const die = crises * CO.CRISIS_DEATH * F.harm * (CO.RECRUIT + 250);
+    // 위기 하나는 harm만큼 사망(신입 값과 빈자리), 나머지는 부상(치료비와 한 달 쉬는 급여)
+    const die = crises * (F.harm * (CO.RECRUIT + 250) + (1 - F.harm) * (CO.HEAL_COST + CO.WAGE));
     return Math.max(1, got - (CO.SORTIE + pots * W.potion) - die);
   });
   const sum = value.reduce((a, b) => a + b, 0), n = maxParties(c);
