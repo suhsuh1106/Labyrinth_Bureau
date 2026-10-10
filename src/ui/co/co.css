@@ -694,3 +694,15 @@ table.grid.fcv td, table.grid.fcv th { font-size: 12px; }
 .rbox .rcls { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 .rbox .rcls .step { display: inline-flex; flex-wrap: nowrap; }
 .panel .rbox .rcls .step input { width: 42px; }
+/* 그림 지도 위: 장소 이름표는 늘 보이고, 마우스를 올리면 그 자리가 금빛으로 테두리진다 */
+.scene .spot .hl { fill: #ffd98a; stroke: #b8862e; stroke-width: 0; }
+.scene .spot:hover .hl, .scene .spot:focus .hl { opacity: .22; stroke-width: 3; }
+.scene .lab { font-size: 17px; stroke-width: 5px; }
+.scene .map-note { font: 600 13px var(--f-display); fill: #5a4a32; paint-order: stroke; stroke: #e8dcc0; stroke-width: 4px; }
+.scene .map-title { paint-order: stroke; stroke: #e8dcc0; stroke-width: 5px; }
+.scene .map-sub { paint-order: stroke; stroke: #e8dcc0; stroke-width: 4px; }
+.scene .spot .sub { opacity: 0; transition: opacity .15s; }
+.scene .spot:hover .sub, .scene .spot:focus .sub { opacity: 1; }
+.scene .spot .tag { fill: #efe3c4; stroke: #8a6a3a; stroke-width: 1.2; opacity: .92; }
+.scene .spot:hover .tag, .scene .spot:focus .tag { fill: #ffe9b0; stroke-width: 2; }
+.scene .spot .lab { stroke-width: 0; }
