@@ -2,7 +2,7 @@
 import './ui/co/base.css';
 import './ui/co/co.css';
 import { setSeed } from './core/rng';
-import { CO, type Plan, SRCS, type World, carryPlan, fillTeams, formTeams, newWorld, probe, rankOf, roomOf, runMonth, sanitize, us } from './core/company';
+import { CO, PREP_KEYS, type Plan, SRCS, type World, carryPlan, fillTeams, formTeams, newWorld, probe, rankOf, roomOf, runMonth, sanitize, us } from './core/company';
 import { DESC_FIRST } from './ui/co/roster';
 import { CLASSES, GEARS } from './core/data';
 import { plaqueHtml } from './ui/co/view';
@@ -10,7 +10,7 @@ import { type DeskUi, DOC_KEYS, PLACE_KEYS, expWeekHtml, infoWeekHtml, resultWee
 import { advanceArrival, arrivalOpen, closeArrival, playArrival } from './ui/co/arrival';
 
 const $ = (id: string): any => document.getElementById(id);
-const KEY = 'lb-co', VERSION = 12, MONTHS = 36;   // 12: 단원마다 이름 · 실력 · 특성 · 층 경험 · 조직력, 지원자 명단 (이전 판은 새 게임으로)
+const KEY = 'lb-co', VERSION = 13, MONTHS = 36;   // 13: 공방(무장 · 운반 · 갈무리 · 거점)과 이번 달 준비, 교관 (이전 판은 새 게임으로)
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
 let W: World, plan: Plan, ui: DeskUi;
 // 도장을 막 찍은 결과 화면이면 귀환 장부를 한 줄씩 띄운다 (저장하지 않는 화면 상태)
@@ -125,6 +125,10 @@ function act(b: HTMLElement) {
   if (a === 'dorm') { plan.dorm = !plan.dorm; render(); save(); return; }
   if (a === 'auto-recruit') { delete plan.recruit; delete plan.recruitC; delete plan.pick; render(); save(); return; }
   if (a === 'sellmap') { const f = +(b.dataset.f || 0); if (plan.sellMap === f) delete plan.sellMap; else plan.sellMap = f; render(); save(); return; }
+  if (a === 'wsbuild') { const k = b.dataset.k || ''; if (plan.wsBuild === k) delete plan.wsBuild; else plan.wsBuild = k; render(); save(); return; }
+  if (a === 'wsdown') { const k = b.dataset.k || ''; if (plan.wsDown === k) delete plan.wsDown; else plan.wsDown = k; render(); save(); return; }
+  if (a === 'coach') { plan.coach = +(b.dataset.i || 0); render(); save(); return; }
+  if (a === 'auto-prep') { delete plan.prep; render(); save(); return; }
   if (a === 'build') { const k = b.dataset.k || ''; if (plan.build === k) delete plan.build; else plan.build = k; render(); save(); return; }
   if (a === 'pick') {
     const id = +(b.dataset.id || 0), P = plan.pick ? [...plan.pick] : [], k = P.indexOf(id);
@@ -182,6 +186,8 @@ $('desk').addEventListener('change', (e: any) => {
   if (k === 'tpl') { const tp = [...(plan.tpl || CO.TPL0)]; tp[+t.dataset.i] = t.value; plan.tpl = tp; render(); save(); return; }
   if (k === 'teamG') { const T = plan.teams && plan.teams[+t.dataset.i]; if (T) T.g = t.value; render(); save(); return; }
   if (k === 'assign') { assignTo(+t.dataset.id, t.value); tidyTeams(); render(); save(); return; }
+  if (k === 'tarm' || k === 'tcart') { const T = plan.teams && plan.teams[+t.dataset.i]; if (T) { const v = +t.value; if (k === 'tarm') { if (v) T.arm = v; else delete T.arm; } else { if (v) T.cart = v; else delete T.cart; } } render(); save(); return; }
+  if (k === 'wsF') { plan.wsF = +t.value; render(); save(); return; }
   if (k === 'spyOn') { const on = [...(plan.spyOn || [])]; on[+t.dataset.i] = t.value; plan.spyOn = on.filter(Boolean); render(); save(); return; }
   if (k === 'rootf') { plan.root = { f: +t.value, seal: plan.root ? plan.root.seal : 0, mine: plan.root ? plan.root.mine : 0 }; render(); save(); return; }
   if (k === 'basef') { plan.base = { f: +t.value, amt: plan.base ? plan.base.amt : 0 }; render(); save(); return; }
@@ -194,6 +200,7 @@ function edit(k: string, i: number, fn: (v: number) => number, j = 0) {
   else if (k === 'donate') plan.donate = Math.max(0, fn(plan.donate || 0));
   else if (k === 'tool') plan.tool = Math.max(0, Math.min(2, fn(plan.tool || 0)));
   else if (k === 'proc') plan.proc = Math.max(0, fn(plan.proc || 0));
+  else if (k === 'prep') { const key = PREP_KEYS[i], cur = (plan.prep && plan.prep[key] != null) ? plan.prep[key] : (sanitize(W, us(W), plan).prep || {})[key] || 0; plan.prep = { ...(sanitize(W, us(W), plan).prep || {}), ...(plan.prep || {}), [key]: Math.max(0, fn(cur)) }; }
   else if (k === 'take') plan.take = { ...(plan.take || {}), [i]: Math.max(0, fn((plan.take && plan.take[i]) || 0)) };
   else if (k === 'recruitC') {
     const cls = CLASSES[i], cur = +(document.querySelector(`input[data-k="recruitC"][data-i="${i}"]`) as HTMLInputElement)?.value || 0;

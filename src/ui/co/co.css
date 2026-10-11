@@ -870,3 +870,21 @@ table.tsum select { font: 12px var(--f-body); }
 .meter .fc { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--merchant) 45%, transparent) 0 4px, transparent 4px 8px); }
 .board .take .est { display: block; flex: 1 1 260px; min-width: 0; }
 .board .take .est b { display: inline; }
+
+/* ---------- 공방 (표 한 장) · 교관 · 이번 달 준비 ---------- */
+.ws table.wst td { vertical-align: middle; }
+.ws table.wst td.nx { font-size: 12px; color: var(--ink-soft); }
+.ws table.wst td.nx b { color: var(--ink); font-weight: 600; }
+.ws table.wst td.act { white-space: nowrap; text-align: right; }
+.ws table.wst td.act select { font: 12px var(--f-body); margin-right: 4px; }
+.wpips { display: inline-flex; gap: 2px; margin-right: 6px; vertical-align: middle; }
+.wpips i { width: 8px; height: 8px; border-radius: 2px; background: var(--rule); }
+.wpips i.on { background: var(--church); }
+.tog.ghost { background: transparent; }
+.ws .coach { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 13px; margin-top: 8px; }
+.ws .coach > span:first-child { font-weight: 600; }
+.ws .coach .seg button small { font-size: 10px; opacity: .75; }
+.ws table.prep tr.tot td { font-weight: 600; border-top: 1px solid var(--rule); }
+.wsnew { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; border: 2px solid var(--church); border-radius: 6px; padding: 8px 12px; margin: 6px 0 10px; background: color-mix(in srgb, var(--church) 10%, var(--paper)); }
+.wsnew b { font: 700 15px var(--f-display); }
+.wsnew span { font-size: 13px; color: var(--ink-soft); }

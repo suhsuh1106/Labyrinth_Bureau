@@ -6,6 +6,13 @@ import { GEARS, TIER_N, TRAITS } from '../../core/data';
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
+const ARM_N = ['낡은 무장', '철제', '강철', '각인'], CART_N = ['등짐', '손수레', '노새', '승강기'];
+// 조의 무장 · 운반 고르기: 공방이 연 단계까지 (준비한 개수를 넘으면 그 조는 낡은 무장 · 등짐으로 간다)
+function loadSel(k: 'arm' | 'cart', t: number, cur: number, max: number, prep: Record<string, number>, used: Record<string, number>) {
+  if (!max) return '<span class="dim">-</span>';
+  const N = k === 'arm' ? ARM_N : CART_N, D = k === 'arm' ? CO.ARM_SUCC.map(v => `+${v * 100}%p`) : CO.CART_LOOT.map(v => `+${v * 100}%`);
+  return `<select data-k="${k === 'arm' ? 'tarm' : 'tcart'}" data-i="${t}" aria-label="${t + 1}조 ${k === 'arm' ? '무장' : '운반'}">${N.slice(0, max + 1).map((n, v) => `<option value="${v}"${v === cur ? ' selected' : ''}>${n}${v ? ` ${D[v]} · 준비 ${Math.max(0, (prep[k + v] || 0) - (used[k + v] || 0) + (v === cur ? 1 : 0))}` : ''}</option>`).join('')}</select>`;
+}
 export const nameOf = (p: Person) => p.n || `${p.c} ${p.id}`;
 export const tierHtml = (p: Person) => { const t = tierOf(p); return `<span class="tier t${t}" title="실력 ${TIER_N[t]} · 성공 ${CO.TIER_B[t] >= 0 ? '+' : '−'}${Math.round(Math.abs(CO.TIER_B[t]) * 100)}%p"><span class="pips">${'<i></i>'.repeat(5)}</span><em>${TIER_N[t]}</em></span>`; };
 export const traitHtml = (p: Person) => (p.tr ? `<span class="trait" title="${esc(TRAITS[p.tr] || '')}">${p.tr}</span>` : '');
@@ -54,8 +61,10 @@ export function assignHtml(W: World, P: Plan, others: (f: number) => number, sor
   const whoOf = (t: number) => teams[t].m.filter((x): x is number => x != null).map(id => byId.get(id)).filter((x): x is Person => !!x);
   const open = FLOORS.slice(0, W.unlocked).map((_, f) => f);
   const bondOf = (p: Person) => { const t = teamOf.get(p.id); if (t == null) return -1; const mates = whoOf(t).filter(x => x.id !== p.id); return mates.length ? mates.reduce((a, x) => a + Math.min(CO.CO_MAX, (p.mt && p.mt[x.id]) || 0), 0) / mates.length : 0; };
+  const prep = P.prep || {}, used: Record<string, number> = {};
+  teams.forEach(T => (['arm', 'cart'] as const).forEach(k => { if (T[k]) used[k + T[k]] = (used[k + T[k]] || 0) + 1; }));
   const sum = teams.map((T, t) => {
-    const who = whoOf(t), crowd = P.parties[T.f] + P.hire[T.f] + others(T.f), o = teamOdds(W, c, T.f, who, P.pots[T.f], crowd);
+    const who = whoOf(t), crowd = P.parties[T.f] + P.hire[T.f] + others(T.f), o = teamOdds(W, c, T.f, who, P.pots[T.f], crowd, T);
     const bonded = cohesion(who) > 0, fresh = bonded ? who.filter(p => who.every(x => x.id === p.id || !((p.mt && p.mt[x.id]) || 0))).length : 0;
     const scoutOk = hqLv(c, 'rec') >= 2 && who.length <= 3;
     const warn = [...(who.length < CO.PARTY && !T.scout ? [`빈자리 ${CO.PARTY - who.length}`] : []), ...(fresh ? [`새 얼굴 ${fresh}`] : []),
@@ -68,6 +77,7 @@ export function assignHtml(W: World, P: Plan, others: (f: number) => number, sor
       <td><span class="ubar" title="${esc(uTip)}"><i><b style="width:${o.u}%"></b></i><span class="n">${o.u}</span></span></td>
       <td><span class="cobar" title="조원 둘씩 함께 나간 달의 평균 (${CO.CO_MAX}달이 끝)"><i><b style="width:${Math.round(o.coh * 100)}%"></b></i><span class="n">${Math.round(o.coh * 100)}</span><small class="dim">+${Math.round(o.coh * CO.CO_SUCC * 100)}%p</small></span></td>
       <td class="n"><b>${Math.round(o.p * 100)}%</b></td>
+      <td>${loadSel('arm', t, T.arm || 0, c.ws ? c.ws.arm : 0, prep, used)}</td><td>${loadSel('cart', t, T.cart || 0, c.ws ? c.ws.cart : 0, prep, used)}</td>
       <td><select data-k="teamG" data-i="${t}" aria-label="${t + 1}조 장비"><option value="">섞인 대로</option>${GEAR_NAMES.map(g => `<option value="g:${g}"${T.g === 'g:' + g ? ' selected' : ''}>${g}</option>`).join('')}</select></td>
       <td><span class="warn-s">${warn.length ? warn.map(w => `<span>${w}</span>`).join('') : '<span class="ok">없음</span>'}</span></td></tr>`;
   }).join('');
@@ -82,8 +92,8 @@ export function assignHtml(W: World, P: Plan, others: (f: number) => number, sor
     return `<span class="seg asg" role="group" aria-label="${esc(nameOf(p))} 배치">${teams.map((_, k) => `<button type="button" class="k${k % 8}" data-act="assign" data-id="${p.id}" data-t="${k}" aria-pressed="${t === k}"${t !== k && whoOf(k).length >= CO.PARTY ? ' disabled' : ''}>${k + 1}조</button>`).join('')}<button type="button" data-act="assign" data-id="${p.id}" data-t="new" title="새 조를 만들어 넣기">+</button><button type="button" class="bn" data-act="assign" data-id="${p.id}" data-t="-1" aria-pressed="${t == null}">대기</button></span>`;
   };
   const bondTxt = (p: Person) => { const b = bondOf(p); return b < 0 ? '' : b === 0 && whoOf(teamOf.get(p.id)!).length > 1 ? '<span class="fresh">새 얼굴</span>' : `${b.toFixed(b % 1 ? 1 : 0)}달`; };
-  return `<div class="tw"><table class="grid tsum"><thead><tr><th>조</th><th>층</th><th class="n">인원</th><th>직업</th><th title="지도 완성도 + 고참 경험 + 길잡이">이해도</th><th>조직력</th><th class="n">성공률</th><th>장비</th><th>살필 것</th></tr></thead>
-      <tbody>${sum || `<tr><td colspan="9" class="dim">짠 조가 없어요. 아래 명단의 + 를 눌러 새 조를 만들어요</td></tr>`}<tr class="rest"><td><b>대기</b></td><td colspan="8" class="dim">${bench.length}명${bench.filter(p => p.hurt).length ? ` (부상 ${bench.filter(p => p.hurt).length})` : ''} · 이번 달 쉬어요</td></tr></tbody></table></div>
+  return `<div class="tw"><table class="grid tsum"><thead><tr><th>조</th><th>층</th><th class="n">인원</th><th>직업</th><th title="지도 완성도 + 고참 경험 + 길잡이">이해도</th><th>조직력</th><th class="n">성공률</th><th>무장</th><th>운반</th><th title="약점 장비">장비</th><th>살필 것</th></tr></thead>
+      <tbody>${sum || `<tr><td colspan="11" class="dim">짠 조가 없어요. 아래 명단의 + 를 눌러 새 조를 만들어요</td></tr>`}<tr class="rest"><td><b>대기</b></td><td colspan="10" class="dim">${bench.length}명${bench.filter(p => p.hurt).length ? ` (부상 ${bench.filter(p => p.hurt).length})` : ''} · 이번 달 쉬어요</td></tr></tbody></table></div>
     <div class="tw"><table class="grid crewt asgn"><thead><tr>${th('name', '이름', cur, 'as')}${th('cls', '직업', cur, 'as')}${th('sk', '실력', cur, 'as')}${th('tr', '특성', cur, 'as')}${open.map(f => th('ex' + f, FLOORS[f].name, cur, 'as', 'n')).join('')}${th('bond', '함께한 달', cur, 'as')}${th('team', '배치', cur, 'as')}</tr></thead>
     <tbody>${rows.map(({ p }) => { const t = teamOf.get(p.id), f = t != null ? teams[t].f : -1;
       return `<tr class="${t != null ? 'k' + (t % 8) : ''}${p.hurt ? ' away' : ''}"><td class="nm">${esc(nameOf(p))}</td><td class="cn">${p.c}</td><td>${tierHtml(p)}</td><td>${traitHtml(p)}</td>${open.map(g => exCell(p, g, g === f)).join('')}<td class="bond">${bondTxt(p)}</td><td>${cell(p)}</td></tr>`; }).join('')}</tbody></table></div>`;
