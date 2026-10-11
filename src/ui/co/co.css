@@ -706,3 +706,17 @@ table.grid.fcv td, table.grid.fcv th { font-size: 12px; }
 .scene .spot .tag { fill: #efe3c4; stroke: #8a6a3a; stroke-width: 1.2; opacity: .92; }
 .scene .spot:hover .tag, .scene .spot:focus .tag { fill: #ffe9b0; stroke-width: 2; }
 .scene .spot .lab { stroke-width: 0; }
+
+/* 보급 소모: 조마다 포션 칸 (칠한 칸이 쓴 병) */
+.sup { display: grid; gap: 8px; }
+.sup-r { display: grid; grid-template-columns: 110px 1fr 230px; gap: 4px 12px; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--rule); }
+.sup-h { display: grid; font-size: 12px; } .sup-h span { color: var(--ink-soft); font-size: 11px; }
+.sup-b { display: flex; flex-wrap: wrap; gap: 6px; }
+.sup-t { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--rule); border-radius: 3px; background: var(--paper-2); }
+.sup-t em { font: italic 10.5px var(--f-num); color: var(--ink-soft); padding: 0 2px; }
+.sup i, .sup-key i { display: inline-block; width: 9px; height: 15px; border-radius: 3px 3px 1px 1px; border: 1px solid color-mix(in srgb, var(--ink) 30%, transparent); background: transparent; }
+.sup i.u, .sup-key i.u { background: var(--merchant); border-color: var(--merchant); }
+.sup i.x, .sup-key i.x { background: var(--bad, #a8332a); border-color: var(--bad, #a8332a); border-radius: 50%; width: 11px; height: 11px; align-self: center; }
+.sup-n { display: grid; text-align: right; font-size: 12px; font-variant-numeric: tabular-nums; } .sup-n small { color: var(--ink-soft); font-size: 10.5px; }
+.sup-key { display: flex; flex-wrap: wrap; gap: 12px; font-size: 11px; color: var(--ink-soft); margin-top: 6px; } .sup-key span { display: inline-flex; gap: 5px; align-items: center; }
+@media (max-width: 640px) { .sup-r { grid-template-columns: 1fr; } .sup-n { text-align: left; } }

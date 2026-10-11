@@ -1,5 +1,5 @@
 // 용병단 행정실 화면: 결정표(위)와 지난달 정산(아래). HTML 문자열을 만들기만 하고 상태는 건드리지 않는다
-import { CO, FLOORS, INTEL, ITEMS, type Plan, SRCS, type World, bedsOf, fcRank, gradeOf, churchPrice, dormKeep, guideParts, hireCost, intelBlock, intelCost, lootMul, toolCost, trainBonus, maxParties, priceOf, rankOf, sanitize, sortieCost, succRate, us, worth } from '../../core/company';
+import { CO, FLOORS, INTEL, ITEMS, type Plan, SRCS, type World, bedsOf, fcRank, gradeOf, churchPrice, dormKeep, guideParts, hireCost, intelBlock, intelCost, lootMul, toolCost, trainBonus, maxParties, potsExpiring, potsOf, priceOf, rankOf, sanitize, sortieCost, succRate, us, worth } from '../../core/company';
 import { CLASSES, GEARS, MONSTERS } from '../../core/data';
 import { keyLabel } from '../../core/util';
 import { cashChart, fcChart, flowChart, fmtG, incomeMix, moneySeries, perHeadChart, perPartyChart, priceBoard, shareChart, spendMix } from './charts';
@@ -91,6 +91,7 @@ export function resultsHtml(W: World) {
       <section><h4>시세</h4><div class="tw">${priceBoard(W)}</div></section>
     </div></section>
     ${fcVsHtml(W)}
+    ${supplyHtml(W)}
     <section class="rp"><h3>탐사</h3>${returnHtml(W)}</section>
     <details class="fold"><summary>우리 정산 자세히</summary><div class="mine">${mine}</div></details>`;
 }
@@ -105,6 +106,30 @@ function fcVsHtml(W: World) {
     ${fcChart(fc, cost, a, `제${L.month}월 수입 어림 기대 ${fmt(fc.mean)}G, 실제 ${fmt(a)}G`)}
     <p class="note">어림 기대 <b>${fmt(fc.mean)}G</b> (열에 여덟은 ${fmt(fc.p10)} ~ ${fmt(fc.p90)}G) → 실제 <b>${fmt(a)}G</b>, 어림의 아래에서 ${Math.round(rk * 100)}%. ${say}</p>
     ${past.length > 1 ? `<div class="tw"><table class="grid slim fcv"><thead><tr><th>달</th><th class="n">어림 기대</th><th class="n">열에 여덟</th><th class="n">실제</th><th class="n">차이</th></tr></thead><tbody>${past.map(M => { const x = M.res[0].sales, d = x - M.fc!.mean; return `<tr><td>제${M.month}월</td><td class="n">${fmt(M.fc!.mean)}</td><td class="n dim">${fmt(M.fc!.p10)} ~ ${fmt(M.fc!.p90)}</td><td class="n">${fmt(x)}</td><td class="n ${d < 0 ? 'neg' : 'pos'}">${sgn(d)}</td></tr>`; }).join('')}</tbody></table></div>` : ''}
+  </section>`;
+}
+
+// 보급 소모: 층마다 조가 들고 간 포션(칸 하나가 한 병)과 그중 위기에 쓴 병, 최근 몇 달 조당 위기 · 포션, 창고에 남은 것.
+// 무엇을 사라고 말하지 않고 숫자만 보여 준다 (상태를 쓰지 않고 난수도 쓰지 않는다)
+function supplyHtml(W: World) {
+  const L = W.last; if (!L || !L.ours || !L.ours.length) return '';
+  const P = L.plans[0], past = W.history.slice(-6);
+  const rows = FLOORS.map((F, f) => {
+    const ps = L.ours.filter(x => x.f === f); if (!ps.length) return '';
+    const cap = P.pots[f], carry = cap * ps.length, used = ps.reduce((a, x) => a + (x.pots || 0), 0), crisis = ps.reduce((a, x) => a + (x.crisis || 0), 0);
+    const teams = ps.map(x => `<span class="sup-t" title="${x.crisis ? `위기 ${x.crisis}번 · 포션 ${x.pots || 0}병` : '위기 없음'}">${
+      cap ? Array.from({ length: cap }, (_, b) => `<i class="${b < (x.pots || 0) ? 'u' : ''}"></i>`).join('') : '<em>빈손</em>'}${(x.crisis || 0) > (x.pots || 0) ? `<i class="x" title="포션 없이 맞은 위기"></i>`.repeat((x.crisis || 0) - (x.pots || 0)) : ''}</span>`).join('');
+    // 최근 몇 달 이 층에 간 우리 조 하나가 맞은 위기와 쓴 포션 (평균)
+    const hs = past.flatMap(M => (M.ours || []).filter(x => x.f === f)), n = hs.length;
+    const avg = n > 1 ? `<small>최근 ${past.filter(M => (M.ours || []).some(x => x.f === f)).length}달 조당 위기 ${(hs.reduce((a, x) => a + (x.crisis || 0), 0) / n).toFixed(1)} · 포션 ${(hs.reduce((a, x) => a + (x.pots || 0), 0) / n).toFixed(1)}병</small>` : '';
+    return `<div class="sup-r"><div class="sup-h"><b>${F.name}</b><span>${ps.length}조 · 위기 ${crisis}번</span></div><div class="sup-b">${teams}</div>
+      <div class="sup-n"><span>${carry ? `<b>${carry}병 중 ${used}병</b> 씀 <span class="dim">(${Math.round(used / carry * 100)}%)</span>` : `<b>포션 없이</b> 감`}</span>${avg}</div></div>`;
+  }).join('');
+  const c = us(W), st = potsOf(c), ex = potsExpiring(c), r = L.res[0];
+  return `<section class="rp"><h3>보급 소모</h3>
+    <div class="sup">${rows}</div>
+    <div class="sup-key"><span><i class="u"></i>위기에 쓴 포션</span><span><i></i>들고 갔다 돌아온 포션</span><span><i class="x"></i>포션 없이 맞은 위기</span></div>
+    <p class="note">이번 달 포션 ${r.potNeed ? `${fmt(r.potNeed)}병을 ${fmt(r.spend.potion)}G에 사서 ` : ''}${fmt(r.potUsed)}병을 썼어요. 창고에 포션 ${fmt(st.pot)}병${st.holy ? ` · 성수 ${fmt(st.holy)}병` : ''}${ex.pot + ex.holy ? `, 그중 ${fmt(ex.pot + ex.holy)}병은 다음 달이 지나면 상해요` : ''}.</p>
   </section>`;
 }
 
