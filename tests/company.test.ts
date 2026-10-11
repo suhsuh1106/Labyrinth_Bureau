@@ -4,7 +4,7 @@ import { setSeed } from '../src/core/rng';
 import { CO, FLOORS, ITEMS, defaultPlan, emptyPlan, newWorld, potionPrice, priceOf, runMonth, us, worth } from '../src/core/company';
 import { BOT, playGame } from '../sim/company';
 import { aiPlan, carryPlan, maxParties, outlook, rankOf, rollParty } from '../src/core/company';
-import { candPrice, candWants, churchPrice, cohesion, hqCost, hqLv, mapOf, memberMods, teamUnd, tierOf, undMods, wageOf, type Plan, type World } from '../src/core/company';
+import { candPrice, candWants, churchPrice, cohesion, hqCost, hqLv, wsKeep, mapOf, memberMods, teamUnd, tierOf, undMods, wageOf, type Plan, type World } from '../src/core/company';
 import { MONSTERS, TRAITS } from '../src/core/data';
 import { depthsHtml, newsLines, plaqueHtml, resultsHtml, returnHtml } from '../src/ui/co/view';
 import { DOC_TABS, expWeekHtml, infoWeekHtml, resultWeekHtml } from '../src/ui/co/desk';
@@ -463,13 +463,29 @@ describe('정보망', () => {
 });
 
 describe('전리품 비율과 몬스터 적응', () => {
-  it('채집 장비를 갖추면 성공 한 번에 캐 오는 양이 는다', () => {
+  it('운반 수단을 들고 가면 성공 한 번에 캐 오는 양이 는다 (공방에서 연 단계, 준비한 만큼)', () => {
     let a = 0, b = 0;
-    for (const tool of [0, 2]) for (let g = 1; g <= 10; g++) {
-      setSeed(g); const W = newWorld();
-      for (let m = 0; m < 4; m++) { const P = BOT.even(W); P.tool = tool; const M = runMonth(W, P); const per = M.res[0].got[0] / Math.max(1, M.res[0].ok[0]); if (tool) b += per; else a += per; }
+    for (const cart of [0, 2]) for (let g = 1; g <= 10; g++) {
+      setSeed(g); const W = newWorld(); us(W).ws!.cart = 2;
+      for (let m = 0; m < 4; m++) {
+        const P = sanitize(W, us(W), BOT.even(W)); P.teams!.forEach(T => { if (cart) T.cart = cart; else delete T.cart; }); delete P.prep;
+        const M = runMonth(W, P); const per = M.res[0].got[0] / Math.max(1, M.res[0].ok[0]); if (cart) b += per; else a += per;
+        if (cart) expect(M.res[0].spend.prep).toBe(P.teams!.length * CO.CART_PREP[2]);
+      }
     }
-    expect(b).toBeGreaterThan(a);
+    expect(b).toBeGreaterThan(a * 1.15);
+  });
+  it('준비한 개수까지만 조에 붙고, 공방은 한 달에 하나씩 다음 달 완공되며 낮추면 바로 내려간다', () => {
+    setSeed(3); const W = newWorld(), c = us(W); c.ws!.arm = 2;
+    const P = sanitize(W, c, defaultPlan(W)); P.teams!.forEach(T => { T.arm = 2; }); P.prep = { arm2: 1 };
+    const Q = sanitize(W, c, P); expect(Q.teams!.filter(T => T.arm === 2).length).toBe(1);
+    expect(sanitize(W, c, { ...P, prep: undefined }).prep!.arm2).toBe(P.teams!.length);   // 비워 두면 붙인 만큼
+    const R = defaultPlan(W); R.wsBuild = 'cart';
+    const r = runMonth(W, R).res[0]; expect(r.spend.ws).toBe(wsKeep(c) - 0 + CO.WS_COST.cart[0]); expect(c.pendingWs!.k).toBe('cart');
+    expect(sanitize(W, c, { ...carryPlan(W, R), wsBuild: 'cut' }).wsBuild).toBeUndefined();   // 공사 중
+    const M = runMonth(W, carryPlan(W, R)); expect(c.ws!.cart).toBe(1); expect(M.res[0].wsDone).toBe('cart');
+    const D = carryPlan(W, R); D.wsDown = 'arm'; runMonth(W, D); expect(c.ws!.arm).toBe(1);
+    expect(resultsHtml(W)).toContain('공방');
   });
   it('약점대로 들어간 파티가 몰리면 몬스터가 적응해 약점이 바뀌고, 경쟁자는 다시 깨쳐야 한다', () => {
     setSeed(36); const W: World = newWorld();
