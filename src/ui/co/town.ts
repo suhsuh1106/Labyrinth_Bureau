@@ -1,4 +1,4 @@
-// 정보 주차의 책상: 하르덴 마을 지도(그림)와 책상 위 물건(장부 · 도감 · 조사 봉투 · 신문 · 양초 · 필통)을 SVG 한 장으로 그린다.
+// 내정의 책상: 하르덴 마을 지도(그림)와 책상 위 물건(장부 · 도감 · 조사 봉투 · 신문 · 양초 · 필통)을 SVG 한 장으로 그린다.
 // 지도의 장소나 물건을 누르면 그 업무 창이 뜬다(data-act). 챙길 일이 있는 곳엔 밀랍 봉인이 붙는다.
 // 지도 그림 원본은 image_source/main_map.png (1408 × 768). 게임은 종이 바깥의 흰 바탕을 투명하게 오려 webp로 줄인 art/main_map.webp를 쓴다.
 // 장소 자리는 그 그림의 좌표로 적는다. 상태를 쓰지 않고 난수도 쓰지 않는다
@@ -8,6 +8,7 @@ const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
 
 // 장소: 누르면 열 창과 그 장소 이름
 export const PLACES: Record<string, { name: string; where: string }> = {
+  board: { name: '게시판', where: '관리국 게시판' },
   staff: { name: '인원', where: '회색늑대 숙소' },
   train: { name: '건물', where: '훈련장 · 공방' },
   market: { name: '상단 거리', where: '상단 거리' },
@@ -22,12 +23,13 @@ const X = (x: number) => +(MAP.x + x * S).toFixed(1), Y = (y: number) => +(MAP.y
 // 그림 좌표로 적은 장소 자리 [x1, y1, x2, y2], 이름, 작은 설명, 이름표 자리(위 · 아래)
 type Spot = { box: [number, number, number, number]; act: string; attrs: string; label: string; sub: string; aria: string; tag?: 'top' | 'bottom' };
 const SPOTS: Record<string, Spot> = {
+  board: { box: [470, 40, 740, 220], act: 'place', attrs: 'data-place="board"', label: '관리국 게시판', sub: '영주 · 상단 · 교회의 의뢰', aria: '관리국 게시판: 의뢰', tag: 'top' },
   church: { box: [335, 215, 525, 460], act: 'place', attrs: 'data-place="church"', label: '교회', sub: '성수 · 근원 기금', aria: '교회: 성수와 근원 기금' },
   market: { box: [555, 320, 860, 540], act: 'place', attrs: 'data-place="market"', label: '상단 거리', sub: '포션 · 장비 · 시장 조사', aria: '상단 거리: 포션과 장비 구매, 시장 조사' },
   train: { box: [950, 455, 1075, 575], act: 'place', attrs: 'data-place="train"', label: '훈련장 · 공방', sub: '훈련 · 갈무리장 · 거점 · 도구', aria: '훈련장과 공방: 건물' },
   staff: { box: [1090, 460, 1378, 670], act: 'place', attrs: 'data-place="staff"', label: '회색늑대 숙소', sub: '인원 · 신입 · 부상자', aria: '회색늑대 숙소: 인원' },
   alley: { box: [25, 555, 265, 735], act: 'place', attrs: 'data-place="alley"', label: '뒷골목 선술집', sub: '정보망 · 타 용병단 조사', aria: '뒷골목 선술집: 정보망과 타 용병단 조사', tag: 'top' },
-  gate: { box: [1140, 60, 1378, 228], act: 'phase', attrs: 'data-phase="1"', label: '미궁 입구', sub: '탐험 주차로 →', aria: '미궁 입구: 탐험 주차로' },
+  gate: { box: [1140, 60, 1378, 228], act: 'phase', attrs: 'data-phase="1"', label: '미궁 입구', sub: '출정 편성으로 →', aria: '미궁 입구: 출정 편성으로' },
 };
 // 책상 띠의 윗변과, 책상 위 물건의 봉인 자리 (책상 띠 안의 좌표)
 const DESK_Y = Math.round(MAP.y + MH + 14);
@@ -58,7 +60,6 @@ export function townSceneHtml(town: string, seals: Record<string, string>) {
   <rect width="1200" height="${H}" fill="url(#tw-grain)"/>
   <image href="${mapUrl}" x="${MAP.x}" y="${MAP.y}" width="${MAP.w}" height="${MH.toFixed(1)}" filter="url(#tw-shadow)" preserveAspectRatio="xMidYMid meet"/>
   <text x="${X(40)}" y="${Y(52)}" class="map-title">하르덴</text><text x="${X(40)}" y="${Y(52) + 18}" class="map-sub">서부 변경 · 주민 약 ${esc(town)}</text>
-  <text x="${X(605)}" y="${Y(128)}" text-anchor="middle" class="map-note">영주성 · 관리국</text>
   ${Object.entries(SPOTS).map(([k, s]) => spotHtml(k, s)).join('')}
   <g transform="translate(0 ${DESK_Y})">
     ${deskSpot('open-doc', 'data-tab="report"', '장부: 보고서', `<rect class="hl" x="24" y="0" width="176" height="128" rx="6"/>

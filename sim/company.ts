@@ -4,7 +4,7 @@
 // 성향: even(고르게) · deep(깊은 층 위주) · hire(계약 파티를 씀) · smart(시장을 읽는 숙련자, 근원에는 채굴장)
 //       smartNoGuide · smartSeal · smartNoRoot: 숙련 봇에서 지침을 빼거나 근원을 달리 다룬 것
 import { setSeed } from '../src/core/rng';
-import { CO, FLOORS, churchPrice, ITEMS, type Plan, type World, defaultPlan, dormCost, partyMargin, roomOf, demandMul, potsOf, probe, floorMons, maxParties, newWorld, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
+import { CO, FLOORS, churchPrice, ITEMS, type Plan, type World, defaultPlan, dormCost, jobsSign, partyMargin, roomOf, demandMul, potsOf, probe, floorMons, maxParties, newWorld, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
 import { demandSeen } from '../src/ui/co/book';
 import { CLASSES } from '../src/core/data';
 
@@ -50,11 +50,12 @@ export const BOT: Record<string, (W: World) => Plan> = {
 // 거점과 쌓아 두기는 지금 규모에서는 손해라 쓰지 않는다 (시뮬레이션으로 확인함)
 const GROW_K = +(process.env.GROW_K || 2), GROW_M = +(process.env.GROW_M || 150);
 export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine', kit = true, scout = false): Plan {
-  const c = us(W), P = defaultPlan(W), L = W.last, pots = 5;
+  const c = us(W), P = defaultPlan(W), L = W.last, pots = 3;
   // 조당 남는 돈: 성공해서 캐 올 값(모형과 지난달 실제 조당 벌이의 중간) − 출정·포션 − 사망의 값(신입 계약금과 빈자리)
   const real = L ? L.perParty : null;
   const value = FLOORS.map((F, f) => {
     if (f >= W.unlocked) return 0;
+    // (층 이해도는 셈에 넣지 않는다: 갓 열린 층의 손해를 무겁게 보면 층을 늦게 들어가 더 손해다. 시뮬레이션으로 확인함)
     const p = succRate(c, f, pots, F.cap), unit = ((L && L.Q[f] ? W.price[f] : ITEMS[f].P0) + ITEMS[f].P0) / 2;
     const model = p * F.take * unit, got = model;
     // 위기 하나는 포션이 있으면 harm만큼, 없으면 그대로 사망으로 이어진다 (조당 포션이 위기 수보다 넉넉하다고 본다)
@@ -69,7 +70,7 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
   for (let k = 0, rest = n - P.parties.reduce((a, b) => a + b, 0); rest > 0; k++, rest--) P.parties[order[k % W.unlocked][1]]++;
   if (scout) P.parties = scoutSplit(W, n, pots, value);
   P.pots = FLOORS.map(() => pots);
-  P.tool = 1;   // 채집 장비 1단계가 가장 낫다 (2단계와 갈무리장은 이 규모에서 본전이 안 된다)
+  P.tool = 0;   // 단원마다 급여가 붙은 뒤로는 채집 장비 · 갈무리장이 본전이 안 된다 (시뮬레이션으로 확인함)
   const best = value.indexOf(Math.max(...value));
   if (c.cash > 6000 && value[best] * (1 - CO.HIRE_CUT) - CO.HIRE_FEE > 150) P.hire[best] = 2;
   const key = deduce(W);
@@ -84,7 +85,15 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
   // 봉인은 범람을 절반으로 줄이지만 우리 순위로는 손해다(200판 3.13 · 3.14 대 3.45). 봉인은 교회가 같은 돈을 보태 절반만 든다
   const rf = (W.roots || []).findIndex(r => r.found && !r.done);
   if (rf >= 0 && c.cash > 8000) P.root = rootMode === 'none' ? null : { f: rf, seal: rootMode === 'seal' ? CO.ROOT_COST / 4 : 0, mine: rootMode === 'mine' ? CO.ROOT_COST / 2 : 0 };
-  // 몸집: 조당 남는 돈이 급여보다 넉넉하면 숙소를 늘린다
+  // 의뢰: 받는 달의 납품 의뢰는 그 층에 보내는 조가 석 달 동안 캐 올 양의 70%까지 맡는다
+  P.take = Object.fromEntries(jobsSign(W).filter(J => P.parties[J.f]).map(J => {
+    const per = L && L.res[0].sent[J.f] ? L.res[0].got[J.f] / L.res[0].sent[J.f] : FLOORS[J.f].take * 0.8;
+    return [J.id, Math.min(J.qty, Math.floor(per * P.parties[J.f] * (J.until - J.from + 1) * 0.7 / CO.TAKE_STEP) * CO.TAKE_STEP)];
+  }));
+  // 신입: 지원자 명단에서 실력 좋은 사람부터 빈 침상만큼
+  if (c.crew && W.cand) P.pick = [...W.cand].sort((a, b) => (b.sk || 0) - (a.sk || 0)).slice(0, roomOf(c)).map(x => x.id);
+  // 몸집: 조당 남는 돈이 급여보다 넉넉하면 숙소를 늘린다. 본부의 질(훈련장 · 의무실)은 올리지 않는다:
+  // 공사가 숙소 증축을 한 달씩 미루는 값이 커서 이 봇의 운영에선 손해였다 (의무실 1단계만 본전 근처)
   return grow(W, P, GROW_K, GROW_M);
 }
 
@@ -95,8 +104,9 @@ export function floorTpl(W: World, f: number, guide: string, kitG = guide) {
     if (!k.startsWith('c:')) return; const off = all.n - v.n;
     if (v.n >= 6 && off >= 6 && v.w / v.n - (all.w - v.w) / off < -0.1) avoid.add(k.slice(2));
   });
-  // 지침이 아직 없는 층은 달마다 다른 직업을 둘씩 넣어 본다 (모든 조가 같은 모양이면 기록으로 견줄 수가 없다)
-  const g = (guide.split('+').find(k => k.startsWith('c:')) || '').slice(2) || (guide ? '' : CLASSES[(W.month + f) % CLASSES.length]);
+  // 지침이 아직 없는 층은 석 달마다 다른 직업을 둘씩 넣어 본다 (모든 조가 같은 모양이면 기록으로 견줄 수가 없다.
+  // 달마다 바꾸면 조가 매달 흩어져 조직력이 쌓이지 않는다)
+  const g = (guide.split('+').find(k => k.startsWith('c:')) || '').slice(2) || (guide ? '' : CLASSES[(Math.floor(W.month / 3) + f) % CLASSES.length]);
   // 소재용으로 더한 직업은 한 자리 (기본 편성에 없으면 넣는다)
   const extra = (kitG.split('+').find(k => k.startsWith('c:') && k.slice(2) !== g) || '').slice(2);
   const base = [...(extra && !CO.TPL0.includes(extra) ? [extra] : []), ...CO.TPL0.filter(x => x !== g && !avoid.has(x))];

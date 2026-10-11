@@ -25,7 +25,7 @@ export function moneySeries(W: World) {
   return {
     months: H.map(M => M.month), cash, start: c,
     sales: H.map(M => r(M).sales), loot: H.map(M => r(M).sales - r(M).matSales), mats: H.map(M => r(M).matSales), net: H.map(M => r(M).net),
-    spend: H.map(M => { const s = r(M).spend; return { people: s.wage + s.recruit + (s.heal || 0), sortie: s.sortie + s.hire + s.tool, supply: s.potion + s.gear, info: s.intel + s.probe, invest: s.train + s.base + s.proc + s.donate + s.root + (s.dorm || 0) }; }),
+    spend: H.map(M => { const s = r(M).spend; return { people: s.wage + s.recruit + (s.heal || 0), sortie: s.sortie + s.hire + s.tool, supply: s.potion + s.gear, info: s.intel + s.probe, invest: s.train + s.base + s.proc + s.donate + s.root + (s.dorm || 0) + (s.hq || 0) + (s.job || 0) }; }),
     parties: H.map(M => sum(r(M).sent) + sum(r(M).hired)), heads: headsOf(W),
     share: H.map(M => { const mine = sum(r(M).got.map((g, f) => g * ITEMS[f].P0)), all = sum(M.res.map(x => sum(x.got.map((g, f) => g * ITEMS[f].P0)))); return all ? mine / all : 0; }),
     deaths: H.map(M => r(M).deaths), ok: H.map(M => sum(r(M).ok)),

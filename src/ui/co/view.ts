@@ -1,5 +1,5 @@
 // 용병단 행정실 화면: 결정표(위)와 지난달 정산(아래). HTML 문자열을 만들기만 하고 상태는 건드리지 않는다
-import { CO, FLOORS, INTEL, ITEMS, type Plan, SRCS, type World, bedsOf, fcRank, gradeOf, churchPrice, dormKeep, guideParts, hireCost, intelBlock, intelCost, lootMul, toolCost, trainBonus, maxParties, potsExpiring, potsOf, priceOf, rankOf, sanitize, sortieCost, succRate, us, worth } from '../../core/company';
+import { CO, FLOORS, INTEL, ITEMS, type Plan, SRCS, type World, bedsOf, fcRank, gradeOf, churchPrice, dormKeep, guideParts, hireCost, intelBlock, intelCost, lootMul, toolCost, trainBonus, maxParties, mapOf, potsExpiring, potsOf, priceOf, rankOf, sanitize, sortieCost, succRate, us, worth } from '../../core/company';
 import { CLASSES, GEARS, MONSTERS } from '../../core/data';
 import { keyLabel } from '../../core/util';
 import { cashChart, fcChart, flowChart, fmtG, incomeMix, moneySeries, perHeadChart, perPartyChart, priceBoard, shareChart, spendMix } from './charts';
@@ -49,6 +49,8 @@ export function resultsHtml(W: World) {
   const r = L.res[0];
   const mine = `<div class="tw"><table class="grid"><thead><tr><th>층</th><th class="n">우리</th><th class="n">계약</th><th class="n">성공</th><th class="n">캐 온 양</th></tr></thead><tbody>${FLOORS.map((F, f) => (r.sent[f] + r.hired[f] ? `<tr><td>${F.name}</td><td class="n">${r.sent[f]}</td><td class="n">${r.hired[f]}</td><td class="n">${r.ok[f]}</td><td class="n">${r.got[f]}</td></tr>` : '')).join('')}</tbody></table></div>
     <div class="tw"><table class="grid"><thead><tr><th>정산</th><th class="n">금액</th></tr></thead><tbody>${ITEMS.map((it, j) => (r.sold[j] ? `<tr><td>${it.name} ${fmt(r.sold[j])}개 × ${fmtG(L.price[j])}G</td><td class="n">${fmt(r.sold[j] * L.price[j])}</td></tr>` : '')).join('')}
+      ${r.jobPay ? `<tr><td>의뢰 (납품 웃돈 · 포상)</td><td class="n">${fmt(r.jobPay)}</td></tr>` : ''}
+      ${r.mapSale ? `<tr><td>지도 사본 판매 (관리국)</td><td class="n">${fmt(r.mapSale)}</td></tr>` : ''}
       ${r.matSales ? `<tr><td>갈무리 소재 ${Object.values(r.matSold).reduce((a, b) => a + b, 0)}개</td><td class="n">${fmt(r.matSales)}</td></tr>` : ''}
       <tr><td>출정</td><td class="n">−${fmt(r.spend.sortie)}</td></tr>
       ${r.spend.potion ? `<tr><td>포션 구매 ${r.potNeed}병 (교회 ${r.potC}병)</td><td class="n">−${fmt(r.spend.potion)}</td></tr>` : ''}
@@ -58,6 +60,8 @@ export function resultsHtml(W: World) {
       ${r.spend.hire ? `<tr><td>계약 파티 수수료</td><td class="n">−${fmt(r.spend.hire)}</td></tr>` : ''}
       <tr><td>급여</td><td class="n">−${fmt(r.spend.wage)}</td></tr>
       ${r.spend.heal ? `<tr><td>치료비 (부상 ${r.hurt}명 · 다음 달 쉼)</td><td class="n">−${fmt(r.spend.heal)}</td></tr>` : ''}
+      ${r.spend.job ? `<tr><td class="neg">의뢰 위약금 (못 채운 납품)</td><td class="n">−${fmt(r.spend.job)}</td></tr>` : ''}
+      ${r.spend.hq ? `<tr><td>본부 공사 · 유지비</td><td class="n">−${fmt(r.spend.hq)}</td></tr>` : ''}
       ${r.recruitWant ? `<tr><td>신입 ${r.recruited}명 × ${fmt(r.recruitPrice)}G${r.recruited < r.recruitWant ? ` <span class="dim">(찾은 ${r.recruitWant}명 · 지원자가 모자람)</span>` : ''}</td><td class="n">−${fmt(r.spend.recruit)}</td></tr>` : ''}
       ${r.rookDone || r.rookDead ? `<tr><td class="dim">수습${r.rookDone ? ` ${r.rookDone}명이 대원이 됨` : ''}${r.rookDead ? `${r.rookDone ? ',' : ''} ${r.rookDead}명 사망` : ''}</td><td class="n dim">-</td></tr>` : ''}
       ${r.spend.dorm ? `<tr><td>숙소 ${r.spend.dorm > dormKeep(bedsOf(us(W))) ? '유지비 · 증축' : '유지비'}</td><td class="n">−${fmt(r.spend.dorm)}</td></tr>` : ''}
@@ -91,7 +95,9 @@ export function resultsHtml(W: World) {
       <section><h4>시세</h4><div class="tw">${priceBoard(W)}</div></section>
     </div></section>
     ${fcVsHtml(W)}
+    ${jobsHtml(W)}
     ${supplyHtml(W)}
+    ${mapHtml(W)}
     <section class="rp"><h3>탐사</h3>${returnHtml(W)}</section>
     <details class="fold"><summary>우리 정산 자세히</summary><div class="mine">${mine}</div></details>`;
 }
@@ -107,6 +113,34 @@ function fcVsHtml(W: World) {
     <p class="note">어림 기대 <b>${fmt(fc.mean)}G</b> (열에 여덟은 ${fmt(fc.p10)} ~ ${fmt(fc.p90)}G) → 실제 <b>${fmt(a)}G</b>, 어림의 아래에서 ${Math.round(rk * 100)}%. ${say}</p>
     ${past.length > 1 ? `<div class="tw"><table class="grid slim fcv"><thead><tr><th>달</th><th class="n">어림 기대</th><th class="n">열에 여덟</th><th class="n">실제</th><th class="n">차이</th></tr></thead><tbody>${past.map(M => { const x = M.res[0].sales, d = x - M.fc!.mean; return `<tr><td>제${M.month}월</td><td class="n">${fmt(M.fc!.mean)}</td><td class="n dim">${fmt(M.fc!.p10)} ~ ${fmt(M.fc!.p90)}</td><td class="n">${fmt(x)}</td><td class="n ${d < 0 ? 'neg' : 'pos'}">${sgn(d)}</td></tr>`; }).join('')}</tbody></table></div>` : ''}
   </section>`;
+}
+
+// 의뢰: 이번 달 넘긴 양 · 받은 웃돈 · 포상 · 위약금 (끝난 의뢰는 결과). 기록을 읽어 보여 주기만 한다
+function jobsHtml(W: World) {
+  const L = W.last; if (!L) return '';
+  const r = L.res[0], rows = (r.jobs || []).map(x => {
+    const J = (W.jobs || []).find(y => y.id === x.id); if (!J) return '';
+    const end = J.until === L.month;
+    const what = J.kind === 'race' ? (end ? `${x.got}조 · ${x.rank}등` : `지금까지 ${x.got}조`) : `이번 달 ${fmt(x.got)}개 넘김 · ${fmt(J.done[0])} / ${fmt(J.take[0])}개${end ? (J.done[0] >= J.take[0] ? ' · 다 채움' : ` · ${fmt(J.take[0] - J.done[0])}개 못 채움`) : ''}`;
+    return `<tr><td>${J.by} · ${J.title}${end ? ' <span class="chip">마감</span>' : ''}</td><td>${what}</td><td class="n ${x.pay ? 'pos' : ''}">${x.pay ? '+' + fmt(x.pay) : '-'}</td><td class="n ${x.pen ? 'neg' : ''}">${x.pen ? '−' + fmt(x.pen) : '-'}</td></tr>`;
+  }).join('');
+  return rows ? `<section class="rp"><h3>의뢰</h3><div class="tw"><table class="grid slim"><thead><tr><th>의뢰</th><th>결과</th><th class="n">받은 돈</th><th class="n">위약금</th></tr></thead><tbody>${rows}</tbody></table></div></section>` : '';
+}
+
+// 지도 완성도: 층마다 칸 100개 중 채운 칸(이번 달 채운 칸은 따로), 이정표, 이번 달 보탠 사람. 기록을 읽어 보여 주기만 한다
+const MAP_MS: [number, string][] = [[25, '갈림길 · 위기 −10%'], [50, '주 사냥터 · 캐 오는 양 +10%'], [75, '근원 단서 · 성공 +3%p'], [100, '완성 · 기록실 3단계면 사본을 팔 수 있음']];
+function mapHtml(W: World) {
+  const L = W.last; if (!L || !L.map0) return '';
+  const c = us(W), names = new Map((c.crew || []).map(p => [p.id, p.n || p.c]));
+  const cards = FLOORS.slice(0, W.unlocked).map((F, f) => {
+    const a = Math.floor(L.map0![f] || 0), b = Math.floor(mapOf(c, f)), cells = Array.from({ length: 100 }, (_, k) => `<i class="${k < a ? 'f' : k < b ? 'g' : ''}"></i>`).join('');
+    const ms = MAP_MS.map(([v, t]) => `<div class="${b >= v ? 'got' : ''}${b >= v && a < v ? ' new' : ''}">${v}% ${t}${b < v && v - b <= 10 ? ` <span class="dim">· ${v - b} 남음</span>` : ''}</div>`).join('');
+    return `<div class="mp"><div class="mp-h"><b>${F.name}</b>${b > a ? `<span class="gain">+${b - a}</span>` : ''}<span class="big">${b}%</span></div><div class="mgrid" aria-hidden="true">${cells}</div><div class="ms">${ms}</div>${c.mapSold && c.mapSold[f] ? '<p class="dim">사본을 관리국에 넘겼어요</p>' : ''}</div>`;
+  }).join('');
+  const by = Object.entries(L.mapBy || {}).filter(([id, v]) => v >= 0.5 && names.has(+id)).sort((x, y) => y[1] - x[1]).slice(0, 6);
+  return `<section class="rp"><h3>지도 완성도</h3><div class="maps">${cards}</div>
+    ${by.length ? `<p class="note">이번 달 지도에 보탠 사람: ${by.map(([id, v]) => `${names.get(+id)} +${v.toFixed(1)}`).join(' · ')}</p>` : ''}
+    <p class="note">지도는 용병단의 자산이라 사람이 떠나도 남아요. 새 층이 열리면 누구의 지도도 0%에서 시작해요.</p></section>`;
 }
 
 // 보급 소모: 층마다 조가 들고 간 포션(칸 하나가 한 병)과 그중 위기에 쓴 병, 최근 몇 달 조당 위기 · 포션, 창고에 남은 것.
