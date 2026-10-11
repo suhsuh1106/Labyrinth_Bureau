@@ -2,14 +2,15 @@
 import './ui/co/base.css';
 import './ui/co/co.css';
 import { setSeed } from './core/rng';
-import { CO, type Plan, SRCS, type World, carryPlan, fillTeams, formTeams, newWorld, probe, rankOf, runMonth, sanitize, us } from './core/company';
+import { CO, type Plan, SRCS, type World, carryPlan, fillTeams, formTeams, newWorld, probe, rankOf, roomOf, runMonth, sanitize, us } from './core/company';
+import { DESC_FIRST } from './ui/co/roster';
 import { CLASSES, GEARS } from './core/data';
 import { plaqueHtml } from './ui/co/view';
 import { type DeskUi, DOC_KEYS, PLACE_KEYS, expWeekHtml, infoWeekHtml, resultWeekHtml, weeksHtml } from './ui/co/desk';
 import { advanceArrival, arrivalOpen, closeArrival, playArrival } from './ui/co/arrival';
 
 const $ = (id: string): any => document.getElementById(id);
-const KEY = 'lb-co', VERSION = 11, MONTHS = 36;   // 11: 전리품 개수 10배 · 값 10분의 1 (이전 판은 새 게임으로)
+const KEY = 'lb-co', VERSION = 12, MONTHS = 36;   // 12: 단원마다 이름 · 실력 · 특성 · 층 경험 · 조직력, 지원자 명단 (이전 판은 새 게임으로)
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
 let W: World, plan: Plan, ui: DeskUi;
 // 도장을 막 찍은 결과 화면이면 귀환 장부를 한 줄씩 띄운다 (저장하지 않는 화면 상태)
@@ -68,6 +69,8 @@ function teamAct(a: string, b: HTMLElement) {
   else if (a === 'fill-rest') { fillTeams(c, T, tpl); ui.pick = null; }
   else if (a === 'bench') { const id = +(b.dataset.id || 0); ui.pick = pick && pick.id === id ? null : { id }; }
   else if (a === 'to-bench') { if (pick && pick.t != null && T[pick.t]) T[pick.t].m[pick.s!] = null; ui.pick = null; }
+  else if (a === 'assign') assignTo(+(b.dataset.id || 0), b.dataset.t || '-1');
+  else if (a === 'tfloor') { const x = T[+(b.dataset.t || 0)]; if (x) x.f = +(b.dataset.f || 0); }
   else if (a === 'slot') {
     const t = +(b.dataset.t || 0), s = +(b.dataset.s || 0);
     if (pick && pick.id != null) { T[t].m[s] = pick.id; ui.pick = null; }   // 대기 인원을 넣는다 (있던 사람은 대기로)
@@ -75,6 +78,14 @@ function teamAct(a: string, b: HTMLElement) {
     else if (T[t].m[s] != null) ui.pick = { t, s };
   }
   tidyTeams(); render(); save();
+}
+// 편성표 배치 칸: 사람을 t번 조의 빈자리에 넣는다 ('new'면 새 조를 만들고, '-1'이면 대기로)
+function assignTo(id: number, t: string) {
+  const T = plan.teams || (plan.teams = []);
+  T.forEach(x => { x.m = x.m.map(y => (y === id ? null : y)); });
+  if (t === 'new') { const f = T.length ? T[T.length - 1].f : 0; T.push({ f, m: [id, null, null, null], g: '' }); return; }
+  const x = T[+t]; if (!x) return;
+  const s = x.m.findIndex(y => y == null); if (s >= 0) x.m[s] = id;
 }
 // 한 층의 조 수를 바꾼다: 늘리면 대기 인원으로 기본 편성대로 짠 조를 더하고, 줄이면 그 층의 마지막 조를 대기로 돌린다
 function setTeams(f: number, n: number) {
@@ -111,8 +122,18 @@ function act(b: HTMLElement) {
   if (a === 'close-doc') { ui.open = false; render(); save(); return; }
   if (a === 'intel-cut') { const k = b.dataset.src as any, cut = new Set(plan.intelCut || []); cut.has(k) ? cut.delete(k) : cut.add(k); plan.intelCut = [...cut] as any; render(); save(); return; }
   if (a === 'dorm') { plan.dorm = !plan.dorm; render(); save(); return; }
-  if (a === 'auto-recruit') { delete plan.recruit; delete plan.recruitC; render(); save(); return; }
-  if (a === 'refill' || a === 'fill-rest' || a === 'bench' || a === 'to-bench' || a === 'slot') return teamAct(a, b);
+  if (a === 'auto-recruit') { delete plan.recruit; delete plan.recruitC; delete plan.pick; render(); save(); return; }
+  if (a === 'pick') {
+    const id = +(b.dataset.id || 0), P = plan.pick ? [...plan.pick] : [], k = P.indexOf(id);
+    if (k >= 0) P.splice(k, 1); else if (P.length < roomOf(us(W))) P.push(id);
+    plan.pick = P; render(); save(); return;
+  }
+  if (a === 'sort') {
+    const sc = b.dataset.scope || 'rs', k = b.dataset.k || 'name', cur = (ui.sort || {})[sc], [ck, cd] = (cur || '').split(':');
+    const d = ck === k ? -(+cd || 1) : DESC_FIRST.includes(k) ? -1 : 1;
+    ui.sort = { ...(ui.sort || {}), [sc]: `${k}:${d}` }; render(); save(); return;
+  }
+  if (a === 'refill' || a === 'fill-rest' || a === 'bench' || a === 'to-bench' || a === 'slot' || a === 'assign' || a === 'tfloor') return teamAct(a, b);
   if (a === 'auto-pot') { plan.buy = { ...(plan.buy || {}) }; delete plan.buy.pot; render(); save(); return; }
   if (a === 'kit-add') { const f = +(b.dataset.f || 0); plan.kits = plan.kits || []; plan.kits[f] = [...(plan.kits[f] || []), { n: 0, g: '' }]; render(); save(); return; }
   if (a === 'kit-del') { const f = +(b.dataset.f || 0), k = +(b.dataset.j || 0); if (plan.kits && plan.kits[f]) plan.kits[f].splice(k, 1); render(); save(); return; }
@@ -133,7 +154,7 @@ function stamp() {
 
 $('desk').addEventListener('click', (e: any) => {
   // 버튼과, 지도 · 책상 위 물건(SVG의 data-act)을 누른다
-  const t = e.target.closest('button, .spot[data-act]'); if (!t || t.disabled) return;
+  const t = e.target.closest('button, .spot[data-act], th[data-act]'); if (!t || t.disabled) return;
   if (t.dataset.act) return act(t);
   if (t.dataset.tab) { ui.tab = t.dataset.tab; render(); save(); return; }
   if (t.dataset.pin) { const p = t.dataset.pin; ui.pins = ui.pins.includes(p) ? ui.pins.filter(x => x !== p) : [...ui.pins, p]; render(); save(); return; }
@@ -141,7 +162,7 @@ $('desk').addEventListener('click', (e: any) => {
 });
 // 지도 위 장소는 Tab으로 고르고 Enter · Space로 연다
 $('desk').addEventListener('keydown', (e: any) => {
-  const t = e.target; if (!(t instanceof Element) || !t.classList.contains('spot') || (e.key !== 'Enter' && e.key !== ' ')) return;
+  const t = e.target; if (!(t instanceof Element) || !(t.classList.contains('spot') || t.matches('th[data-act]')) || (e.key !== 'Enter' && e.key !== ' ')) return;
   e.preventDefault(); act(t as HTMLElement);
 });
 $('desk').addEventListener('change', (e: any) => {
@@ -157,6 +178,7 @@ $('desk').addEventListener('change', (e: any) => {
   }
   if (k === 'tpl') { const tp = [...(plan.tpl || CO.TPL0)]; tp[+t.dataset.i] = t.value; plan.tpl = tp; render(); save(); return; }
   if (k === 'teamG') { const T = plan.teams && plan.teams[+t.dataset.i]; if (T) T.g = t.value; render(); save(); return; }
+  if (k === 'assign') { assignTo(+t.dataset.id, t.value); tidyTeams(); render(); save(); return; }
   if (k === 'spyOn') { const on = [...(plan.spyOn || [])]; on[+t.dataset.i] = t.value; plan.spyOn = on.filter(Boolean); render(); save(); return; }
   if (k === 'rootf') { plan.root = { f: +t.value, seal: plan.root ? plan.root.seal : 0, mine: plan.root ? plan.root.mine : 0 }; render(); save(); return; }
   if (k === 'basef') { plan.base = { f: +t.value, amt: plan.base ? plan.base.amt : 0 }; render(); save(); return; }

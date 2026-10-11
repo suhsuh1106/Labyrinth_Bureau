@@ -733,3 +733,70 @@ table.grid.fcv td, table.grid.fcv th { font-size: 12px; }
 .placebar kbd { font: 10px var(--f-num); color: #7a6440; margin-left: 4px; }
 .placebar .mk { position: absolute; top: -7px; right: -7px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px; background: #a8332a; color: #fff; font: 600 10px/17px var(--f-num); text-align: center; }
 @media (max-width: 640px) { .placebar kbd { display: none; } .placebar .sp { display: none; } }
+
+/* ---------- 단원 명단 · 지원자 · 편성표 (엑셀처럼 한 줄에 한 사람) ---------- */
+:root { --k0: #2a78d6; --k1: #c4572a; --k2: #1b8f64; --k3: #b07a00; --k4: #7a4fa0; --k5: #b8452f; --k6: #2f7d7a; --k7: #5b6670;
+  --tr0: #9aa39c; --tr1: #5f8f6e; --tr2: #2c4a7a; --tr3: #7a4fa0; --tr4: #b8862a; }
+.rs-h { font: 600 14px var(--f-display); margin: 14px 0 6px; }
+.rs-h .dim { font: 12px var(--f-body); margin-left: 6px; }
+.rs-sum { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; margin-bottom: 6px; }
+.rs-sum b { font-family: var(--f-num); }
+table.crewt td, table.tsum td { vertical-align: middle; white-space: nowrap; }
+table.crewt td.nm { font-weight: 600; }
+table.crewt { width: 100%; }
+table.crewt td.cn { color: var(--ink-soft); font-size: 12px; }
+table.crewt tr.away td { opacity: .55; }
+table.crewt tr.on td { background: color-mix(in srgb, var(--merchant) 8%, transparent); }
+th.srt { cursor: pointer; user-select: none; white-space: nowrap; }
+th.srt::after { content: " ↕"; opacity: .35; }
+th.srt.asc::after { content: " ▲"; opacity: 1; }
+th.srt.desc::after { content: " ▼"; opacity: 1; }
+th.srt:hover, th.srt:focus-visible { color: var(--ink); outline: none; text-decoration: underline; }
+.tier { display: inline-flex; align-items: center; gap: 5px; }
+.tier .pips { display: inline-flex; gap: 2px; }
+.tier .pips i { width: 7px; height: 7px; border-radius: 50%; background: var(--rule); }
+.tier em { font-style: normal; font-size: 12px; }
+.tier.t0 .pips i:nth-child(-n+1) { background: var(--tr0); }
+.tier.t1 .pips i:nth-child(-n+2) { background: var(--tr1); }
+.tier.t2 .pips i:nth-child(-n+3) { background: var(--tr2); }
+.tier.t3 .pips i:nth-child(-n+4) { background: var(--tr3); }
+.tier.t4 .pips i:nth-child(-n+5) { background: var(--tr4); }
+.trait { display: inline-block; font-size: 12px; padding: 0 7px; border-radius: 3px; background: var(--paper-2); border: 1px solid var(--rule); cursor: help; }
+td.ex { font-family: var(--f-num); font-size: 12px; }
+td.ex i { display: inline-block; height: 6px; background: var(--church); border-radius: 1px; margin-right: 4px; vertical-align: middle; opacity: .8; }
+td.ex.hl { background: color-mix(in srgb, var(--church) 14%, transparent); font-weight: 600; }
+td.bond { font-size: 12px; color: var(--ink-soft); }
+td.bond .fresh { color: var(--church); font-weight: 600; }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; flex-wrap: nowrap; }
+.seg button { border: 0; border-left: 1px solid var(--rule); background: var(--paper); color: var(--ink-soft); font: 500 12px var(--f-body); padding: 3px 8px; cursor: pointer; min-width: 34px; }
+.seg button:first-child { border-left: 0; }
+.seg button[aria-pressed="true"] { color: #fff; font-weight: 600; background: var(--ink-soft); }
+.seg button:disabled { opacity: .35; cursor: not-allowed; }
+.seg button:focus-visible { outline: 2px solid var(--brass); outline-offset: -2px; }
+.seg.sm button { padding: 2px 7px; }
+.seg.sm button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.seg.asg button.k0[aria-pressed="true"] { background: var(--k0); } .seg.asg button.k1[aria-pressed="true"] { background: var(--k1); }
+.seg.asg button.k2[aria-pressed="true"] { background: var(--k2); } .seg.asg button.k3[aria-pressed="true"] { background: var(--k3); }
+.seg.asg button.k4[aria-pressed="true"] { background: var(--k4); } .seg.asg button.k5[aria-pressed="true"] { background: var(--k5); }
+.seg.asg button.k6[aria-pressed="true"] { background: var(--k6); } .seg.asg button.k7[aria-pressed="true"] { background: var(--k7); }
+table.asgn tr.k0 td:first-child { box-shadow: inset 3px 0 var(--k0); } table.asgn tr.k1 td:first-child { box-shadow: inset 3px 0 var(--k1); }
+table.asgn tr.k2 td:first-child { box-shadow: inset 3px 0 var(--k2); } table.asgn tr.k3 td:first-child { box-shadow: inset 3px 0 var(--k3); }
+table.asgn tr.k4 td:first-child { box-shadow: inset 3px 0 var(--k4); } table.asgn tr.k5 td:first-child { box-shadow: inset 3px 0 var(--k5); }
+table.asgn tr.k6 td:first-child { box-shadow: inset 3px 0 var(--k6); } table.asgn tr.k7 td:first-child { box-shadow: inset 3px 0 var(--k7); }
+table.tsum tr.t0 td:first-child { box-shadow: inset 3px 0 var(--k0); } table.tsum tr.t1 td:first-child { box-shadow: inset 3px 0 var(--k1); }
+table.tsum tr.t2 td:first-child { box-shadow: inset 3px 0 var(--k2); } table.tsum tr.t3 td:first-child { box-shadow: inset 3px 0 var(--k3); }
+table.tsum tr.t4 td:first-child { box-shadow: inset 3px 0 var(--k4); } table.tsum tr.t5 td:first-child { box-shadow: inset 3px 0 var(--k5); }
+table.tsum tr.t6 td:first-child { box-shadow: inset 3px 0 var(--k6); } table.tsum tr.t7 td:first-child { box-shadow: inset 3px 0 var(--k7); }
+table.tsum { width: 100%; }
+table.tsum tr.rest td { border-top: 1px dashed var(--rule); }
+.sheetwrap { margin-top: 14px; }
+table.tsum .cl { display: inline-flex; gap: 3px; }
+table.tsum .cl span { font-size: 11px; padding: 0 5px; border-radius: 3px; background: var(--paper-2); border: 1px solid var(--rule); }
+table.tsum select { font: 12px var(--f-body); }
+.cobar { display: inline-flex; align-items: center; gap: 6px; }
+.cobar i { display: inline-block; width: 64px; height: 8px; border-radius: 2px; background: var(--paper-2); position: relative; overflow: hidden; border: 1px solid var(--rule); }
+.cobar i b { position: absolute; inset: 0 auto 0 0; background: var(--good); }
+.cobar small { font-size: 11px; }
+.warn-s { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.warn-s span { font-size: 11px; padding: 0 6px; border-radius: 3px; background: color-mix(in srgb, var(--bad) 14%, transparent); color: var(--bad); }
+.warn-s span.ok { background: var(--paper-2); color: var(--ink-soft); }

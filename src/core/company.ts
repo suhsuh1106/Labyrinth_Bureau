@@ -2,7 +2,7 @@
 // 여러 용병단이 같은 층에서 전리품을 캐고 같은 시장에 판다. 층마다 캘 수 있는 양이 한정돼 몰리면 나눠 갖고,
 // 모두가 같은 시세에 팔아서 다 같이 많이 팔면 값이 떨어진다. 플레이어는 그중 한 용병단의 행정관이다.
 // 화면에 붙이기 전까지는 상태를 S가 아니라 이 파일의 World 하나로 둔다.
-import { ANOMALIES, BUYERS, CLASSES, CLASS_SHARE, FAUNA, GEARS, GEAR_SHARE, KEYS, MAT_TIER, MONSTERS, type Mat, ROOT_LORE } from './data';
+import { ANOMALIES, BUYERS, CLASSES, CLASS_SHARE, FAMILY, FAUNA, GEARS, GEAR_SHARE, GIVEN, KEYS, MAT_TIER, MONSTERS, type Mat, ROOT_LORE, TRAIT_KEYS } from './data';
 import { rnd } from './rng';
 import { keyWord } from './util';
 
@@ -34,6 +34,14 @@ export const CO = {
   // 우리 조 편성: 단원마다 직업이 있고, 조는 있는 사람으로 짠다. 자리가 빈 채 나가면 빈자리 하나당 성공률 -SHORT_PEN,
   // 캐 오는 양은 사람 수만큼(4명 기준)만. 신입은 직업을 골라 뽑고, 드문 직업은 CLASS_COST배 비싸다(지원자 중 그 직업의 몫까지만)
   SHORT_PEN: 0.12, TPL0: ['전사', '궁수', '도적', '마법사'],
+  // 단원 한 사람: 실력(0~100)은 TIER_STEP마다 한 단계(신입 · 수련 · 숙련 · 노련 · 명인). 단계마다 그 사람의 성공 굴림에 TIER_B를 더하고,
+  // 급여는 TIER_WAGE, 뽑는 값은 신입 값의 TIER_COST배다. 나가서 해내면 실력 +SK_WIN, 못 해내도 +SK_TRY. 그 층 경험은 +EX_WIN / +EX_TRY (100까지)
+  TIER_STEP: 20, TIER_B: [-0.05, -0.02, 0.01, 0.03, 0.05], TIER_WAGE: [24, 28, 34, 42, 52], TIER_COST: [1, 1.5, 2.2, 3, 4],
+  SK_WIN: 2, SK_TRY: 1, EX_WIN: 6, EX_TRY: 3, CHICKEN_WAGE: 4,
+  // 조직력: 조원 둘씩 짝지어 같은 조로 함께 나간 달(CO_MAX달이 끝)을 평균해 0~1. 1이면 성공 +CO_SUCC, 위기 ×(1 − CO_CRISIS)
+  CO_MAX: 6, CO_SUCC: 0.05, CO_CRISIS: 0.15,
+  // 지원자 명단: 달마다 우리 문을 두드리는 사람 (CAND_MAX명까지)
+  CAND_MAX: 8,
   CLASS_COST: { 전사: 1, 궁수: 1.2, 도적: 1.2, 마법사: 1.5, 사제: 1.5 } as Record<string, number>,
   // 마을 지원자: 매달 APP_BASE + 지난달 모두의 판매 수입 1000G당 APP_PER명 (±20%). 첫 달은 APP0명.
   // 찾는 사람이 더 많으면 명성의 무게(1 + 명성 / FAME_K)대로 나눈다
@@ -190,7 +198,9 @@ export type Company = {
   // 우리 단원 명단 (직업, 수습이면 겪은 성공 수). 우리 수습은 rook 대신 여기에 둔다. 경쟁 용병단은 명단 없이 조마다 직업이 섞여 나간다
   crew?: Person[]; nextId?: number; hurtN?: number;   // hurtN: 이번 달 부상으로 쉬는 사람 (경쟁 용병단)
 };
-export type Person = { id: number; c: string; rk?: number; hurt?: number };   // hurt: 부상으로 쉬는 달 수
+// 단원: 직업(c), 이름(n), 실력(sk, 0~100), 특성(tr), 층마다 경험(ex, 0~100), 함께 나간 짝마다 함께한 달(mt), 해낸 수(wins), 부상으로 쉬는 달(hurt).
+// rk는 옛 수습(경쟁 용병단과 옛 판에만)
+export type Person = { id: number; c: string; rk?: number; hurt?: number; n?: string; sk?: number; tr?: string; ex?: number[]; mt?: Record<number, number>; wins?: number };
 // 우리 조 하나: 층, 자리 넷(단원 id, 빈자리는 null), 챙길 장비("g:은" 꼴, 빈 문자열이면 섞인 대로)
 export type Team = { f: number; m: (number | null)[]; g: string };
 // guide: 층마다 편성 지침 (KEYS 중 하나, 없으면 빈 문자열)
@@ -212,6 +222,7 @@ export type Plan = { parties: number[]; pots: number[]; train: number; base: { f
   recruit?: number; dorm?: boolean;
   // 우리 조 편성: 기본 편성(자리 넷의 직업), 조마다의 편성. 있으면 parties·kits 대신 이것을 따른다. recruitC: 직업별로 뽑을 신입
   tpl?: string[]; teams?: Team[]; recruitC?: Record<string, number>;
+  pick?: number[];   // 지원자 명단에서 고른 사람(지원자 id, 먼저 고른 순)
   tplF?: (string[] | undefined)[] };   // 층마다 따로 짤 모양 (봇이 쓴다. 화면은 기본 편성 하나로 짜고 손으로 고친다)
 // 조사 의뢰 한 건: 시장 조사는 지금 나와 있는 찾는 곳 전부, 타 용병단 조사는 그 용병단의 이번 달 층별 파티 수
 export type Probe = { m: number; k: 'mkt' | 'riv'; id?: string; cost: number; dem?: Demand[]; parties?: number[]; hire?: number[]; guide?: string[] };
@@ -234,7 +245,7 @@ export type CoResult = {
   sent: number[]; hired: number[]; ok: number[]; win: number[]; got: number[]; deaths: number; hurt: number; sold: number[]; sales: number;
   spend: { sortie: number; potion: number; wage: number; train: number; base: number; hire: number; recruit: number; donate: number; root: number; tool: number; proc: number; intel: number; gear: number; probe: number; dorm: number; heal: number }; net: number; recruited: number;
   recruitWant: number; recruitPrice: number; rookDone: number; rookDead: number;
-  recruitC?: Record<string, number>;   // 우리가 직업별로 들인 신입   // 찾은 신입 수와 한 명 값, 대원이 된 수습과 죽은 수습
+  recruitC?: Record<string, number>; newP?: number[];   // 우리가 직업별로 들인 신입, 들어온 지원자 id   // 찾은 신입 수와 한 명 값, 대원이 된 수습과 죽은 수습
   potSpoil: number;   // 기한이 지나 버린 포션
   potUsed: number; potShort: number; gearUsed: Record<string, number>; gearLost: Record<string, number>;   // 꺼내 쓴 포션과 모자랐던 병, 들고 간 장비와 망가진 것
   matSold: Record<string, number>; matSales: number;   // 정산 때 판 소재 (판매 수입 sales에 들어 있다)
@@ -269,6 +280,7 @@ export type World = {
   mat?: Mats;
   probes?: Probe[];
   apps?: number;   // 이번 달 정산 때 마을에 와 있을 지원자 (지난달 말에 정해 둔다)
+  cand?: Person[];   // 이번 달 우리 문을 두드린 지원자 명단 (지난달 말에 정해 둔다)
 };
 export type Cartel = { left: number; churchOut: boolean; donated: number[] };
 // 이번 달 i번 용병단이 교회 포션에 내는 값: 담합 중엔 올라 있고, 교회가 빠진 뒤로는 후원한 용병단에만 예전 값으로 판다
@@ -280,7 +292,7 @@ export const churchPrice = (W: World, i: number) => {
 export function newWorld(): World {
   // 층마다 사는 것은 판마다 다르다
   const mons = MONSTERS.map((_, i) => i).sort(() => rnd() - 0.5).slice(0, FLOORS.length);
-  return {
+  const W: World = {
     mons, notes: [], obs: FLOORS.map(() => ({})), potionC: CO.POTION_C0, cartel: null, tension: 0, cool: 0,
     pressure: 0, anoms: 0, anomN: 0, roots: FLOORS.map(() => ({ found: 0, seal: 0, mine: 0, done: '' as const, at: 0 })),
     keys: mons.map(m => MONSTERS[m].key), keyUse: zeros(), adapted: zeros(),
@@ -297,6 +309,8 @@ export function newWorld(): World {
       trait: { resp: 0.8 + 0.4 * rnd(), pots: rnd() < 0.3 ? 1 : 0 } })),
     last: null, history: [], log: [], probes: [],
   };
+  W.cand = candsOf(W, true);
+  return W;
 }
 
 export const us = (W: World) => W.cos[0];
@@ -306,7 +320,7 @@ export const keyOf = (W: World, f: number) => (W.keys && W.keys[f]) || MONSTERS[
 export const expBonus = (n: number) => CO.EXP_MAX * n / (n + CO.EXP_K);
 export const lootMul = (c: Company, f: number, tool = 0) =>
   1 + expBonus(((c.exp && c.exp[f]) || 0) * CO.SIZE_REF / Math.max(CO.SIZE_REF / 2, c.members)) + CO.PROC_BONUS * Math.min(CO.PROC_MAX, c.proc || 0) + (CO.TOOL_BONUS[tool] || 0);
-const rootOf = (W: World, f: number): Root => (W.roots && W.roots[f]) || { found: 0, seal: 0, mine: 0, done: '', at: 0 };
+export const rootOf = (W: World, f: number): Root => (W.roots && W.roots[f]) || { found: 0, seal: 0, mine: 0, done: '', at: 0 };
 // 층의 크기: 봉인한 층은 조금 작아진다 (모두가 덜 캔다)
 export const floorMax = (W: World, f: number) => Math.round(FLOORS[f].max * (rootOf(W, f).done === 'seal' ? CO.SEAL_MAX : 1));
 // 층이 압력에 보태는 배율: 봉인하면 줄고, 채굴장을 내면 는다
@@ -321,12 +335,70 @@ export const dormKeep = (beds: number) => beds * CO.DORM_KEEP;
 export const wageOf = (m: number) => Math.round(m * CO.WAGE * (1 + m / CO.OVERHEAD));
 // 신입 한 명 값: 찾는 사람(want)이 지원자(apps)보다 많으면 오른다
 export const recruitPrice = (want: number, apps: number) => Math.round(CO.RECRUIT * Math.min(CO.RECRUIT_MAX, 1 + CO.RECRUIT_UP * Math.max(0, want / Math.max(1, apps) - 1)));
-// 처음 단원 명단: 직업은 마을 사람들의 비율대로 (판마다 같다)
+// 처음 단원 명단: 직업은 마을 사람들의 비율대로, 이름 · 실력 · 특성도 판마다 같다 (실력은 수련 · 숙련이 대부분, 노련 하나, 신입 하나)
+const SK0 = [62, 55, 50, 46, 44, 42, 40, 38, 36, 34, 32, 30, 28, 26, 22, 18];
 export function crewOf(n: number): Person[] {
   const k = CLASS_SHARE.map(v => Math.floor(n * v));
   const order = CLASS_SHARE.map((v, i) => [n * v - k[i], i]).sort((a, b) => b[0] - a[0]);
   for (let j = 0, rest = n - k.reduce((a, b) => a + b, 0); rest > 0; j++, rest--) k[order[j][1]]++;
-  return CLASSES.flatMap((c, i) => Array.from({ length: k[i] }, () => c)).map((c, id) => ({ id, c }));
+  return CLASSES.flatMap((c, i) => Array.from({ length: k[i] }, () => c)).map((c, id) => ({
+    id, c, n: GIVEN[id % GIVEN.length] + ' ' + FAMILY[id % FAMILY.length], sk: SK0[(id * 7) % SK0.length], tr: TRAIT_KEYS[(id * 3) % TRAIT_KEYS.length], ex: FLOORS.map(() => 0), mt: {}, wins: 0,
+  }));
+}
+// 실력 단계(0 신입 ~ 4 명인), 한 사람의 급여
+export const tierOf = (p: Person) => (p.sk == null ? 2 : Math.min(4, Math.floor(p.sk / CO.TIER_STEP)));
+export const personWage = (p: Person) => CO.TIER_WAGE[tierOf(p)] - (p.tr === '새가슴' ? CO.CHICKEN_WAGE : 0);
+// 급여: 우리는 사람마다 단계대로, 경쟁 용병단은 머릿수로. 큰 조직일수록 관리비가 붙는다
+export const wageCo = (c: Company) => (c.crew ? Math.round(c.crew.reduce((a, p) => a + personWage(p), 0) * (1 + c.crew.length / CO.OVERHEAD)) : wageOf(c.members));
+// 조직력: 조원 둘씩 짝지어 함께 나간 달(CO_MAX가 끝)의 평균, 0~1
+export function cohesion(who: Person[]) {
+  let s = 0, n = 0;
+  for (let a = 0; a < who.length; a++) for (let b = a + 1; b < who.length; b++) { n++; s += Math.min(CO.CO_MAX, (who[a].mt && who[a].mt![who[b].id]) || 0); }
+  return n ? s / n / CO.CO_MAX : 0;
+}
+// 조원마다 성공 굴림에 더할 값 · 위기 배수 · 캐 오는 몫, 조의 소재 배수, 의무병이 있는지 (실력 단계 · 특성 · 조직력)
+export function memberMods(who: Person[], f: number) {
+  const coh = cohesion(who), has = (t: string) => who.some(p => p.tr === t);
+  return {
+    coh,
+    pp: who.map(p => CO.TIER_B[tierOf(p)] + coh * CO.CO_SUCC + (p.tr === '새가슴' && f > 0 && ((p.ex && p.ex[f]) || 0) < 50 ? -0.1 : 0)),
+    cr: who.map(p => (p.tr === '신중함' ? 0.7 : p.tr === '욕심쟁이' ? 1.2 : 1) * (1 - CO.CO_CRISIS * coh)),
+    loot: who.map(p => (p.tr === '신중함' ? 0.9 : 1)),
+    mat: (has('욕심쟁이') ? 1.3 : 1) * (has('눈썰미') ? 1.15 : 1),
+    medic: has('의무병'),
+  };
+}
+// 우리 조 하나의 성공률 어림: 층 · 훈련 · 거점 · 봉인 · 빈자리에 조원마다 실력 단계 · 특성 · 조직력을 더한 값의 평균 (약점 · 역효과는 모른다)
+export function teamOdds(W: World, c: Company, f: number, who: Person[], pots: number, crowd: number) {
+  const p0 = succRate(c, f, pots, crowd) + (rootOf(W, f).done === 'seal' ? CO.SEAL_SUCC : 0);
+  const pt0 = clamp(p0 - who.filter(isRook).length * CO.ROOK_PEN - (CO.PARTY - who.length) * CO.SHORT_PEN, 0.05, 0.97);
+  if (!who.length) return { p: pt0, coh: 0 };
+  const MM = memberMods(who, f);
+  return { p: MM.pp.reduce((a, d) => a + clamp(pt0 + d, 0.05, 0.97), 0) / who.length, coh: MM.coh };
+}
+// 지원자 하나를 만든다: 실력은 대개 신입, 명성이 높을수록 수련 · 숙련이 섞인다. 첫 달은 판마다 같다(난수 없이)
+function candOf(id: number, fame: number, first: number | null): Person {
+  const cls = first != null ? CLASSES[[0, 1, 4, 2, 3, 0, 1, 4][first % 8]] : (() => { let r = rnd(), k = 0; while (k < CLASSES.length - 1 && r >= CLASS_SHARE[k]) { r -= CLASS_SHARE[k]; k++; } return CLASSES[k]; })();
+  let sk: number;
+  if (first != null) sk = [12, 26, 8, 30, 16, 6, 22, 14][first % 8];
+  else { const r = rnd(), fb = fame / 100; sk = r < 0.06 + fb * 0.1 ? 40 + Math.floor(rnd() * 16) : r < 0.35 + fb * 0.2 ? 20 + Math.floor(rnd() * 19) : 4 + Math.floor(rnd() * 15); }
+  const name = first != null ? GIVEN[(16 + first * 3) % GIVEN.length] + ' ' + FAMILY[(16 + first * 5) % FAMILY.length] : GIVEN[Math.floor(rnd() * GIVEN.length)] + ' ' + FAMILY[Math.floor(rnd() * FAMILY.length)];
+  const tr = first != null ? TRAIT_KEYS[(first * 2 + 1) % TRAIT_KEYS.length] : TRAIT_KEYS[Math.floor(rnd() * TRAIT_KEYS.length)];
+  return { id, c: cls, n: name, sk, tr, ex: FLOORS.map(() => 0), mt: {}, wins: 0 };
+}
+export function candsOf(W: World, first = false): Person[] {
+  const c = us(W), n = Math.min(CO.CAND_MAX, W.apps ?? CO.APP0), base = 100000 + W.month * 100;
+  return Array.from({ length: n }, (_, k) => candOf(base + k, c.fame || 0, first ? k : null));
+}
+// 신입 하나의 계약금: 그 달의 값 × 드문 직업 × 실력 단계
+export const candPrice = (p: Person, rPrice: number) => Math.round(rPrice * (CO.CLASS_COST[p.c] || 1) * CO.TIER_COST[tierOf(p)]);
+// 이번 달 뽑으려는 지원자: 고른 사람(pick)이 있으면 그 순서대로, 없으면 직업별로 찾는 만큼 실력 좋은 사람부터 (빈 침상까지)
+export function candWants(W: World, c: Company, P: Plan, room: number): Person[] {
+  const cand = W.cand || [];
+  if (P.pick) return P.pick.map(id => cand.find(x => x.id === id)).filter((x): x is Person => !!x).slice(0, room);
+  const want = recruitWants(c, P, room, W.apps ?? CO.APP0), left = [...cand].sort((a, b) => (b.sk || 0) - (a.sk || 0)), out: Person[] = [];
+  Object.entries(want).forEach(([cls, n]) => { for (let k = 0; k < n; k++) { const j = left.findIndex(x => x.c === cls); if (j < 0) break; out.push(left.splice(j, 1)[0]); } });
+  return out.slice(0, room);
 }
 export const isRook = (p: Person) => p.rk != null;
 // 수습 수 (우리는 명단에서, 경쟁 용병단은 rook에서)
@@ -336,11 +408,16 @@ export const rookCount = (c: Company) => (c.crew ? c.crew.filter(isRook).length 
 // tplF[f]가 있으면 그 층은 그 모양으로 짠다. 대원은 깊은 층 조부터 넣는다 (수습은 얕은 층에 남는다)
 export function formTeams(c: Company, parties: number[], tpl: string[], fill = true, want: string[] = [], gear: string[] = [], tplF: (string[] | undefined)[] = []): Team[] {
   const crew = (c.crew || []).filter(p => !p.hurt).sort((a, b) => (isRook(a) ? 1 : 0) - (isRook(b) ? 1 : 0)), used = new Set<number>();
-  const take = (cls: string) => { const x = crew.find(p => p.c === cls && !used.has(p.id)); if (x) used.add(x.id); return x ? x.id : null; };
+  // 그 직업 중 이미 조에 든 사람과 함께 나간 달이 가장 많은 사람을 고른다 (손발 맞는 조가 흩어지지 않게)
+  const take = (cls: string, T: Team) => {
+    const inT = T.m.filter((x): x is number => x != null), bond = (p: Person) => inT.reduce((a, id) => a + ((p.mt && p.mt[id]) || 0), 0);
+    let x: Person | undefined; crew.forEach(p => { if (p.c === cls && !used.has(p.id) && (!x || bond(p) > bond(x))) x = p; });
+    if (x) used.add(x.id); return x ? x.id : null;
+  };
   const teams: Team[] = [];
   parties.forEach((n, f) => { for (let q = 0; q < n; q++) teams.push({ f, m: [null, null, null, null], g: gear[f] || '' }); });
   // 지침 직업은 두 자리에 넣는다 (직업 약점은 두 명이어야 다 먹힌다)
-  [...teams].sort((a, b) => b.f - a.f).forEach(T => { const w = want[T.f]; (tplF[T.f] || (w ? [w, w, ...tpl.filter((x, i) => i !== tpl.indexOf(w))].slice(0, CO.PARTY) : tpl)).forEach((cls, s) => { T.m[s] = cls ? take(cls) : null; }); });
+  [...teams].sort((a, b) => b.f - a.f).forEach(T => { const w = want[T.f]; (tplF[T.f] || (w ? [w, w, ...tpl.filter((x, i) => i !== tpl.indexOf(w))].slice(0, CO.PARTY) : tpl)).forEach((cls, s) => { T.m[s] = cls ? take(cls, T) : null; }); });
   if (fill) fillTeams(c, teams, tpl);
   return teams.filter(T => T.m.some(x => x != null) || !fill);
 }
@@ -593,6 +670,8 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
   const slots = W.cos.map((c, i) => rookSlots(c, plans[i])), rookDead = W.cos.map(() => new Set<number>());
   // 우리 조: 명단에서 조마다 누가 가는지, 이번 달 죽은 단원, 사람 수만큼 센 성공(캐 오는 양에 쓴다)
   const crewMap = W.cos.map(c => new Map((c.crew || []).map(x => [x.id, x] as [number, Person]))), deadP = W.cos.map(() => new Set<number>()), hurtP = W.cos.map(() => new Set<number>());
+  // 우리 단원 하나하나가 이번 달 어디에 가서 해냈는지, 누구와 함께였는지 (실력 · 경험 · 조직력에 쓴다)
+  const outP = W.cos.map(() => new Map<number, { f: number; did: boolean; mates: number[] }>());
   const teamsF = plans.map(P => FLOORS.map((_, f) => (P.teams ? P.teams.filter(T => T.f === f) : null)));
   const lootW = FLOORS.map(() => W.cos.map(() => 0));
   const keyHit = new Set<number>();   // 우리 조가 약점을 제대로 갖춰 들어간 층 (직업이면 두 명, 장비면 한 벌)
@@ -621,17 +700,21 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
         const rooks = who ? who.filter(isRook).length : rk.length;
         // 성공 정도: 조원마다 그 조의 성공률로 굴린다. 해낸 사람 비율만큼 캐 오고, 둘 이상 해내면(고전 이상) 해낸 조로 친다
         const pp = clamp(p + kw * CO.KEY_BONUS - bw * CO.BAD_PEN + (sealed && c.style === 'player' ? CO.SEAL_SUCC : 0) - rooks * CO.ROOK_PEN - (CO.PARTY - size) * CO.SHORT_PEN, 0.05, 0.97);
-        const did = Array.from({ length: size }, () => rnd() < pp), k = did.filter(Boolean).length, ok = k >= 2;
+        // 우리 조는 조원마다 실력 단계 · 특성 · 조직력을 더해 굴린다
+        const MM = who ? memberMods(who, f) : null;
+        const did = Array.from({ length: size }, (_, m) => rnd() < (MM ? clamp(pp + MM.pp[m], 0.05, 0.97) : pp)), k = did.filter(Boolean).length, ok = k >= 2;
+        const kl = MM ? did.reduce((a, d, m) => a + (d ? MM.loot[m] : 0), 0) : k;   // 캐 오는 몫으로 센 해낸 사람
+        if (who) who.forEach((x, m) => outP[i].set(x.id, { f, did: did[m], mates: who.map(y => y.id) }));
         // 수습은 자기가 해낸 만큼 겪는다 (경쟁 용병단의 수습은 앞자리부터 끼어 있다)
         if (c.rook) rk.forEach((t, m) => { if (did[m]) c.rook![t]++; });
         if (who) who.forEach((x, m) => { if (isRook(x) && did[m]) x.rk = (x.rk || 0) + 1; });
-        lootW[f][i] += k / CO.PARTY; w += k / CO.PARTY;
+        lootW[f][i] += kl / CO.PARTY; w += kl / CO.PARTY;
         if (ok) okN++;
         let dq = 0, hq = 0;
         // 직영 파티는 만난 몬스터를 갈무리한다 (해낸 사람 비율만큼 덜 나온다)
         const got: [string, number][] = [];
         if (k && q < P.parties[f]) mons.forEach(m => m.mats.forEach(x => {
-          if (rnd() >= matChance(x, keys, full) * k / CO.PARTY) return;
+          if (rnd() >= matChance(x, keys, full) * k / CO.PARTY * (MM ? MM.mat : 1)) return;
           const n = x.k ? x.k[0] + Math.floor(rnd() * (x.k[1] - x.k[0] + 1)) : 1;
           got.push([x.n, n]); res[i].matSold[x.n] = (res[i].matSold[x.n] || 0) + n;
         }));
@@ -645,9 +728,9 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
         // 다친 사람은 다음 달 한 달 쉰다 (계약 파티의 사망 · 부상은 그들 몫)
         let crisis = 0, potsIn = P.pots[f], pu = 0;
         for (let m = 0; m < size; m++) {
-          if (rnd() >= Math.min(0.95, F.risk * (did[m] ? CO.CRISIS_OK : CO.CRISIS_FAIL))) continue;
+          if (rnd() >= Math.min(0.95, F.risk * (did[m] ? CO.CRISIS_OK : CO.CRISIS_FAIL) * (MM ? MM.cr[m] : 1))) continue;
           crisis++;
-          let die = CO.CRISIS_DEATH, hurt = 1;
+          let die = who && who[m].tr === '강골' ? CO.CRISIS_DEATH / 2 : CO.CRISIS_DEATH, hurt = 1;
           if (potsIn > 0) {
             potsIn--; pu++; potUse[i].used++;
             const holyNow = potUse[i].holyLeft > 0; if (holyNow) { potUse[i].holyLeft--; potUse[i].h++; }
@@ -661,7 +744,7 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
             // 죽은 사람이 수습일 수도 있다 (앞자리가 수습)
             if (m < rk.length) rookDead[i].add(rk[m]);
             dq++;
-          } else { hq++; if (who) hurtP[i].add(who[m].id); }
+          } else { hq++; if (who && !MM!.medic) hurtP[i].add(who[m].id); }   // 의무병이 있는 조는 다친 사람도 쉬지 않는다
         }
         d += dq; h += hq;
         // 우리 직영 파티만 무엇을 갖추고 갔고 어떻게 됐는지 기록해 온다 (현장 기록은 해낸 사람 비율로 센다)
@@ -728,11 +811,11 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
   // 숙소: 지난달 증축한 침상이 생긴다. 신입은 빈 침상(이번 달 죽은 자리 포함)까지 찾고, 마을 지원자를 모두가 나눠 갖는다
   W.cos.forEach(c => { if (c.pendingBeds) { c.beds = bedsOf(c) + c.pendingBeds; c.pendingBeds = 0; } });
   const apps = W.apps ?? CO.APP0;
-  // 우리는 직업을 골라 뽑는다 (그 직업 지원자의 몫까지)
-  const rWantC = W.cos.map((c, i) => (c.crew ? recruitWants(c, plans[i], Math.max(0, bedsOf(c) - (c.members - res[i].deaths)), apps) : null));
+  // 우리는 지원자 명단에서 사람을 골라 뽑는다 (빈 침상까지)
+  const rWantP = W.cos.map((c, i) => (c.crew ? candWants(W, c, plans[i], Math.max(0, bedsOf(c) - (c.members - res[i].deaths))) : null));
   const rWant = W.cos.map((c, i) => {
     if (c.style === 'crowd') return 0;
-    if (rWantC[i]) return Object.values(rWantC[i]!).reduce((a, b) => a + b, 0);
+    if (rWantP[i]) return rWantP[i]!.length;
     const room = Math.max(0, bedsOf(c) - (c.members - res[i].deaths)), P = plans[i];
     return P.recruit == null ? room : clamp(Math.floor(P.recruit), 0, room);
   });
@@ -750,16 +833,17 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
     r.potNeed = buyM[i] + gotC[i]; r.potC = gotC[i]; r.potUsed = potUse[i].used; r.potShort = potUse[i].short;
     // 신입: 찾은 만큼 중 지원자에서 받은 만큼. 모두 같은 값을 낸다 (군소 용병대는 따로)
     r.recruitWant = rWant[i]; r.recruited = rGot[i]; r.recruitPrice = rPrice;
-    // 직업별로: 찾은 직업을 돌아가며 받은 수만큼 채운다. 드문 직업은 값이 더 든다
+    // 우리는 고른 순서대로 받은 수만큼 들어온다 (나머지는 다른 용병단으로 갔다). 값은 사람마다: 드문 직업 · 실력 단계
     let rCost = r.recruited * rPrice;
-    if (rWantC[i]) {
-      const want = { ...rWantC[i]! }, got: Record<string, number> = {};
-      for (let k = 0; k < r.recruited;) { let any = false; for (const cls of CLASSES) { if (k < r.recruited && (want[cls] || 0) > 0) { want[cls]--; got[cls] = (got[cls] || 0) + 1; k++; any = true; } } if (!any) break; }
-      r.recruitC = got; rCost = Object.entries(got).reduce((a, [cls, n]) => a + n * Math.round(rPrice * (CO.CLASS_COST[cls] || 1)), 0);
+    if (rWantP[i]) {
+      const got = rWantP[i]!.slice(0, r.recruited);
+      r.newP = got.map(x => x.id); r.recruitC = {};
+      got.forEach(x => { r.recruitC![x.c] = (r.recruitC![x.c] || 0) + 1; });
+      rCost = got.reduce((a, x) => a + candPrice(x, rPrice), 0);
     }
     // 숙소: 침상 유지비와 증축 값 (공사 중엔 더 짓지 않는다)
     const build = c.style !== 'crowd' && P.dorm && !c.pendingBeds ? dormCost(c) : 0;
-    r.spend = { sortie, potion: pot, wage: wageOf(c.members), train: P.train, base: P.base ? P.base.amt : 0, hire: hireCost(P), recruit: rCost, donate: Math.max(0, Math.floor(P.donate || 0)), root: P.root ? P.root.seal + P.root.mine : 0,
+    r.spend = { sortie, potion: pot, wage: wageCo(c), train: P.train, base: P.base ? P.base.amt : 0, hire: hireCost(P), recruit: rCost, donate: Math.max(0, Math.floor(P.donate || 0)), root: P.root ? P.root.seal + P.root.mine : 0,
       tool: toolCost(P), proc: Math.max(0, Math.floor(P.proc || 0)), intel: c.style === 'player' ? intelCost(P) : 0,
       gear: Object.values(gearB[i]).reduce((a, b) => a + b, 0) * CO.GEAR_PRICE, probe: c.style === 'player' ? probeCost(W) : 0,
       dorm: c.style === 'crowd' ? 0 : dormKeep(bedsOf(c)) + build, heal: r.hurt * CO.HEAL_COST };
@@ -794,7 +878,17 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
       r.rookDead = c.crew.filter(x => isRook(x) && !crew.includes(x)).length;
       r.rookDone = crew.filter(x => isRook(x) && x.rk! >= CO.ROOK_WINS).length;
       crew.forEach(x => { if (isRook(x) && x.rk! >= CO.ROOK_WINS) delete x.rk; });
-      Object.entries(r.recruitC || {}).forEach(([cls, n]) => { for (let k = 0; k < n; k++) crew.push({ id: c.nextId = (c.nextId || crew.length) + 1, c: cls, rk: 0 }); });
+      // 다녀온 사람: 실력과 그 층 경험이 오르고, 함께 나간 짝과의 달이 쌓인다 (다른 조로 옮기면 새로 쌓는다)
+      const alive = new Set(crew.map(x => x.id));
+      crew.forEach(x => {
+        const o = outP[i].get(x.id); if (!o) return;
+        x.sk = Math.min(100, (x.sk ?? 40) + (o.did ? CO.SK_WIN : CO.SK_TRY));
+        const ex = x.ex || (x.ex = FLOORS.map(() => 0)); ex[o.f] = Math.min(100, (ex[o.f] || 0) + (o.did ? CO.EX_WIN : CO.EX_TRY));
+        if (o.did) x.wins = (x.wins || 0) + 1;
+        const mt: Record<number, number> = {}; o.mates.forEach(id => { if (id !== x.id && alive.has(id)) mt[id] = Math.min(CO.CO_MAX, ((x.mt && x.mt[id]) || 0) + 1); }); x.mt = mt;
+      });
+      // 신입: 고른 지원자가 새 번호를 받고 들어온다
+      (r.newP || []).forEach(cid => { const x = (W.cand || []).find(y => y.id === cid); if (x) crew.push({ ...x, id: c.nextId = (c.nextId || crew.length) + 1, ex: FLOORS.map(() => 0), mt: {}, wins: 0 }); });
       c.crew = crew; c.members = crew.length;
       return;
     }
@@ -830,6 +924,7 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
   W.last = M; W.history.push(M); W.month++;
   // 다음 달 마을 지원자: 미궁 벌이가 좋을수록 많이 몰려온다
   W.apps = Math.round((CO.APP_BASE + CO.APP_PER * res.reduce((a, r) => a + r.sales, 0) / 1000) * (0.8 + 0.4 * rnd()));
+  W.cand = candsOf(W);
   demands(W);
   estimate(W);
   return M;
@@ -1106,12 +1201,16 @@ export function forecast(W: World, P: Plan): Forecast {
       const T = q < P.parties[f] ? teams[q] : null, hired = q >= P.parties[f];
       const who = T ? T.m.filter((x): x is number => x != null).map(id => crew.get(id)).filter((x): x is Person => !!x) : null;
       const size = who ? who.length : CO.PARTY, rooks = who ? who.filter(isRook).length : 0;
-      const pt = clamp(p0 - rooks * CO.ROOK_PEN - (CO.PARTY - size) * CO.SHORT_PEN, 0.05, 0.97);
+      const pt0 = clamp(p0 - rooks * CO.ROOK_PEN - (CO.PARTY - size) * CO.SHORT_PEN, 0.05, 0.97);
+      // 우리 조는 조원마다 실력 단계 · 특성 · 조직력을 더한 성공률의 평균으로 (조원끼리 다른 성공률을 하나로 어림)
+      const MM = who && who.length ? memberMods(who, f) : null;
+      const pt = MM ? MM.pp.reduce((a, d) => a + clamp(pt0 + d, 0.05, 0.97), 0) / who!.length : pt0;
+      const crM = MM ? MM.cr.reduce((a, x) => a + x, 0) / who!.length : 1, loM = MM ? MM.loot.reduce((a, x) => a + x, 0) / who!.length : 1;
       const keys = who ? [...new Set(who.map(x => 'c:' + x.c)), ...(T!.g ? [T!.g] : [])] : [];
-      const mat = hired ? 0 : mons.reduce((a, M) => a + M.mats.reduce((b, x) => b + matChance(x, keys, full) / CO.PARTY * ((W.mat && W.mat.ref[x.n]) || x.val) * (x.k ? (x.k[0] + x.k[1]) / 2 : 1) * demandMul(W, x.n), 0), 0);
-      parts.push({ n: size, p: pt, v: per * (hired ? 1 - CO.HIRE_CUT : 1) + mat });
+      const mat = hired ? 0 : (MM ? MM.mat : 1) * mons.reduce((a, M) => a + M.mats.reduce((b, x) => b + matChance(x, keys, full) / CO.PARTY * ((W.mat && W.mat.ref[x.n]) || x.val) * (x.k ? (x.k[0] + x.k[1]) / 2 : 1) * demandMul(W, x.n), 0), 0);
+      parts.push({ n: size, p: pt, v: per * loM * (hired ? 1 - CO.HIRE_CUT : 1) + mat });
       if (!hired) {
-        const cp = pt * Math.min(0.95, F.risk * CO.CRISIS_OK) + (1 - pt) * Math.min(0.95, F.risk * CO.CRISIS_FAIL), die = P.pots[f] ? F.harm : CO.CRISIS_DEATH;
+        const cp = pt * Math.min(0.95, F.risk * CO.CRISIS_OK * crM) + (1 - pt) * Math.min(0.95, F.risk * CO.CRISIS_FAIL * crM), die = P.pots[f] ? F.harm : CO.CRISIS_DEATH;
         dead += size * cp * die; hurt += size * cp * (1 - die) * (P.pots[f] ? CO.INJURE : 1);
       }
     }
