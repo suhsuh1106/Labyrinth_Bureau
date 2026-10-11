@@ -142,7 +142,7 @@ const HQ_DO: Record<string, string[]> = {
   dorm: CO.HQ_BEDS.map(n => `침상 ${n}`).map((t, i) => (i === CO.HQ_BEDS.length - 1 ? t + ' (끝)' : t)),
   train: ['', `실력 오르는 속도 ×${CO.TRAIN_GROW}`, '신입이 수련까지 두 배 빠르게', '명인 단계가 열림'],
   rec: ['', '지도에 보태는 몫 +25%', '정찰 조 (둘 · 셋만 보내 지도를 크게)', '다 그린 지도의 사본을 관리국에 팔 수 있음'],
-  med: ['', '치료비 절반', `사망 넷에 하나는 중상으로 버팀 (두 달 쉼)`, '중상도 한 달이면 복귀'],
+  med: ['', '치료비 절반', `죽을 사람 넷에 하나는 다치고 버팀 (한 달 쉼)`, '죽을 사람 절반 가까이 다치고 버팀'],
 };
 const HQ_WHY: Record<string, string> = { dorm: '사람 수 상한', train: '사람의 실력', rec: '지도 완성도', med: '잃는 사람' };
 function hqPanel(W: World, raw: Plan) {
@@ -156,8 +156,10 @@ function hqPanel(W: World, raw: Plan) {
     }).join('');
     return `<div class="br"><h4>${HQ_NAME[k]}</h4><p class="why">${HQ_WHY[k]} · ${lv >= top ? '끝까지 올림' : `${k === 'dorm' ? lv + 1 : lv}단계`}</p>${rows}</div>`;
   };
+  const sell = hqLv(c, 'rec') >= 3 ? FLOORS.slice(0, W.unlocked).map((F, f) => (c.map && c.map[f] >= 100 && !(c.mapSold && c.mapSold[f]) ? `<button type="button" class="tog" data-act="sellmap" data-f="${f}" aria-pressed="${raw.sellMap === f}">${F.name} 지도 사본 팔기 +${fmt(CO.MAP_COPY)}G</button>` : '')).filter(Boolean).join('') : '';
   return `<div class="panel"><header><h2>회색늑대 본부</h2><span class="sub">한 달에 공사 하나 · 다음 달 정산 때 완공${pend ? ` · 지금 ${HQ_NAME[pend]} 공사 중` : ''} · 본부 유지비 월 ${fmt(hqKeep(c))}G</span></header>
     <div class="hq">${['dorm', 'train', 'rec', 'med'].map(br).join('')}</div>
+    ${sell ? `<div class="sellmap">${sell}<small>사 간 관리국이 다른 용병단에도 지도를 돌려, 그들의 지도도 ${CO.MAP_GIVE}만큼 오른다</small></div>` : ''}
     <p class="note">사람이 늘수록 관리비가 가파르게 붙어요: 급여 × (1 + ${CO.OH_K} × 인원²). 16명이면 ×${(1 + CO.OH_K * 256).toFixed(2)}, 32명 ×${(1 + CO.OH_K * 1024).toFixed(2)}, 40명 ×${(1 + CO.OH_K * 1600).toFixed(2)}, 50명 ×${(1 + CO.OH_K * 2500).toFixed(2)}.</p></div>`;
 }
 function trainPanel(W: World, raw: Plan) {
@@ -300,11 +302,12 @@ function ledgerHtml(W: World, raw: Plan) {
   const out = ls.reduce((a, l) => a + l.now, 0), outL = ls.reduce((a, l) => a + l.last, 0);
   const go = (l: { place: string; name: string }) => (l.place === 'gate' ? `<button type="button" class="lg" data-act="phase" data-phase="1">${l.name}</button>` : `<button type="button" class="lg" data-act="place" data-place="${l.place}">${l.name}</button>`);
   const row = (l: CostLine) => `<tr class="${l.now !== l.last && L ? 'changed' : ''}"><td>${go(l)}</td><td class="n now">${l.now ? '−' + fmt(l.now) : '0'}</td><td class="n last">${L ? (l.last ? '−' + fmt(l.last) : '0') : ''}</td></tr>`;
-  const net = fc.mean - out, netL = L ? L.res[0].net : 0;
+  const net = fc.mean + (P.sellMap != null ? CO.MAP_COPY : 0) - out, netL = L ? L.res[0].net : 0;
   return `<aside class="ledger" aria-labelledby="h-ledger">
     <h2 id="h-ledger">제${W.month}월 결재안 <small>금고 ${fmt(c.cash)}G</small></h2>
     <table><thead><tr><th>들어올 돈</th><th>이번 달</th><th>${L ? '지난달' : ''}</th></tr></thead><tbody>
-      <tr><td><button type="button" class="lg" data-act="phase" data-phase="1">전리품 · 소재 (어림)</button></td><td class="n now">${fmt(fc.mean)}</td><td class="n last">${L ? fmt(L.res[0].sales) : ''}</td></tr></tbody></table>
+      <tr><td><button type="button" class="lg" data-act="phase" data-phase="1">전리품 · 소재 (어림)</button></td><td class="n now">${fmt(fc.mean)}</td><td class="n last">${L ? fmt(L.res[0].sales - (L.res[0].mapSale || 0)) : ''}</td></tr>
+      ${P.sellMap != null || (L && L.res[0].mapSale) ? `<tr><td><button type="button" class="lg" data-act="place" data-place="train">지도 사본 판매</button></td><td class="n now">${P.sellMap != null ? fmt(CO.MAP_COPY) : '0'}</td><td class="n last">${L ? fmt(L.res[0].mapSale || 0) : ''}</td></tr>` : ''}</tbody></table>
     <table><thead><tr><th>나갈 돈</th><th>이번 달</th><th>${L ? '지난달' : ''}</th></tr></thead><tbody>
       ${ls.filter(l => l.now || l.last).map(row).join('')}
       <tr class="tot"><td>나갈 돈 합계</td><td class="n">−${fmt(out)}</td><td class="n last">${L ? '−' + fmt(outL) : ''}</td></tr>

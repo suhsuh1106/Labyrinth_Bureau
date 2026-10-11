@@ -1,6 +1,6 @@
 // 단원 명단과 편성표: 엑셀처럼 한 줄에 한 사람. 머리글을 누르면 정렬한다.
 // 인원 창의 명단 · 지원자 명단과, 출정의 편성표(조 요약 줄 + 배치 칸)를 그린다. 상태를 쓰지 않고 난수도 쓰지 않는다
-import { CO, FLOORS, type Person, type Plan, type World, candPrice, cohesion, personWage, recruitPrice, roomOf, teamOdds, tierOf, us } from '../../core/company';
+import { CO, FLOORS, type Person, type Plan, type World, candPrice, cohesion, hqLv, mapOf, personWage, recruitPrice, roomOf, teamOdds, tierOf, us } from '../../core/company';
 import { GEARS, TIER_N, TRAITS } from '../../core/data';
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
@@ -57,11 +57,15 @@ export function assignHtml(W: World, P: Plan, others: (f: number) => number, sor
   const sum = teams.map((T, t) => {
     const who = whoOf(t), crowd = P.parties[T.f] + P.hire[T.f] + others(T.f), o = teamOdds(W, c, T.f, who, P.pots[T.f], crowd);
     const bonded = cohesion(who) > 0, fresh = bonded ? who.filter(p => who.every(x => x.id === p.id || !((p.mt && p.mt[x.id]) || 0))).length : 0;
-    const warn = [...(who.length < CO.PARTY ? [`빈자리 ${CO.PARTY - who.length}`] : []), ...(fresh ? [`새 얼굴 ${fresh}`] : []),
-      ...(T.f > 0 && who.some(p => p.tr === '새가슴' && ((p.ex && p.ex[T.f]) || 0) < 50) ? ['새가슴'] : [])];
+    const scoutOk = hqLv(c, 'rec') >= 2 && who.length <= 3;
+    const warn = [...(who.length < CO.PARTY && !T.scout ? [`빈자리 ${CO.PARTY - who.length}`] : []), ...(fresh ? [`새 얼굴 ${fresh}`] : []),
+      ...(o.U.crisis >= 1.5 ? [`위기 ×${o.U.crisis.toFixed(1)}`] : []), ...(T.f > 0 && o.u < 50 && who.some(p => p.tr === '새가슴') ? ['새가슴'] : [])];
+    const best = Math.max(0, ...who.map(p => (p.ex && p.ex[T.f]) || 0)), m = Math.round(mapOf(c, T.f)), guide = who.some(p => p.tr === '길잡이');
+    const uTip = `지도 ${m}${best ? ` + 고참 경험 ${Math.round(Math.min(CO.UND_EX, best / 4))}` : ''}${guide ? ` + 길잡이 ${CO.UND_GUIDE}` : ''} · 성공 ${o.U.succ >= 0 ? '+' : '−'}${Math.round(Math.abs(o.U.succ) * 100)}%p · 위기 ×${o.U.crisis.toFixed(2)} · 캐 오는 양 ×${o.U.loot.toFixed(2)}`;
     return `<tr class="t${t % 8}"><td><b>${t + 1}조</b></td>
       <td><span class="seg sm" role="group" aria-label="${t + 1}조 층">${open.map(f => `<button type="button" data-act="tfloor" data-t="${t}" data-f="${f}" aria-pressed="${T.f === f}">${FLOORS[f].name}</button>`).join('')}</span></td>
-      <td class="n">${who.length}/${CO.PARTY}</td><td><span class="cl">${who.map(p => `<span>${p.c}</span>`).join('')}</span></td>
+      <td class="n">${who.length}/${CO.PARTY}${scoutOk || T.scout ? ` <button type="button" class="tog sm" data-act="scout" data-t="${t}" aria-pressed="${!!T.scout}" title="정찰 조: 지도를 ${CO.SCOUT_MAP}배로 그리고 위기가 적지만 캐 오는 건 ${Math.round(CO.SCOUT_LOOT * 100)}%">정찰</button>` : ''}</td><td><span class="cl">${who.map(p => `<span>${p.c}</span>`).join('')}</span></td>
+      <td><span class="ubar" title="${esc(uTip)}"><i><b style="width:${o.u}%"></b></i><span class="n">${o.u}</span></span></td>
       <td><span class="cobar" title="조원 둘씩 함께 나간 달의 평균 (${CO.CO_MAX}달이 끝)"><i><b style="width:${Math.round(o.coh * 100)}%"></b></i><span class="n">${Math.round(o.coh * 100)}</span><small class="dim">+${Math.round(o.coh * CO.CO_SUCC * 100)}%p</small></span></td>
       <td class="n"><b>${Math.round(o.p * 100)}%</b></td>
       <td><select data-k="teamG" data-i="${t}" aria-label="${t + 1}조 장비"><option value="">섞인 대로</option>${GEAR_NAMES.map(g => `<option value="g:${g}"${T.g === 'g:' + g ? ' selected' : ''}>${g}</option>`).join('')}</select></td>
@@ -78,8 +82,8 @@ export function assignHtml(W: World, P: Plan, others: (f: number) => number, sor
     return `<span class="seg asg" role="group" aria-label="${esc(nameOf(p))} 배치">${teams.map((_, k) => `<button type="button" class="k${k % 8}" data-act="assign" data-id="${p.id}" data-t="${k}" aria-pressed="${t === k}"${t !== k && whoOf(k).length >= CO.PARTY ? ' disabled' : ''}>${k + 1}조</button>`).join('')}<button type="button" data-act="assign" data-id="${p.id}" data-t="new" title="새 조를 만들어 넣기">+</button><button type="button" class="bn" data-act="assign" data-id="${p.id}" data-t="-1" aria-pressed="${t == null}">대기</button></span>`;
   };
   const bondTxt = (p: Person) => { const b = bondOf(p); return b < 0 ? '' : b === 0 && whoOf(teamOf.get(p.id)!).length > 1 ? '<span class="fresh">새 얼굴</span>' : `${b.toFixed(b % 1 ? 1 : 0)}달`; };
-  return `<div class="tw"><table class="grid tsum"><thead><tr><th>조</th><th>층</th><th class="n">인원</th><th>직업</th><th>조직력</th><th class="n">성공률</th><th>장비</th><th>살필 것</th></tr></thead>
-      <tbody>${sum || `<tr><td colspan="8" class="dim">짠 조가 없어요. 아래 명단의 + 를 눌러 새 조를 만들어요</td></tr>`}<tr class="rest"><td><b>대기</b></td><td colspan="7" class="dim">${bench.length}명${bench.filter(p => p.hurt).length ? ` (부상 ${bench.filter(p => p.hurt).length})` : ''} · 이번 달 쉬어요</td></tr></tbody></table></div>
+  return `<div class="tw"><table class="grid tsum"><thead><tr><th>조</th><th>층</th><th class="n">인원</th><th>직업</th><th title="지도 완성도 + 고참 경험 + 길잡이">이해도</th><th>조직력</th><th class="n">성공률</th><th>장비</th><th>살필 것</th></tr></thead>
+      <tbody>${sum || `<tr><td colspan="9" class="dim">짠 조가 없어요. 아래 명단의 + 를 눌러 새 조를 만들어요</td></tr>`}<tr class="rest"><td><b>대기</b></td><td colspan="8" class="dim">${bench.length}명${bench.filter(p => p.hurt).length ? ` (부상 ${bench.filter(p => p.hurt).length})` : ''} · 이번 달 쉬어요</td></tr></tbody></table></div>
     <div class="tw"><table class="grid crewt asgn"><thead><tr>${th('name', '이름', cur, 'as')}${th('cls', '직업', cur, 'as')}${th('sk', '실력', cur, 'as')}${th('tr', '특성', cur, 'as')}${open.map(f => th('ex' + f, FLOORS[f].name, cur, 'as', 'n')).join('')}${th('bond', '함께한 달', cur, 'as')}${th('team', '배치', cur, 'as')}</tr></thead>
     <tbody>${rows.map(({ p }) => { const t = teamOf.get(p.id), f = t != null ? teams[t].f : -1;
       return `<tr class="${t != null ? 'k' + (t % 8) : ''}${p.hurt ? ' away' : ''}"><td class="nm">${esc(nameOf(p))}</td><td class="cn">${p.c}</td><td>${tierHtml(p)}</td><td>${traitHtml(p)}</td>${open.map(g => exCell(p, g, g === f)).join('')}<td class="bond">${bondTxt(p)}</td><td>${cell(p)}</td></tr>`; }).join('')}</tbody></table></div>`;

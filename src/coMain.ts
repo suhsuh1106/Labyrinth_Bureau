@@ -71,6 +71,7 @@ function teamAct(a: string, b: HTMLElement) {
   else if (a === 'to-bench') { if (pick && pick.t != null && T[pick.t]) T[pick.t].m[pick.s!] = null; ui.pick = null; }
   else if (a === 'assign') assignTo(+(b.dataset.id || 0), b.dataset.t || '-1');
   else if (a === 'tfloor') { const x = T[+(b.dataset.t || 0)]; if (x) x.f = +(b.dataset.f || 0); }
+  else if (a === 'scout') { const x = T[+(b.dataset.t || 0)]; if (x) { if (x.scout) delete x.scout; else x.scout = true; } }
   else if (a === 'slot') {
     const t = +(b.dataset.t || 0), s = +(b.dataset.s || 0);
     if (pick && pick.id != null) { T[t].m[s] = pick.id; ui.pick = null; }   // 대기 인원을 넣는다 (있던 사람은 대기로)
@@ -123,6 +124,7 @@ function act(b: HTMLElement) {
   if (a === 'intel-cut') { const k = b.dataset.src as any, cut = new Set(plan.intelCut || []); cut.has(k) ? cut.delete(k) : cut.add(k); plan.intelCut = [...cut] as any; render(); save(); return; }
   if (a === 'dorm') { plan.dorm = !plan.dorm; render(); save(); return; }
   if (a === 'auto-recruit') { delete plan.recruit; delete plan.recruitC; delete plan.pick; render(); save(); return; }
+  if (a === 'sellmap') { const f = +(b.dataset.f || 0); if (plan.sellMap === f) delete plan.sellMap; else plan.sellMap = f; render(); save(); return; }
   if (a === 'build') { const k = b.dataset.k || ''; if (plan.build === k) delete plan.build; else plan.build = k; render(); save(); return; }
   if (a === 'pick') {
     const id = +(b.dataset.id || 0), P = plan.pick ? [...plan.pick] : [], k = P.indexOf(id);
@@ -134,7 +136,7 @@ function act(b: HTMLElement) {
     const d = ck === k ? -(+cd || 1) : DESC_FIRST.includes(k) ? -1 : 1;
     ui.sort = { ...(ui.sort || {}), [sc]: `${k}:${d}` }; render(); save(); return;
   }
-  if (a === 'refill' || a === 'fill-rest' || a === 'bench' || a === 'to-bench' || a === 'slot' || a === 'assign' || a === 'tfloor') return teamAct(a, b);
+  if (a === 'refill' || a === 'fill-rest' || a === 'bench' || a === 'to-bench' || a === 'slot' || a === 'assign' || a === 'tfloor' || a === 'scout') return teamAct(a, b);
   if (a === 'auto-pot') { plan.buy = { ...(plan.buy || {}) }; delete plan.buy.pot; render(); save(); return; }
   if (a === 'kit-add') { const f = +(b.dataset.f || 0); plan.kits = plan.kits || []; plan.kits[f] = [...(plan.kits[f] || []), { n: 0, g: '' }]; render(); save(); return; }
   if (a === 'kit-del') { const f = +(b.dataset.f || 0), k = +(b.dataset.j || 0); if (plan.kits && plan.kits[f]) plan.kits[f].splice(k, 1); render(); save(); return; }

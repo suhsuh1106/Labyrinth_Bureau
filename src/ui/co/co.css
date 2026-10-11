@@ -814,3 +814,28 @@ table.tsum select { font: 12px var(--f-body); }
 .hq .lv.lock { opacity: .55; }
 .hq .lv .c { font-family: var(--f-num); font-size: 11px; color: var(--ink-soft); text-align: right; }
 .hq .lv .tog { margin-top: 4px; }
+
+/* ---------- 이해도 막대 · 정찰 단추 · 지도 완성도 ---------- */
+.ubar { display: inline-flex; align-items: center; gap: 6px; cursor: help; }
+.ubar i { display: inline-block; width: 64px; height: 8px; border-radius: 2px; background: var(--paper-2); position: relative; overflow: hidden; border: 1px solid var(--rule); }
+.ubar i b { position: absolute; inset: 0 auto 0 0; background: var(--church); }
+.tog.sm { font-size: 11px; padding: 0 6px; margin-left: 4px; }
+.maps { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.maps .mp { min-width: 0; border: 1px solid var(--rule); border-radius: 5px; padding: 10px 12px; display: grid; gap: 8px; }
+.maps .mp-h { display: flex; align-items: baseline; gap: 8px; }
+.maps .mp-h b { font: 700 15px var(--f-display); }
+.maps .mp-h .gain { font: 600 13px var(--f-num); color: var(--good); }
+.maps .mp-h .big { margin-left: auto; font: 500 20px var(--f-num); color: var(--church); }
+.mgrid { display: grid; grid-template-columns: repeat(20, 1fr); gap: 2px; }
+.mgrid i { aspect-ratio: 1; border-radius: 1px; background: color-mix(in srgb, var(--church) 14%, var(--paper-2)); }
+.mgrid i.f { background: var(--church); }
+.mgrid i.g { background: var(--good); }
+.maps .ms { display: grid; gap: 2px; font-size: 12px; }
+.maps .ms div { display: flex; gap: 6px; align-items: center; color: var(--ink-soft); }
+.maps .ms div::before { content: ""; width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--church); flex: none; }
+.maps .ms div.got { color: var(--ink); }
+.maps .ms div.got::before { background: var(--church); }
+.maps .ms div.new { font-weight: 600; }
+.maps .ms div.new::after { content: "이번 달"; font-size: 10px; padding: 0 5px; border-radius: 3px; background: var(--good); color: var(--paper); }
+.sellmap { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
+.sellmap small { color: var(--ink-soft); }
