@@ -49,6 +49,7 @@ export function resultsHtml(W: World) {
   const r = L.res[0];
   const mine = `<div class="tw"><table class="grid"><thead><tr><th>층</th><th class="n">우리</th><th class="n">계약</th><th class="n">성공</th><th class="n">캐 온 양</th></tr></thead><tbody>${FLOORS.map((F, f) => (r.sent[f] + r.hired[f] ? `<tr><td>${F.name}</td><td class="n">${r.sent[f]}</td><td class="n">${r.hired[f]}</td><td class="n">${r.ok[f]}</td><td class="n">${r.got[f]}</td></tr>` : '')).join('')}</tbody></table></div>
     <div class="tw"><table class="grid"><thead><tr><th>정산</th><th class="n">금액</th></tr></thead><tbody>${ITEMS.map((it, j) => (r.sold[j] ? `<tr><td>${it.name} ${fmt(r.sold[j])}개 × ${fmtG(L.price[j])}G</td><td class="n">${fmt(r.sold[j] * L.price[j])}</td></tr>` : '')).join('')}
+      ${r.jobPay ? `<tr><td>의뢰 (납품 웃돈 · 포상)</td><td class="n">${fmt(r.jobPay)}</td></tr>` : ''}
       ${r.mapSale ? `<tr><td>지도 사본 판매 (관리국)</td><td class="n">${fmt(r.mapSale)}</td></tr>` : ''}
       ${r.matSales ? `<tr><td>갈무리 소재 ${Object.values(r.matSold).reduce((a, b) => a + b, 0)}개</td><td class="n">${fmt(r.matSales)}</td></tr>` : ''}
       <tr><td>출정</td><td class="n">−${fmt(r.spend.sortie)}</td></tr>
@@ -59,6 +60,7 @@ export function resultsHtml(W: World) {
       ${r.spend.hire ? `<tr><td>계약 파티 수수료</td><td class="n">−${fmt(r.spend.hire)}</td></tr>` : ''}
       <tr><td>급여</td><td class="n">−${fmt(r.spend.wage)}</td></tr>
       ${r.spend.heal ? `<tr><td>치료비 (부상 ${r.hurt}명 · 다음 달 쉼)</td><td class="n">−${fmt(r.spend.heal)}</td></tr>` : ''}
+      ${r.spend.job ? `<tr><td class="neg">의뢰 위약금 (못 채운 납품)</td><td class="n">−${fmt(r.spend.job)}</td></tr>` : ''}
       ${r.spend.hq ? `<tr><td>본부 공사 · 유지비</td><td class="n">−${fmt(r.spend.hq)}</td></tr>` : ''}
       ${r.recruitWant ? `<tr><td>신입 ${r.recruited}명 × ${fmt(r.recruitPrice)}G${r.recruited < r.recruitWant ? ` <span class="dim">(찾은 ${r.recruitWant}명 · 지원자가 모자람)</span>` : ''}</td><td class="n">−${fmt(r.spend.recruit)}</td></tr>` : ''}
       ${r.rookDone || r.rookDead ? `<tr><td class="dim">수습${r.rookDone ? ` ${r.rookDone}명이 대원이 됨` : ''}${r.rookDead ? `${r.rookDone ? ',' : ''} ${r.rookDead}명 사망` : ''}</td><td class="n dim">-</td></tr>` : ''}
@@ -93,6 +95,7 @@ export function resultsHtml(W: World) {
       <section><h4>시세</h4><div class="tw">${priceBoard(W)}</div></section>
     </div></section>
     ${fcVsHtml(W)}
+    ${jobsHtml(W)}
     ${supplyHtml(W)}
     ${mapHtml(W)}
     <section class="rp"><h3>탐사</h3>${returnHtml(W)}</section>
@@ -110,6 +113,18 @@ function fcVsHtml(W: World) {
     <p class="note">어림 기대 <b>${fmt(fc.mean)}G</b> (열에 여덟은 ${fmt(fc.p10)} ~ ${fmt(fc.p90)}G) → 실제 <b>${fmt(a)}G</b>, 어림의 아래에서 ${Math.round(rk * 100)}%. ${say}</p>
     ${past.length > 1 ? `<div class="tw"><table class="grid slim fcv"><thead><tr><th>달</th><th class="n">어림 기대</th><th class="n">열에 여덟</th><th class="n">실제</th><th class="n">차이</th></tr></thead><tbody>${past.map(M => { const x = M.res[0].sales, d = x - M.fc!.mean; return `<tr><td>제${M.month}월</td><td class="n">${fmt(M.fc!.mean)}</td><td class="n dim">${fmt(M.fc!.p10)} ~ ${fmt(M.fc!.p90)}</td><td class="n">${fmt(x)}</td><td class="n ${d < 0 ? 'neg' : 'pos'}">${sgn(d)}</td></tr>`; }).join('')}</tbody></table></div>` : ''}
   </section>`;
+}
+
+// 의뢰: 이번 달 넘긴 양 · 받은 웃돈 · 포상 · 위약금 (끝난 의뢰는 결과). 기록을 읽어 보여 주기만 한다
+function jobsHtml(W: World) {
+  const L = W.last; if (!L) return '';
+  const r = L.res[0], rows = (r.jobs || []).map(x => {
+    const J = (W.jobs || []).find(y => y.id === x.id); if (!J) return '';
+    const end = J.until === L.month;
+    const what = J.kind === 'race' ? (end ? `${x.got}조 · ${x.rank}등` : `지금까지 ${x.got}조`) : `이번 달 ${fmt(x.got)}개 넘김 · ${fmt(J.done[0])} / ${fmt(J.take[0])}개${end ? (J.done[0] >= J.take[0] ? ' · 다 채움' : ` · ${fmt(J.take[0] - J.done[0])}개 못 채움`) : ''}`;
+    return `<tr><td>${J.by} · ${J.title}${end ? ' <span class="chip">마감</span>' : ''}</td><td>${what}</td><td class="n ${x.pay ? 'pos' : ''}">${x.pay ? '+' + fmt(x.pay) : '-'}</td><td class="n ${x.pen ? 'neg' : ''}">${x.pen ? '−' + fmt(x.pen) : '-'}</td></tr>`;
+  }).join('');
+  return rows ? `<section class="rp"><h3>의뢰</h3><div class="tw"><table class="grid slim"><thead><tr><th>의뢰</th><th>결과</th><th class="n">받은 돈</th><th class="n">위약금</th></tr></thead><tbody>${rows}</tbody></table></div></section>` : '';
 }
 
 // 지도 완성도: 층마다 칸 100개 중 채운 칸(이번 달 채운 칸은 따로), 이정표, 이번 달 보탠 사람. 기록을 읽어 보여 주기만 한다

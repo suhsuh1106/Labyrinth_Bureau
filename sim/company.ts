@@ -4,7 +4,7 @@
 // 성향: even(고르게) · deep(깊은 층 위주) · hire(계약 파티를 씀) · smart(시장을 읽는 숙련자, 근원에는 채굴장)
 //       smartNoGuide · smartSeal · smartNoRoot: 숙련 봇에서 지침을 빼거나 근원을 달리 다룬 것
 import { setSeed } from '../src/core/rng';
-import { CO, FLOORS, churchPrice, ITEMS, type Plan, type World, defaultPlan, dormCost, partyMargin, roomOf, demandMul, potsOf, probe, floorMons, maxParties, newWorld, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
+import { CO, FLOORS, churchPrice, ITEMS, type Plan, type World, defaultPlan, dormCost, jobsSign, partyMargin, roomOf, demandMul, potsOf, probe, floorMons, maxParties, newWorld, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
 import { demandSeen } from '../src/ui/co/book';
 import { CLASSES } from '../src/core/data';
 
@@ -85,6 +85,11 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
   // 봉인은 범람을 절반으로 줄이지만 우리 순위로는 손해다(200판 3.13 · 3.14 대 3.45). 봉인은 교회가 같은 돈을 보태 절반만 든다
   const rf = (W.roots || []).findIndex(r => r.found && !r.done);
   if (rf >= 0 && c.cash > 8000) P.root = rootMode === 'none' ? null : { f: rf, seal: rootMode === 'seal' ? CO.ROOT_COST / 4 : 0, mine: rootMode === 'mine' ? CO.ROOT_COST / 2 : 0 };
+  // 의뢰: 받는 달의 납품 의뢰는 그 층에 보내는 조가 석 달 동안 캐 올 양의 70%까지 맡는다
+  P.take = Object.fromEntries(jobsSign(W).filter(J => P.parties[J.f]).map(J => {
+    const per = L && L.res[0].sent[J.f] ? L.res[0].got[J.f] / L.res[0].sent[J.f] : FLOORS[J.f].take * 0.8;
+    return [J.id, Math.min(J.qty, Math.floor(per * P.parties[J.f] * (J.until - J.from + 1) * 0.7 / CO.TAKE_STEP) * CO.TAKE_STEP)];
+  }));
   // 신입: 지원자 명단에서 실력 좋은 사람부터 빈 침상만큼
   if (c.crew && W.cand) P.pick = [...W.cand].sort((a, b) => (b.sk || 0) - (a.sk || 0)).slice(0, roomOf(c)).map(x => x.id);
   // 몸집: 조당 남는 돈이 급여보다 넉넉하면 숙소를 늘린다. 본부의 질(훈련장 · 의무실)은 올리지 않는다:

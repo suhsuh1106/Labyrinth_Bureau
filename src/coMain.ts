@@ -44,8 +44,8 @@ $('ar-scene').addEventListener('click', (e: any) => { if (!e.target.closest('#ar
 $('ar-skip').addEventListener('click', () => closeArrival());
 document.addEventListener('keydown', e => {
   // 내정에서 숫자 키: 1~5 장소 창, 6~9 자료 (입력 칸에 있을 때는 넘긴다)
-  if (/^[1-9]$/.test(e.key) && ui && ui.phase === 0 && !arrivalOpen() && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement || e.target instanceof HTMLTextAreaElement) && !e.ctrlKey && !e.metaKey && !e.altKey) {
-    const i = +e.key - 1;
+  if (/^[0-9]$/.test(e.key) && ui && ui.phase === 0 && !arrivalOpen() && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement || e.target instanceof HTMLTextAreaElement) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    const i = e.key === '0' ? 9 : +e.key - 1;
     if (i < PLACE_KEYS.length) { ui.open = false; ui.place = PLACE_KEYS[i]; }
     else if (DOC_KEYS[i - PLACE_KEYS.length]) { ui.place = undefined; ui.open = true; ui.tab = DOC_KEYS[i - PLACE_KEYS.length]; }
     else return;
@@ -194,6 +194,7 @@ function edit(k: string, i: number, fn: (v: number) => number, j = 0) {
   else if (k === 'donate') plan.donate = Math.max(0, fn(plan.donate || 0));
   else if (k === 'tool') plan.tool = Math.max(0, Math.min(2, fn(plan.tool || 0)));
   else if (k === 'proc') plan.proc = Math.max(0, fn(plan.proc || 0));
+  else if (k === 'take') plan.take = { ...(plan.take || {}), [i]: Math.max(0, fn((plan.take && plan.take[i]) || 0)) };
   else if (k === 'recruitC') {
     const cls = CLASSES[i], cur = +(document.querySelector(`input[data-k="recruitC"][data-i="${i}"]`) as HTMLInputElement)?.value || 0;
     if (!plan.recruitC) plan.recruitC = Object.fromEntries(CLASSES.map((x, j) => [x, +(document.querySelector(`input[data-k="recruitC"][data-i="${j}"]`) as HTMLInputElement)?.value || 0]));

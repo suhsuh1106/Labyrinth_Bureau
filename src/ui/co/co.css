@@ -839,3 +839,34 @@ table.tsum select { font: 12px var(--f-body); }
 .maps .ms div.new::after { content: "이번 달"; font-size: 10px; padding: 0 5px; border-radius: 3px; background: var(--good); color: var(--paper); }
 .sellmap { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; }
 .sellmap small { color: var(--ink-soft); }
+
+/* ---------- 관리국 게시판 · 맡은 의뢰 ---------- */
+.board .job { border: 1px solid var(--rule); border-radius: 5px; padding: 10px 12px; display: grid; gap: 8px; margin-bottom: 10px; background: var(--paper); }
+.board .job.race { border-color: color-mix(in srgb, var(--lord) 50%, var(--rule)); }
+.board .job p { margin: 0; font-size: 13px; }
+.job-h { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; }
+.job-h b { font: 700 15px var(--f-display); }
+.job-h .due { margin-left: auto; font-size: 12px; color: var(--ink-soft); }
+.who { font: 600 11px var(--f-body); padding: 1px 7px; border-radius: 3px; color: #fff; background: var(--merchant); }
+.who.lord { background: var(--lord); } .who.chu { background: var(--church); } .who.mag { background: #6a4fa0; }
+.board .terms { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 6px; margin: 0; }
+.board .terms div { background: var(--paper-2); border-radius: 4px; padding: 5px 8px; display: grid; }
+.board .terms dt { font-size: 11px; color: var(--ink-soft); } .board .terms dd { margin: 0; font: 500 13px var(--f-num); }
+.board .take { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; border-top: 1px dashed var(--rule); padding-top: 8px; }
+.board .est { font-size: 12px; color: var(--ink-soft); } .board .est b { color: var(--ink); }
+.race-t { display: grid; gap: 4px; }
+.race-r { display: grid; grid-template-columns: 140px 1fr 50px; gap: 8px; align-items: center; font-size: 12px; }
+.race-r i { display: block; height: 8px; border-radius: 2px; background: var(--paper-2); position: relative; overflow: hidden; }
+.race-r i b { position: absolute; inset: 0 auto 0 0; background: color-mix(in srgb, var(--ink) 35%, transparent); }
+.race-r.us i b { background: var(--merchant); } .race-r.us span:first-child { font-weight: 600; }
+.jobs-t .jtrack { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.jobs-t .tk, .board .prog { display: grid; gap: 6px; }
+.jobs-t .tk { border: 1px solid var(--rule); border-radius: 5px; padding: 10px 12px; }
+.jobs-t .tk-h { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.jobs-t .tk-h b { font: 700 14px var(--f-display); } .jobs-t .tk-h span { margin-left: auto; font-size: 12px; color: var(--ink-soft); }
+.jobs-t p, .board .prog p { margin: 0; font-size: 12px; color: var(--ink-soft); } .jobs-t p b, .board .prog p b { color: var(--ink); }
+.meter { position: relative; height: 14px; border-radius: 3px; background: var(--paper-2); overflow: hidden; border: 1px solid var(--rule); }
+.meter .done { position: absolute; inset: 0 auto 0 0; background: var(--merchant); }
+.meter .fc { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--merchant) 45%, transparent) 0 4px, transparent 4px 8px); }
+.board .take .est { display: block; flex: 1 1 260px; min-width: 0; }
+.board .take .est b { display: inline; }

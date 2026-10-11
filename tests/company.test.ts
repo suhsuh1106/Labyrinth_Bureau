@@ -981,3 +981,35 @@ describe('층 이해도 · 지도 완성도', () => {
     expect(sanitize(W, c, { ...defaultPlan(W), sellMap: 0 }).sellMap).toBeUndefined();   // 한 층에 한 번
   });
 });
+
+describe('관리국 게시판: 의뢰', () => {
+  it('첫 달 게시판은 판마다 같고, 납품은 맡은 만큼 판 것에서 넘겨 웃돈을 받는다', () => {
+    setSeed(1); const a = newWorld(); setSeed(7); const b = newWorld();
+    expect(JSON.stringify(a.jobs)).toBe(JSON.stringify(b.jobs));
+    const W = a, J = W.jobs!.find(x => x.kind === 'deliver')!;
+    const P = defaultPlan(W); P.take = { [J.id]: 333 };
+    expect(sanitize(W, us(W), P).take![J.id]).toBe(300);   // 50개 단위
+    const r = runMonth(W, P).res[0];
+    expect(J.take[0]).toBeLessThanOrEqual(300); expect(J.done[0]).toBe(Math.min(J.take[0], r.sold[0]));
+    expect(r.jobPay).toBe(Math.round(J.done[0] * J.prem) + 0);
+    expect(r.jobs!.find(x => x.id === J.id)!.got).toBe(J.done[0]);
+  });
+  it('맡은 양을 다 못 채우면 끝나는 달에 위약금이 나가고, 경쟁 포상은 순위대로 나간다', () => {
+    setSeed(2); const W = newWorld(), J = W.jobs!.find(x => x.kind === 'deliver')!, R = W.jobs!.find(x => x.kind === 'race')!;
+    const P = defaultPlan(W); P.take = { [J.id]: 1200 };
+    runMonth(W, P); let last = runMonth(W, carryPlan(W, P)); last = runMonth(W, carryPlan(W, P));
+    const r = last.res[0];
+    expect(r.spend.job).toBe(Math.round((J.take[0] - J.done[0]) * J.pen));
+    const order = W.cos.map((c, k) => [k, c.style === 'crowd' ? -1 : R.score![k]] as [number, number]).sort((x, y) => y[1] - x[1] || x[0] - y[0]);
+    const prize = (k: number) => last.res[k].jobs!.find(x => x.id === R.id)!.pay;
+    expect(prize(order[0][0])).toBe(CO.RACE_PRIZE[0]); expect(prize(order[1][0])).toBe(CO.RACE_PRIZE[1]); expect(prize(order[3][0])).toBe(0);
+  });
+  it('셋째 달부터 공급이 모자란 전리품에 납품 의뢰가 붙는다 (난수 없이 상태에서)', () => {
+    const W = playGame(5, BOT.even);
+    const later = W.jobs!.filter(J => J.from >= 3);
+    expect(later.length).toBeGreaterThan(0);
+    later.forEach(J => { expect(J.kind).toBe('deliver'); expect(J.until - J.from).toBe(2); });
+    const h = infoWeekHtml(W, carryPlan(W, null), { phase: 0, tab: 'report', pins: [], place: 'board' });
+    expect(h).toContain('관리국 게시판');
+  });
+});
