@@ -123,6 +123,7 @@ function act(b: HTMLElement) {
   if (a === 'intel-cut') { const k = b.dataset.src as any, cut = new Set(plan.intelCut || []); cut.has(k) ? cut.delete(k) : cut.add(k); plan.intelCut = [...cut] as any; render(); save(); return; }
   if (a === 'dorm') { plan.dorm = !plan.dorm; render(); save(); return; }
   if (a === 'auto-recruit') { delete plan.recruit; delete plan.recruitC; delete plan.pick; render(); save(); return; }
+  if (a === 'build') { const k = b.dataset.k || ''; if (plan.build === k) delete plan.build; else plan.build = k; render(); save(); return; }
   if (a === 'pick') {
     const id = +(b.dataset.id || 0), P = plan.pick ? [...plan.pick] : [], k = P.indexOf(id);
     if (k >= 0) P.splice(k, 1); else if (P.length < roomOf(us(W))) P.push(id);

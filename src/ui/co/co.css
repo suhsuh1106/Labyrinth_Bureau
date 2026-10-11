@@ -800,3 +800,17 @@ table.tsum select { font: 12px var(--f-body); }
 .warn-s { display: inline-flex; flex-wrap: wrap; gap: 4px; }
 .warn-s span { font-size: 11px; padding: 0 6px; border-radius: 3px; background: color-mix(in srgb, var(--bad) 14%, transparent); color: var(--bad); }
 .warn-s span.ok { background: var(--paper-2); color: var(--ink-soft); }
+
+/* ---------- 본부 증축 (가지 넷) ---------- */
+.hq { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.hq .br { border: 1px solid var(--rule); border-radius: 5px; padding: 10px; display: grid; gap: 6px; align-content: start; background: var(--paper); }
+.hq .br h4 { margin: 0; font: 700 14px var(--f-display); }
+.hq .br .why { margin: 0; font-size: 12px; color: var(--ink-soft); }
+.hq .lv { display: grid; grid-template-columns: 22px 1fr auto; gap: 6px; align-items: start; font-size: 12px; padding: 5px 6px; border-radius: 4px; }
+.hq .lv b { font: 500 11px var(--f-num); width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--rule); }
+.hq .lv.done { background: color-mix(in srgb, var(--good) 10%, transparent); }
+.hq .lv.done b { background: var(--good); color: var(--paper); border-color: var(--good); }
+.hq .lv.next { background: color-mix(in srgb, var(--church) 14%, transparent); outline: 1px solid color-mix(in srgb, var(--church) 60%, transparent); }
+.hq .lv.lock { opacity: .55; }
+.hq .lv .c { font-family: var(--f-num); font-size: 11px; color: var(--ink-soft); text-align: right; }
+.hq .lv .tog { margin-top: 4px; }
