@@ -5,7 +5,7 @@ import { setSeed } from './core/rng';
 import { CO, type Plan, SRCS, type World, carryPlan, fillTeams, formTeams, newWorld, probe, rankOf, runMonth, sanitize, us } from './core/company';
 import { CLASSES, GEARS } from './core/data';
 import { plaqueHtml } from './ui/co/view';
-import { type DeskUi, expWeekHtml, infoWeekHtml, resultWeekHtml, weeksHtml } from './ui/co/desk';
+import { type DeskUi, DOC_KEYS, PLACE_KEYS, expWeekHtml, infoWeekHtml, resultWeekHtml, weeksHtml } from './ui/co/desk';
 import { advanceArrival, arrivalOpen, closeArrival, playArrival } from './ui/co/arrival';
 
 const $ = (id: string): any => document.getElementById(id);
@@ -42,6 +42,14 @@ function start(fresh = false) {
 $('ar-scene').addEventListener('click', (e: any) => { if (!e.target.closest('#ar-skip')) advanceArrival(); });
 $('ar-skip').addEventListener('click', () => closeArrival());
 document.addEventListener('keydown', e => {
+  // 내정에서 숫자 키: 1~5 장소 창, 6~9 자료 (입력 칸에 있을 때는 넘긴다)
+  if (/^[1-9]$/.test(e.key) && ui && ui.phase === 0 && !arrivalOpen() && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement || e.target instanceof HTMLTextAreaElement) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    const i = +e.key - 1;
+    if (i < PLACE_KEYS.length) { ui.open = false; ui.place = PLACE_KEYS[i]; }
+    else if (DOC_KEYS[i - PLACE_KEYS.length]) { ui.place = undefined; ui.open = true; ui.tab = DOC_KEYS[i - PLACE_KEYS.length]; }
+    else return;
+    e.preventDefault(); render(); save(); return;
+  }
   if (e.key !== 'Escape') return;
   if (arrivalOpen()) closeArrival();
   else if (ui && ui.open) { ui.open = false; render(); save(); }

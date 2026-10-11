@@ -859,7 +859,7 @@ describe('성공 정도 · 부상 · 수입 어림', () => {
     expect(a / f).toBeGreaterThan(0.85); expect(a / f).toBeLessThan(1.15);
     expect(inside / n).toBeGreaterThan(0.5);
   }, 30000);
-  it('탐험 주차에 이번 달 어림이, 결과에 어림과 실제가 나온다', () => {
+  it('출정에 이번 달 어림이, 정산에 어림과 실제가 나온다', () => {
     setSeed(73); const W = newWorld();
     runMonth(W, BOT.even(W)); runMonth(W, BOT.even(W));
     const P = carryPlan(W, W.last!.plans[0]);
@@ -869,7 +869,7 @@ describe('성공 정도 · 부상 · 수입 어림', () => {
   });
 });
 
-describe('정보 주차 책상', () => {
+describe('내정 책상', () => {
   it('지도와 결재안이 나오고, 장소를 열면 그 업무 창이 뜬다', () => {
     setSeed(81); const W = newWorld();
     runMonth(W, BOT.even(W)); runMonth(W, BOT.even(W));

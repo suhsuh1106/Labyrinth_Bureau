@@ -1,4 +1,4 @@
-// 정보 주차의 책상: 하르덴 마을 지도(그림)와 책상 위 물건(장부 · 도감 · 조사 봉투 · 신문 · 양초 · 필통)을 SVG 한 장으로 그린다.
+// 내정의 책상: 하르덴 마을 지도(그림)와 책상 위 물건(장부 · 도감 · 조사 봉투 · 신문 · 양초 · 필통)을 SVG 한 장으로 그린다.
 // 지도의 장소나 물건을 누르면 그 업무 창이 뜬다(data-act). 챙길 일이 있는 곳엔 밀랍 봉인이 붙는다.
 // 지도 그림 원본은 image_source/main_map.png (1408 × 768). 게임은 종이 바깥의 흰 바탕을 투명하게 오려 webp로 줄인 art/main_map.webp를 쓴다.
 // 장소 자리는 그 그림의 좌표로 적는다. 상태를 쓰지 않고 난수도 쓰지 않는다
@@ -27,7 +27,7 @@ const SPOTS: Record<string, Spot> = {
   train: { box: [950, 455, 1075, 575], act: 'place', attrs: 'data-place="train"', label: '훈련장 · 공방', sub: '훈련 · 갈무리장 · 거점 · 도구', aria: '훈련장과 공방: 건물' },
   staff: { box: [1090, 460, 1378, 670], act: 'place', attrs: 'data-place="staff"', label: '회색늑대 숙소', sub: '인원 · 신입 · 부상자', aria: '회색늑대 숙소: 인원' },
   alley: { box: [25, 555, 265, 735], act: 'place', attrs: 'data-place="alley"', label: '뒷골목 선술집', sub: '정보망 · 타 용병단 조사', aria: '뒷골목 선술집: 정보망과 타 용병단 조사', tag: 'top' },
-  gate: { box: [1140, 60, 1378, 228], act: 'phase', attrs: 'data-phase="1"', label: '미궁 입구', sub: '탐험 주차로 →', aria: '미궁 입구: 탐험 주차로' },
+  gate: { box: [1140, 60, 1378, 228], act: 'phase', attrs: 'data-phase="1"', label: '미궁 입구', sub: '출정 편성으로 →', aria: '미궁 입구: 출정 편성으로' },
 };
 // 책상 띠의 윗변과, 책상 위 물건의 봉인 자리 (책상 띠 안의 좌표)
 const DESK_Y = Math.round(MAP.y + MH + 14);

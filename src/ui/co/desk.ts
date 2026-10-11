@@ -14,7 +14,7 @@ import { KTAG, depthsHtml, fieldHtml, fmt, newsLines, pct, resultsHtml, sgn, ste
 
 export type DeskUi = { phase: number; tab: string; pins: string[]; rival?: string; open?: boolean; mute?: boolean;
   pick?: { t?: number; s?: number; id?: number } | null;
-  place?: string };   // 정보 주차에 열어 둔 장소 창 (인원 · 건물 · 상단 거리 · 교회 · 정보망)   // 편성판에서 집어 든 사람 (조의 자리, 또는 대기 인원)
+  place?: string };   // 내정에서 열어 둔 장소 창 (인원 · 건물 · 상단 거리 · 교회 · 정보망)   // 편성판에서 집어 든 사람 (조의 자리, 또는 대기 인원)
 const lvOf = (W: World, k: keyof typeof INTEL.BASE) => (W.intel ? W.intel.lv[k] : INTEL.BASE[k]);
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
 const wage = (W: World) => wageOf(us(W).members);
@@ -243,7 +243,7 @@ export function readerHtml(W: World, ui: DeskUi) {
     <article class="co-sheet doc" id="${docId}" role="tabpanel">${docBody(W, tab)}</article></div></div>`;
 }
 
-// 정보 주차: 책상 위 마을 지도(누르면 장소 창)와 옆에 붙은 결재안(이번 달 들어올 돈 · 나갈 돈 전부)
+// 내정: 책상 위 마을 지도(누르면 장소 창)와 옆에 붙은 결재안(이번 달 들어올 돈 · 나갈 돈 전부)
 // 챙길 일: 장소마다 손볼 일이 있을 때만 짧은 말을 붙인다 (지도에 밀랍 봉인으로)
 function sealsOf(W: World, raw: Plan): Record<string, string> {
   const c = us(W), P = sanitize(W, c, raw), X = potsExpiring(c), I = W.intel, need = needOf(P), H = potsOf(c);
@@ -290,15 +290,26 @@ function ledgerHtml(W: World, raw: Plan) {
       <tr class="tot"><td>나갈 돈 합계</td><td class="n">−${fmt(out)}</td><td class="n last">${L ? '−' + fmt(outL) : ''}</td></tr>
       <tr class="tot"><td>순이익 (어림)</td><td class="n ${net < 0 ? 'neg' : 'pos'}">${sgn(net)}</td><td class="n last">${L ? sgn(netL) : ''}</td></tr>
       <tr><td>결재 뒤 금고 (어림)</td><td class="n">${fmt(c.cash + net)}</td><td></td></tr></tbody></table>
-    <button type="button" class="gate" data-act="phase" data-phase="1">미궁 입구로 (탐험 주차) →</button>
+    <button type="button" class="gate" data-act="phase" data-phase="1">출정 편성으로 →</button>
   </aside>`;
 }
+// 지도 위 단추 줄: 지도의 장소와 책상 위 자료를 단추로도 연다 (봉인 표시도 같이). 숫자 키 1~5는 장소, 6~9는 자료
+export const PLACE_KEYS = Object.keys(PLACES), DOC_KEYS = DOC_TABS.map(t => t[0]);
+function placeBar(seals: Record<string, string>) {
+  const mark = (k: string) => (seals[k] ? `<span class="mk" title="${seals[k]}">${seals[k].length <= 2 ? seals[k] : '!'}</span>` : '');
+  return `<div class="placebar" role="toolbar" aria-label="장소와 자료">
+    ${PLACE_KEYS.map((k, i) => `<button type="button" class="pb" data-act="place" data-place="${k}" title="${PLACES[k].where}${seals[k] ? ' · ' + seals[k] : ''}">${PLACES[k].name}<kbd>${i + 1}</kbd>${mark(k)}</button>`).join('')}
+    <span class="sep" aria-hidden="true"></span>
+    ${DOC_TABS.map(([k, n], i) => `<button type="button" class="pb doc" data-act="open-doc" data-tab="${k}">${n}<kbd>${PLACE_KEYS.length + i + 1}</kbd>${mark(k === 'report' ? '' : k)}</button>`).join('')}
+    <span class="sp"></span><button type="button" class="pb go" data-act="phase" data-phase="1">출정 편성으로 →</button></div>`;
+}
 export function infoWeekHtml(W: World, raw: Plan, ui: DeskUi) {
-  return `<div class="town">${townSceneHtml(fmt(townOf(W)), sealsOf(W, raw))}${ledgerHtml(W, raw)}</div>
+  const seals = sealsOf(W, raw);
+  return `${placeBar(seals)}<div class="town">${townSceneHtml(fmt(townOf(W)), seals)}${ledgerHtml(W, raw)}</div>
     ${readerHtml(W, ui)}${placeHtml(W, raw, ui)}`;
 }
 
-// ---------- 탐험 주차 ----------
+// ---------- 출정 ----------
 // 직업 표시: 색과 첫 글자
 const CLS_TAG: Record<string, string> = { 전사: 'war', 궁수: 'arc', 마법사: 'mag', 사제: 'pri', 도적: 'thf' };
 const pip = (p: Person) => `<i class="cls ${CLS_TAG[p.c] || ''}" aria-hidden="true">${p.c[0]}</i>`;
@@ -382,7 +393,7 @@ export function expWeekHtml(W: World, raw: Plan, ui: DeskUi) {
         <div class="floors">${floors}</div>
         ${c.crew ? benchHtml(W, P, ui) : ''}</div>
       ${warn.length ? `<div class="warn">${warn.join(' · ')}</div>` : ''}
-      <div class="foot"><button type="button" class="ghost" data-act="phase" data-phase="0">← 정보 주차</button><span class="tot">이번 달 나갈 돈 <b>${fmt(cost.all)}G</b> <span class="dim">(정보 ${fmt(cost.info)} · 내정 ${fmt(cost.home)} · 출정 ${fmt(cost.exp)} · 급여 ${fmt(cost.wage)})</span></span><button type="button" class="seal" id="go" data-act="go">결재 도장 찍기</button></div>
+      <div class="foot"><button type="button" class="ghost" data-act="phase" data-phase="0">← 내정으로</button><span class="tot">이번 달 나갈 돈 <b>${fmt(cost.all)}G</b> <span class="dim">(정보 ${fmt(cost.info)} · 건물 · 보급 ${fmt(cost.home)} · 출정 ${fmt(cost.exp)} · 급여 ${fmt(cost.wage)})</span></span><button type="button" class="seal" id="go" data-act="go">결재 도장 찍기</button></div>
     </div></div>`;
 }
 
@@ -399,9 +410,9 @@ function fcPanel(W: World, P: Plan, cost: number) {
 // ---------- 결과 ----------
 export function resultWeekHtml(W: World, live = false, mute = false) {
   return `<div class="resultwrap${live ? '' : ' done'}">${revealHtml(W, live, mute)}<article class="co-sheet doc${live ? ' after-run' : ''}" id="results"><span class="stampmark">결재</span>${resultsHtml(W)}</article>
-    <div class="foot"><button type="button" class="btn-next" data-act="phase" data-phase="0">제${W.month}월 정보 주차로 →</button></div></div>`;
+    <div class="foot"><button type="button" class="btn-next" data-act="phase" data-phase="0">제${W.month}월 내정으로 →</button></div></div>`;
 }
 
 // 이번 달 진행 표시: 보여 주기만 한다 (주차를 옮기는 것은 각 화면 아래의 단추로)
-export const weeksHtml = (W: World, phase: number) => [['정보 주차', 0], ['탐험 주차', 1], ['결과', 2]].map(([n, p], i) =>
+export const weeksHtml = (W: World, phase: number) => [['내정', 0], ['출정', 1], ['정산', 2]].map(([n, p], i) =>
   `<span class="wk${(p as number) < phase ? ' done' : ''}"${p === phase ? ' aria-current="step"' : ''}><i>${i + 1}</i>${n}</span>`).join('');
