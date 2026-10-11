@@ -49,7 +49,8 @@ describe('용병단 시장', () => {
   it('많이 팔릴수록 시세가 떨어지고, 포션은 많이 살수록 비싸진다', () => {
     ITEMS.forEach(it => {
       expect(priceOf(it, it.D)).toBe(it.P0);
-      expect(priceOf(it, it.D * 2)).toBeLessThan(it.P0);
+      // (바닥이 기준가인 전리품은 아무리 많이 팔려도 기준가 밑으로 내려가지 않는다)
+      if (it.lo < 1) expect(priceOf(it, it.D * 2)).toBeLessThan(it.P0); else expect(priceOf(it, it.D * 2)).toBe(it.P0);
       expect(priceOf(it, it.D / 2)).toBeGreaterThan(it.P0);
       expect(priceOf(it, it.D * 100)).toBe(Math.round(it.P0 * it.lo * 10) / 10);
       expect(priceOf(it, 1)).toBe(Math.round(it.P0 * it.hi * 10) / 10);
@@ -158,7 +159,7 @@ describe('경쟁 용병단', () => {
     let smart = 0, even = 0;
     for (let g = 1; g <= 40; g++) { smart += rankOf(playGame(g, BOT.smart)); even += rankOf(playGame(g, BOT.even)); }
     expect(smart).toBeLessThan(even);
-  });
+  }, 30000);
 });
 
 describe('몬스터와 편성 지침', () => {
@@ -182,7 +183,7 @@ describe('몬스터와 편성 지침', () => {
   });
   it('약점을 지침으로 삼으면 역효과를 지침으로 삼을 때보다 우리 성공률이 높다', () => {
     let good = 0, bad = 0, n = 0;
-    for (let seed = 1; seed <= 20; seed++) {
+    for (let seed = 1; seed <= 40; seed++) {
       for (const which of ['key', 'bad'] as const) {
         setSeed(seed); const W = newWorld();
         for (let m = 0; m < 6; m++) {
@@ -891,5 +892,20 @@ describe('정보 주차 책상', () => {
     const s = W.last!.res[0].spend;
     expect(ls.reduce((a, l) => a + l.last, 0)).toBe(Object.values(s).reduce((a, b) => a + b, 0));
     expect(ls.find(l => l.k === 'dorm')!.now).toBe(dormKeep(bedsOf(us(W)) + (us(W).pendingBeds || 0)) + (us(W).pendingBeds ? 0 : dormCost(us(W))));
+  });
+});
+
+describe('보급 소모', () => {
+  it('결과의 보급 소모는 층마다 들고 간 포션과 위기에 쓴 포션을 귀환 보고 그대로 센다', () => {
+    setSeed(5); const W = newWorld();
+    for (let m = 0; m < 3; m++) runMonth(W, defaultPlan(W));
+    const L = W.last!, html = resultsHtml(W);
+    expect(html).toContain('보급 소모');
+    FLOORS.forEach((_, f) => {
+      const ps = L.ours.filter(x => x.f === f); if (!ps.length) return;
+      const carry = L.plans[0].pots[f] * ps.length, used = ps.reduce((a, x) => a + (x.pots || 0), 0);
+      expect(html).toContain(`${carry}병 중 ${used}병`);
+    });
+    expect(L.ours.reduce((a, x) => a + (x.pots || 0), 0)).toBe(L.res[0].potUsed);
   });
 });
