@@ -2,7 +2,7 @@
 import './ui/co/base.css';
 import './ui/co/co.css';
 import { setSeed } from './core/rng';
-import { CO, FILE_KEYS, PREP_KEYS, type Plan, SRCS, type World, carryPlan, closeBooks, fileFix, fillTeams, formTeams, newWorld, probe, rankOf, roomOf, runMonth, sanitize, us } from './core/company';
+import { CO, FILE_KEYS, type Plan, SRCS, type World, carryPlan, closeBooks, fileFix, fillTeams, formTeams, newWorld, probe, rankOf, roomOf, runMonth, sanitize, us } from './core/company';
 import { DESC_FIRST } from './ui/co/roster';
 import { CLASSES, GEARS } from './core/data';
 import { plaqueHtml } from './ui/co/view';
@@ -11,7 +11,7 @@ import { draftHtml } from './ui/co/draft';
 import { advanceArrival, arrivalOpen, closeArrival, playArrival } from './ui/co/arrival';
 
 const $ = (id: string): any => document.getElementById(id);
-const KEY = 'lb-co', VERSION = 14, MONTHS = 36;   // 14: 영주세 · 법령 · 가정산(신고서) · 감사 (이전 판은 새 게임으로)
+const KEY = 'lb-co', VERSION = 15, MONTHS = 36;   // 15: 공방 없앰 · 횃불 창고 · 숙소 18 (이전 판은 새 게임으로)
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
 let W: World, plan: Plan, ui: DeskUi;
 // 도장을 막 찍은 결과 화면이면 귀환 장부를 한 줄씩 띄운다 (저장하지 않는 화면 상태)
@@ -28,7 +28,7 @@ function render() {
   const over = W.month > MONTHS && !W.draft;
   if (over) ui.phase = 3;
   $('weeks').innerHTML = weeksHtml(W, ui.phase);
-  $('desk').innerHTML = ui.phase === 0 ? infoWeekHtml(W, plan, ui) : ui.phase === 1 ? expWeekHtml(W, plan, ui) : ui.phase === 2 ? draftHtml(W, ui.file || {}) : resultWeekHtml(W, live, !!ui.mute);
+  $('desk').innerHTML = ui.phase === 0 ? infoWeekHtml(W, plan, ui) : ui.phase === 1 ? expWeekHtml(W, plan, ui) : ui.phase === 2 ? draftHtml(W, ui.file || {}, live) : resultWeekHtml(W, live, !!ui.mute);
   if (over) { const b = document.querySelector('#desk .resultwrap .btn-next') as HTMLButtonElement | null; if (b) { b.disabled = true; b.textContent = `임기가 끝났어요. 최종 ${rankOf(W)}위`; } }
 }
 function setPhase(p: number) { stopRun(); ui.phase = p; ui.open = false; ui.place = undefined; render(); save(); window.scrollTo({ top: 0 }); }
@@ -37,7 +37,7 @@ function start(fresh = false) {
   const d = fresh ? null : load();
   if (d) { W = d.W; plan = d.plan; ui = d.ui || { phase: 0, tab: 'report', pins: [] }; }
   // 포션은 고르는 것: 첫 결정표의 조당 포션 상한은 0병 (처음 받은 포션은 창고에 있다)
-  else { setSeed((Date.now() ^ 0x5bd1e995) >>> 0); W = newWorld(); plan = carryPlan(W, null); plan.pots = plan.pots.map(() => 0); ui = { phase: 0, tab: 'report', pins: [] }; }
+  else { setSeed((Date.now() ^ 0x5bd1e995) >>> 0); W = newWorld(); plan = carryPlan(W, null); plan.pots = plan.pots.map(() => 0); plan.pick = []; ui = { phase: 0, tab: 'report', pins: [] }; }
   plan.intelUp = plan.intelUp || {};   // 정보망은 유지비를 저절로 내고, 넓히는 돈만 따로 정한다
   tidyTeams();
   render(); save();
@@ -130,10 +130,7 @@ function act(b: HTMLElement) {
   if (a === 'dorm') { plan.dorm = !plan.dorm; render(); save(); return; }
   if (a === 'auto-recruit') { delete plan.recruit; delete plan.recruitC; delete plan.pick; render(); save(); return; }
   if (a === 'sellmap') { const f = +(b.dataset.f || 0); if (plan.sellMap === f) delete plan.sellMap; else plan.sellMap = f; render(); save(); return; }
-  if (a === 'wsbuild') { const k = b.dataset.k || ''; if (plan.wsBuild === k) delete plan.wsBuild; else plan.wsBuild = k; render(); save(); return; }
-  if (a === 'wsdown') { const k = b.dataset.k || ''; if (plan.wsDown === k) delete plan.wsDown; else plan.wsDown = k; render(); save(); return; }
   if (a === 'coach') { plan.coach = +(b.dataset.i || 0); render(); save(); return; }
-  if (a === 'auto-prep') { delete plan.prep; render(); save(); return; }
   if (a === 'build') { const k = b.dataset.k || ''; if (plan.build === k) delete plan.build; else plan.build = k; render(); save(); return; }
   if (a === 'pick') {
     const id = +(b.dataset.id || 0), P = plan.pick ? [...plan.pick] : [], k = P.indexOf(id);
@@ -147,6 +144,7 @@ function act(b: HTMLElement) {
   }
   if (a === 'refill' || a === 'fill-rest' || a === 'bench' || a === 'to-bench' || a === 'slot' || a === 'assign' || a === 'tfloor' || a === 'scout') return teamAct(a, b);
   if (a === 'auto-pot') { plan.buy = { ...(plan.buy || {}) }; delete plan.buy.pot; render(); save(); return; }
+  if (a === 'auto-torch') { plan.buy = { ...(plan.buy || {}) }; delete plan.buy.torch; render(); save(); return; }
   if (a === 'kit-add') { const f = +(b.dataset.f || 0); plan.kits = plan.kits || []; plan.kits[f] = [...(plan.kits[f] || []), { n: 0, g: '' }]; render(); save(); return; }
   if (a === 'kit-del') { const f = +(b.dataset.f || 0), k = +(b.dataset.j || 0); if (plan.kits && plan.kits[f]) plan.kits[f].splice(k, 1); render(); save(); return; }
   if (a === 'go') return stamp();
@@ -162,12 +160,14 @@ function stamp() {
   const M = runMonth(W, plan);
   plan = carryPlan(W, plan); ui.pick = null; tidyTeams();
   ui.file = W.draft ? { ...W.draft.truth } : {};
-  ui.phase = 2; render(); save(); window.scrollTo({ top: 0 });
+  ui.phase = 2; live = true; render(); save(); window.scrollTo({ top: 0 });
+  playRun();
   say(`제${M.month}월 귀환${M.opened != null ? ` · ${M.opened + 1}층이 열렸어요` : ''}${M.overflow ? ' · 미궁이 넘쳤어요' : ''} · 영주청에 낼 신고서를 꾸며요`);
 }
 // 신고서를 내면 정산이 끝나고 귀환 장부가 한 줄씩 뜬다
 function file() {
   if (!W.draft) return;
+  clearTimeout(runTimer); runTimer = null;   // 가정산의 귀환 연출이 아직 돌고 있으면 멈춘다
   const m = W.draft.m, F = closeBooks(W, ui.file || {});
   ui.file = undefined; ui.phase = 3; live = true; render(); save(); window.scrollTo({ top: 0 });
   playRun();
@@ -202,8 +202,6 @@ $('desk').addEventListener('change', (e: any) => {
   if (k === 'tpl') { const tp = [...(plan.tpl || CO.TPL0)]; tp[+t.dataset.i] = t.value; plan.tpl = tp; render(); save(); return; }
   if (k === 'teamG') { const T = plan.teams && plan.teams[+t.dataset.i]; if (T) T.g = t.value; render(); save(); return; }
   if (k === 'assign') { assignTo(+t.dataset.id, t.value); tidyTeams(); render(); save(); return; }
-  if (k === 'tarm' || k === 'tcart') { const T = plan.teams && plan.teams[+t.dataset.i]; if (T) { const v = +t.value; if (k === 'tarm') { if (v) T.arm = v; else delete T.arm; } else { if (v) T.cart = v; else delete T.cart; } } render(); save(); return; }
-  if (k === 'wsF') { plan.wsF = +t.value; render(); save(); return; }
   if (k === 'spyOn') { const on = [...(plan.spyOn || [])]; on[+t.dataset.i] = t.value; plan.spyOn = on.filter(Boolean); render(); save(); return; }
   if (k === 'rootf') { plan.root = { f: +t.value, seal: plan.root ? plan.root.seal : 0, mine: plan.root ? plan.root.mine : 0 }; render(); save(); return; }
   if (k === 'basef') { plan.base = { f: +t.value, amt: plan.base ? plan.base.amt : 0 }; render(); save(); return; }
@@ -225,7 +223,6 @@ function edit(k: string, i: number, fn: (v: number) => number, j = 0) {
   else if (k === 'donate') plan.donate = Math.max(0, fn(plan.donate || 0));
   else if (k === 'tool') plan.tool = Math.max(0, Math.min(2, fn(plan.tool || 0)));
   else if (k === 'proc') plan.proc = Math.max(0, fn(plan.proc || 0));
-  else if (k === 'prep') { const key = PREP_KEYS[i], cur = (plan.prep && plan.prep[key] != null) ? plan.prep[key] : (sanitize(W, us(W), plan).prep || {})[key] || 0; plan.prep = { ...(sanitize(W, us(W), plan).prep || {}), ...(plan.prep || {}), [key]: Math.max(0, fn(cur)) }; }
   else if (k === 'take') plan.take = { ...(plan.take || {}), [i]: Math.max(0, fn((plan.take && plan.take[i]) || 0)) };
   else if (k === 'recruitC') {
     const cls = CLASSES[i], cur = +(document.querySelector(`input[data-k="recruitC"][data-i="${i}"]`) as HTMLInputElement)?.value || 0;
@@ -236,6 +233,7 @@ function edit(k: string, i: number, fn: (v: number) => number, j = 0) {
   else if (k === 'recruit') { const cur = +(document.querySelector('input[data-k="recruit"]') as HTMLInputElement)?.value || 0; plan.recruit = Math.max(0, fn(plan.recruit != null ? plan.recruit : cur)); }
   else if (k === 'buyPot') { const cur = +(document.querySelector('input[data-k="buyPot"]') as HTMLInputElement)?.value || 0; buy().pot = Math.max(0, fn(plan.buy && plan.buy.pot != null ? plan.buy.pot : cur)); }
   else if (k === 'buyHoly') buy().holy = Math.max(0, fn((plan.buy && plan.buy.holy) || 0));
+  else if (k === 'buyTorch') { const cur = +(document.querySelector('input[data-k="buyTorch"]') as HTMLInputElement)?.value || 0; buy().torch = Math.max(0, fn(plan.buy && plan.buy.torch != null ? plan.buy.torch : cur)); }
   else if (k === 'buyGear') {
     const g = GEAR_NAMES[i], cur = +(document.querySelector(`input[data-k="buyGear"][data-i="${i}"]`) as HTMLInputElement)?.value || 0;
     const B = buy(); B.gear = { ...(B.gear || {}) }; B.gear[g] = Math.max(0, fn(B.gear[g] != null ? B.gear[g] : cur));
@@ -295,7 +293,7 @@ function playRun() {
       countTo(tv, acc, fin); box.classList.add(fin >= 0 ? 'win' : 'lose'); SOUND[fin >= 0 ? 'win' : 'lose'](0);
       runTimer = setTimeout(finishRun, 900); return;
     }
-    if (v) { countTo(tv, acc, acc + v); acc += v; }
+    if (v && tv) { countTo(tv, acc, acc + v); acc += v; }
     SOUND[k] && SOUND[k](k === 'ok' ? nOk++ : i);
     const next = items[i] ? items[i].dataset.k : '';
     runTimer = setTimeout(step, k === 'ok' || k === 'no' ? 170 : k === 'die' ? 420 : next === 'net' ? 900 : k === 'gain' ? 480 : 340);
@@ -307,8 +305,9 @@ function finishRun() {
   const box = document.querySelector('.run.live') as HTMLElement | null;
   if (box) {
     box.querySelectorAll('li.rv').forEach(li => li.classList.add('on'));
-    const fin = +(box.dataset.net || 0), tv = box.querySelector('.tv') as HTMLElement;
-    tv.textContent = sgnG(fin); tv.classList.toggle('neg', fin < 0); box.classList.add(fin >= 0 ? 'win' : 'lose'); box.classList.remove('live');
+    const fin = +(box.dataset.net || 0), tv = box.querySelector('.tv') as HTMLElement | null;
+    if (tv) { tv.textContent = sgnG(fin); tv.classList.toggle('neg', fin < 0); box.classList.add(fin >= 0 ? 'win' : 'lose'); }
+    box.classList.remove('live');
     box.querySelector('.skip')?.remove();
   }
   live = false;

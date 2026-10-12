@@ -944,3 +944,4 @@ table.tsum select { font: 12px var(--f-body); }
 @media (max-width: 720px) { .fc-line { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .job-sum { font: 600 13px var(--f-num); margin: 2px 0 4px; }
 .job > p { font-size: 12px; color: var(--ink-soft); }
+.billsum > div.me { box-shadow: inset 0 0 0 2px var(--good); }
