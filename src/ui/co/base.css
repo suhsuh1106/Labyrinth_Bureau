@@ -110,7 +110,6 @@ div.stats { display: flex; flex-wrap: wrap; gap: 4px 20px; }
 .news .body { columns: 3 150px; column-gap: 18px; column-rule: 1px solid rgba(27,25,21,.35); font-size: 13px; line-height: 1.65; text-align: justify; line-break: strict; }
 .news .body p { margin: 0 0 6px; text-indent: 1em; }
 .news .body p:first-child { text-indent: 0; }
-.news .body p:first-child::first-letter { float: left; font-size: 46px; line-height: .9; padding: 4px 6px 0 0; font-weight: 700; }
 .news aside { border-left: 1px solid var(--np-rule); padding-left: 14px; display: grid; gap: 12px; align-content: start; min-width: 0; }
 .news .box-h { font-size: 12px; font-weight: 700; letter-spacing: .2em; border-top: 2px solid var(--np-rule); border-bottom: 1px solid var(--np-rule); padding: 2px 0; margin-bottom: 4px; }
 .news table { width: 100%; border-collapse: collapse; font-size: 12px; }

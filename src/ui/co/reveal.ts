@@ -7,12 +7,10 @@ import { fmtG } from './charts';
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
 const sgn = (n: number) => (n > 0 ? '+' : n < 0 ? '−' : '±') + fmt(Math.abs(n));
 
-export function revealHtml(W: World, live: boolean, mute = false) {
-  const L = W.last; if (!L) return '';
-  const r = L.res[0], s = r.spend;
-  const lines: { k: string; v: number; t: string; amt?: string }[] = [];
+// 조마다 한 줄: 어느 층에서 무엇을 갖추고 어떻게 돌아왔나
+function teamLines(W: World) {
+  const L = W.last!, lines: { k: string; v: number; t: string; amt?: string }[] = [];
   let no = 0;
-  // 조마다: 어느 층에서 무엇을 갖추고 어떻게 돌아왔나
   FLOORS.forEach((F, f) => L.ours.filter(x => x.f === f).forEach(x => {
     const cls = x.keys.filter(k => k.startsWith('c:')).map(k => k.slice(2)).join('·'), gear = x.keys.find(k => k.startsWith('g:'));
     const mats = (x.mats || []).map(([m, n]) => `${m} ×${n}`).join(', ');
@@ -22,6 +20,19 @@ export function revealHtml(W: World, live: boolean, mute = false) {
     lines.push({ k: x.d ? 'die' : x.ok ? 'ok' : 'no', v: 0, t: `<b>${++no}조</b> ${F.name} <span class="grade g${Math.min(4, Math.max(1, k))}">${gradeOf(k)}</span>${dots} <span class="dim">${cls || '혼성'}${gear ? ` · ${gear.slice(2)}` : ''}${n < 4 ? ` · ${n}명` : ''}</span>`,
       amt: `${k ? `${Math.round(k / 4 * 100)}%${mats ? ` · ${mats}` : ''}` : '빈손'}${x.crisis ? ` · 위기 ${x.crisis}${x.pots ? ` · 포션 ${x.pots}` : ''}` : ''}${x.hurt ? ` · ${x.hurt}명 부상` : ''}${x.d ? ` · ${x.d}명 사망` : ''}` });
   }));
+  return lines;
+}
+// 가정산 위에 붙이는 귀환 결과: 조마다 한 줄 (돈은 신고서를 낸 뒤 정산에서)
+export function returnsHtml(W: World) {
+  const L = W.last; if (!L) return '';
+  const r = L.res[0], ok = r.ok.reduce((a, b) => a + b, 0), sent = r.sent.reduce((a, b) => a + b, 0) + r.hired.reduce((a, b) => a + b, 0);
+  return `<section class="run" aria-label="제${L.month}월 귀환"><header><h3>제${L.month}월 귀환</h3><span class="dim">${ok}/${sent}조 해냄${r.hurt ? ` · 부상 ${r.hurt}` : ''}${r.deaths ? ` · <b class="neg">사망 ${r.deaths}</b>` : ''}</span></header>
+    <ol>${teamLines(W).map(l => `<li class="rv ${l.k} on"><span class="mk" aria-hidden="true">${l.k === 'ok' ? '✓' : l.k === 'no' ? '✗' : '†'}</span><span class="tx">${l.t}</span><span class="am">${l.amt || ''}</span></li>`).join('')}</ol></section>`;
+}
+export function revealHtml(W: World, live: boolean, mute = false) {
+  const L = W.last; if (!L) return '';
+  const r = L.res[0], s = r.spend;
+  const lines: { k: string; v: number; t: string; amt?: string }[] = teamLines(W);
   // 층마다 판 전리품 (상단 단골 값을 얹은 실제 판매 수입을 층별 몫으로 나눈다)
   const loot0 = r.lootSales ?? r.sales - r.matSales, loot = loot0, base = ITEMS.map((_, j) => r.sold[j] * L.price[j]), bsum = base.reduce((a, b) => a + b, 0);
   let left = loot;
