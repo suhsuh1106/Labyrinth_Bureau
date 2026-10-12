@@ -10,7 +10,7 @@ import { type DeskUi, DOC_KEYS, PLACE_KEYS, expWeekHtml, infoWeekHtml, resultWee
 import { advanceArrival, arrivalOpen, closeArrival, playArrival } from './ui/co/arrival';
 
 const $ = (id: string): any => document.getElementById(id);
-const KEY = 'lb-co', VERSION = 13, MONTHS = 36;   // 13: 공방(무장 · 운반 · 갈무리 · 거점)과 이번 달 준비, 교관 (이전 판은 새 게임으로)
+const KEY = 'lb-co', VERSION = 14, MONTHS = 36;   // 14: 짐 칸(운반 4단계) · 조마다 포션 · 횃불 (이전 판은 새 게임으로)
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
 let W: World, plan: Plan, ui: DeskUi;
 // 도장을 막 찍은 결과 화면이면 귀환 장부를 한 줄씩 띄운다 (저장하지 않는 화면 상태)
@@ -72,6 +72,7 @@ function teamAct(a: string, b: HTMLElement) {
   else if (a === 'assign') assignTo(+(b.dataset.id || 0), b.dataset.t || '-1');
   else if (a === 'tfloor') { const x = T[+(b.dataset.t || 0)]; if (x) x.f = +(b.dataset.f || 0); }
   else if (a === 'scout') { const x = T[+(b.dataset.t || 0)]; if (x) { if (x.scout) delete x.scout; else x.scout = true; } }
+  else if (a === 'ttorch-auto') { const x = T[+(b.dataset.t || 0)]; if (x) delete x.torch; }
   else if (a === 'slot') {
     const t = +(b.dataset.t || 0), s = +(b.dataset.s || 0);
     if (pick && pick.id != null) { T[t].m[s] = pick.id; ui.pick = null; }   // 대기 인원을 넣는다 (있던 사람은 대기로)
@@ -140,7 +141,7 @@ function act(b: HTMLElement) {
     const d = ck === k ? -(+cd || 1) : DESC_FIRST.includes(k) ? -1 : 1;
     ui.sort = { ...(ui.sort || {}), [sc]: `${k}:${d}` }; render(); save(); return;
   }
-  if (a === 'refill' || a === 'fill-rest' || a === 'bench' || a === 'to-bench' || a === 'slot' || a === 'assign' || a === 'tfloor' || a === 'scout') return teamAct(a, b);
+  if (a === 'refill' || a === 'fill-rest' || a === 'bench' || a === 'to-bench' || a === 'slot' || a === 'assign' || a === 'tfloor' || a === 'scout' || a === 'ttorch-auto') return teamAct(a, b);
   if (a === 'auto-pot') { plan.buy = { ...(plan.buy || {}) }; delete plan.buy.pot; render(); save(); return; }
   if (a === 'kit-add') { const f = +(b.dataset.f || 0); plan.kits = plan.kits || []; plan.kits[f] = [...(plan.kits[f] || []), { n: 0, g: '' }]; render(); save(); return; }
   if (a === 'kit-del') { const f = +(b.dataset.f || 0), k = +(b.dataset.j || 0); if (plan.kits && plan.kits[f]) plan.kits[f].splice(k, 1); render(); save(); return; }
@@ -225,6 +226,8 @@ function edit(k: string, i: number, fn: (v: number) => number, j = 0) {
   }
   else if (k === 'base') { const f = plan.base ? plan.base.f : Math.max(0, W.unlocked - 1); plan.base = { f, amt: Math.max(0, fn(plan.base ? plan.base.amt : 0)) }; }
   else if (k === 'pots') plan.pots[i] = Math.max(0, Math.min(8, fn(plan.pots[i])));
+  // 조마다 챙길 포션 · 횃불: 지금 보이는 값(비워 둔 조는 그 층 조당 포션 · 지도로 어림한 횃불)에서 바꾼다
+  else if (k === 'tpots' || k === 'ttorch') { const T = plan.teams && plan.teams[i], cur = +(document.querySelector(`input[data-k="${k}"][data-i="${i}"]`) as HTMLInputElement)?.value || 0; if (T) T[k === 'tpots' ? 'pots' : 'torch'] = Math.max(0, Math.min(12, fn(cur))); }
   else if ((plan as any)[k]) (plan as any)[k][i] = Math.max(0, fn((plan as any)[k][i]));
   render(); save();
   const el = document.querySelector(`input[data-k="${k}"][data-i="${i}"]`) as HTMLElement | null; if (el && document.activeElement === document.body) el.focus();

@@ -8,6 +8,8 @@ import { CO, FLOORS, churchPrice, ITEMS, type Plan, type World, defaultPlan, dor
 import { demandSeen } from '../src/ui/co/book';
 import { CLASSES } from '../src/core/data';
 
+// 밸런스 시험: CO_JSON으로 규칙 숫자를 덮어써 돌려 본다 (예: CO_JSON='{"SLOT_PP":2}')
+if (process.env.CO_JSON) Object.assign(CO, JSON.parse(process.env.CO_JSON));
 const arg = (k: string, d: string) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
 const games = +arg('games', '200'), seed0 = +arg('seed', '1'), only = arg('style', '');
 const MONTHS = 36;
@@ -52,6 +54,8 @@ const GROW_K = +(process.env.GROW_K || 2), GROW_M = +(process.env.GROW_M || 150)
 // 숙련 봇의 공방 차례 (줄, 그 단계까지)와 공사비 몇 배가 있어야 짓는지
 const WS_ORDER: [string, number][] = (process.env.WS_ORDER || 'cart1,cut1,arm1,cart2,camp1,arm2,cut2,camp2').split(',').filter(Boolean).map(x => [x.slice(0, -1), +x.slice(-1)]);
 const WS_K = +(process.env.WS_K || 3);
+// 숙련 봇이 층마다 챙길 포션
+const SMART_POTS = (process.env.SMART_POTS || '0,2,3,3,3').split(',').map(Number);
 export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine', kit = true, scout = false): Plan {
   const c = us(W), P = defaultPlan(W), L = W.last, pots = 3;
   // 조당 남는 돈: 성공해서 캐 올 값(모형과 지난달 실제 조당 벌이의 중간) − 출정·포션 − 사망의 값(신입 계약금과 빈자리)
@@ -72,7 +76,8 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
   const order = value.map((v, f) => [v, f]).sort((a, b) => b[0] - a[0]);
   for (let k = 0, rest = n - P.parties.reduce((a, b) => a + b, 0); rest > 0; k++, rest--) P.parties[order[k % W.unlocked][1]]++;
   if (scout) P.parties = scoutSplit(W, n, pots, value);
-  P.pots = FLOORS.map(() => pots);
+  // 포션: 층마다 다르게 (얕은 층은 위기가 드물어 짐 칸을 자루로 쓰는 편이 낫다)
+  P.pots = FLOORS.map((_, f) => SMART_POTS[f] ?? pots);
   P.tool = 0;   // 단원마다 급여가 붙은 뒤로는 채집 장비 · 갈무리장이 본전이 안 된다 (시뮬레이션으로 확인함)
   const best = value.indexOf(Math.max(...value));
   if (c.cash > 6000 && value[best] * (1 - CO.HIRE_CUT) - CO.HIRE_FEE > 150) P.hire[best] = 2;

@@ -53,6 +53,7 @@ export function resultsHtml(W: World) {
       ${r.mapSale ? `<tr><td>지도 사본 판매 (관리국)</td><td class="n">${fmt(r.mapSale)}</td></tr>` : ''}
       ${r.matSales ? `<tr><td>갈무리 소재 ${Object.values(r.matSold).reduce((a, b) => a + b, 0)}개</td><td class="n">${fmt(r.matSales)}</td></tr>` : ''}
       <tr><td>출정</td><td class="n">−${fmt(r.spend.sortie)}</td></tr>
+      ${r.spend.torch ? `<tr><td>횃불 ${r.spend.torch / CO.TORCH_PRICE}개</td><td class="n">−${fmt(r.spend.torch)}</td></tr>` : ''}
       ${r.spend.potion ? `<tr><td>포션 구매 ${r.potNeed}병 (교회 ${r.potC}병)</td><td class="n">−${fmt(r.spend.potion)}</td></tr>` : ''}
       ${r.potUsed ? `<tr><td class="dim">위기에 쓴 포션 ${r.potUsed}병 (나머지는 창고로)</td><td class="n dim">-</td></tr>` : ''}
       ${r.spend.gear ? `<tr><td>장비 ${r.spend.gear / CO.GEAR_PRICE}벌</td><td class="n">−${fmt(r.spend.gear)}</td></tr>` : ''}
@@ -156,14 +157,19 @@ function supplyHtml(W: World) {
   const P = L.plans[0], past = W.history.slice(-6);
   const rows = FLOORS.map((F, f) => {
     const ps = L.ours.filter(x => x.f === f); if (!ps.length) return '';
-    const cap = P.pots[f], carry = cap * ps.length, used = ps.reduce((a, x) => a + (x.pots || 0), 0), crisis = ps.reduce((a, x) => a + (x.crisis || 0), 0);
-    const teams = ps.map(x => `<span class="sup-t" title="${x.crisis ? `위기 ${x.crisis}번 · 포션 ${x.pots || 0}병` : '위기 없음'}">${
-      cap ? Array.from({ length: cap }, (_, b) => `<i class="${b < (x.pots || 0) ? 'u' : ''}"></i>`).join('') : '<em>빈손</em>'}${(x.crisis || 0) > (x.pots || 0) ? `<i class="x" title="포션 없이 맞은 위기"></i>`.repeat((x.crisis || 0) - (x.pots || 0)) : ''}</span>`).join('');
+    // 조마다 들고 간 포션 (우리 조는 조마다 챙긴 만큼, 옛 판은 그 층 조당 포션)
+    const capOf = (x: (typeof ps)[number]) => (x.load ? x.load.pots : P.pots[f]);
+    const carry = ps.reduce((a, x) => a + capOf(x), 0), used = ps.reduce((a, x) => a + (x.pots || 0), 0), crisis = ps.reduce((a, x) => a + (x.crisis || 0), 0);
+    const teams = ps.map(x => { const cap = capOf(x); return `<span class="sup-t" title="${x.crisis ? `위기 ${x.crisis}번 · 포션 ${x.pots || 0}병` : '위기 없음'}">${
+      cap ? Array.from({ length: cap }, (_, b) => `<i class="${b < (x.pots || 0) ? 'u' : ''}"></i>`).join('') : '<em>빈손</em>'}${(x.crisis || 0) > (x.pots || 0) ? `<i class="x" title="포션 없이 맞은 위기"></i>`.repeat((x.crisis || 0) - (x.pots || 0)) : ''}</span>`; }).join('');
+    // 횃불: 들고 간 것 중 태운 것, 횃불이 떨어져 일찍 돌아선 조
+    const lds = ps.map(x => x.load).filter((x): x is NonNullable<typeof x> => !!x), tc = lds.reduce((a, x) => a + x.torch, 0), tb = lds.reduce((a, x) => a + x.tu, 0), dark = lds.filter(x => x.lost).length;
+    const torchTxt = lds.length ? `<span>횃불 <b>${tc}개 중 ${tb}개</b> 태움${dark ? ` · <b class="neg">${dark}조가 횃불이 떨어져 일찍 돌아섬</b>` : ''}</span>` : '';
     // 최근 몇 달 이 층에 간 우리 조 하나가 맞은 위기와 쓴 포션 (평균)
     const hs = past.flatMap(M => (M.ours || []).filter(x => x.f === f)), n = hs.length;
     const avg = n > 1 ? `<small>최근 ${past.filter(M => (M.ours || []).some(x => x.f === f)).length}달 조당 위기 ${(hs.reduce((a, x) => a + (x.crisis || 0), 0) / n).toFixed(1)} · 포션 ${(hs.reduce((a, x) => a + (x.pots || 0), 0) / n).toFixed(1)}병</small>` : '';
     return `<div class="sup-r"><div class="sup-h"><b>${F.name}</b><span>${ps.length}조 · 위기 ${crisis}번</span></div><div class="sup-b">${teams}</div>
-      <div class="sup-n"><span>${carry ? `<b>${carry}병 중 ${used}병</b> 씀 <span class="dim">(${Math.round(used / carry * 100)}%)</span>` : `<b>포션 없이</b> 감`}</span>${avg}</div></div>`;
+      <div class="sup-n"><span>${carry ? `<b>${carry}병 중 ${used}병</b> 씀 <span class="dim">(${Math.round(used / carry * 100)}%)</span>` : `<b>포션 없이</b> 감`}</span>${torchTxt}${avg}</div></div>`;
   }).join('');
   const c = us(W), st = potsOf(c), ex = potsExpiring(c), r = L.res[0];
   return `<section class="rp"><h3>보급 소모</h3>
@@ -225,7 +231,8 @@ export function returnHtml(W: World) {
       const cls = x.keys.map(CLS_SHORT).filter(Boolean).join('·'), gear = x.keys.find(k => k.startsWith('g:'));
       const got = (x.mats || []).map(([m, n]) => `${(x.first || []).includes(m) ? `<b>${m} ×${n}</b><span class="bk-new">처음</span>` : `${m} ×${n}`}`).join(', ');
       const grade = x.k != null ? `<span class="grade g${Math.min(4, Math.max(1, x.k))}">${gradeOf(x.k)} ${x.k}/${x.n || 4}</span> ` : '';
-      const what = grade + (x.k ? (got || '<span class="dim">갈무리한 것 없음</span>') : x.k == null && !x.ok ? `<span class="dim">실패</span>` : '') + (x.crisis ? ` <span class="dim">· 위기 ${x.crisis}${x.pots ? ` · 포션 ${x.pots}` : ''}</span>` : '');
+      const what = grade + (x.k ? (got || '<span class="dim">갈무리한 것 없음</span>') : x.k == null && !x.ok ? `<span class="dim">실패</span>` : '') + (x.crisis ? ` <span class="dim">· 위기 ${x.crisis}${x.pots ? ` · 포션 ${x.pots}` : ''}</span>` : '')
+        + (x.load && x.load.lost ? ` · <b class="neg">횃불이 떨어져 ${x.load.lost}일 일찍 돌아섬</b>` : '') + (x.load && x.load.left >= 0.5 ? ` · <b class="hurt">짐이 차 ${fmt(x.load.left)}칸어치 두고 옴</b>` : '');
       return `<div class="ld${(x.first || []).length ? ' first' : ''}"><span class="ld-w">${x.kit >= 0 ? `<span class="ktag">${KTAG[x.kit]}</span>` : ''}${++no}조 · ${cls || '혼성'}${gear ? ` · ${gear.slice(2)}` : ''}</span><span>${what}${x.hurt ? ` · <b class="hurt">${x.hurt}명 부상</b>` : ''}${x.d ? ` · <b class="neg">${x.d}명 사망</b>` : ''}</span></div>`;
     }).join('');
     // 같은 층의 편성 줄끼리 견주기: 줄마다 조 · 성공 · 사망 · 조당 소재 값, 그리고 줄 사이에 차이가 난 소재 둘

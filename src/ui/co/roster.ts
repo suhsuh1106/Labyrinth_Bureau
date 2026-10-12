@@ -1,6 +1,7 @@
 // 단원 명단과 편성표: 엑셀처럼 한 줄에 한 사람. 머리글을 누르면 정렬한다.
 // 인원 창의 명단 · 지원자 명단과, 출정의 편성표(조 요약 줄 + 배치 칸)를 그린다. 상태를 쓰지 않고 난수도 쓰지 않는다
-import { CO, FLOORS, type Person, type Plan, type World, candPrice, cohesion, hqLv, mapOf, personWage, recruitPrice, roomOf, teamOdds, tierOf, us } from '../../core/company';
+import { CO, FLOORS, type Person, type Plan, type World, candPrice, cohesion, hqLv, mapOf, personWage, recruitPrice, roomOf, teamLoad, teamOdds, tierOf, us } from '../../core/company';
+import { stepper } from './view';
 import { GEARS, TIER_N, TRAITS } from '../../core/data';
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
@@ -10,7 +11,7 @@ const ARM_N = ['낡은 무장', '철제', '강철', '각인'], CART_N = ['등짐
 // 조의 무장 · 운반 고르기: 공방이 연 단계까지 (준비한 개수를 넘으면 그 조는 낡은 무장 · 등짐으로 간다)
 function loadSel(k: 'arm' | 'cart', t: number, cur: number, max: number, prep: Record<string, number>, used: Record<string, number>) {
   if (!max) return '<span class="dim">-</span>';
-  const N = k === 'arm' ? ARM_N : CART_N, D = k === 'arm' ? CO.ARM_SUCC.map(v => `+${v * 100}%p`) : CO.CART_LOOT.map(v => `+${v * 100}%`);
+  const N = k === 'arm' ? ARM_N : CART_N, D = k === 'arm' ? CO.ARM_SUCC.map(v => `+${v * 100}%p`) : CO.CART_SLOT.map(v => `+${v}칸`);
   return `<select data-k="${k === 'arm' ? 'tarm' : 'tcart'}" data-i="${t}" aria-label="${t + 1}조 ${k === 'arm' ? '무장' : '운반'}">${N.slice(0, max + 1).map((n, v) => `<option value="${v}"${v === cur ? ' selected' : ''}>${n}${v ? ` ${D[v]} · 준비 ${Math.max(0, (prep[k + v] || 0) - (used[k + v] || 0) + (v === cur ? 1 : 0))}` : ''}</option>`).join('')}</select>`;
 }
 export const nameOf = (p: Person) => p.n || `${p.c} ${p.id}`;
@@ -53,6 +54,12 @@ export function candHtml(W: World, raw: Plan, sort?: string) {
     <p class="note">${picks.length ? `고른 ${picks.length}명 · 계약금 어림 ${fmt(total)}G` : raw.pick ? '아무도 뽑지 않아요' : `고르지 않으면 빈 침상만큼 기본 편성 직업 순으로 실력 좋은 사람부터 뽑아요`} · 빈 침상 ${room}개. 다른 용병단이 같은 사람을 찾으면 명성이 높은 곳이 먼저고, 찾는 사람이 많으면 계약금이 올라요.${raw.pick ? ' <button type="button" class="link" data-act="auto-recruit">자동으로 뽑기</button>' : ''}</p>`;
 }
 
+// 짐 칸 한 줄: 횃불 · 포션이 칸을 먼저 차지하고 남은 칸이 자루가 된다 (운반 단계가 칸을 늘린 몫은 점선)
+function packBar(L: { slots: number; torch: number; pots: number; free: number }, extra: number) {
+  const cell = (k: string, n: number, from: number) => Array.from({ length: n }, (_, j) => `<i class="${k}${from + j >= L.slots - extra ? ' cart' : ''}"></i>`).join('');
+  return `<span class="pack" title="짐 ${L.slots}칸: 횃불 ${L.torch} · 포션 ${L.pots} · 자루 ${L.free}${extra ? ` (운반 +${extra}칸)` : ''}">${cell('t', L.torch, 0)}${cell('p', L.pots, L.torch)}${cell('s', L.free, L.torch + L.pots)}</span><small class="dim">자루 ${L.free}</small>`;
+}
+
 // ---------- 출정 편성표 ----------
 // 조 요약 줄: 층, 사람 수, 직업, 조직력, 성공률 어림, 장비, 살필 것. 아래 명단의 배치 칸으로 사람을 넣고 뺀다
 export function assignHtml(W: World, P: Plan, others: (f: number) => number, sort?: string) {
@@ -64,7 +71,7 @@ export function assignHtml(W: World, P: Plan, others: (f: number) => number, sor
   const prep = P.prep || {}, used: Record<string, number> = {};
   teams.forEach(T => (['arm', 'cart'] as const).forEach(k => { if (T[k]) used[k + T[k]] = (used[k + T[k]] || 0) + 1; }));
   const sum = teams.map((T, t) => {
-    const who = whoOf(t), crowd = P.parties[T.f] + P.hire[T.f] + others(T.f), o = teamOdds(W, c, T.f, who, P.pots[T.f], crowd, T);
+    const who = whoOf(t), crowd = P.parties[T.f] + P.hire[T.f] + others(T.f), o = teamOdds(W, c, T.f, who, P.pots[T.f], crowd, T), LD = who.length ? teamLoad(c, P, T, who) : null;
     const bonded = cohesion(who) > 0, fresh = bonded ? who.filter(p => who.every(x => x.id === p.id || !((p.mt && p.mt[x.id]) || 0))).length : 0;
     const scoutOk = hqLv(c, 'rec') >= 2 && who.length <= 3;
     const warn = [...(who.length < CO.PARTY && !T.scout ? [`빈자리 ${CO.PARTY - who.length}`] : []), ...(fresh ? [`새 얼굴 ${fresh}`] : []),
@@ -78,6 +85,9 @@ export function assignHtml(W: World, P: Plan, others: (f: number) => number, sor
       <td><span class="cobar" title="조원 둘씩 함께 나간 달의 평균 (${CO.CO_MAX}달이 끝)"><i><b style="width:${Math.round(o.coh * 100)}%"></b></i><span class="n">${Math.round(o.coh * 100)}</span><small class="dim">+${Math.round(o.coh * CO.CO_SUCC * 100)}%p</small></span></td>
       <td class="n"><b>${Math.round(o.p * 100)}%</b></td>
       <td>${loadSel('arm', t, T.arm || 0, c.ws ? c.ws.arm : 0, prep, used)}</td><td>${loadSel('cart', t, T.cart || 0, c.ws ? c.ws.cart : 0, prep, used)}</td>
+      ${LD ? `<td>${stepper('tpots', t, LD.pots, `${t + 1}조 포션`)}</td>
+      <td title="하루에 ${Math.round(LD.rate * 100)}% 확률로 하나씩 태워요 · 닷새면 ${(LD.rate * CO.TORCH_DAYS).toFixed(1)}개쯤 · 떨어지면 그날 돌아서요">${stepper('ttorch', t, LD.torch, `${t + 1}조 횃불`)}${LD.auto ? '<small class="dim">어림</small>' : `<button type="button" class="link sm" data-act="ttorch-auto" data-t="${t}">어림대로</button>`}</td>
+      <td>${packBar(LD, CO.CART_SLOT[T.cart || 0] || 0)}</td>` : '<td></td><td></td><td></td>'}
       <td><select data-k="teamG" data-i="${t}" aria-label="${t + 1}조 장비"><option value="">섞인 대로</option>${GEAR_NAMES.map(g => `<option value="g:${g}"${T.g === 'g:' + g ? ' selected' : ''}>${g}</option>`).join('')}</select></td>
       <td><span class="warn-s">${warn.length ? warn.map(w => `<span>${w}</span>`).join('') : '<span class="ok">없음</span>'}</span></td></tr>`;
   }).join('');
@@ -92,8 +102,8 @@ export function assignHtml(W: World, P: Plan, others: (f: number) => number, sor
     return `<span class="seg asg" role="group" aria-label="${esc(nameOf(p))} 배치">${teams.map((_, k) => `<button type="button" class="k${k % 8}" data-act="assign" data-id="${p.id}" data-t="${k}" aria-pressed="${t === k}"${t !== k && whoOf(k).length >= CO.PARTY ? ' disabled' : ''}>${k + 1}조</button>`).join('')}<button type="button" data-act="assign" data-id="${p.id}" data-t="new" title="새 조를 만들어 넣기">+</button><button type="button" class="bn" data-act="assign" data-id="${p.id}" data-t="-1" aria-pressed="${t == null}">대기</button></span>`;
   };
   const bondTxt = (p: Person) => { const b = bondOf(p); return b < 0 ? '' : b === 0 && whoOf(teamOf.get(p.id)!).length > 1 ? '<span class="fresh">새 얼굴</span>' : `${b.toFixed(b % 1 ? 1 : 0)}달`; };
-  return `<div class="tw"><table class="grid tsum"><thead><tr><th>조</th><th>층</th><th class="n">인원</th><th>직업</th><th title="지도 완성도 + 고참 경험 + 길잡이">이해도</th><th>조직력</th><th class="n">성공률</th><th>무장</th><th>운반</th><th title="약점 장비">장비</th><th>살필 것</th></tr></thead>
-      <tbody>${sum || `<tr><td colspan="11" class="dim">짠 조가 없어요. 아래 명단의 + 를 눌러 새 조를 만들어요</td></tr>`}<tr class="rest"><td><b>대기</b></td><td colspan="10" class="dim">${bench.length}명${bench.filter(p => p.hurt).length ? ` (부상 ${bench.filter(p => p.hurt).length})` : ''} · 이번 달 쉬어요</td></tr></tbody></table></div>
+  return `<div class="tw"><table class="grid tsum"><thead><tr><th>조</th><th>층</th><th class="n">인원</th><th>직업</th><th title="지도 완성도 + 고참 경험 + 길잡이">이해도</th><th>조직력</th><th class="n">성공률</th><th>무장</th><th title="운반 단계가 짐 칸을 늘려요">운반</th><th title="위기마다 한 병씩 써요">포션</th><th title="날마다 지도가 어두운 만큼 태우고, 떨어지면 돌아서요">횃불</th><th title="한 사람에 ${CO.SLOT_PP}칸 + 운반. 횃불 · 포션이 칸을 먼저 쓰고 남은 칸과 다 쓴 칸에 전리품을 담아요">짐 칸</th><th title="약점 장비">장비</th><th>살필 것</th></tr></thead>
+      <tbody>${sum || `<tr><td colspan="14" class="dim">짠 조가 없어요. 아래 명단의 + 를 눌러 새 조를 만들어요</td></tr>`}<tr class="rest"><td><b>대기</b></td><td colspan="13" class="dim">${bench.length}명${bench.filter(p => p.hurt).length ? ` (부상 ${bench.filter(p => p.hurt).length})` : ''} · 이번 달 쉬어요</td></tr></tbody></table></div>
     <div class="tw"><table class="grid crewt asgn"><thead><tr>${th('name', '이름', cur, 'as')}${th('cls', '직업', cur, 'as')}${th('sk', '실력', cur, 'as')}${th('tr', '특성', cur, 'as')}${open.map(f => th('ex' + f, FLOORS[f].name, cur, 'as', 'n')).join('')}${th('bond', '함께한 달', cur, 'as')}${th('team', '배치', cur, 'as')}</tr></thead>
     <tbody>${rows.map(({ p }) => { const t = teamOf.get(p.id), f = t != null ? teams[t].f : -1;
       return `<tr class="${t != null ? 'k' + (t % 8) : ''}${p.hurt ? ' away' : ''}"><td class="nm">${esc(nameOf(p))}</td><td class="cn">${p.c}</td><td>${tierHtml(p)}</td><td>${traitHtml(p)}</td>${open.map(g => exCell(p, g, g === f)).join('')}<td class="bond">${bondTxt(p)}</td><td>${cell(p)}</td></tr>`; }).join('')}</tbody></table></div>`;

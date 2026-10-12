@@ -888,3 +888,13 @@ table.tsum select { font: 12px var(--f-body); }
 .wsnew { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; border: 2px solid var(--church); border-radius: 6px; padding: 8px 12px; margin: 6px 0 10px; background: color-mix(in srgb, var(--church) 10%, var(--paper)); }
 .wsnew b { font: 700 15px var(--f-display); }
 .wsnew span { font-size: 13px; color: var(--ink-soft); }
+
+/* 짐 칸 (편성표): 횃불 · 포션이 칸을 먼저 쓰고 남은 칸이 자루. 운반이 늘린 칸은 점선 */
+table.tsum .pack { display: inline-flex; gap: 2px; vertical-align: middle; margin-right: 6px; }
+table.tsum .pack i { width: 7px; height: 13px; border-radius: 1px; border: 1.5px solid var(--ink-soft); background: transparent; }
+table.tsum .pack i.t { border-color: var(--c4); background: var(--c4); }
+table.tsum .pack i.p { border-color: var(--bad); background: var(--bad); }
+table.tsum .pack i.s { border-color: var(--ink-soft); }
+table.tsum .pack i.cart { border-style: dashed; }
+table.tsum .step input { width: 44px; }
+table.tsum .link.sm { font-size: 11px; margin-left: 4px; }

@@ -17,7 +17,7 @@ import { bookHtml, demandsNow } from '../src/ui/co/book';
 import { allMats, floorMons, guideParts, matChance, matPrice, potsOf, probe, sanitize } from '../src/core/company';
 import { INTEL, aiPlan as aiPlanOf } from '../src/core/company';
 import { rnd } from '../src/core/rng';
-import { floorMax, keyOf } from '../src/core/company';
+import { floorMax, keyOf, teamLoad, torchAuto } from '../src/core/company';
 import { fcRank, forecast, gradeOf } from '../src/core/company';
 import { bedsOf, classCap, dormCost, dormKeep, formTeams, recruitPrice, recruitWants, rookCount, rookSlots, shareOut } from '../src/core/company';
 import { CLASSES } from '../src/core/data';
@@ -474,6 +474,40 @@ describe('전리품 비율과 몬스터 적응', () => {
       }
     }
     expect(b).toBeGreaterThan(a * 1.15);
+  });
+  it('짐 칸은 사람 수와 운반 단계로 정해지고, 횃불을 먼저 넣고 남은 칸에 포션을 넣는다', () => {
+    setSeed(4); const W = newWorld(), c = us(W), P = sanitize(W, c, defaultPlan(W)), T = P.teams![0];
+    const who = T.m.filter((x): x is number => x != null).map(id => c.crew!.find(p => p.id === id)!);
+    T.cart = 2; T.torch = 3; T.pots = 20;
+    const L = teamLoad(c, P, T, who);
+    expect(L.slots).toBe(who.length * CO.SLOT_PP + CO.CART_SLOT[2]);
+    expect(L.torch).toBe(3); expect(L.pots).toBe(L.slots - 3); expect(L.free).toBe(0);
+    delete T.torch; expect(teamLoad(c, P, T, who).torch).toBe(torchAuto(0, teamUnd(c, 0, who)));
+  });
+  it('짐 칸을 횃불 · 포션으로 채우면 덜 지고 오고, 두고 온 몫이 귀환 보고에 남는다', () => {
+    let light = 0, heavy = 0, left = 0;
+    for (const full of [false, true]) for (let g = 1; g <= 10; g++) {
+      setSeed(g); const W = newWorld();
+      for (let m = 0; m < 3; m++) {
+        const P = sanitize(W, us(W), BOT.even(W)); P.teams!.forEach(T => { T.pots = full ? 8 : 0; T.torch = full ? 4 : 0; }); P.buy = { pot: 100 };
+        const M = runMonth(W, P), per = M.res[0].got[0] / Math.max(1, M.res[0].ok[0]);
+        if (full) { heavy += per; left += M.ours.reduce((a, x) => a + (x.load ? x.load.left : 0), 0); } else light += per;
+      }
+    }
+    expect(light).toBeGreaterThan(heavy * 1.3);
+    expect(left).toBeGreaterThan(0);
+  });
+  it('횃불이 모자라면 일찍 돌아서 덜 캐 오고, 들고 간 횃불 값이 정산에 나간다', () => {
+    let none = 0, lots = 0, lostN = 0;
+    for (const torch of [0, 6]) for (let g = 1; g <= 10; g++) {
+      setSeed(g); const W = newWorld(); W.unlocked = 2;
+      const P = sanitize(W, us(W), BOT.even(W)); P.teams!.forEach(T => { T.f = 1; T.torch = torch; T.pots = 2; T.cart = undefined; }); P.parties = [0, P.teams!.length, 0, 0, 0];
+      const M = runMonth(W, P), r = M.res[0];
+      expect(r.spend.torch).toBe(M.ours.reduce((a, x) => a + x.load!.torch, 0) * CO.TORCH_PRICE);
+      if (torch) lots += r.got[1]; else { none += r.got[1]; lostN += M.ours.filter(x => x.load!.lost > 0).length; }
+    }
+    expect(lostN).toBeGreaterThan(0);
+    expect(lots).toBeGreaterThan(none * 1.2);
   });
   it('준비한 개수까지만 조에 붙고, 공방은 한 달에 하나씩 다음 달 완공되며 낮추면 바로 내려간다', () => {
     setSeed(3); const W = newWorld(), c = us(W); c.ws!.arm = 2;

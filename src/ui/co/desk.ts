@@ -2,7 +2,7 @@
 // 정보 주차 — 자료함(보고서·신문·도감·조사 결과)을 열어 읽고, 조사 의뢰를 걸고, 정보망과 내정(건물·보급·창고·세력)을 정한다.
 // 탐험 주차 — 작전 메모를 옆에 두고 층마다 몇 조를 무엇을 챙겨 보낼지 정하고 도장을 찍는다. 결과는 다음 달 보고서가 된다.
 // 화면은 HTML 문자열만 만든다. 상태를 쓰지 않고 난수도 쓰지 않는다
-import { CO, FLOORS, INTEL, ITEMS, type Job, type Person, PREP_KEYS, jobsOpen, jobsSign, prepPrice, wageCo, wsCost, wsKeep, wsLv, candPrice, candWants, hqCost, hqKeep, hqLv, fcRank, forecast, townOf, type Plan, SRCS, type World, bedsOf, isRook, rookCount, churchPrice, dormCost, dormKeep, roomOf, wageOf, gearBuy, hireCost, intelBlock, intelCost, lootMul, maxParties, needOf, potsExpiring, potsOf, probeCost, probesLeft, sanitize, sortieCost, succRate, supOf, toolCost, trainBonus, us } from '../../core/company';
+import { CO, FLOORS, INTEL, ITEMS, type Job, type Person, PREP_KEYS, jobsOpen, jobsSign, prepPrice, wageCo, wsCost, wsKeep, wsLv, candPrice, candWants, hqCost, hqKeep, hqLv, fcRank, forecast, townOf, type Plan, SRCS, type World, bedsOf, isRook, rookCount, churchPrice, dormCost, dormKeep, roomOf, wageOf, gearBuy, hireCost, intelBlock, intelCost, lootMul, maxParties, needOf, potsExpiring, potsOf, probeCost, probesLeft, sanitize, sortieCost, succRate, supOf, toolCost, torchCost, trainBonus, us } from '../../core/company';
 import { CLASSES, GEARS, BUYERS } from '../../core/data';
 import { bookHtml, condLabel, kitHint } from './book';
 import { SRC_INFO, intelHtml, rumorsHtml } from './intel';
@@ -167,7 +167,7 @@ export const WS_NAME: Record<string, string> = { arm: '무장', cart: '운반', 
 export const WS_TIER: Record<string, string[]> = { arm: ['낡은 무장', '철제 무장', '강철 무장', '각인 무장'], cart: ['등짐', '손수레', '짐 노새', '도르래 승강기'], cut: ['허리칼', '갈무리 칼', '염장실', '정제소'], camp: ['없음', '야영지', '보급소', '요새'] };
 const WS_DO: Record<string, string[]> = {
   arm: ['', `성공 +${CO.ARM_SUCC[1] * 100}%p`, `성공 +${CO.ARM_SUCC[2] * 100}%p · 위기 −10%`, `성공 +${CO.ARM_SUCC[3] * 100}%p · 포션 없이도 덜 죽음`],
-  cart: ['', `캐 오는 양 +${CO.CART_LOOT[1] * 100}%`, `캐 오는 양 +${CO.CART_LOOT[2] * 100}%`, `캐 오는 양 +${CO.CART_LOOT[3] * 100}% · 3층부터 위기 −10%`],
+  cart: ['', `짐 칸 +${CO.CART_SLOT[1]}`, `짐 칸 +${CO.CART_SLOT[2]}`, `짐 칸 +${CO.CART_SLOT[3]} · 3층부터 위기 −10%`],
   cut: ['', `소재 ×${CO.CUT_MAT[1]}`, `소재 ×${CO.CUT_MAT[2]}`, `소재 ×${CO.CUT_MAT[3]}`],
   camp: ['', `그 층 위기 −${Math.round((1 - CO.CAMP_CRISIS) * 100)}%`, `그 층 성공 +${CO.CAMP_SUCC * 100}%p`, `그 층 캐 오는 양 ×${CO.CAMP_LOOT} · 이해도 +${CO.CAMP_UND}`],
 };
@@ -211,10 +211,10 @@ function trainPanel(W: World, raw: Plan) {
     </div></div>`;
 }
 // 이번 달 살 포션 (비워 두면 편성에 모자란 만큼)
-const potBuy = (W: World, raw: Plan, P: Plan) => { const H = potsOf(us(W)), need = needOf(P); return raw.buy && raw.buy.pot != null ? raw.buy.pot : Math.max(0, need.pot - H.pot - H.holy - ((raw.buy && raw.buy.holy) || 0)); };
+const potBuy = (W: World, raw: Plan, P: Plan) => { const H = potsOf(us(W)), need = needOf(P, us(W)); return raw.buy && raw.buy.pot != null ? raw.buy.pot : Math.max(0, need.pot - H.pot - H.holy - ((raw.buy && raw.buy.holy) || 0)); };
 const gearOf = (W: World, raw: Plan, P: Plan, g: string) => (raw.buy && raw.buy.gear && raw.buy.gear[g] != null ? raw.buy.gear[g] : gearBuy(us(W), P)[g] || 0);
 function buyPanel(W: World, raw: Plan, P: Plan, kind: 'market' | 'church') {
-  const c = us(W), S = supOf(c), H = potsOf(c), X = potsExpiring(c), need = needOf(P);
+  const c = us(W), S = supOf(c), H = potsOf(c), X = potsExpiring(c), need = needOf(P, us(W));
   const potN = potBuy(W, raw, P), holyN = (raw.buy && raw.buy.holy) || 0, auto = !(raw.buy && raw.buy.pot != null);
   const rows = kind === 'market' ? [
     `<tr><td><b>상단 포션</b>${X.pot ? `<small class="neg">${X.pot}병 이번 달 지나면 상함</small>` : ''}</td><td class="n">${W.potion}G</td><td class="n">${H.pot}</td><td class="n">${need.pot}</td><td>${stepper('buyPot', 0, potN, '상단 포션 구매', 10)}${auto ? '<small>자동</small>' : '<button type="button" class="link" data-act="auto-pot">자동</button>'}</td><td class="n">${fmt(potN * W.potion)}G</td></tr>`,
@@ -332,7 +332,7 @@ export function costLines(W: World, raw: Plan): CostLine[] {
     L('root', '근원 기금 · 후원', 'church', (P.root ? P.root.seal + P.root.mine : 0) + (P.donate || 0), s ? s.root + s.donate : 0),
     L('intel', '정보망', 'alley', intelCost(P), s ? s.intel : 0),
     L('probe', `조사 의뢰 ${(W.probes || []).filter(x => x.m === W.month).length}건`, 'alley', probeCost(W), s ? s.probe : 0),
-    L('sortie', '출정 · 계약 파티', 'gate', sortieCost(P).reduce((a, b) => a + b, 0) + hireCost(P), s ? s.sortie + s.hire : 0),
+    L('sortie', '출정 · 횃불 · 계약 파티', 'gate', sortieCost(P).reduce((a, b) => a + b, 0) + torchCost(c, P) + hireCost(P), s ? s.sortie + (s.torch || 0) + s.hire : 0),
   ];
 }
 // 이번 달 결재에 드는 돈 (위 줄을 정보 · 내정 · 출정 · 급여로 묶은 것)
@@ -357,7 +357,7 @@ export function readerHtml(W: World, ui: DeskUi) {
 // 내정: 책상 위 마을 지도(누르면 장소 창)와 옆에 붙은 결재안(이번 달 들어올 돈 · 나갈 돈 전부)
 // 챙길 일: 장소마다 손볼 일이 있을 때만 짧은 말을 붙인다 (지도에 밀랍 봉인으로)
 function sealsOf(W: World, raw: Plan): Record<string, string> {
-  const c = us(W), P = sanitize(W, c, raw), X = potsExpiring(c), I = W.intel, need = needOf(P), H = potsOf(c);
+  const c = us(W), P = sanitize(W, c, raw), X = potsExpiring(c), I = W.intel, need = needOf(P, c), H = potsOf(c);
   const hurt = (c.crew || []).filter(x => x.hurt).length, room = roomOf(c), rn = recruitOf(W, raw);
   const near = I ? SRCS.filter(k => I.lv[k] < 3 && INTEL.UP[k][I.lv[k]] - I.acc[k] <= 150 && INTEL.UP[k][I.lv[k]] > I.acc[k]) : [];
   const R = (W.roots || []).find(r => r.found && !r.done), news = W.mat ? W.mat.dem.filter(d => d.until >= W.month && d.at >= W.month - 1).length : 0;
@@ -453,7 +453,7 @@ function teamCard(W: World, P: Plan, t: number, p0: number, ui: DeskUi) {
     <div class="tfoot"><span>${rooks ? `수습 ${rooks} · −${Math.round(rooks * CO.ROOK_PEN * 100)}%p` : '모두 대원'}${n < CO.PARTY ? ` · 빈자리 ${CO.PARTY - n} · −${Math.round((CO.PARTY - n) * CO.SHORT_PEN * 100)}%p` : ''}</span><span>예상 <b>${pct(p)}</b></span></div></div>`;
 }
 export function expWeekHtml(W: World, raw: Plan, ui: DeskUi) {
-  const c = us(W), P = sanitize(W, c, raw), L = W.last, S = supOf(c), need = needOf(P), gb = gearBuy(c, P), cost = monthCost(W, raw);
+  const c = us(W), P = sanitize(W, c, raw), L = W.last, S = supOf(c), need = needOf(P, c), gb = gearBuy(c, P), cost = monthCost(W, raw);
   const others = (f: number) => (L ? L.plans.reduce((a, Q, i) => a + (i ? Q.parties[f] + Q.hire[f] : 0), 0) : f === 0 ? 75 : 0);
   const sc = sortieCost(P);
   const H = potsOf(c), holyB = (P.buy && P.buy.holy) || 0, potB = P.buy && P.buy.pot != null ? P.buy.pot : Math.max(0, need.pot - H.pot - H.holy - holyB);
@@ -467,7 +467,7 @@ export function expWeekHtml(W: World, raw: Plan, ui: DeskUi) {
       <div class="fctl">
         ${c.crew ? `<span>우리 조 <b>${P.parties[f]}</b></span>` : `<label>우리 조 ${stepper('parties', f, P.parties[f], `${F.name} 우리 조`)}</label>`}
         <label>계약 조 ${stepper('hire', f, raw.hire[f], `${F.name} 계약 조`)}</label>
-        <label title="위기가 올 때만 한 병씩 쓰고 남은 것은 창고로 돌아와요">포션 상한 ${stepper('pots', f, raw.pots[f], `${F.name} 조당 포션 상한`)}</label>
+        <label title="위기가 올 때만 한 병씩 쓰고 남은 것은 창고로 돌아와요${c.crew ? '. 우리 조는 편성표에서 조마다 정하고, 정하지 않은 조와 계약 조가 이만큼 챙겨요' : ''}">${c.crew ? '조당 포션 (기본)' : '포션 상한'} ${stepper('pots', f, raw.pots[f], `${F.name} 조당 포션`)}</label>
         <span class="cost">출정비 <b>${fmt(sc[f] + P.hire[f] * CO.HIRE_FEE)}G</b></span>
       </div>
       ${teams ? `<div class="teams">${teams}</div>` : ''}
