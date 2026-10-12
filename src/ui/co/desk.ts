@@ -2,7 +2,7 @@
 // 정보 주차 — 자료함(보고서·신문·도감·조사 결과)을 열어 읽고, 조사 의뢰를 걸고, 정보망과 내정(건물·보급·창고·세력)을 정한다.
 // 탐험 주차 — 작전 메모를 옆에 두고 층마다 몇 조를 무엇을 챙겨 보낼지 정하고 도장을 찍는다. 결과는 다음 달 보고서가 된다.
 // 화면은 HTML 문자열만 만든다. 상태를 쓰지 않고 난수도 쓰지 않는다
-import { CO, FLOORS, INTEL, ITEMS, type Job, type Person, PREP_KEYS, jobsOpen, jobsSign, prepPrice, wageCo, wsCost, wsKeep, wsLv, candPrice, candWants, hqCost, hqKeep, hqLv, fcRank, forecast, townOf, type Plan, SRCS, type World, bedsOf, isRook, rookCount, churchPrice, dormCost, dormKeep, roomOf, wageOf, gearBuy, hireCost, intelBlock, intelCost, lootMul, maxParties, needOf, potsExpiring, potsOf, probeCost, probesLeft, sanitize, sortieCost, succRate, supOf, toolCost, trainBonus, us } from '../../core/company';
+import { CO, FLOORS, INTEL, ITEMS, type Filing, type Job, type Person, PREP_KEYS, jobsExplore, jobsOpen, jobsSign, taxGuess, prepPrice, wageCo, wsCost, wsKeep, wsLv, candPrice, candWants, hqCost, hqKeep, hqLv, fcRank, forecast, townOf, type Plan, SRCS, type World, bedsOf, isRook, rookCount, churchPrice, dormCost, dormKeep, roomOf, wageOf, gearBuy, hireCost, intelBlock, intelCost, lootMul, maxParties, needOf, potsExpiring, potsOf, probeCost, probesLeft, sanitize, sortieCost, succRate, supOf, toolCost, trainBonus, us } from '../../core/company';
 import { CLASSES, GEARS, BUYERS } from '../../core/data';
 import { bookHtml, condLabel, kitHint } from './book';
 import { SRC_INFO, intelHtml, rumorsHtml } from './intel';
@@ -10,10 +10,12 @@ import { coIssue, paperHtml } from './paper';
 import { revealHtml } from './reveal';
 import { fcChart, fcNums, fmtG } from './charts';
 import { PLACES, townSceneHtml } from './town';
+import { lawsHtml } from './books';
 import { assignHtml, candHtml, rosterHtml } from './roster';
 import { KTAG, depthsHtml, fieldHtml, fmt, newsLines, pct, resultsHtml, sgn, stepper } from './view';
 
 export type DeskUi = { phase: number; tab: string; pins: string[]; rival?: string; open?: boolean; mute?: boolean;
+  file?: Partial<Filing>;   // 가정산에서 고치는 신고서
   pick?: { t?: number; s?: number; id?: number } | null;
   sort?: Record<string, string>;   // 명단 정렬 (rs 인원 명단 · cd 지원자 · as 편성표): "열:방향"
   place?: string };   // 내정에서 열어 둔 장소 창 (인원 · 건물 · 상단 거리 · 교회 · 정보망)   // 편성판에서 집어 든 사람 (조의 자리, 또는 대기 인원)
@@ -238,6 +240,12 @@ function jobCard(W: World, raw: Plan, J: Job) {
       <dl class="terms">${(J.prize || []).map((p, k) => `<div><dt>${k + 1}등</dt><dd>${fmt(p)}G${(J.fame || [])[k] ? ` · 명성 +${J.fame![k]}` : ''}</dd></div>`).join('')}</dl>
       ${W.month > J.from ? `<div class="race-t">${order.slice(0, 5).map(([k, v], r) => `<div class="race-r${k === 0 ? ' us' : ''}"><span>${r + 1}. ${W.cos[k].name}</span><i><b style="width:${Math.round(v / top * 100)}%"></b></i><span class="n">${v.toFixed(1)}</span></div>`).join('')}</div>` : '<p class="note">첫 달이라 아직 순위가 없어요. 다음 달부터 이 판과 신문에 지난달까지의 순위가 붙어요.</p>'}</article>`;
   }
+  if (J.kind === 'explore') {
+    const P = sanitize(W, c, raw), n = (raw.take && raw.take[J.id]) || 0, sent = P.parties[J.f];
+    return `<article class="job explore">${head}<p>이번 달 ${FLOORS[J.f].name}에 보낼 조를 적어 내면 조당 선금을 바로 줘요. 덜 보낸 조는 가정산에서 선금의 ${J.pen}배를 돌려내요. 달마다 새로 적어 내요.</p>
+      <dl class="terms"><div><dt>선금</dt><dd>${fmt(J.prem)}G / 조</dd></div><div><dt>덜 보내면</dt><dd>${fmt(Math.round(J.prem * J.pen))}G / 조 반납</dd></div><div><dt>지도</dt><dd>${Math.round(c.map ? c.map[J.f] : 0)}%</dd></div></dl>
+      <div class="take"><span>적어 낼 조</span>${stepper('take', J.id, n, `${J.title} 적어 낼 조`)}<span class="est">지금 편성은 ${FLOORS[J.f].name} <b>${sent}조</b>.${n ? ` 선금 <b class="pos">+${fmt(n * J.prem)}G</b>${n > sent ? `, 이대로면 ${n - sent}조 몫 <b class="neg">${fmt(Math.round((n - sent) * J.prem * J.pen))}G</b>를 돌려내요` : ''}.` : ''}</span></div></article>`;
+  }
   const per = L && L.res[0].sent[J.f] ? L.res[0].got[J.f] / L.res[0].sent[J.f] : FLOORS[J.f].take * 0.8;
   const P = sanitize(W, c, raw), est = Math.round(per * P.parties[J.f] * months), take = (raw.take && raw.take[J.id]) || 0;
   const seeOthers = lvOf(W, 'mkt') >= 1, others = J.take.reduce((a, v, k) => a + (k ? v : 0), 0);
@@ -249,7 +257,12 @@ function jobCard(W: World, raw: Plan, J: Job) {
 }
 // 출정: 맡은 의뢰의 진행 띠 (넘긴 양, 이번 편성의 어림, 남은 양). 무엇을 하라고 말하지 않고 숫자만
 function jobsTrack(W: World, P: Plan) {
-  const L = W.last, rows = jobsOpen(W).filter(J => J.kind === 'race' || J.take[0] || (J.from === W.month && P.take && P.take[J.id])).map(J => {
+  const L = W.last, rows = jobsOpen(W).filter(J => J.kind === 'race' || (J.kind === 'explore' ? P.take && P.take[J.id] : J.take[0] || (J.from === W.month && P.take && P.take[J.id]))).map(J => {
+    if (J.kind === 'explore') {
+      const n = (P.take && P.take[J.id]) || 0, sent = P.parties[J.f];
+      return `<div class="tk"><div class="tk-h"><b>${J.title}</b><span>적어 낸 ${n}조 · 선금 ${fmt(n * J.prem)}G</span></div>
+        <p>${FLOORS[J.f].name}에 지금 <b class="n">${sent}</b>조${sent < n ? ` · <b class="neg">${n - sent}조 모자람</b> (가정산에서 ${fmt(Math.round((n - sent) * J.prem * J.pen))}G 반납)` : ' · 계획대로'}</p></div>`;
+    }
     if (J.kind === 'race') {
       const sc = J.score || [], order = W.cos.map((_, k) => k).filter(k => W.cos[k].style !== 'crowd').sort((a, b) => sc[b] - sc[a]), rk = order.indexOf(0) + 1, lead = order[0];
       return `<div class="tk"><div class="tk-h"><b>${J.title}</b><span>${J.until - W.month + 1}달 남음 · 우리 ${rk}등</span></div>
@@ -265,11 +278,12 @@ function jobsTrack(W: World, P: Plan) {
   return rows.length ? `<div class="panel jobs-t"><header><h2>맡은 의뢰</h2></header><div class="jtrack">${rows.join('')}</div></div>` : '';
 }
 function boardPanel(W: World, raw: Plan) {
-  const open = [...jobsOpen(W)].sort((a, b) => (a.from === W.month ? -1 : 0) - (b.from === W.month ? -1 : 0));
+  const open = [...jobsOpen(W)].sort((a, b) => (a.kind === 'explore' ? -2 : a.from === W.month ? -1 : 0) - (b.kind === 'explore' ? -2 : b.from === W.month ? -1 : 0));
   const done = (W.jobs || []).filter(J => J.until < W.month && J.until >= W.month - 3);
   return `<div class="panel board"><header><h2>관리국 게시판</h2><span class="sub">영주 · 상단 · 교회 · 마법학교가 모든 용병단에 똑같이 내건 의뢰</span></header>
     ${open.length ? open.map(J => jobCard(W, raw, J)).join('') : '<p class="note">지금 붙은 의뢰가 없어요. 시장에 모자란 전리품이 생기면 납품 의뢰가 붙어요.</p>'}
-    ${done.length ? `<h3 class="rs-h">끝난 의뢰</h3>${done.map(J => `<p class="note">${J.by} · ${J.title} (${J.from}~${J.until}월)${J.kind === 'deliver' ? ` · 우리 ${fmt(J.done[0])} / ${fmt(J.take[0])}개` : ` · 우리 ${((J.score || [])[0] || 0).toFixed(1)}조`}</p>`).join('')}` : ''}</div>`;
+    <h3 class="rs-h">영주청 고시</h3>${lawsHtml(W)}
+    ${done.length ? `<h3 class="rs-h">끝난 의뢰</h3>${done.filter(J => J.kind !== 'explore').map(J => `<p class="note">${J.by} · ${J.title} (${J.from}~${J.until}월)${J.kind === 'deliver' ? ` · 우리 ${fmt(J.done[0])} / ${fmt(J.take[0])}개` : ` · 우리 ${((J.score || [])[0] || 0).toFixed(1)}조`}</p>`).join('')}` : ''}</div>`;
 }
 
 // ---------- 인원: 숙소(침상이 상한)와 신입 모집. 신입은 수습으로 들어와 낀 조가 성공을 쌓으면 대원이 된다 ----------
@@ -333,6 +347,7 @@ export function costLines(W: World, raw: Plan): CostLine[] {
     L('intel', '정보망', 'alley', intelCost(P), s ? s.intel : 0),
     L('probe', `조사 의뢰 ${(W.probes || []).filter(x => x.m === W.month).length}건`, 'alley', probeCost(W), s ? s.probe : 0),
     L('sortie', '출정 · 계약 파티', 'gate', sortieCost(P).reduce((a, b) => a + b, 0) + hireCost(P), s ? s.sortie + s.hire : 0),
+    L('tax', '영주세 (정직하게 낼 때)', 'board', taxGuess(W, P, forecast(W, P)).tax, s ? s.tax + s.fine : 0),
   ];
 }
 // 이번 달 결재에 드는 돈 (위 줄을 정보 · 내정 · 출정 · 급여로 묶은 것)
@@ -361,7 +376,7 @@ function sealsOf(W: World, raw: Plan): Record<string, string> {
   const hurt = (c.crew || []).filter(x => x.hurt).length, room = roomOf(c), rn = recruitOf(W, raw);
   const near = I ? SRCS.filter(k => I.lv[k] < 3 && INTEL.UP[k][I.lv[k]] - I.acc[k] <= 150 && INTEL.UP[k][I.lv[k]] > I.acc[k]) : [];
   const R = (W.roots || []).find(r => r.found && !r.done), news = W.mat ? W.mat.dem.filter(d => d.until >= W.month && d.at >= W.month - 1).length : 0;
-  const sign = jobsSign(W).length;
+  const sign = jobsSign(W).length + jobsExplore(W).length;
   return {
     board: sign ? String(sign) : '',
     staff: room && !rn && !P.dorm ? `빈 침상 ${room}` : hurt ? `부상 ${hurt}명 쉼` : '',
@@ -390,15 +405,17 @@ export function placeHtml(W: World, raw: Plan, ui: DeskUi) {
 }
 // 결재안: 들어올 돈(수입 어림)과 나갈 돈 줄마다 이번 달 · 지난달. 줄 이름을 누르면 그 장소 창이 열린다
 function ledgerHtml(W: World, raw: Plan) {
-  const c = us(W), P = sanitize(W, c, raw), fc = forecast(W, P), L = W.last, ls = costLines(W, raw);
+  const c = us(W), P = sanitize(W, c, raw), fc = forecast(W, P), L = W.last, ls = costLines(W, raw), G = taxGuess(W, P, fc), gov = G.sub + G.aid + G.adv;
+  const govL = L ? L.res[0].sales - (L.res[0].lootSales ?? 0) - L.res[0].matSales - (L.res[0].jobPay || 0) - (L.res[0].mapSale || 0) : 0;
   const out = ls.reduce((a, l) => a + l.now, 0), outL = ls.reduce((a, l) => a + l.last, 0);
   const go = (l: { place: string; name: string }) => (l.place === 'gate' ? `<button type="button" class="lg" data-act="phase" data-phase="1">${l.name}</button>` : `<button type="button" class="lg" data-act="place" data-place="${l.place}">${l.name}</button>`);
   const row = (l: CostLine) => `<tr class="${l.now !== l.last && L ? 'changed' : ''}"><td>${go(l)}</td><td class="n now">${l.now ? '−' + fmt(l.now) : '0'}</td><td class="n last">${L ? (l.last ? '−' + fmt(l.last) : '0') : ''}</td></tr>`;
-  const net = fc.mean + (P.sellMap != null ? CO.MAP_COPY : 0) - out, netL = L ? L.res[0].net : 0;
+  const net = fc.mean + (P.sellMap != null ? CO.MAP_COPY : 0) + gov - out, netL = L ? L.res[0].net : 0;
   return `<aside class="ledger" aria-labelledby="h-ledger">
     <h2 id="h-ledger">제${W.month}월 결재안 <small>금고 ${fmt(c.cash)}G</small></h2>
     <table><thead><tr><th>들어올 돈</th><th>이번 달</th><th>${L ? '지난달' : ''}</th></tr></thead><tbody>
-      <tr><td><button type="button" class="lg" data-act="phase" data-phase="1">전리품 · 소재 (어림)</button></td><td class="n now">${fmt(fc.mean)}</td><td class="n last">${L ? fmt(L.res[0].sales - (L.res[0].mapSale || 0)) : ''}</td></tr>
+      <tr><td><button type="button" class="lg" data-act="phase" data-phase="1">전리품 · 소재 (어림)</button></td><td class="n now">${fmt(fc.mean)}</td><td class="n last">${L ? fmt((L.res[0].lootSales ?? 0) + L.res[0].matSales + (L.res[0].jobPay || 0)) : ''}</td></tr>
+      ${gov || govL ? `<tr><td><button type="button" class="lg" data-act="place" data-place="board">영주청 지원금 · 선금 (어림)</button></td><td class="n now">${fmt(gov)}</td><td class="n last">${L ? fmt(govL) : ''}</td></tr>` : ''}
       ${P.sellMap != null || (L && L.res[0].mapSale) ? `<tr><td><button type="button" class="lg" data-act="place" data-place="train">지도 사본 판매</button></td><td class="n now">${P.sellMap != null ? fmt(CO.MAP_COPY) : '0'}</td><td class="n last">${L ? fmt(L.res[0].mapSale || 0) : ''}</td></tr>` : ''}</tbody></table>
     <table><thead><tr><th>나갈 돈</th><th>이번 달</th><th>${L ? '지난달' : ''}</th></tr></thead><tbody>
       ${ls.filter(l => l.now || l.last).map(row).join('')}
@@ -522,5 +539,5 @@ export function resultWeekHtml(W: World, live = false, mute = false) {
 }
 
 // 이번 달 진행 표시: 보여 주기만 한다 (주차를 옮기는 것은 각 화면 아래의 단추로)
-export const weeksHtml = (W: World, phase: number) => [['내정', 0], ['출정', 1], ['정산', 2]].map(([n, p], i) =>
+export const weeksHtml = (W: World, phase: number) => [['내정', 0], ['출정', 1], ['가정산', 2], ['정산', 3]].map(([n, p], i) =>
   `<span class="wk${(p as number) < phase ? ' done' : ''}"${p === phase ? ' aria-current="step"' : ''}><i>${i + 1}</i>${n}</span>`).join('');

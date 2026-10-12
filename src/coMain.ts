@@ -2,15 +2,16 @@
 import './ui/co/base.css';
 import './ui/co/co.css';
 import { setSeed } from './core/rng';
-import { CO, PREP_KEYS, type Plan, SRCS, type World, carryPlan, fillTeams, formTeams, newWorld, probe, rankOf, roomOf, runMonth, sanitize, us } from './core/company';
+import { CO, FILE_KEYS, PREP_KEYS, type Plan, SRCS, type World, carryPlan, closeBooks, fileFix, fillTeams, formTeams, newWorld, probe, rankOf, roomOf, runMonth, sanitize, us } from './core/company';
 import { DESC_FIRST } from './ui/co/roster';
 import { CLASSES, GEARS } from './core/data';
 import { plaqueHtml } from './ui/co/view';
 import { type DeskUi, DOC_KEYS, PLACE_KEYS, expWeekHtml, infoWeekHtml, resultWeekHtml, weeksHtml } from './ui/co/desk';
+import { draftHtml } from './ui/co/draft';
 import { advanceArrival, arrivalOpen, closeArrival, playArrival } from './ui/co/arrival';
 
 const $ = (id: string): any => document.getElementById(id);
-const KEY = 'lb-co', VERSION = 13, MONTHS = 36;   // 13: 공방(무장 · 운반 · 갈무리 · 거점)과 이번 달 준비, 교관 (이전 판은 새 게임으로)
+const KEY = 'lb-co', VERSION = 14, MONTHS = 36;   // 14: 영주세 · 법령 · 가정산(신고서) · 감사 (이전 판은 새 게임으로)
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
 let W: World, plan: Plan, ui: DeskUi;
 // 도장을 막 찍은 결과 화면이면 귀환 장부를 한 줄씩 띄운다 (저장하지 않는 화면 상태)
@@ -21,10 +22,13 @@ function load() { try { const d = JSON.parse(localStorage.getItem(KEY) || 'null'
 
 function render() {
   $('stats').innerHTML = plaqueHtml(W);
-  const over = W.month > 36;
-  if (over && ui.phase !== 2) ui.phase = 2;
+  // 신고서를 아직 내지 않았으면 가정산에 머문다. 임기가 끝나면 정산만
+  if (W.draft) ui.phase = 2;
+  else if (ui.phase === 2) ui.phase = 3;
+  const over = W.month > MONTHS && !W.draft;
+  if (over) ui.phase = 3;
   $('weeks').innerHTML = weeksHtml(W, ui.phase);
-  $('desk').innerHTML = ui.phase === 0 ? infoWeekHtml(W, plan, ui) : ui.phase === 1 ? expWeekHtml(W, plan, ui) : resultWeekHtml(W, live, !!ui.mute);
+  $('desk').innerHTML = ui.phase === 0 ? infoWeekHtml(W, plan, ui) : ui.phase === 1 ? expWeekHtml(W, plan, ui) : ui.phase === 2 ? draftHtml(W, ui.file || {}) : resultWeekHtml(W, live, !!ui.mute);
   if (over) { const b = document.querySelector('#desk .resultwrap .btn-next') as HTMLButtonElement | null; if (b) { b.disabled = true; b.textContent = `임기가 끝났어요. 최종 ${rankOf(W)}위`; } }
 }
 function setPhase(p: number) { stopRun(); ui.phase = p; ui.open = false; ui.place = undefined; render(); save(); window.scrollTo({ top: 0 }); }
@@ -145,18 +149,29 @@ function act(b: HTMLElement) {
   if (a === 'kit-add') { const f = +(b.dataset.f || 0); plan.kits = plan.kits || []; plan.kits[f] = [...(plan.kits[f] || []), { n: 0, g: '' }]; render(); save(); return; }
   if (a === 'kit-del') { const f = +(b.dataset.f || 0), k = +(b.dataset.j || 0); if (plan.kits && plan.kits[f]) plan.kits[f].splice(k, 1); render(); save(); return; }
   if (a === 'go') return stamp();
+  if (a === 'file') return file();
+  if (a === 'file-reset') { ui.file = W.draft ? { ...W.draft.truth } : {}; render(); save(); return; }
   if (a === 'skip-run') return finishRun();
   if (a === 'mute') { ui.mute = !ui.mute; save(); b.textContent = ui.mute ? '소리 켜기' : '소리 끄기'; return; }
 }
 
+// 결재 도장: 한 달을 돌리고 가정산(신고서)으로 간다. 신고서를 내야 정산이 끝난다
 function stamp() {
   if (W.month > MONTHS) return;
   const M = runMonth(W, plan);
   plan = carryPlan(W, plan); ui.pick = null; tidyTeams();
-  ui.phase = 2; live = true; render(); save(); window.scrollTo({ top: 0 });
+  ui.file = W.draft ? { ...W.draft.truth } : {};
+  ui.phase = 2; render(); save(); window.scrollTo({ top: 0 });
+  say(`제${M.month}월 귀환${M.opened != null ? ` · ${M.opened + 1}층이 열렸어요` : ''}${M.overflow ? ' · 미궁이 넘쳤어요' : ''} · 영주청에 낼 신고서를 꾸며요`);
+}
+// 신고서를 내면 정산이 끝나고 귀환 장부가 한 줄씩 뜬다
+function file() {
+  if (!W.draft) return;
+  const m = W.draft.m, F = closeBooks(W, ui.file || {});
+  ui.file = undefined; ui.phase = 3; live = true; render(); save(); window.scrollTo({ top: 0 });
   playRun();
-  const r = M.res[0];
-  say(`제${M.month}월 결재 · 순이익 ${r.net >= 0 ? '+' : '−'}${Math.abs(Math.round(r.net)).toLocaleString('ko-KR')}G · ${rankOf(W)}위${M.opened != null ? ` · ${M.opened + 1}층이 열렸어요` : ''}${M.overflow ? ' · 미궁이 넘쳤어요' : ''}${W.log.some(l => l.m === M.month && /근원 발견/.test(l.t)) ? ' · 근원을 찾았어요' : ''}`);
+  const M = W.history.find(x => x.month === m)!, r = M.res[0];
+  say(`제${m}월 결재 · 순이익 ${r.net >= 0 ? '+' : '−'}${Math.abs(Math.round(r.net)).toLocaleString('ko-KR')}G · ${rankOf(W)}위${F && F.audit ? (F.audit.fine ? ` · 감사로 추징금 ${F.audit.fine.toLocaleString('ko-KR')}G` : ' · 감사가 다녀갔어요') : ''}${W.log.some(l => l.m === m && /근원 발견/.test(l.t)) ? ' · 근원을 찾았어요' : ''}`);
 }
 
 $('desk').addEventListener('click', (e: any) => {
@@ -196,6 +211,15 @@ $('desk').addEventListener('change', (e: any) => {
 
 function edit(k: string, i: number, fn: (v: number) => number, j = 0) {
   const buy = () => (plan.buy = { ...(plan.buy || {}) });
+  // 가정산 신고서 칸 (규칙 안으로 맞춰 둔다)
+  if (k === 'file') {
+    if (!W.draft) return;
+    const key = FILE_KEYS[i], cur = fileFix(W, W.draft, ui.file || {});
+    ui.file = fileFix(W, W.draft, { ...cur, [key]: Math.max(0, fn(cur[key])) });
+    render(); save();
+    const el = document.querySelector(`input[data-k="file"][data-i="${i}"]`) as HTMLElement | null; if (el && document.activeElement === document.body) el.focus();
+    return;
+  }
   if (k === 'train') plan.train = Math.max(0, fn(plan.train));
   else if (k === 'donate') plan.donate = Math.max(0, fn(plan.donate || 0));
   else if (k === 'tool') plan.tool = Math.max(0, Math.min(2, fn(plan.tool || 0)));
