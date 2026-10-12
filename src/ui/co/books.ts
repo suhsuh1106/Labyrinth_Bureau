@@ -1,5 +1,5 @@
 // 영주청: 법령 게시와 정산서의 신고 줄. 가정산 화면은 draft.ts. HTML 문자열만 만든다 (상태를 쓰지 않고 난수도 쓰지 않는다)
-import { FILE_KEYS, FILE_SRC, FLOORS, type FileKey, type Law, TAX, type World, auditChance, lawsAt, us } from '../../core/company';
+import { jo, FILE_KEYS, FILE_SRC, FLOORS, type FileKey, type Law, TAX, type World, auditChance, lawsAt, us } from '../../core/company';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
 // 신고서 칸: 이름, 단위, 고칠 때 한 번에 움직이는 양, 그 칸이 무엇을 바꾸는지
@@ -12,11 +12,12 @@ export const ROW: Record<FileKey, { n: string; u: string; step: number; dir: str
   adv: { n: '계획서 층에 보낸 조', u: '조', step: 1, dir: '더 적으면 돌려낼 선금이 준다' },
 };
 
-const LAW_NAME: Record<Law['kind'], string> = { mat: '소재 과세', aid: '층 지원금', sub: '보급 지원금', loot: '전리품 세율' };
+const LAW_NAME: Record<Law['kind'], string> = { mat: '소재 과세', aid: '층 지원금', sub: '보급 지원금', loot: '전리품 세율', check: '대조 강화' };
 export function lawLine(L: Law) {
   if (L.kind === 'mat') return `${L.m} 판매에 ${Math.round((L.rate || 0) * 100)}% 세금`;
   if (L.kind === 'aid') return `${FLOORS[L.f!].name}에 들어가는 조마다 ${fmt(L.amt || 0)}G`;
   if (L.kind === 'sub') return L.rate ? `포션 · 횃불 지원금 ${Math.round((L.rate || 0) * 100)}%로 줄임` : '포션 · 횃불 지원금 끊음';
+  if (L.kind === 'check') return `${ROW[L.k!].n}${jo(ROW[L.k!].n, '을', '를')} ${FILE_SRC[L.k!]}${jo(FILE_SRC[L.k!], '과', '와')} 더 꼼꼼히 맞대 봄 (걸릴 확률 ×${TAX.CHECK_DET}, 의심 ×${TAX.CHECK_SUS})`;
   return `전리품 세율 +${Math.round((L.rate || 0) * 100)}%p (범람 복구)`;
 }
 const until = (L: Law) => (L.until >= 999 ? '계속' : `제${L.until}월까지`);
@@ -34,10 +35,10 @@ export function lawsHtml(W: World, m = W.month) {
 export function fileResultHtml(W: World) {
   const L = W.last; if (!L) return '';
   const r = L.res[0], X = r.file; if (!X) return '';
-  const T = X.truth, F = X.filed, B = X.bill, A = X.audit;
+  const T = X.truth, F = X.filed, B = X.bill, A = X.audit, hitSrc = A ? A.hit.map(k => FILE_SRC[k]).filter((x, j, a) => a.indexOf(x) === j).join(' · ') : '';
   const diff = FILE_KEYS.filter(k => T[k] !== F[k]).map(k => `${ROW[k].n} ${fmt(T[k])} → ${fmt(F[k])}${ROW[k].u}`);
   return `<section class="rp"><h3>영주청</h3>
-    ${A ? `<div class="audit ${A.fine ? 'hit' : ''}"><b>${A.fine ? `감사 · 추징금 ${fmt(A.fine)}G` : '감사 · 별일 없음'}</b><span>${A.fine ? `${A.hit.map(k => FILE_SRC[k]).filter((x, j, a) => a.indexOf(x) === j).join(' · ')}와 맞대 보니 지난 신고에서 ${fmt(A.found)}G가 맞지 않았어요. 의심과 묵은 장부는 지워졌어요.` : '회계관이 장부를 살피고 돌아갔어요. 의심과 묵은 장부는 지워졌어요.'}</span></div>` : ''}
+    ${A ? `<div class="audit ${A.fine ? 'hit' : ''}"><b>${A.fine ? `감사 · 추징금 ${fmt(A.fine)}G` : '감사 · 별일 없음'}</b><span>${A.fine ? `${hitSrc}${jo(hitSrc, '과', '와')} 맞대 보니 지난 신고에서 ${fmt(A.found)}G가 맞지 않았어요. 의심과 묵은 장부는 지워졌어요.` : '회계관이 장부를 살피고 돌아갔어요. 의심과 묵은 장부는 지워졌어요.'}</span></div>` : ''}
     <div class="tw"><table class="grid slim"><tbody>
       <tr><td>영주세 (전리품${B.matTax ? ' · 소재' : ''}${B.credit ? ' · 후원 공제 뒤' : ''})</td><td class="n">−${fmt(B.tax)}</td></tr>
       ${B.sub ? `<tr><td>보급 지원금 (포션 ${fmt(F.pot)}병 · 횃불 ${fmt(F.torch)}개)</td><td class="n">+${fmt(B.sub)}</td></tr>` : ''}

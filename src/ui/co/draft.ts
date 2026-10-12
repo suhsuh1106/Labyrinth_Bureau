@@ -50,7 +50,7 @@ export function draftHtml(W: World, F0: Partial<Filing>) {
       </div></section>
     <section class="rp"><h3>영주청의 눈</h3>
       <div class="susp ${sev}"><div class="meter" role="img" aria-label="의심 ${Math.round(X.sus)}, 이번 달 감사 확률 ${Math.round(X.chance * 100)}%"><span class="done" style="width:${Math.min(100, Math.round(X.sus / (TAX.SUS_FREE + TAX.SUS_SPAN) * 100))}%"></span><span class="free" style="left:${Math.round(TAX.SUS_FREE / (TAX.SUS_FREE + TAX.SUS_SPAN) * 100)}%"></span></div>
-        <p>의심 <b>${Math.round(c.sus || 0)}</b> → <b>${Math.round(X.sus)}</b> · 이번 달 감사 확률 <b>${Math.round(X.chance * 100)}%</b>${now !== X.chance ? ` <span class="dim">(장부 그대로면 ${Math.round(preview(W, D, {}).chance * 100)}%)</span>` : ''}. ${suspSay(X.sus)}</p></div>
+        <p>의심 <b>${Math.round(c.sus || 0)}</b> → <b>${Math.round(X.sus)}</b> · 이번 달 감사 확률 <b>${Math.round(X.chance * 100)}%</b>${now !== X.chance ? ` <span class="dim">(장부 그대로면 ${Math.round(preview(W, D, {}).chance * 100)}%)</span>` : ''}. ${X.watched ? ` <b class="neg">스캔들 뒤로 감시가 붙어 있어 감사 확률이 ${Math.round(TAX.WATCH * 100)}% 밑으로 내려가지 않아요 (제${c.watch}월까지).</b>` : suspSay(X.sus)}</p></div>
       <p class="note">의심은 정직하게 낼 세금 · 지원금에 견줘 신고서로 얻은 만큼 쌓이고, 다달이 ${Math.round((1 - TAX.SUS_FADE) * 100)}%씩 식어요. 관리국 출입 기록에 남는 조 수는 두 배로 티가 나요.
         감사가 오면 지난 ${TAX.AUDIT_BACK}달 신고를 다른 기록과 맞대 보고, 걸린 이득의 ${1 + TAX.AUDIT_PEN}배를 추징해요. 감사가 끝나면 의심과 묵은 장부는 지워져요.
         ${owed ? `지금 감사가 맞대 볼 지난 신고서의 이득은 <b>${fmt(owed)}G</b>예요.` : ''}${c.audits ? ` 지금까지 감사 ${c.audits}번.` : ''}</p></section>

@@ -142,14 +142,21 @@ export const TAX = {
   DONATE_CREDIT: 0.5,
   // 절세 특혜: 몸집과 연줄이 있는 큰 용병단은 전리품 세금을 합법으로 덜 낸다 (붉은 깃발단은 영주 납품 계약, 성흔 기사단은 교회 면세 기부, 철모회는 거점 투자 공제).
   // 우리에겐 없다. 그 차이를 메우는 길이 가정산이다
-  RELIEF: { volume: 0.2, steady: 0.2, deep: 0.15 } as Partial<Record<string, number>>,
+  RELIEF: { volume: 0.1, steady: 0.1, deep: 0.08 } as Partial<Record<string, number>>,
   // 의심: 신고서로 얻은 이득 ÷ 정직한 세금 · 지원금(SUS_BASE 이상) × SUS_K × 출처 무게만큼 쌓이고, 매달 SUS_FADE를 곱한다.
   // 감사 확률은 (의심 − SUS_FREE) ÷ SUS_SPAN (AUDIT_MAX까지). 감사는 지난 AUDIT_BACK달 장부를 다른 기록과 맞대 보고,
   // 출처마다 DET 확률로 걸린 이득에 AUDIT_PEN배를 더해 추징한다(걸린 이득의 세 배를 낸다). 감사가 끝나면 의심과 묵은 장부는 지워진다
   SUS_K: 10, SUS_BASE: 300, SUS_FADE: 0.85, SUS_FREE: 12, SUS_SPAN: 90, AUDIT_MAX: 0.5, AUDIT_BACK: 6, AUDIT_PEN: 2, AUDIT_FAME: 4,
   SUS_W: { loot: 1, mat: 1, pot: 1.2, torch: 0.7, aid: 2, adv: 2 } as Record<string, number>,
   DET: { loot: 0.7, mat: 0.6, pot: 0.5, torch: 0.3, aid: 0.9, adv: 0.9 } as Record<string, number>,
+  // 재정 압박(0~1): 이어진 적자 한 달마다 PRESS_LOSS, 금고가 지난달 지출의 PRESS_RUN달 치에 못 미치면 모자란 비율만큼. 경쟁 용병단은 압박이 클수록 과감하게 장부를 고친다
+  PRESS_LOSS: 0.35, PRESS_RUN: 4,
+  // 스캔들: 감사에서 걸린 이득이 SCANDAL_G 이상이면 신문에 나고, 그 용병단은 TAINT_LEN달 동안 감면이 절반이 되고 감사 확률이 WATCH 밑으로 내려가지 않는다(명성 −SCANDAL_FAME 더).
+  // 영주청은 가장 크게 걸린 칸을 CHECK_LEN달 동안 더 꼼꼼히 맞대 본다(걸릴 확률 ×CHECK_DET, 의심 무게 ×CHECK_SUS). 포션 · 횃불이면 그동안 보급 지원금도 절반. 모두에게 같다
+  SCANDAL_G: 1000, SCANDAL_FAME: 6, TAINT_LEN: 8, WATCH: 0.08, CHECK_LEN: 12, CHECK_DET: 1.4, CHECK_SUS: 2,
 };
+// 조사: 받침이 있으면 a, 없으면 b ('과'/'와', '은'/'는', '을'/'를', '이'/'가')
+export const jo = (w: string, a: string, b: string) => { const ch = w.charCodeAt(w.length - 1); return ch >= 0xac00 && ch <= 0xd7a3 && (ch - 0xac00) % 28 ? a : b; };
 // 신고서 칸: 전리품 판매액(G) · 과세 소재 판매액(G) · 위기에 쓴 포션(병) · 횃불(개) · 지원금 층에 보낸 조 · 선금 받은 층에 보낸 조
 export const FILE_KEYS = ['loot', 'mat', 'pot', 'torch', 'aid', 'adv'] as const;
 export type FileKey = typeof FILE_KEYS[number];
@@ -157,14 +164,14 @@ export type Filing = Record<FileKey, number>;
 // 그 칸을 맞대 볼 수 있는 기록 (화면과 감사 기사에 쓴다)
 export const FILE_SRC: Record<FileKey, string> = { loot: '상단 경매장 장부', mat: '상단 경매장 장부', pot: '교회 치료 기록', torch: '상단 보급 장부', aid: '관리국 출입 기록', adv: '관리국 출입 기록' };
 // 법령: 소재 과세(m) · 층 지원금(f, amt) · 보급 지원금 배율(rate) · 전리품 세율 가산(rate). at은 고시한 달
-export type Law = { id: number; kind: 'mat' | 'aid' | 'sub' | 'loot'; from: number; until: number; at: number; m?: string; f?: number; rate?: number; amt?: number };
+export type Law = { id: number; kind: 'mat' | 'aid' | 'sub' | 'loot' | 'check'; from: number; until: number; at: number; m?: string; f?: number; rate?: number; amt?: number; k?: FileKey };   // check: 그 칸(k)을 더 꼼꼼히 맞대 본다
 // 가정산: 그달 장부의 참값과, 그달 세율 · 지원금 단가 · 선금 (신고서를 고쳐도 이것은 그대로다)
 export type Draft = { m: number; i: number; truth: Filing; lootRate: number; relief: number; matRate: number; matTaxed: string[]; subPot: number; subTorch: number;
   aidF: number; aidAmt: number; advF: number; advN: number; advPer: number; donate: number; losses0: number };
 export type Bill = { lootTax: number; matTax: number; credit: number; tax: number; sub: number; aid: number; refund: number };
 // 신고 기록: 달마다 출처별로 신고서로 얻은 이득 (감사가 맞대 본다)
 export type Books = { m: number; gain: Partial<Record<FileKey, number>> };
-export type Audit = { found: number; fine: number; hit: FileKey[] };
+export type Audit = { found: number; fine: number; hit: FileKey[]; scandal?: boolean };
 // 소재 하나: 이름, 층, 몬스터, 1층 기준 값을 층에 맞춘 값
 export type MatRef = Mat & { f: number; mon: string; val: number };
 // 그 판의 층마다 사는 몬스터 셋(주인 하나와 곁 몬스터 둘)과 소재들
@@ -271,6 +278,7 @@ export type Company = {
   // 우리 단원 명단 (직업, 수습이면 겪은 성공 수). 우리 수습은 rook 대신 여기에 둔다. 경쟁 용병단은 명단 없이 조마다 직업이 섞여 나간다
   crew?: Person[]; nextId?: number; hurtN?: number;   // hurtN: 이번 달 부상으로 쉬는 사람 (경쟁 용병단)
   sus?: number; books?: Books[]; audits?: number;   // 영주청의 의심, 감사가 맞대 볼 신고 기록, 받은 감사 수
+  taint?: number; watch?: number; scandals?: number;   // 스캔들로 감면이 절반인 달 · 감시가 붙은 달(그달까지), 스캔들 수
 };
 // 단원: 직업(c), 이름(n), 실력(sk, 0~100), 특성(tr), 층마다 경험(ex, 0~100), 함께 나간 짝마다 함께한 달(mt), 해낸 수(wins), 부상으로 쉬는 달(hurt).
 // rk는 옛 수습(경쟁 용병단과 옛 판에만)
@@ -1193,6 +1201,16 @@ export const lootRate = (W: World, m = W.month) => Math.round((TAX.LOOT + lawsAt
 export const matTaxed = (W: World, m = W.month) => [...new Set(lawsAt(W, m).filter(L => L.kind === 'mat').map(L => L.m!))];
 export const subMul = (W: World, m = W.month) => lawsAt(W, m).filter(L => L.kind === 'sub').reduce((a, L) => Math.min(a, L.rate ?? 1), 1);
 export const aidAt = (W: World, m = W.month) => lawsAt(W, m).find(L => L.kind === 'aid') || null;
+// 대조 강화: 그 칸이 걸릴 확률과 의심 무게 (스캔들 뒤 법령으로 오른다)
+const checked = (W: World, k: FileKey, m: number) => lawsAt(W, m).some(L => L.kind === 'check' && L.k === k);
+export const detOf = (W: World, k: FileKey, m = W.month) => Math.min(0.95, TAX.DET[k] * (checked(W, k, m) ? TAX.CHECK_DET : 1));
+export const susWOf = (W: World, k: FileKey, m = W.month) => TAX.SUS_W[k] * (checked(W, k, m) ? TAX.CHECK_SUS : 1);
+// 재정 압박 (0~1): 이어진 적자와, 금고가 지난달 지출 몇 달 치인지
+export function pressureOf(W: World, i: number) {
+  const c = W.cos[i], r = W.last ? W.last.res[i] : null, spend = r ? Object.values(r.spend).reduce((a, b) => a + b, 0) : 0;
+  const run = spend > 0 ? c.cash / spend : TAX.PRESS_RUN;
+  return clamp(TAX.PRESS_LOSS * (c.losses || 0) + Math.max(0, (TAX.PRESS_RUN - run) / TAX.PRESS_RUN), 0, 1);
+}
 // 조마다 들고 가는 횃불 (깊은 층일수록 많이)
 export const torchOf = (parties: number[]) => parties.reduce((a, n, f) => a + n * TAX.TORCH[f], 0);
 // 층 한 조가 캐 오는 기준 값 (지원금 · 선금 단가의 기준)
@@ -1206,7 +1224,7 @@ function draftOf(W: World, i: number, r: CoResult, matP: Record<string, number>,
     loot: r.lootSales || 0, mat: taxed.reduce((a, n) => a + (r.matSold[n] || 0) * (matP[n] || 0), 0), pot: r.potUsed,
     torch: torchOf(r.sent), aid: aid ? r.sent[aid.f!] : 0, adv: EX ? Math.min(advN, r.sent[EX.f]) : 0,
   };
-  return { m, i, truth, lootRate: lootRate(W, m), relief: TAX.RELIEF[c.style] || 0, matRate: TAX.MAT_RATE, matTaxed: taxed, subPot: TAX.SUB_POT * subMul(W, m), subTorch: TAX.SUB_TORCH * subMul(W, m),
+  return { m, i, truth, lootRate: lootRate(W, m), relief: (TAX.RELIEF[c.style] || 0) * (m <= (c.taint || 0) ? 0.5 : 1), matRate: TAX.MAT_RATE, matTaxed: taxed, subPot: TAX.SUB_POT * subMul(W, m), subTorch: TAX.SUB_TORCH * subMul(W, m),
     aidF: aid ? aid.f! : -1, aidAmt: aid ? aid.amt! : 0, advF: EX ? EX.f : -1, advN, advPer: EX ? EX.prem : 0, donate: Math.max(0, Math.floor(P.donate || 0)), losses0: c.losses };
 }
 // 신고서를 규칙 안으로: 판매액은 참값을 넘겨 적을 까닭이 없고, 포션 · 횃불은 참값의 몇 배까지, 조는 보낼 수 있는 만큼까지
@@ -1235,9 +1253,9 @@ export const auditChance = (sus: number) => clamp((sus - TAX.SUS_FREE) / TAX.SUS
 export function preview(W: World, D: Draft, F0: Partial<Filing>) {
   const F = fileFix(W, D, F0), bill = billOf(D, F), honest = billOf(D, D.truth), gain = gainOf(D, F), c = W.cos[D.i];
   const base = Math.max(TAX.SUS_BASE, honest.tax + honest.sub + honest.aid);
-  const add = TAX.SUS_K * FILE_KEYS.reduce((a, k) => a + TAX.SUS_W[k] * gain[k], 0) / base;
-  const sus = (c.sus || 0) * TAX.SUS_FADE + add;
-  return { F, bill, honest, gain, total: FILE_KEYS.reduce((a, k) => a + gain[k], 0), add, sus, chance: auditChance(sus) };
+  const add = TAX.SUS_K * FILE_KEYS.reduce((a, k) => a + susWOf(W, k, D.m) * gain[k], 0) / base;
+  const sus = (c.sus || 0) * TAX.SUS_FADE + add, watched = D.m <= (c.watch || 0);
+  return { F, bill, honest, gain, total: FILE_KEYS.reduce((a, k) => a + gain[k], 0), add, sus, chance: Math.max(auditChance(sus), watched ? TAX.WATCH : 0), watched };
 }
 // 신고서를 낸다: 고지서대로 금고가 움직이고(세금 · 반납은 지출, 지원금은 수입), 의심이 쌓이고, 감사가 올 수 있다
 function settle(W: World, i: number, D: Draft, F0: Partial<Filing>, r: CoResult) {
@@ -1249,18 +1267,36 @@ function settle(W: World, i: number, D: Draft, F0: Partial<Filing>, r: CoResult)
   if (X.total) books.push({ m: D.m, gain: Object.fromEntries(FILE_KEYS.filter(k => X.gain[k]).map(k => [k, X.gain[k]])) });
   c.books = books;
   r.file = { truth: { ...D.truth }, filed: X.F, bill: X.bill, gain: X.total };
-  if (rnd() >= X.chance) return;
+  if (!X.chance || rnd() >= X.chance) return;
   // 감사: 지난 장부를 출처마다 다른 기록과 맞대 본다. 걸린 이득에 AUDIT_PEN배를 더해 추징하고, 의심과 묵은 장부는 지운다
-  let found = 0; const hit = new Set<FileKey>();
-  books.forEach(b => FILE_KEYS.forEach(k => { const g = b.gain[k] || 0; if (g && rnd() < TAX.DET[k]) { found += g; hit.add(k); } }));
+  let found = 0; const hit = new Set<FileKey>(), by: Partial<Record<FileKey, number>> = {};
+  books.forEach(b => FILE_KEYS.forEach(k => { const g = b.gain[k] || 0; if (g && rnd() < detOf(W, k, D.m)) { found += g; hit.add(k); by[k] = (by[k] || 0) + g; } }));
   const fine = Math.round(found * (1 + TAX.AUDIT_PEN));
   r.spend.fine = fine; r.file.audit = { found, fine, hit: [...hit] };
   c.sus = 0; c.books = []; c.audits = (c.audits || 0) + 1;
   if (fine) c.fame = Math.max(0, (c.fame || 0) - TAX.AUDIT_FAME);
+  if (found >= TAX.SCANDAL_G) { scandal(W, c, D.m, found, fine, by); r.file.audit.scandal = true; return; }
+  const srcs = (h: Set<FileKey>) => [...h].map(k => FILE_SRC[k]).filter((x, j, a) => a.indexOf(x) === j).join(' · ');
   W.log.push({ m: D.m, t: fine
-    ? `영주청 회계관이 ${c.name}의 장부를 ${[...hit].map(k => FILE_SRC[k]).filter((x, j, a) => a.indexOf(x) === j).join(' · ')}와 맞대 보고 추징금 ${fine.toLocaleString('ko-KR')}G를 물렸다. 회계관은 "장부가 참 정성스럽더군요"라고만 했다.`
+    ? `영주청 회계관이 ${c.name}의 장부를 ${srcs(hit)}${jo(srcs(hit), '과', '와')} 맞대 보고 추징금 ${fine.toLocaleString('ko-KR')}G를 물렸다. 회계관은 "장부가 참 정성스럽더군요"라고만 했다.`
     : `영주청 회계관이 ${c.name}의 장부를 살피고 돌아갔다. 별다른 말은 없었다고 한다.` });
 }
+// 법령 하나를 고시한다 (at: 고시한 것이 보이는 달)
+function addLaw(W: World, x: Omit<Law, 'id' | 'at'>, at: number, t: string) {
+  W.lawSeq = (W.lawSeq || 0) + 1; (W.laws || (W.laws = [])).push({ ...x, id: W.lawSeq, at }); W.log.push({ m: at - 1, t });
+}
+// 스캔들: 크게 걸린 감사. 그 용병단은 한동안 감면이 절반이고 감시가 붙는다. 영주청은 가장 크게 걸린 칸을 모두에게 더 꼼꼼히 본다
+function scandal(W: World, c: Company, m: number, found: number, fine: number, by: Partial<Record<FileKey, number>>) {
+  c.taint = m + TAX.TAINT_LEN; c.watch = m + TAX.TAINT_LEN; c.scandals = (c.scandals || 0) + 1;
+  c.fame = Math.max(0, (c.fame || 0) - TAX.SCANDAL_FAME);
+  const k = (Object.entries(by) as [FileKey, number][]).sort((a, b) => b[1] - a[1])[0][0], fmtG = (v: number) => v.toLocaleString('ko-KR');
+  W.log.push({ m, t: `스캔들: ${c.name}의 장부에서 ${fmtG(found)}G가 ${FILE_SRC[k]}${jo(FILE_SRC[k], '과', '와')} 맞지 않았다. 추징금 ${fmtG(fine)}G. 영주께서는 "변경의 장부는 변경의 얼굴"이라 하셨고, ${c.name}${jo(c.name, '은', '는')} 한동안 영주청의 눈을 피하기 어렵게 됐다.` });
+  const at = m + 1, from = m + 2, until = m + 1 + TAX.CHECK_LEN, old = (W.laws || []).find(L => L.kind === 'check' && L.k === k && L.until >= from);
+  if (old) { old.until = Math.max(old.until, until); W.log.push({ m, t: `영주청이 ${FILE_SRC[k]} 대조를 제${old.until}월까지 늘린다고 고시했다.` }); }
+  else addLaw(W, { kind: 'check', k, rate: TAX.CHECK_DET, from, until }, at, `영주청이 다음 달부터 신고서의 ${CHECK_WHAT[k]}${jo(CHECK_WHAT[k], '을', '를')} ${FILE_SRC[k]}${jo(FILE_SRC[k], '과', '와')} 더 꼼꼼히 맞대 보겠다고 고시했다. 모든 용병단에 같다.`);
+  if (k === 'pot' || k === 'torch') addLaw(W, { kind: 'sub', rate: 0.5, from, until }, at, `영주청이 ${c.name} 일을 들어 다음 달부터 ${TAX.CHECK_LEN}달 동안 보급 지원금을 절반으로 줄인다고 고시했다.`);
+}
+const CHECK_WHAT: Record<FileKey, string> = { loot: '전리품 판매액', mat: '소재 판매액', pot: '포션 사용', torch: '횃불', aid: '지원금 층 출입', adv: '계획서 층 출입' };
 // 우리 가정산을 마친다 (신고서를 비워 두면 장부 그대로). 금고 · 순이익 · 순위를 고친다
 export function closeBooks(W: World, F: Partial<Filing> = {}) {
   const D = W.draft; if (!D) return null;
@@ -1275,15 +1311,19 @@ export function closeBooks(W: World, F: Partial<Filing> = {}) {
   return r.file || null;
 }
 const rankNow = (W: World) => W.cos.filter(c => c.style !== 'crowd').map(c => [worth(W, c), c.id] as [number, string]).sort((a, b) => b[0] - a[0]).map(x => x[1]);
-// 경쟁 용병단의 신고: 성향마다 전리품 · 소재를 덜 적고 포션 · 횃불을 부풀리는 정도(e)와, 의심이 이만큼 쌓이면 몸을 사리는 선(stop)
-const EVADE: Partial<Record<Style, { e: number; stop: number }>> = {
-  volume: { e: 0.1, stop: 30 }, deep: { e: 0.06, stop: 25 }, chaser: { e: 0.25, stop: 999 }, hoarder: { e: 0.12, stop: 30 },
-  shallow: { e: 0.15, stop: 40 }, second: { e: 0.08, stop: 25 }, crowd: { e: 0.2, stop: 999 },
+// 경쟁 용병단의 신고: 평소엔 성향만큼 조금(e0) 고치고, 재정 압박이 클수록(push) 과감해진다. 의심이 stop을 넘으면 몸을 사리지만,
+// 압박이 크면 그 선도 올라간다(궁지에 몰리면 위험을 무릅쓴다). 아주 몰리면 지원금 층에 보낸 조까지 부풀린다
+const EVADE: Partial<Record<Style, { e0: number; push: number; stop: number }>> = {
+  volume: { e0: 0.04, push: 0.3, stop: 20 }, steady: { e0: 0, push: 0.15, stop: 12 }, deep: { e0: 0.03, push: 0.3, stop: 18 }, chaser: { e0: 0.08, push: 0.45, stop: 35 },
+  hoarder: { e0: 0.04, push: 0.3, stop: 20 }, shallow: { e0: 0.06, push: 0.35, stop: 25 }, second: { e0: 0.03, push: 0.25, stop: 18 },
 };
 function aiFiling(W: World, i: number, D: Draft): Filing {
-  const c = W.cos[i], E = EVADE[c.style], T = D.truth;
-  if (!E || (c.sus || 0) > E.stop) return { ...T };
-  return { ...T, loot: Math.round(T.loot * (1 - E.e)), mat: Math.round(T.mat * (1 - E.e)), pot: Math.round(T.pot * (1 + 2 * E.e)), torch: Math.round(T.torch * (1 + 2 * E.e)) };
+  const c = W.cos[i], E = EVADE[c.style], T = D.truth, p = pressureOf(W, i);
+  if (!E || (c.sus || 0) > E.stop + 60 * p) return { ...T };
+  const e = E.e0 + E.push * p;
+  if (!e) return { ...T };
+  return { loot: Math.round(T.loot * (1 - e)), mat: Math.round(T.mat * (1 - e)), pot: Math.round(T.pot * (1 + 2 * e)), torch: Math.round(T.torch * (1 + 2 * e)),
+    aid: p >= 0.6 && D.aidF >= 0 && T.aid ? T.aid + 1 + Math.floor(2 * p) : T.aid, adv: T.adv };
 }
 // 탐사 계획서: 새 층이 열리면 영주청이 ADV_LEN달 동안 그 층에 보낼 조의 선금을 내건다 (앞의 것은 닫는다)
 function postExplore(W: World, f: number) {
@@ -1297,11 +1337,11 @@ function postExplore(W: World, f: number) {
 // 법령: 영주청은 상태만 보고 정한다 (난수 없이). 고시한 다음 달부터 효력이 난다
 function legislate(W: World) {
   const m = W.month, L = W.last, laws = W.laws || (W.laws = []);
-  const add = (x: Omit<Law, 'id' | 'at'>, t: string) => { W.lawSeq = (W.lawSeq || 0) + 1; laws.push({ ...x, id: W.lawSeq, at: m }); W.log.push({ m: m - 1, t }); };
+  const add = (x: Omit<Law, 'id' | 'at'>, t: string) => addLaw(W, x, m, t);
   // 범람 복구세
   if (L && L.overflow) add({ kind: 'loot', rate: TAX.FLOOD_UP, from: m + 1, until: m + TAX.FLOOD_LEN }, `영주청이 범람 복구에 쓸 돈을 모은다며 다음 달부터 ${TAX.FLOOD_LEN}달 동안 전리품 세금을 ${Math.round(TAX.FLOOD_UP * 100)}%p 올린다고 고시했다.`);
   // 보급 지원금: 모두에게 준 돈이 예산을 넘으면 줄이고, 다시 넘으면 끊는다
-  const cut = TAX.SUB_BUDGET.filter(b => (W.subPaid || 0) >= b).length, had = laws.filter(x => x.kind === 'sub').length;
+  const cut = TAX.SUB_BUDGET.filter(b => (W.subPaid || 0) >= b).length, had = laws.filter(x => x.kind === 'sub' && x.until >= 999).length;
   if (cut > had) add({ kind: 'sub', rate: cut >= 2 ? 0 : 0.5, from: m + 1, until: 999 }, cut >= 2
     ? '영주청이 보급 지원금을 다음 달부터 끊는다고 고시했다. 예산이 바닥났다는 말 끝에 "요즘 포션을 참 많이들 쓰시더군요"라는 말이 붙었다.'
     : '영주청이 보급 지원금을 다음 달부터 절반으로 줄인다고 고시했다. 예산보다 빨리 나간다는 이유를 들었다.');

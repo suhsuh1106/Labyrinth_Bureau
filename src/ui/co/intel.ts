@@ -1,7 +1,7 @@
 // 정보실: 정보망 단계만큼 보이는 기록을 그래프로 모은다. 층에 남은 양 짐작, 누가 캐 갔나, 장례, 교차 확인, 경쟁 용병단의 다음 수.
 // 지난 기록(W.history, W.log)과 엔진이 매달 만든 짐작(W.intel.est)만 읽는다. 상태를 쓰지 않고 난수도 쓰지 않는다.
 // 정보는 단계가 오르면 지난 달 것까지 함께 열린다 (장부·기록을 열람하는 셈이다)
-import { CO, FLOORS, ITEMS, INTEL, type Src, SRCS, type World, guideParts, intelBlock, keyOf } from '../../core/company';
+import { CO, FLOORS, ITEMS, INTEL, TAX, type Src, SRCS, type World, auditChance, guideParts, intelBlock, keyOf, pressureOf } from '../../core/company';
 import { keyLabel } from '../../core/util';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
@@ -213,8 +213,22 @@ export function netHtml(W: World) {
   }).join('');
 }
 
+// 장부 소문: 감시가 붙은 용병단은 누구나 안다(스캔들은 신문에 났다). 상단 장부 2단계부터는 장부가 수상한 곳이 소문으로,
+// 3단계면 그 용병단의 감사 확률과 재정 압박까지 보인다
+export function booksRumorHtml(W: World) {
+  const lv = W.intel ? W.intel.lv.mkt : INTEL.BASE.mkt, m = W.month;
+  const rows = W.cos.map((c, i) => [c, i] as const).filter(([c]) => c.style !== 'player' && c.style !== 'crowd').map(([c, i]) => {
+    const s = c.sus || 0, watched = m <= (c.watch || 0), shady = s > TAX.SUS_FREE * 0.5;
+    if (!watched && !(lv >= 2 && shady)) return '';
+    const say = watched ? `스캔들 뒤로 영주청의 감시가 붙어 있다 (제${c.watch}월까지, 감면 절반)` : s > TAX.SUS_FREE + TAX.SUS_SPAN * 0.2 ? '상단 경매장 장부와 신고가 영 맞지 않는다는 말이 돈다' : '요즘 장부가 이상하다는 말이 돈다';
+    return `<li><b>${c.name}</b> · ${say}${lv >= 3 ? ` <span class="dim">· 감사 확률 약 ${Math.round(Math.max(auditChance(s * TAX.SUS_FADE), watched ? TAX.WATCH : 0) * 100)}% · 재정 압박 ${Math.round(pressureOf(W, i) * 100)}%</span>` : ''}</li>`;
+  }).filter(Boolean);
+  return rows.length ? `<ul class="co-news">${rows.join('')}</ul>` : `<p class="note">${lv >= 2 ? '장부가 수상하다는 말이 도는 곳은 없어요.' : '남의 장부 소문은 상단 장부 2단계부터 들려요. 스캔들이 나면 신문에 실려요.'}</p>`;
+}
+
 export function intelHtml(W: World) {
-  return `<h3>층은 얼마나 남았나</h3>
+  return `<h3>장부 소문</h3>${booksRumorHtml(W)}
+    <h3>층은 얼마나 남았나</h3>
     <div class="legend">${legendHtml(W)}</div>
     <div class="floors">${floorsHtml(W)}</div>
     <h3>교차 확인</h3>

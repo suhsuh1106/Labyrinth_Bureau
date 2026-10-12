@@ -58,6 +58,7 @@ const FILE_RISK = +(process.env.FILE_RISK || 0.04);
 const fileAt = (T: Filing, s: number): Partial<Filing> => ({ loot: Math.round(T.loot * (1 - 0.6 * s)), mat: Math.round(T.mat * (1 - 0.6 * s)), pot: Math.round(T.pot * (1 + 2 * s)), torch: Math.round(T.torch * (1 + s)) });
 export function fileSmart(W: World, risk = FILE_RISK): Partial<Filing> {
   const D = W.draft; if (!D) return {};
+  // 감시가 붙어 장부 그대로도 risk를 넘으면 몸을 사린다 (감시 중에 고치면 걸린 만큼 세 배로 문다)
   let lo = 0, hi = 1;
   if (preview(W, D, fileAt(D.truth, 0)).chance > risk) return {};
   for (let k = 0; k < 12; k++) { const s = (lo + hi) / 2; if (preview(W, D, fileAt(D.truth, s)).chance <= risk) lo = s; else hi = s; }
@@ -242,7 +243,7 @@ export function playGame(seed: number, bot: (W: World) => Plan, file: (W: World)
 if (process.argv[1] && process.argv[1].endsWith('company.ts')) {
   for (const name of Object.keys(BOT).filter(k => !only || k === only)) {
     let rankSum = 0, worthSum = 0, firsts = 0, broke = 0, overs = 0, taxSum = 0, gainSum = 0, fineSum = 0, audits = 0;
-    const auditsBy: Record<string, number> = {};
+    const auditsBy: Record<string, number> = {}, scanBy: Record<string, number> = {}; let scans = 0, checks = 0;
     const net = Array.from({ length: MONTHS }, () => 0), mem: Record<string, number> = {}, pos = Array.from({ length: MONTHS }, () => 0);
     const winners: Record<string, number> = {}, opens = FLOORS.map(() => 0);
     for (let g = 0; g < games; g++) {
@@ -255,7 +256,8 @@ if (process.argv[1] && process.argv[1].endsWith('company.ts')) {
       const top = W.last!.rank[0]; winners[top] = (winners[top] || 0) + 1;
       W.history.forEach(M => { if (M.opened != null) opens[M.opened] += M.month; });
       W.history.forEach(M => { const r = M.res[0]; taxSum += r.spend.tax; fineSum += r.spend.fine; gainSum += r.file ? r.file.gain : 0; });
-      audits += us(W).audits || 0; W.cos.forEach(c => { auditsBy[c.id] = (auditsBy[c.id] || 0) + (c.audits || 0); });
+      audits += us(W).audits || 0; W.cos.forEach(c => { auditsBy[c.id] = (auditsBy[c.id] || 0) + (c.audits || 0); scanBy[c.id] = (scanBy[c.id] || 0) + (c.scandals || 0); scans += c.scandals || 0; });
+      checks += (W.laws || []).filter(L => L.kind === 'check').length;
     }
     const n = W0().cos.filter(c => c.style !== 'crowd').length;
     console.log(`봇 '${name}' · ${games}판 · ${MONTHS}개월`);
@@ -263,6 +265,7 @@ if (process.argv[1] && process.argv[1].endsWith('company.ts')) {
     console.log(`  1위 용병단 ${Object.entries(winners).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${Math.round(v / games * 100)}%`).join(' · ')}`);
     console.log(`  우리 달별 순이익 ${[1, 2, 3, 6, 12, 24, 36].map(m => `${m}월 ${Math.round(net[m - 1] / games).toLocaleString()} (흑자 ${Math.round(pos[m - 1] / games * 100)}%)`).join(' · ')}`);
     console.log(`  영주청: 판당 세금 ${Math.round(taxSum / games).toLocaleString()}G · 신고서 이득 ${Math.round(gainSum / games).toLocaleString()}G · 추징 ${Math.round(fineSum / games).toLocaleString()}G · 감사 ${(audits / games).toFixed(2)}번 (모두 ${Object.entries(auditsBy).map(([k, v]) => `${k} ${(v / games).toFixed(1)}`).join(' · ')})`);
+    console.log(`  스캔들 판당 ${(scans / games).toFixed(2)}번 (${Object.entries(scanBy).filter(([, v]) => v).map(([k, v]) => `${k} ${(v / games).toFixed(2)}`).join(' · ')}) · 대조 강화 법령 ${(checks / games).toFixed(2)}개`);
     console.log(`  36개월 뒤 인원 ${Object.entries(mem).map(([k, v]) => `${k} ${Math.round(v / games)}`).join(' · ')}`);
   }
 }
