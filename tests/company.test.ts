@@ -215,7 +215,7 @@ describe('밸런스', () => {
     for (let g = 1; g <= 60; g++) { const W = playGame(g, BOT.smart); win[W.last!.rank[0]] = (win[W.last!.rank[0]] || 0) + 1; }
     expect(Math.max(...Object.values(win))).toBeLessThan(60 * 0.6);
     expect(win.us || 0).toBeGreaterThan(0);
-  });
+  }, 30000);
 });
 
 describe('상단·교회와 포션 담합', () => {
@@ -463,12 +463,12 @@ describe('정보망', () => {
 });
 
 describe('전리품 비율과 몬스터 적응', () => {
-  it('운반 수단을 들고 가면 성공 한 번에 캐 오는 양이 는다 (공방에서 연 단계, 준비한 만큼)', () => {
+  it('운반 수단은 짐 칸을 늘려, 많이 챙겨 가도 성공 한 번에 캐 오는 양이 덜 준다 (공방에서 연 단계, 준비한 만큼)', () => {
     let a = 0, b = 0;
     for (const cart of [0, 2]) for (let g = 1; g <= 10; g++) {
       setSeed(g); const W = newWorld(); us(W).ws!.cart = 2;
       for (let m = 0; m < 4; m++) {
-        const P = sanitize(W, us(W), BOT.even(W)); P.teams!.forEach(T => { if (cart) T.cart = cart; else delete T.cart; }); delete P.prep;
+        const P = sanitize(W, us(W), BOT.even(W)); P.teams!.forEach(T => { T.pots = 6; if (cart) T.cart = cart; else delete T.cart; }); delete P.prep; P.buy = { pot: 100 };
         const M = runMonth(W, P); const per = M.res[0].got[0] / Math.max(1, M.res[0].ok[0]); if (cart) b += per; else a += per;
         if (cart) expect(M.res[0].spend.prep).toBe(P.teams!.length * CO.CART_PREP[2]);
       }

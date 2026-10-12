@@ -55,7 +55,7 @@ const GROW_K = +(process.env.GROW_K || 2), GROW_M = +(process.env.GROW_M || 150)
 const WS_ORDER: [string, number][] = (process.env.WS_ORDER || 'cart1,cut1,arm1,cart2,camp1,arm2,cut2,camp2').split(',').filter(Boolean).map(x => [x.slice(0, -1), +x.slice(-1)]);
 const WS_K = +(process.env.WS_K || 3);
 // 숙련 봇이 층마다 챙길 포션
-const SMART_POTS = (process.env.SMART_POTS || '0,2,3,3,3').split(',').map(Number);
+const SMART_POTS = (process.env.SMART_POTS || '1,2,3,3,3').split(',').map(Number);
 export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine', kit = true, scout = false): Plan {
   const c = us(W), P = defaultPlan(W), L = W.last, pots = 3;
   // 조당 남는 돈: 성공해서 캐 올 값(모형과 지난달 실제 조당 벌이의 중간) − 출정·포션 − 사망의 값(신입 계약금과 빈자리)
