@@ -466,6 +466,7 @@ details.fold[open] > summary { margin-bottom: 6px; }
 @media (max-width: 900px) { .charts.three { grid-template-columns: minmax(0, 1fr); } }
 .chart svg .ln3 { fill: none; stroke: var(--c-red); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 .chart svg .dot { fill: var(--c-us); stroke: var(--paper); stroke-width: 1.5; }
+.chart svg .dot3 { fill: var(--c-red); stroke: var(--paper); stroke-width: 1.5; }
 .chart svg .ref { stroke: var(--ink-soft); stroke-width: 1; stroke-dasharray: 3 4; opacity: .7; }
 .chart .lg i.line { height: 2px; }
 .run.live li.rv:not(.on) { display: none; }
@@ -919,3 +920,27 @@ table.tsum select { font: 12px var(--f-body); }
 .audit.hit { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 8%, var(--paper)); }
 .audit.hit b { color: var(--bad); }
 @media (max-width: 640px) { .billsum { grid-template-columns: 1fr; } .grid.filing .step input { width: 56px; } }
+
+/* 창고: 품목마다 쓸 어림 · 남음 · 상함 막대 */
+.store td.sbar { width: 160px; }
+.store .bar { display: flex; height: 10px; border-radius: 3px; overflow: hidden; background: var(--paper-2); border: 1px solid var(--rule); }
+.store .bar i, .store .legend .sw { display: block; height: 100%; }
+.store .bar .use, .store .legend .sw.use { background: var(--c-us); }
+.store .bar .keep, .store .legend .sw.keep { background: var(--good); }
+.store .bar .rot, .store .legend .sw.rot { background: var(--bad); }
+.store .legend { display: flex; gap: 12px; font-size: 11.5px; color: var(--ink-soft); margin-top: 6px; }
+.store .legend .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+
+/* 출정: 층 선택 표와 한 줄 어림 */
+.floors-pick table.grid.pick { min-width: 880px; }
+.floors-pick tr.on td:first-child { box-shadow: inset 3px 0 var(--merchant); }
+.floors-pick tr.closed td { color: var(--ink-soft); }
+.floors-pick .step input { width: 44px; }
+.fc-line { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.fc-line div { background: var(--paper-2); border-radius: 3px; padding: 6px 10px; display: grid; }
+.fc-line dt { font-size: 11px; color: var(--ink-soft); }
+.fc-line dd { margin: 0; font: 600 16px var(--f-num); font-variant-numeric: tabular-nums; }
+.fc-line dd.pos { color: var(--good); } .fc-line dd.neg { color: var(--bad); }
+@media (max-width: 720px) { .fc-line { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.job-sum { font: 600 13px var(--f-num); margin: 2px 0 4px; }
+.job > p { font-size: 12px; color: var(--ink-soft); }

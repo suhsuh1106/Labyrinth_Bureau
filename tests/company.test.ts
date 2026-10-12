@@ -1165,4 +1165,10 @@ describe('영주청: 영주세 · 법령 · 가정산 · 감사', () => {
     W.intel!.lv.mkt = 3; expect(booksRumorHtml(W)).toContain('감사 확률');
     iron.sus = 0; iron.watch = W.month + 2; W.intel!.lv.mkt = 0; expect(booksRumorHtml(W)).toContain('감시');
   });
+  it('포션은 고르는 것: 조당 0병으로도 보내고, 그러면 창고에서 꺼내 쓰지도 사지도 않는다', () => {
+    setSeed(13); const W = newWorld(); const P = defaultPlan(W); P.pots = P.pots.map(() => 0);
+    expect(sanitize(W, us(W), P).pots.every(v => v === 0)).toBe(true);
+    const r = runMonth(W, P).res[0];
+    expect(r.potUsed).toBe(0); expect(r.potNeed).toBe(0); expect(r.spend.potion).toBe(0);
+  });
 });

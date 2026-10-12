@@ -114,6 +114,7 @@ export function perPartyChart(W: World) {
   const hi = nice(Math.max(...inc, ...cost, 1) * 1.1), { X, Y, step } = frame(n, 0, hi);
   return fig('조당 수입과 조당 비용', `${key('var(--c-us)', '조당 수입', true)} ${key('var(--c-red)', '조당 비용', true)}`,
     `${axes(0, hi, Y, S.months.map(m => `${m}월`), X)}<polyline class="ln" points="${inc.map((v, k) => `${X(k)},${Y(v)}`).join(' ')}"/><polyline class="ln3" points="${cost.map((v, k) => `${X(k)},${Y(v)}`).join(' ')}"/>
+    ${inc.map((v, k) => `<circle class="dot" cx="${X(k)}" cy="${Y(v)}" r="2.5"/><circle class="dot3" cx="${X(k)}" cy="${Y(cost[k])}" r="2.5"/>`).join('')}
     ${hits(n, X, step, k => `제${S.months[k]}월|조당 수입 ${fmt(inc[k])}G|조당 비용 ${fmt(cost[k])}G (급여·출정·보급)|보낸 조 ${S.parties[k]}`)}`, '조당 수입과 조당 비용');
 }
 // 단원 한 명당 순이익 (그달 입장할 때의 단원 수로 나눔)
@@ -182,9 +183,3 @@ export function fcChart(fc: Forecast, cost: number | null, actual: number | null
     ${vline(fc.mean, 'fc-mean')}${cost != null ? vline(cost, 'fc-cost') : ''}${actual != null ? vline(actual, 'fc-act') : ''}${ticks}</svg>${key}</figure>`;
 }
 // 어림 숫자 한 줄: 기대 · 나쁜 달 · 좋은 달 (그리고 나갈 돈이 있으면 기대 순이익과 적자 가능성)
-export function fcNums(fc: Forecast, cost: number | null) {
-  const loss = cost != null ? fcRank(fc, cost) : null;
-  return `<dl class="fc-nums"><div><dt>기대 수입</dt><dd>${fmt(fc.mean)}G</dd></div><div><dt>나쁜 달 · 좋은 달</dt><dd>${fmt(fc.p10)} ~ ${fmt(fc.p90)}G</dd></div>
-    ${cost != null ? `<div><dt>기대 순이익</dt><dd class="${fc.mean - cost < 0 ? 'neg' : 'pos'}">${sgn(fc.mean - cost)}G</dd></div><div><dt>적자 가능성</dt><dd class="${loss! > 0.3 ? 'neg' : ''}">${Math.round(loss! * 100)}%</dd></div>` : ''}
-    <div><dt>사망 · 부상 어림</dt><dd>${fc.dead.toFixed(1)} · ${fc.hurt.toFixed(1)}명</dd></div></dl>`;
-}

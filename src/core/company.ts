@@ -1464,7 +1464,7 @@ export function sanitize(W: World, c: Company, P: Plan): Plan {
   const crowd = W.cos.find(x => x.style === 'crowd');
   let free = crowd ? maxParties(crowd) : 0;
   Q.hire = Q.hire.map((n, f) => { const h = f < W.unlocked ? clamp(Math.floor(n), 0, free) : 0; free -= h; return h; });
-  Q.pots = Q.pots.map(v => clamp(Math.floor(v), 1, 8));
+  Q.pots = Q.pots.map(v => clamp(Math.floor(v), 0, 8));   // 포션 없이 보내도 된다 (위기를 그대로 맞는다)
   Q.train = Math.max(0, Math.floor(Q.train));
   Q.donate = Math.max(0, Math.floor(Q.donate || 0));
   Q.tool = clamp(Math.floor(Q.tool || 0), 0, CO.TOOL_COST.length - 1);

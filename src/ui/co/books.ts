@@ -26,8 +26,7 @@ export function lawsHtml(W: World, m = W.month) {
   const now = lawsAt(W, m), next = (W.laws || []).filter(L => L.from > m);
   const rate = TAX.LOOT + now.filter(L => L.kind === 'loot').reduce((a, L) => a + (L.rate || 0), 0), mul = now.filter(L => L.kind === 'sub').reduce((a, L) => Math.min(a, L.rate ?? 1), 1);
   const row = (L: Law, soon: boolean) => `<li class="law ${L.kind}"><span class="lk">${LAW_NAME[L.kind]}</span><span>${lawLine(L)}</span><span class="dim">${soon ? `제${L.from}월부터 · ` : ''}${until(L)}</span></li>`;
-  return `<div class="laws"><p class="note">영주세: 전리품 판매의 <b>${Math.round(rate * 100)}%</b> · 갈무리 소재는 법령이 붙은 것만 · 보급 지원금 포션 한 병 <b>${fmt(TAX.SUB_POT * mul)}G</b> · 횃불 하나 <b>${fmt(TAX.SUB_TORCH * mul)}G</b> · 교회 후원금의 ${Math.round(TAX.DONATE_CREDIT * 100)}%는 세금에서 빼 줘요.
-    붉은 깃발단 · 성흔 기사단 · 철모회는 영주 계약 · 교회 기부 · 거점 공제로 전리품 세금을 합법으로 덜 내요. 우리에겐 그런 연줄이 없어요.</p>
+  return `<div class="laws"><p class="note">영주세 <b>${Math.round(rate * 100)}%</b> (전리품) · 소재 면세 (법령 붙은 것 빼고) · 포션 지원 <b>${fmt(TAX.SUB_POT * mul)}G</b>/병 · 횃불 지원 <b>${fmt(TAX.SUB_TORCH * mul)}G</b>/개 · 교회 후원 공제 ${Math.round(TAX.DONATE_CREDIT * 100)}% · 큰 용병단 감면 있음 (우리 없음)</p>
     ${now.length || next.length ? `<ul class="lawlist">${next.map(L => row(L, true)).join('')}${now.map(L => row(L, false)).join('')}</ul>` : '<p class="note">지금 붙은 법령이 없어요. 영주청은 넉 달마다 장부를 살펴 법령을 고시해요.</p>'}</div>`;
 }
 
