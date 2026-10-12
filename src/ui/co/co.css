@@ -888,3 +888,34 @@ table.tsum select { font: 12px var(--f-body); }
 .wsnew { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; border: 2px solid var(--church); border-radius: 6px; padding: 8px 12px; margin: 6px 0 10px; background: color-mix(in srgb, var(--church) 10%, var(--paper)); }
 .wsnew b { font: 700 15px var(--f-display); }
 .wsnew span { font-size: 13px; color: var(--ink-soft); }
+
+/* ---------- 영주청: 가정산 신고서 · 법령 · 감사 ---------- */
+.draftwrap { display: grid; gap: 14px; }
+.grid.filing td small { display: block; font-size: 11px; color: var(--ink-soft); font-weight: 400; }
+.grid.filing tr.off td { background: color-mix(in srgb, var(--warn) 8%, transparent); }
+.grid.filing td.rec { font-size: 11.5px; }
+.grid.filing td.rec.hot { color: var(--warn); font-weight: 600; }
+.grid.filing .step input { width: 72px; }
+.billsum { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 8px; }
+.billsum > div { background: var(--paper-2); border-radius: 3px; padding: 10px 12px; display: grid; gap: 2px; }
+.billsum small { font-size: 11.5px; color: var(--ink-soft); }
+.billsum b { font: 600 20px var(--f-num); font-variant-numeric: tabular-nums; }
+.billsum b.pos { color: var(--good); } .billsum b.neg { color: var(--bad); }
+.billsum i { font: 500 11.5px var(--f-num); font-style: normal; color: var(--ink-soft); }
+.susp { display: grid; gap: 6px; }
+.susp p { margin: 0; font-size: 12.5px; }
+.susp .meter .done { background: var(--good); }
+.susp.mid .meter .done { background: var(--warn); }
+.susp.bad .meter .done { background: var(--bad); }
+.susp .meter .free { position: absolute; top: -1px; bottom: -1px; width: 2px; background: var(--ink-soft); }
+.laws { display: grid; gap: 6px; }
+.lawlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.lawlist .law { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; font-size: 12.5px; background: var(--paper-2); border-radius: 4px; padding: 5px 8px; }
+.lawlist .law .lk { font-size: 11px; padding: 0 6px; border-radius: 3px; background: color-mix(in srgb, var(--merchant) 16%, transparent); }
+.lawlist .law.aid .lk { background: color-mix(in srgb, var(--good) 18%, transparent); }
+.lawlist .law.mat .lk, .lawlist .law.loot .lk { background: color-mix(in srgb, var(--bad) 14%, transparent); }
+.lawlist .law .dim { margin-left: auto; }
+.audit { display: grid; gap: 2px; border: 2px solid var(--rule); border-radius: 6px; padding: 8px 12px; font-size: 12.5px; }
+.audit.hit { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 8%, var(--paper)); }
+.audit.hit b { color: var(--bad); }
+@media (max-width: 640px) { .billsum { grid-template-columns: 1fr; } .grid.filing .step input { width: 56px; } }

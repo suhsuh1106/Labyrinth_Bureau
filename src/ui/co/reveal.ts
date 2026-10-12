@@ -23,7 +23,7 @@ export function revealHtml(W: World, live: boolean, mute = false) {
       amt: `${k ? `${Math.round(k / 4 * 100)}%${mats ? ` · ${mats}` : ''}` : '빈손'}${x.crisis ? ` · 위기 ${x.crisis}${x.pots ? ` · 포션 ${x.pots}` : ''}` : ''}${x.hurt ? ` · ${x.hurt}명 부상` : ''}${x.d ? ` · ${x.d}명 사망` : ''}` });
   }));
   // 층마다 판 전리품 (상단 단골 값을 얹은 실제 판매 수입을 층별 몫으로 나눈다)
-  const loot = r.sales - r.matSales, base = ITEMS.map((_, j) => r.sold[j] * L.price[j]), bsum = base.reduce((a, b) => a + b, 0);
+  const loot0 = r.lootSales ?? r.sales - r.matSales, loot = loot0, base = ITEMS.map((_, j) => r.sold[j] * L.price[j]), bsum = base.reduce((a, b) => a + b, 0);
   let left = loot;
   const sold = ITEMS.map((_, j) => j).filter(j => r.sold[j] > 0);
   sold.forEach((j, i) => {
@@ -31,7 +31,10 @@ export function revealHtml(W: World, live: boolean, mute = false) {
     lines.push({ k: 'gain', v, t: `${ITEMS[j].name} ${fmt(r.sold[j])}개 × ${fmtG(L.price[j])}G`, amt: sgn(v) });
   });
   if (r.matSales) lines.push({ k: 'gain', v: r.matSales, t: `갈무리 소재 ${Object.values(r.matSold).reduce((a, b) => a + b, 0)}개`, amt: sgn(r.matSales) });
-  const costs: [string, number][] = [['급여 · 신입 · 치료', s.wage + s.recruit + (s.heal || 0)], ['출정 · 계약', s.sortie + s.hire + s.tool], ['포션 · 장비', s.potion + s.gear], ['정보 · 조사', s.intel + s.probe], ['훈련 · 숙소 · 건물', s.train + s.base + s.proc + s.donate + s.root + (s.dorm || 0)]];
+  // 영주청: 탐사 선금과 보급 · 층 지원금 (의뢰 포상 · 지도 판매도 같은 줄에)
+  const other = r.sales - loot0 - r.matSales;
+  if (other) lines.push({ k: 'gain', v: other, t: `의뢰 · 영주청 지원금${r.adv ? ' · 탐사 선금' : ''}`, amt: sgn(other) });
+  const costs: [string, number][] = [['급여 · 신입 · 치료', s.wage + s.recruit + (s.heal || 0)], ['출정 · 계약', s.sortie + s.hire + s.tool], ['포션 · 장비', s.potion + s.gear], ['정보 · 조사', s.intel + s.probe], ['훈련 · 숙소 · 건물', s.train + s.base + s.proc + s.donate + s.root + (s.dorm || 0) + (s.hq || 0) + (s.ws || 0) + (s.prep || 0) + (s.job || 0)], ['영주세', s.tax || 0], ['추징금', s.fine || 0]];
   costs.filter(([, v]) => v > 0).forEach(([t, v]) => lines.push({ k: 'cost', v: -v, t, amt: sgn(-v) }));
   lines.push({ k: 'net', v: 0, t: '순이익', amt: sgn(r.net) });
   const ok = r.ok.reduce((a, b) => a + b, 0), sent = r.sent.reduce((a, b) => a + b, 0) + r.hired.reduce((a, b) => a + b, 0);

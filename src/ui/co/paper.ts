@@ -40,6 +40,13 @@ function stories(W: World, M: MonthResult, prev: MonthResult | null, logs: strin
   const out: Story[] = [], add = (s: Story) => out.push(s);
   const find = (re: RegExp) => logs.find(t => re.test(t));
   const dead = deathsOf(M);
+  // 장부 스캔들: 크게 걸린 감사는 1면이다 (영주청이 그 칸을 모두에게 더 꼼꼼히 보겠다는 고시가 함께 난다)
+  const sc = logs.filter(x => /^스캔들: /.test(x));
+  sc.forEach((x, k) => {
+    const who = x.match(/^스캔들: (.+?)의 장부/)?.[1] || '어느 용병단', fine = x.match(/추징금 ([\d,]+)G/)?.[1] || '?', law = logs.find(y => /더 꼼꼼히 맞대 보겠다고 고시했다|대조를 제\d+월까지 늘린다/.test(y));
+    add({ p: 95 - k, extra: k === 0, kicker: '스캔들', hed: `${who} 장부, 영주청 감사에 걸렸다`, dek: `추징금 ${fine}G… ${law ? '영주청, 신고서 대조 강화' : '변경 용병단들 장부 다시 들여다봐'}`,
+      body: [plain(x.replace(/^스캔들: /, '')), ...(law ? [plain(law)] : []), '다른 용병단 행정관들은 이날 저녁 장부를 다시 넘겨 보았다는 후문이다.'] });
+  });
   let t = find(/^범람: /);
   if (t) add({ p: 100, extra: true, kicker: '긴급', hed: '미궁이 넘쳤다', dek: `깊은 층의 것들 1·2층 야영지 덮쳐… 용병 ${t.match(/용병 (\d+)명/)?.[1] ?? dead}명 돌아오지 못해`,
     body: [plain(t.replace(/^범람: /, '')), '현장의 노련한 용병들은 "꺼낸 만큼 차오른다"고 입을 모은다. 1·2층에 기대던 용병단들은 한동안 장부가 빌 것이다.'] });

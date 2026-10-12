@@ -25,7 +25,7 @@ export function moneySeries(W: World) {
   return {
     months: H.map(M => M.month), cash, start: c,
     sales: H.map(M => r(M).sales), loot: H.map(M => r(M).sales - r(M).matSales), mats: H.map(M => r(M).matSales), net: H.map(M => r(M).net),
-    spend: H.map(M => { const s = r(M).spend; return { people: s.wage + s.recruit + (s.heal || 0), sortie: s.sortie + s.hire + s.tool, supply: s.potion + s.gear + (s.prep || 0), info: s.intel + s.probe, invest: s.train + s.base + s.proc + s.donate + s.root + (s.dorm || 0) + (s.hq || 0) + (s.job || 0) + (s.ws || 0) }; }),
+    spend: H.map(M => { const s = r(M).spend; return { people: s.wage + s.recruit + (s.heal || 0), sortie: s.sortie + s.hire + s.tool, supply: s.potion + s.gear + (s.prep || 0), info: s.intel + s.probe, invest: s.train + s.base + s.proc + s.donate + s.root + (s.dorm || 0) + (s.hq || 0) + (s.job || 0) + (s.ws || 0), tax: (s.tax || 0) + (s.fine || 0) }; }),
     parties: H.map(M => sum(r(M).sent) + sum(r(M).hired)), heads: headsOf(W),
     share: H.map(M => { const mine = sum(r(M).got.map((g, f) => g * ITEMS[f].P0)), all = sum(M.res.map(x => sum(x.got.map((g, f) => g * ITEMS[f].P0)))); return all ? mine / all : 0; }),
     deaths: H.map(M => r(M).deaths), ok: H.map(M => sum(r(M).ok)),
@@ -40,7 +40,7 @@ function headsOf(W: World) {
 }
 // 지출 구성의 이름과 색 (검증한 범주 색 순서대로)
 export const SPEND_KEYS: [keyof ReturnType<typeof moneySeries>['spend'][number], string, string][] = [
-  ['people', '급여 · 신입', 'var(--c-us)'], ['sortie', '출정 · 계약', 'var(--c-red)'], ['supply', '포션 · 장비', 'var(--c-holy)'], ['info', '정보', 'var(--c-iron)'], ['invest', '투자', 'var(--c-etc)'],
+  ['people', '급여 · 신입', 'var(--c-us)'], ['sortie', '출정 · 계약', 'var(--c-red)'], ['supply', '포션 · 장비', 'var(--c-holy)'], ['info', '정보', 'var(--c-iron)'], ['invest', '투자', 'var(--c-etc)'], ['tax', '영주세 · 추징', 'var(--ink-soft)'],
 ];
 
 const VW = 560, VH = 170, PL = 42, PR = 12, PT = 14, PB = 22;

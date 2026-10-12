@@ -5,6 +5,7 @@ import { keyLabel } from '../../core/util';
 import { cashChart, fcChart, flowChart, fmtG, incomeMix, moneySeries, perHeadChart, perPartyChart, priceBoard, shareChart, spendMix } from './charts';
 import { condLabel, kitHint } from './book';
 import { SRC_INFO } from './intel';
+import { fileResultHtml } from './books';
 // 정보망 단계 (화면이 무엇을 보여 줄지 정한다)
 const lvOf = (W: World, k: keyof typeof INTEL.BASE) => (W.intel ? W.intel.lv[k] : INTEL.BASE[k]);
 
@@ -52,6 +53,8 @@ export function resultsHtml(W: World) {
       ${r.jobPay ? `<tr><td>의뢰 (납품 웃돈 · 포상)</td><td class="n">${fmt(r.jobPay)}</td></tr>` : ''}
       ${r.mapSale ? `<tr><td>지도 사본 판매 (관리국)</td><td class="n">${fmt(r.mapSale)}</td></tr>` : ''}
       ${r.matSales ? `<tr><td>갈무리 소재 ${Object.values(r.matSold).reduce((a, b) => a + b, 0)}개</td><td class="n">${fmt(r.matSales)}</td></tr>` : ''}
+      ${r.adv ? `<tr><td>탐사 선금 (영주청)</td><td class="n">${fmt(r.adv)}</td></tr>` : ''}
+      ${r.file && r.file.bill.sub + r.file.bill.aid ? `<tr><td>보급 · 층 지원금 (영주청)</td><td class="n">${fmt(r.file.bill.sub + r.file.bill.aid)}</td></tr>` : ''}
       <tr><td>출정</td><td class="n">−${fmt(r.spend.sortie)}</td></tr>
       ${r.spend.potion ? `<tr><td>포션 구매 ${r.potNeed}병 (교회 ${r.potC}병)</td><td class="n">−${fmt(r.spend.potion)}</td></tr>` : ''}
       ${r.potUsed ? `<tr><td class="dim">위기에 쓴 포션 ${r.potUsed}병 (나머지는 창고로)</td><td class="n dim">-</td></tr>` : ''}
@@ -73,6 +76,8 @@ export function resultsHtml(W: World) {
       ${r.spend.root ? `<tr><td>근원 기금</td><td class="n">−${fmt(r.spend.root)}</td></tr>` : ''}
       ${r.spend.donate ? `<tr><td>교회 후원금</td><td class="n">−${fmt(r.spend.donate)}</td></tr>` : ''}
       ${r.spend.train + r.spend.base ? `<tr><td>훈련 · 거점</td><td class="n">−${fmt(r.spend.train + r.spend.base)}</td></tr>` : ''}
+      ${r.spend.tax ? `<tr><td>영주세${r.file && r.file.bill.refund ? ' · 선금 반납' : ''}</td><td class="n">−${fmt(r.spend.tax)}</td></tr>` : ''}
+      ${r.spend.fine ? `<tr><td class="neg">추징금 (영주청 감사)</td><td class="n">−${fmt(r.spend.fine)}</td></tr>` : ''}
       ${r.potSpoil ? `<tr><td class="neg">보급 창고에서 상해 버린 포션 ${r.potSpoil}병</td><td class="n dim">-</td></tr>` : ''}
       <tr class="tot"><td>순이익</td><td class="n ${r.net < 0 ? 'neg' : 'pos'}">${sgn(r.net)}</td></tr></tbody></table></div>`;
   const r0 = L.res[0], S = moneySeries(W), k = S.months.length - 1;
@@ -99,6 +104,7 @@ export function resultsHtml(W: World) {
     </div></section>
     ${fcVsHtml(W)}
     ${jobsHtml(W)}
+    ${fileResultHtml(W)}
     ${supplyHtml(W)}
     ${mapHtml(W)}
     <section class="rp"><h3>탐사</h3>${returnHtml(W)}</section>

@@ -4,10 +4,15 @@
 // 성향: even(고르게) · deep(깊은 층 위주) · hire(계약 파티를 씀) · smart(시장을 읽는 숙련자, 근원에는 채굴장)
 //       smartNoGuide · smartSeal · smartNoRoot: 숙련 봇에서 지침을 빼거나 근원을 달리 다룬 것
 import { setSeed } from '../src/core/rng';
-import { CO, FLOORS, churchPrice, ITEMS, type Plan, type World, defaultPlan, dormCost, jobsSign, partyMargin, wsCost, wsLv, roomOf, demandMul, potsOf, probe, floorMons, maxParties, newWorld, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
+import { CO, TAX, FLOORS, aidAt, jobsExplore, churchPrice, ITEMS, type Filing, type Plan, type World, closeBooks, preview, defaultPlan, dormCost, jobsSign, partyMargin, wsCost, wsLv, roomOf, demandMul, potsOf, probe, floorMons, maxParties, newWorld, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
 import { demandSeen } from '../src/ui/co/book';
 import { CLASSES } from '../src/core/data';
 
+// 영주청 숫자를 바꿔 보며 잴 때 (TAX_LOOT=0.15 TAX_SUSK=20 TAX_RELIEF=0.5 npm run sim)
+if (process.env.TAX_LOOT) TAX.LOOT = +process.env.TAX_LOOT;
+if (process.env.TAX_SUSK) TAX.SUS_K = +process.env.TAX_SUSK;
+if (process.env.TAX_PEN) TAX.AUDIT_PEN = +process.env.TAX_PEN;
+if (process.env.TAX_RELIEF) Object.keys(TAX.RELIEF).forEach(k => { TAX.RELIEF[k] = TAX.RELIEF[k]! * +process.env.TAX_RELIEF!; });
 const arg = (k: string, d: string) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
 const games = +arg('games', '200'), seed0 = +arg('seed', '1'), only = arg('style', '');
 const MONTHS = 36;
@@ -42,6 +47,26 @@ export const BOT: Record<string, (W: World) => Plan> = {
   // 숙련 봇이 근원을 봉인하는 쪽과, 근원을 그대로 두는 쪽 (채굴장과 견주는 기준)
   smartSeal: W => smartPlan(W, 'seal'),
   smartNoRoot: W => smartPlan(W, 'none'),
+  // 숙련 봇이 신고서를 장부 그대로 내는 것과, 한도까지 부풀려 내는 것 (가정산의 값을 재는 기준)
+  smartHonest: W => smartPlan(W),
+  smartGreedy: W => smartPlan(W),
+};
+
+// 신고서: 숙련 봇은 이번 달 감사 확률이 FILE_RISK를 넘지 않는 데까지만 전리품을 덜 적고 포션 · 횃불을 부풀린다
+// (출입 기록에 바로 걸리는 지원금 층 · 선금 층의 조는 손대지 않는다). 다른 봇은 장부 그대로 낸다
+const FILE_RISK = +(process.env.FILE_RISK || 0.04);
+const fileAt = (T: Filing, s: number): Partial<Filing> => ({ loot: Math.round(T.loot * (1 - 0.6 * s)), mat: Math.round(T.mat * (1 - 0.6 * s)), pot: Math.round(T.pot * (1 + 2 * s)), torch: Math.round(T.torch * (1 + s)) });
+export function fileSmart(W: World, risk = FILE_RISK): Partial<Filing> {
+  const D = W.draft; if (!D) return {};
+  // 감시가 붙어 장부 그대로도 risk를 넘으면 몸을 사린다 (감시 중에 고치면 걸린 만큼 세 배로 문다)
+  let lo = 0, hi = 1;
+  if (preview(W, D, fileAt(D.truth, 0)).chance > risk) return {};
+  for (let k = 0; k < 12; k++) { const s = (lo + hi) / 2; if (preview(W, D, fileAt(D.truth, s)).chance <= risk) lo = s; else hi = s; }
+  return fileAt(D.truth, lo);
+}
+export const FILER: Record<string, (W: World) => Partial<Filing>> = {
+  smart: W => fileSmart(W), smartNoGuide: W => fileSmart(W), smartNoKit: W => fileSmart(W), smartScout: W => fileSmart(W), smartSeal: W => fileSmart(W), smartNoRoot: W => fileSmart(W), smartStay: W => fileSmart(W),
+  smartGreedy: W => (W.draft ? fileAt(W.draft.truth, 1) : {}),
 };
 
 // 숙련 봇: 경쟁자와 군소 용병대가 지난달 벌이를 쫓아 몰려다니므로, 한 층에 몰아넣지 않고 열린 층에 고르게 나누되
@@ -65,7 +90,9 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
     const crises = CO.PARTY * ((1 - p) * Math.min(0.95, F.risk * CO.CRISIS_FAIL) + p * F.risk * CO.CRISIS_OK);
     // 위기 하나는 harm만큼 사망(신입 값과 빈자리), 나머지는 부상(치료비와 한 달 쉬는 급여)
     const die = crises * (F.harm * (CO.RECRUIT + 250) + (1 - F.harm) * (CO.HEAL_COST + CO.WAGE));
-    return Math.max(1, got - (CO.SORTIE + pots * W.potion) - die);
+    // 영주청 층 지원금은 조마다 붙는다
+    const aid = aidAt(W);
+    return Math.max(1, got - (CO.SORTIE + pots * W.potion) - die + (aid && aid.f === f ? aid.amt! : 0));
   });
   const sum = value.reduce((a, b) => a + b, 0), n = maxParties(c);
   P.parties = value.map(v => Math.floor(n * v / sum));
@@ -93,6 +120,8 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
     const per = L && L.res[0].sent[J.f] ? L.res[0].got[J.f] / L.res[0].sent[J.f] : FLOORS[J.f].take * 0.8;
     return [J.id, Math.min(J.qty, Math.floor(per * P.parties[J.f] * (J.until - J.from + 1) * 0.7 / CO.TAKE_STEP) * CO.TAKE_STEP)];
   }));
+  // 탐사 계획서: 그 층에 보낼 조를 그대로 적어 내고 선금을 받는다
+  jobsExplore(W).forEach(J => { if (P.parties[J.f]) P.take![J.id] = P.parties[J.f]; });
   // 공방: 운반 → 갈무리 → 무장 → … 차례로, 금고가 공사비의 WS_K배를 넘을 때 하나씩. 거점은 조를 가장 많이 보내는 깊은 층에.
   // 운반은 모든 조에 가장 좋은 것, 무장은 1층 말고(1층은 성공률이 천장 가까이라 손질비만 든다)
   if (c.ws) {
@@ -204,20 +233,21 @@ export function addKit(W: World, f: number, g: string, n: number) {
   return best ? [g, best].filter(Boolean).sort().join('+') : g;
 }
 
-export function playGame(seed: number, bot: (W: World) => Plan) {
+export function playGame(seed: number, bot: (W: World) => Plan, file: (W: World) => Partial<Filing> = () => ({})) {
   setSeed(seed);
   const W = newWorld();
-  for (let m = 0; m < MONTHS; m++) runMonth(W, bot(W));
+  for (let m = 0; m < MONTHS; m++) { runMonth(W, bot(W)); closeBooks(W, file(W)); }
   return W;
 }
 
 if (process.argv[1] && process.argv[1].endsWith('company.ts')) {
   for (const name of Object.keys(BOT).filter(k => !only || k === only)) {
-    let rankSum = 0, worthSum = 0, firsts = 0, broke = 0, overs = 0;
+    let rankSum = 0, worthSum = 0, firsts = 0, broke = 0, overs = 0, taxSum = 0, gainSum = 0, fineSum = 0, audits = 0;
+    const auditsBy: Record<string, number> = {}, scanBy: Record<string, number> = {}; let scans = 0, checks = 0;
     const net = Array.from({ length: MONTHS }, () => 0), mem: Record<string, number> = {}, pos = Array.from({ length: MONTHS }, () => 0);
     const winners: Record<string, number> = {}, opens = FLOORS.map(() => 0);
     for (let g = 0; g < games; g++) {
-      const W = playGame(seed0 + g, BOT[name]);
+      const W = playGame(seed0 + g, BOT[name], FILER[name]);
       const r = rankOf(W); rankSum += r; if (r === 1) firsts++;
       worthSum += worth(W, us(W)); if (us(W).cash < 0) broke++;
       overs += W.history.filter(M => M.overflow).length;
@@ -225,13 +255,17 @@ if (process.argv[1] && process.argv[1].endsWith('company.ts')) {
       W.cos.forEach(c => { mem[c.id] = (mem[c.id] || 0) + c.members; });
       const top = W.last!.rank[0]; winners[top] = (winners[top] || 0) + 1;
       W.history.forEach(M => { if (M.opened != null) opens[M.opened] += M.month; });
-      opens[0] += 0;
+      W.history.forEach(M => { const r = M.res[0]; taxSum += r.spend.tax; fineSum += r.spend.fine; gainSum += r.file ? r.file.gain : 0; });
+      audits += us(W).audits || 0; W.cos.forEach(c => { auditsBy[c.id] = (auditsBy[c.id] || 0) + (c.audits || 0); scanBy[c.id] = (scanBy[c.id] || 0) + (c.scandals || 0); scans += c.scandals || 0; });
+      checks += (W.laws || []).filter(L => L.kind === 'check').length;
     }
     const n = W0().cos.filter(c => c.style !== 'crowd').length;
     console.log(`봇 '${name}' · ${games}판 · ${MONTHS}개월`);
     console.log(`  우리 평균 순위 ${(rankSum / games).toFixed(2)} / ${n} · 1위 ${Math.round(firsts / games * 100)}% · 평균 평가액 ${Math.round(worthSum / games).toLocaleString()}G · 금고 마이너스로 끝난 판 ${broke} · 범람 판당 ${(overs / games).toFixed(2)}번`);
     console.log(`  1위 용병단 ${Object.entries(winners).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${Math.round(v / games * 100)}%`).join(' · ')}`);
     console.log(`  우리 달별 순이익 ${[1, 2, 3, 6, 12, 24, 36].map(m => `${m}월 ${Math.round(net[m - 1] / games).toLocaleString()} (흑자 ${Math.round(pos[m - 1] / games * 100)}%)`).join(' · ')}`);
+    console.log(`  영주청: 판당 세금 ${Math.round(taxSum / games).toLocaleString()}G · 신고서 이득 ${Math.round(gainSum / games).toLocaleString()}G · 추징 ${Math.round(fineSum / games).toLocaleString()}G · 감사 ${(audits / games).toFixed(2)}번 (모두 ${Object.entries(auditsBy).map(([k, v]) => `${k} ${(v / games).toFixed(1)}`).join(' · ')})`);
+    console.log(`  스캔들 판당 ${(scans / games).toFixed(2)}번 (${Object.entries(scanBy).filter(([, v]) => v).map(([k, v]) => `${k} ${(v / games).toFixed(2)}`).join(' · ')}) · 대조 강화 법령 ${(checks / games).toFixed(2)}개`);
     console.log(`  36개월 뒤 인원 ${Object.entries(mem).map(([k, v]) => `${k} ${Math.round(v / games)}`).join(' · ')}`);
   }
 }
