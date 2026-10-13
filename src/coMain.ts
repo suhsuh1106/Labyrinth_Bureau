@@ -36,8 +36,8 @@ function setPhase(p: number) { stopRun(); ui.phase = p; ui.open = false; ui.plac
 function start(fresh = false) {
   const d = fresh ? null : load();
   if (d) { W = d.W; plan = d.plan; ui = d.ui || { phase: 0, tab: 'report', pins: [] }; }
-  // 포션은 고르는 것: 첫 결정표의 조당 포션 상한은 0병 (처음 받은 포션은 창고에 있다)
-  else { setSeed((Date.now() ^ 0x5bd1e995) >>> 0); W = newWorld(); plan = carryPlan(W, null); plan.pots = plan.pots.map(() => 0); plan.pick = []; ui = { phase: 0, tab: 'report', pins: [] }; }
+  // 첫 결정표: 포션 상한 0병(처음 받은 포션은 창고에), 신입 없음, 교관 없음. 돈 드는 것은 모두 고르는 것
+  else { setSeed((Date.now() ^ 0x5bd1e995) >>> 0); W = newWorld(); plan = carryPlan(W, null); plan.pots = plan.pots.map(() => 0); plan.pick = []; plan.train = 0; plan.coach = 0; ui = { phase: 0, tab: 'report', pins: [] }; }
   plan.intelUp = plan.intelUp || {};   // 정보망은 유지비를 저절로 내고, 넓히는 돈만 따로 정한다
   tidyTeams();
   render(); save();
