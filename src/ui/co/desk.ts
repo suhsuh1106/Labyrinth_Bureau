@@ -341,9 +341,11 @@ export function costLines(W: World, raw: Plan): CostLine[] {
 // 이번 달 결재에 드는 돈 (위 줄을 정보 · 내정 · 출정 · 급여로 묶은 것)
 export function monthCost(W: World, raw: Plan) {
   const ls = costLines(W, raw), sum = (ks: string[]) => ls.filter(l => ks.includes(l.k)).reduce((a, l) => a + l.now, 0);
-  const info = sum(['intel', 'probe']), exp = sum(['sortie', 'tool']), wg = sum(['wage']);
   const all = ls.reduce((a, l) => a + l.now, 0);
-  return { info, home: all - info - exp - wg, exp, wage: wg, all };
+  // 묶음: 출정 · 급여 · 신입 · 본부(숙소 · 본부 · 교관 · 치료) · 보급(포션 · 횃불 · 장비) · 세금(어림) · 정보 · 그 밖(근원 기금 · 후원)
+  const parts: [string, number][] = [['출정', sum(['sortie', 'tool'])], ['급여', sum(['wage'])], ['신입', sum(['recruit'])], ['본부', sum(['dorm', 'hq', 'train', 'heal'])],
+    ['보급', sum(['potion', 'torch', 'gear'])], ['세금', sum(['tax'])], ['정보', sum(['intel', 'probe'])], ['기금', sum(['root'])]];
+  return { all, exp: parts[0][1], parts: parts.filter(([, v]) => v > 0) };
 }
 
 export function readerHtml(W: World, ui: DeskUi) {
@@ -453,7 +455,7 @@ export function expWeekHtml(W: World, raw: Plan, ui: DeskUi) {
   const rows = FLOORS.map((F, f) => {
     if (f >= W.unlocked) return f === W.unlocked ? `<tr class="closed"><td><b>${F.name}</b><small>${ITEMS[f].name}</small></td><td colspan="10">닫힘 · 길 뚫기 ${Math.min(99, Math.round(W.prog / CO.OPEN_WINS[W.unlocked - 1] * 100))}%</td></tr>` : '';
     // 지도(이해도)가 낮으면 성공도 캐 오는 양도 준다 (조원 경험 · 길잡이는 빼고 지도만으로)
-    const n = P.parties[f] + P.hire[f], crowd = n + others(f), U = undMods(mapOf(c, f), mapOf(c, f)), p = clamp(succRate(c, f, P.pots[f], crowd) + U.succ, 0.05, 0.97);
+    const n = P.parties[f] + P.hire[f], crowd = n + others(f), U = undMods(mapOf(c, f), mapOf(c, f), f), p = clamp(succRate(c, f, P.pots[f], crowd) + U.succ, 0.05, 0.97);
     const cut = L && L.floors[f] && L.floors[f].cut ? Math.min(1, L.floors[f].cut!) : 1, per = p * F.take * lootMul(c, f) * U.loot * cut * 0.925 * W.price[f];
     const pr = L && L.Q[f] ? W.price[f] - ITEMS[f].P0 : 0;
     return `<tr class="${n ? 'on' : ''}"><td><b>${F.name}</b><small>${ITEMS[f].name}</small></td>
@@ -480,7 +482,7 @@ export function expWeekHtml(W: World, raw: Plan, ui: DeskUi) {
       <p class="note">계약 조: 한 조 ${CO.HIRE_FEE}G · 캔 것의 ${pct(CO.HIRE_CUT)}는 그들 몫. 포션 상한: 위기 때만 한 병씩, 남으면 창고로. 사람 배치는 아래 편성표.</p></div>
     ${fcPanel(W, P, cost.all)}
     ${warn.length ? `<div class="warn">${warn.join(' · ')}</div>` : ''}
-    <div class="foot"><button type="button" class="ghost" data-act="phase" data-phase="0">← 내정으로</button><span class="tot">나갈 돈 <b>${fmt(cost.all)}G</b> <span class="dim">(출정 ${fmt(cost.exp)} · 급여 ${fmt(cost.wage)} · 건물 · 보급 ${fmt(cost.home)} · 정보 ${fmt(cost.info)})</span></span><button type="button" class="seal" id="go" data-act="go">결재 도장 찍기</button></div>
+    <div class="foot"><button type="button" class="ghost" data-act="phase" data-phase="0">← 내정으로</button><span class="tot">나갈 돈 <b>${fmt(cost.all)}G</b> <span class="dim">(${cost.parts.map(([n, v]) => `${n} ${fmt(v)}`).join(' · ')})</span></span><button type="button" class="seal" id="go" data-act="go">결재 도장 찍기</button></div>
     <div class="main">
       <div class="col">${jobsTrack(W, P)}${hasMemo ? `<div class="panel"><header><h2>작전 메모</h2></header><div class="memo">${memo}</div></div>` : ''}</div>
     </div>

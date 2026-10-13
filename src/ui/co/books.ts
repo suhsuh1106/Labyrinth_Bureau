@@ -12,9 +12,9 @@ export const ROW: Record<FileKey, { n: string; u: string; step: number; dir: str
   adv: { n: '계획서 층에 보낸 조', u: '조', step: 1, dir: '더 적으면 돌려낼 선금이 준다' },
 };
 
-const LAW_NAME: Record<Law['kind'], string> = { mat: '소재 과세', aid: '층 지원금', sub: '보급 지원금', loot: '전리품 세율', check: '대조 강화' };
+const LAW_NAME: Record<Law['kind'], string> = { mat: '시장 등록', aid: '층 지원금', sub: '보급 지원금', loot: '전리품 세율', check: '대조 강화' };
 export function lawLine(L: Law) {
-  if (L.kind === 'mat') return `${L.m} 판매에 ${Math.round((L.rate || 0) * 100)}% 세금`;
+  if (L.kind === 'mat') return `${L.m} 시장 등록 · 세금 ${Math.round((L.rate || 0) * 100)}%`;
   if (L.kind === 'aid') return `${FLOORS[L.f!].name}에 들어가는 조마다 ${fmt(L.amt || 0)}G`;
   if (L.kind === 'sub') return L.rate ? `포션 · 횃불 지원금 ${Math.round((L.rate || 0) * 100)}%로 줄임` : '포션 · 횃불 지원금 끊음';
   if (L.kind === 'check') return `${ROW[L.k!].n}${jo(ROW[L.k!].n, '을', '를')} ${FILE_SRC[L.k!]}${jo(FILE_SRC[L.k!], '과', '와')} 더 꼼꼼히 맞대 봄 (걸릴 확률 ×${TAX.CHECK_DET}, 의심 ×${TAX.CHECK_SUS})`;
@@ -26,7 +26,7 @@ export function lawsHtml(W: World, m = W.month) {
   const now = lawsAt(W, m), next = (W.laws || []).filter(L => L.from > m);
   const rate = TAX.LOOT + now.filter(L => L.kind === 'loot').reduce((a, L) => a + (L.rate || 0), 0), mul = now.filter(L => L.kind === 'sub').reduce((a, L) => Math.min(a, L.rate ?? 1), 1);
   const row = (L: Law, soon: boolean) => `<li class="law ${L.kind}"><span class="lk">${LAW_NAME[L.kind]}</span><span>${lawLine(L)}</span><span class="dim">${soon ? `제${L.from}월부터 · ` : ''}${until(L)}</span></li>`;
-  return `<div class="laws"><p class="note">영주세 <b>${Math.round(rate * 100)}%</b> (전리품) · 소재 면세 (법령 붙은 것 빼고) · 포션 지원 <b>${fmt(TAX.SUB_POT * mul)}G</b>/병 · 횃불 지원 <b>${fmt(TAX.SUB_TORCH * mul)}G</b>/개 · 교회 후원 공제 ${Math.round(TAX.DONATE_CREDIT * 100)}% · 큰 용병단 감면 있음 (우리 없음)</p>
+  return `<div class="laws"><p class="note">영주세 <b>${Math.round(rate * 100)}%</b> (전리품) · 갈무리 소재는 시장 등록 전엔 세금 없음 · 포션 지원 <b>${fmt(TAX.SUB_POT * mul)}G</b>/병 · 횃불 지원 <b>${fmt(TAX.SUB_TORCH * mul)}G</b>/개 · 교회 후원 공제 ${Math.round(TAX.DONATE_CREDIT * 100)}% · 큰 용병단 감면 있음 (우리 없음)</p>
     ${now.length || next.length ? `<ul class="lawlist">${next.map(L => row(L, true)).join('')}${now.map(L => row(L, false)).join('')}</ul>` : '<p class="note">지금 붙은 법령이 없어요. 영주청은 넉 달마다 장부를 살펴 법령을 고시해요.</p>'}</div>`;
 }
 

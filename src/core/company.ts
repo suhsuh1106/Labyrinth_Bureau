@@ -16,7 +16,7 @@ export const CO = {
   BASE_STEP: 3000, BASE_MAX: 2, BASE_TAKE: 10, REGEN: 0.5,
   HIRE_FEE: 120, HIRE_CUT: 0.4,
   // 시작 금고: START_SIZE명인 용병단이 START_CASH를 들고 온다 (규모^CASH_EXP에 비례)
-  START_CASH: 8000, START_SIZE: 16,
+  START_CASH: 3000, START_SIZE: 16,
   // 가장 깊은 열린 층에서 이만큼 성공이 쌓이면 다음 층이 열린다 (모든 용병단이 함께 뚫는다)
   OPEN_WINS: [40, 60, 80, 100],
   // 편성 지침: 그 층 몬스터의 약점을 갖춘 파티는 성공률이 오르고, 역효과를 갖춘 파티는 떨어진다. 지침대로 갖추는 데 조당 돈이 든다
@@ -56,9 +56,10 @@ export const CO = {
   // 지도 이정표: 25 갈림길(위기 ×0.9), 50 주 사냥터(캐 오는 양 ×1.1), 75 근원 단서(성공 +3%p), 100 완성(기록실 3단계면 사본을 팔 수 있다)
   UND_EX: 15, UND_GUIDE: 15, UND_AI: 5,
   // 명단이 없는 쪽(경쟁 용병단 · 계약 파티)이 실력 · 조직력 대신 받는 성공 보정: AI_VET0에서 AI_VET_M달에 걸쳐 AI_VET까지
-  AI_VET0: 0.03, AI_VET: 0.12, AI_VET_M: 24, UND_SUCC: 0.25, UND_CRISIS: 1.5, UND_HARM: 0.5, UND_LOOT: 0.3, MAP0: 70,
-  // 지도: 조 하나가 다녀오면 (1 + 해낸 비율) × MAP_STEP만큼, 남은 칸이 적을수록 덜(× (1 − 지도/110)). 길잡이 ×1.5, 기록실 1단계 ×1.25, 정찰 조 ×SCOUT_MAP
-  MAP_STEP: 4, SCOUT_MAP: 2.5, SCOUT_CRISIS: 0.6, SCOUT_LOOT: 0.3, MAP_COPY: 1500, MAP_GIVE: 30,
+  AI_VET0: 0.03, AI_VET: 0.12, AI_VET_M: 24, UND_SUCC: 0.25, UND_CRISIS: 1.5, UND_HARM: 0.5, UND_LOOT: 0.3, MAP0: 0, UND_F: [0.4, 1, 1, 1, 1],
+  // 지도: 조 하나가 다녀오면 (1 + 해낸 비율) × 그 층의 MAP_STEP만큼, 남은 칸이 적을수록 덜(× (1 − 지도/110)). 길잡이 ×1.5, 기록실 1단계 ×1.25, 정찰 조 ×SCOUT_MAP.
+  // 넓은 층일수록 천천히 찬다 (1층은 모두가 0%에서 시작해 여러 달에 걸쳐 그린다)
+  MAP_STEP: [1, 2, 3, 4, 5], SCOUT_MAP: 2.5, SCOUT_CRISIS: 0.6, SCOUT_LOOT: 0.3, MAP_COPY: 1500, MAP_GIVE: 30,
   // 의뢰: 공표된 경쟁의 포상(1 · 2 · 3등)과 명성, 납품은 TAKE_STEP개 단위로 맡는다. 맡겠다는 쪽이 물량보다 많으면 명성 무게로 나눈다
   RACE_PRIZE: [900, 500, 250], RACE_FAME: [6, 3, 0], TAKE_STEP: 50, JOB_MAX: 2,
   // 교관: 달마다 내는 급료(훈련비). 효과는 훈련도가 차오르는 만큼 (지금 훈련비와 같은 원리)
@@ -146,7 +147,7 @@ export const TAX = {
   SUS_W: { loot: 1, mat: 1, pot: 1.2, torch: 0.7, aid: 2, adv: 2 } as Record<string, number>,
   DET: { loot: 0.7, mat: 0.6, pot: 0.5, torch: 0.3, aid: 0.9, adv: 0.9 } as Record<string, number>,
   // 재정 압박(0~1): 이어진 적자 한 달마다 PRESS_LOSS, 금고가 지난달 지출의 PRESS_RUN달 치에 못 미치면 모자란 비율만큼. 경쟁 용병단은 압박이 클수록 과감하게 장부를 고친다
-  PRESS_LOSS: 0.35, PRESS_RUN: 4,
+  PRESS_LOSS: 0.35, PRESS_RUN: 2,
   // 스캔들: 감사에서 걸린 이득이 SCANDAL_G 이상이면 신문에 나고, 그 용병단은 TAINT_LEN달 동안 감면이 절반이 되고 감사 확률이 WATCH 밑으로 내려가지 않는다(명성 −SCANDAL_FAME 더).
   // 영주청은 가장 크게 걸린 칸을 CHECK_LEN달 동안 더 꼼꼼히 맞대 본다(걸릴 확률 ×CHECK_DET, 의심 무게 ×CHECK_SUS). 포션 · 횃불이면 그동안 보급 지원금도 절반. 모두에게 같다
   SCANDAL_G: 1000, SCANDAL_FAME: 6, TAINT_LEN: 8, WATCH: 0.08, CHECK_LEN: 12, CHECK_DET: 1.4, CHECK_SUS: 2,
@@ -185,8 +186,11 @@ export const condsOf = (keys: string[]) => { const k = [...keys].sort(), out = [
 // 소재를 얻을 확률: 조건을 갖췄으면 (1+값)배, 층이 비어 갈수록 줄어든다
 export const matChance = (x: Mat, keys: string[], full: number) =>
   Math.min(0.95, x.p * (1 + (x.b || []).reduce((a, [c, v]) => a + (c.split('+').every(k => keys.includes(k)) ? v : 0), 0))) * (0.5 + 0.5 * clamp(full, 0, 1));
-// 소재 시세: 기준 값 × 찾는 곳 웃돈 × 물량 (평소보다 많이 팔리면 내려간다)
-export const matPrice = (val: number, mul: number, Q: number, avg: number | undefined) => Math.round(val * mul * (avg && Q ? clamp(Math.pow(avg / Q, CO.MAT_EXP), CO.MAT_LO, CO.MAT_HI) : 1));
+// 시세: 모든 물품이 같은 식이다. 값 = 기본 가치(희귀도) × 공급 · 수요 배율. 시장이 사 가는 양(D)보다 많이 풀리면(Q) 내려가고 모자라면 오른다(el은 민감도, lo ~ hi는 바닥과 천장).
+// 전리품(층마다 하나, 0티어)은 수요가 정해져 있고, 갈무리 소재는 평소 팔리던 물량(흐르는 평균)을 수요로 본다
+export function marketMul(D: number, Q: number, el: number, lo: number, hi: number) { return clamp(Math.pow(D / Q, el), lo, hi); }
+// 소재 시세: 기준 값 × 찾는 곳 웃돈 × 공급 · 수요 배율
+export const matPrice = (val: number, mul: number, Q: number, avg: number | undefined) => Math.round(val * mul * (avg && Q ? marketMul(avg, Q, CO.MAT_EXP, CO.MAT_LO, CO.MAT_HI) : 1));
 export const demandMul = (W: World, m: string) => (W.mat ? W.mat.dem.filter(d => d.m === m && d.until >= W.month).reduce((a, d) => Math.max(a, 1 + d.mul), 1) : 1);
 // 정보망: 출처마다 0~3단계. 매달 유지비(KEEP)보다 적게 쓰면 한 단계 내려가고, 넘게 쓴 만큼 쌓여 UP에 이르면 한 단계 오른다.
 // 귀환 보고와 입구 출입 기록은 1단계가 공짜로 주어진다. 상단 장부·교회 기록 2단계부터는 그 세력과의 사이가 INTEL_REL 이상이어야 한다
@@ -250,7 +254,7 @@ const zeros = () => FLOORS.map(() => 0);
 // ---------- 시장 ----------
 // 시장 전체 판매량 Q가 수요 D보다 많으면 값이 떨어지고(바닥 lo), 적으면 오른다(천장 hi). 얼마나 민감한지는 el
 // 값은 0.1G 단위까지 (싼 전리품은 개수가 많고 한 개 값이 몇 G라서, 정수로 자르면 출렁임이 뚝뚝 끊긴다)
-export const priceOf = (it: Item, Q: number) => Math.round(it.P0 * (Q ? clamp(Math.pow(it.D / Q, it.el), it.lo, it.hi) : it.hi) * 10) / 10;
+export const priceOf = (it: Item, Q: number) => Math.round(it.P0 * (Q ? marketMul(it.D, Q, it.el, it.lo, it.hi) : it.hi) * 10) / 10;
 // 포션은 모든 용병단이 많이 살수록 비싸진다
 export const potionPrice = (Q: number) => Math.round(CO.POTION0 * clamp(Math.sqrt(Q / CO.POTION_Q0), 0.8, 1.6));
 
@@ -418,6 +422,8 @@ export function newWorld(): World {
 }
 
 export const us = (W: World) => W.cos[0];
+// 금고 기준선(경쟁 용병단 · 봇이 "넉넉하다"고 보는 선)은 시작 금고에 비례한다 (8,000G일 때 맞춘 값 × CASH_K)
+export const cashK = () => CO.START_CASH / 8000;
 // 그 층 몬스터의 지금 약점 (적응하면 바뀐다)
 export const keyOf = (W: World, f: number) => (W.keys && W.keys[f]) || MONSTERS[W.mons[f]].key;
 // 전리품 비율: 성공 한 번에 캐 오는 양에 곱하는 값
@@ -487,14 +493,15 @@ export function teamUnd(c: Company, f: number, who: Person[] | null) {
   return Math.round(Math.min(100, m + Math.min(CO.UND_EX, best / 4) + (who.some(p => p.tr === '길잡이') ? CO.UND_GUIDE : 0)));
 }
 // 이해도가 바꾸는 것: 성공에 더할 값, 위기 · 사망 · 캐 오는 양 배수 (지도 이정표 포함)
-export function undMods(u: number, map: number) {
-  const x = (100 - u) / 100;
+// f: 층 (1층은 넓고 순해 모르는 데서 오는 손해가 UND_F배로 작다)
+export function undMods(u: number, map: number, f = 1) {
+  const x = (100 - u) / 100 * (CO.UND_F[f] ?? 1);
   return { succ: -CO.UND_SUCC * x + (map >= 75 ? 0.03 : 0), crisis: (1 + CO.UND_CRISIS * x) * (map >= 25 ? 0.9 : 1), harm: 1 + CO.UND_HARM * x, loot: (1 - CO.UND_LOOT * x) * (map >= 50 ? 1.1 : 1) };
 }
 // 우리 조 하나의 성공률 어림: 층 · 훈련 · 거점 · 봉인 · 빈자리에 조원마다 실력 단계 · 특성 · 조직력을 더한 값의 평균 (약점 · 역효과는 모른다)
 export function teamOdds(W: World, c: Company, f: number, who: Person[], pots: number, crowd: number, T: Team | null = null) {
   const p0 = succRate(c, f, pots, crowd) + (rootOf(W, f).done === 'seal' ? CO.SEAL_SUCC : 0);
-  const u = teamUnd(c, f, who), U = undMods(u, mapOf(c, f));
+  const u = teamUnd(c, f, who), U = undMods(u, mapOf(c, f), f);
   const pt0 = clamp(p0 + U.succ - who.filter(isRook).length * CO.ROOK_PEN - (CO.PARTY - who.length) * CO.SHORT_PEN, 0.05, 0.97);
   if (!who.length) return { p: pt0, coh: 0, u, U };
   const MM = memberMods(who, f, u);
@@ -735,17 +742,17 @@ export function aiPlan(W: World, i: number): Plan {
   if (c.style === 'hoarder' && W.potion <= CO.POTION0) P.buy.pot = Math.max(0, need * 2 - S0.pot - S0.holy - P.buy.holy!);
   // 안정형은 늘 쓸 양의 절반만큼 더 쟁여 둔다 (모자라서 덜 들고 가는 일이 없게. 대신 일부는 상한다)
   if (c.style === 'steady') P.buy.pot = Math.max(0, Math.ceil(need * 1.5) - S0.pot - S0.holy - P.buy.holy!);
-  P.donate = c.style === 'steady' && W.cartel && (!W.cartel.churchOut || !W.cartel.donated[i]) && c.cash > 8000 ? 800 : 0;
+  P.donate = c.style === 'steady' && W.cartel && (!W.cartel.churchOut || !W.cartel.donated[i]) && c.cash > 8000 * cashK() ? 800 : 0;
   // 깨친 층에서는 약점대로 갖춰 들어간다
   P.guide = FLOORS.map((_, f) => (c.learned && c.learned[f] ? keyOf(W, f) : ''));
   P.tool = S.tool;
-  if (S.proc && (c.proc || 0) + (c.pendingProc || 0) / CO.PROC_STEP < CO.PROC_MAX && c.cash > 14000 && W.month % 6 === 3) P.proc = CO.PROC_STEP;
+  if (S.proc && (c.proc || 0) + (c.pendingProc || 0) / CO.PROC_STEP < CO.PROC_MAX && c.cash > 14000 * cashK() && W.month % 6 === 3) P.proc = CO.PROC_STEP;
   // 큰 용병단은 남는 장사인 층이 있으면 군소 용병대를 계약 파티로 빌린다
-  if ((c.style === 'volume' || c.style === 'steady' || c.style === 'chaser') && c.cash > 8000) {
+  if ((c.style === 'volume' || c.style === 'steady' || c.style === 'chaser') && c.cash > 8000 * cashK()) {
     const best = margin.indexOf(Math.max(...margin));
     if (look[best] * (1 - CO.HIRE_CUT) - cost - CO.HIRE_FEE > 60) P.hire[best] = Math.floor(c.members / 16);
   }
-  if (c.style === 'deep' && W.month % 4 === 1 && c.cash > 9000) P.base = { f: W.unlocked - 1, amt: CO.BASE_STEP };
+  if (c.style === 'deep' && W.month % 4 === 1 && c.cash > 9000 * cashK()) P.base = { f: W.unlocked - 1, amt: CO.BASE_STEP };
   // 몸집: 빈 침상은 채우고, 침상이 차면 금고가 증축 값의 build배를 넘을 때 숙소를 늘린다 (cap명까지)
   const G = GROW[c.style];
   if (c.style !== 'crowd') {
@@ -754,7 +761,7 @@ export function aiPlan(W: World, i: number): Plan {
     if (G.build && !c.pendingBeds && roomOf(c) <= 2 && c.members < G.cap && c.losses === 0 && partyMargin(W, i) > G.margin && c.cash > dormCost(c) * G.build) P.dorm = true;
   }
   // 두 달 넘게 적자면 허리띠를 졸라맨다
-  if (c.style !== 'crowd' && (c.cash < 3000 || c.losses >= 2)) { P.train = 0; P.base = null; P.proc = 0; P.tool = 0; P.hire = zeros(); P.pots = P.pots.map(v => Math.max(2, v - 1)); P.dorm = false; P.recruit = Math.min(P.recruit || 0, 2); }
+  if (c.style !== 'crowd' && (c.cash < 3000 * cashK() || c.losses >= 2)) { P.train = 0; P.base = null; P.proc = 0; P.tool = 0; P.hire = zeros(); P.pots = P.pots.map(v => Math.max(2, v - 1)); P.dorm = false; P.recruit = Math.min(P.recruit || 0, 2); }
   P.take = aiTake(W, i, P);
   return P;
 }
@@ -878,7 +885,7 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
         // 층 이해도: 모르는 층일수록 덜 해내고 위기가 잦고 더 죽는다 (정찰 조는 위기가 적고 캐 오는 게 적다)
         let dark = false;
         if (q < P.parties[f]) { if (torchLeft[i] >= TAX.TORCH[f]) { torchLeft[i] -= TAX.TORCH[f]; torchUsed[i] += TAX.TORCH[f]; } else { dark = true; torchShort[i]++; } }
-        const scout = !!(TT && TT.scout), u = teamUnd(c, f, who), U = undMods(u, mapOf(c, f));
+        const scout = !!(TT && TT.scout), u = teamUnd(c, f, who), U = undMods(u, mapOf(c, f), f);
         const pp = clamp(p + U.succ + kw * CO.KEY_BONUS - bw * CO.BAD_PEN + (sealed && c.style === 'player' ? CO.SEAL_SUCC : 0) - rooks * CO.ROOK_PEN - (CO.PARTY - size) * CO.SHORT_PEN, 0.05, 0.97);
         // 우리 조는 조원마다 실력 단계 · 특성 · 조직력을 더해 굴린다
         const MM = who ? memberMods(who, f, u) : null;
@@ -893,7 +900,7 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
         lootW[f][i] += kl / CO.PARTY * U.loot * (scout ? CO.SCOUT_LOOT : 1); w += kl / CO.PARTY;
         // 지도: 다녀온 조가 그 층을 그려 온다 (해낸 사람이 많을수록, 길잡이 · 기록실 · 정찰 조면 더)
         if (q < P.parties[f]) {
-          const gain = (1 + k / size) * CO.MAP_STEP * (who && who.some(x => x.tr === '길잡이') ? 1.5 : 1) * (hqLv(c, 'rec') >= 1 ? 1.25 : 1) * (scout ? CO.SCOUT_MAP : 1) * (dark ? CO.DARK_MAP : 1);
+          const gain = (1 + k / size) * CO.MAP_STEP[f] * (who && who.some(x => x.tr === '길잡이') ? 1.5 : 1) * (hqLv(c, 'rec') >= 1 ? 1.25 : 1) * (scout ? CO.SCOUT_MAP : 1) * (dark ? CO.DARK_MAP : 1);
           mapGain[i][f] += gain;
           if (who && c.style === 'player') who.forEach((x, m) => { mapBy[x.id] = (mapBy[x.id] || 0) + gain * (did[m] ? 1.25 : 0.75) * (x.tr === '길잡이' ? 1.5 : 1) / size; });
         }
@@ -1324,7 +1331,7 @@ function legislate(W: World) {
   H.forEach(M => { lootV += M.Q.reduce((a, q, j) => a + q * M.price[j], 0); M.res.forEach(r => Object.entries(r.matSold).forEach(([n, k]) => { matV[n] = (matV[n] || 0) + k * (M.matPrice[n] || 0); })); });
   const taxed = new Set(laws.filter(x => x.kind === 'mat' && x.until >= m).map(x => x.m)), allMat = Object.values(matV).reduce((a, b) => a + b, 0);
   const top = Object.entries(matV).filter(([n]) => !taxed.has(n)).sort((a, b) => b[1] - a[1])[0];
-  if (top && allMat >= TAX.MAT_SHARE * lootV) add({ kind: 'mat', m: top[0], rate: TAX.MAT_RATE, from: m + 1, until: m + TAX.MAT_LEN }, `영주청이 다음 달부터 ${top[0]} 판매에 ${Math.round(TAX.MAT_RATE * 100)}% 세금을 매긴다고 고시했다. 영주께서는 "고루 나누는 뜻"이라 하셨다.`);
+  if (top && allMat >= TAX.MAT_SHARE * lootV) add({ kind: 'mat', m: top[0], rate: TAX.MAT_RATE, from: m + 1, until: m + TAX.MAT_LEN }, `영주청이 ${top[0]}을(를) 다음 달부터 시장에 정식 등록하고 ${Math.round(TAX.MAT_RATE * 100)}% 세금을 매긴다고 고시했다. 영주께서는 "고루 나누는 뜻"이라 하셨다.`);
   if (L && !laws.some(x => x.kind === 'aid' && x.until > m)) {
     const open = FLOORS.map((F, f) => ({ f, r: L.plans.reduce((a, P) => a + P.parties[f] + P.hire[f], 0) / F.cap })).filter(x => x.f >= 1 && x.f < W.unlocked).sort((a, b) => a.r - b.r);
     if (open.length && open[0].r < 0.8) {
@@ -1630,7 +1637,7 @@ export function forecast(W: World, P: Plan): Forecast {
       const who = T ? T.m.filter((x): x is number => x != null).map(id => crew.get(id)).filter((x): x is Person => !!x) : null;
       const size = who ? who.length : CO.PARTY, rooks = who ? who.filter(isRook).length : 0;
       // 층 이해도 (계약 파티는 우리 지도를 모른다고 보지 않고 지도만큼)
-      const scout = !!(T && T.scout), u = teamUnd(c, f, who), U = undMods(u, mapOf(c, f));
+      const scout = !!(T && T.scout), u = teamUnd(c, f, who), U = undMods(u, mapOf(c, f), f);
       const pt0 = clamp(p0 + U.succ - rooks * CO.ROOK_PEN - (CO.PARTY - size) * CO.SHORT_PEN, 0.05, 0.97);
       // 우리 조는 조원마다 실력 단계 · 특성 · 조직력을 더한 성공률의 평균으로 (조원끼리 다른 성공률을 하나로 어림)
       const MM = who && who.length ? memberMods(who, f, u) : null;

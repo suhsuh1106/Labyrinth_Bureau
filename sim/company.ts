@@ -4,15 +4,18 @@
 // 성향: even(고르게) · deep(깊은 층 위주) · hire(계약 파티를 씀) · smart(시장을 읽는 숙련자, 근원에는 채굴장)
 //       smartNoGuide · smartSeal · smartNoRoot: 숙련 봇에서 지침을 빼거나 근원을 달리 다룬 것
 import { setSeed } from '../src/core/rng';
-import { CO, TAX, FLOORS, aidAt, jobsExplore, churchPrice, ITEMS, type Filing, type Plan, type World, closeBooks, preview, defaultPlan, dormCost, jobsSign, partyMargin, roomOf, demandMul, potsOf, probe, floorMons, maxParties, newWorld, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
+import { CO, TAX, FLOORS, cashK, aidAt, jobsExplore, churchPrice, ITEMS, type Filing, type Plan, type World, closeBooks, preview, defaultPlan, dormCost, jobsSign, partyMargin, roomOf, demandMul, potsOf, probe, floorMons, maxParties, newWorld, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
 import { demandSeen } from '../src/ui/co/book';
 import { CLASSES } from '../src/core/data';
 
 // 영주청 숫자를 바꿔 보며 잴 때 (TAX_LOOT=0.15 TAX_SUSK=20 TAX_RELIEF=0.5 npm run sim)
 if (process.env.TAX_LOOT) TAX.LOOT = +process.env.TAX_LOOT;
+if (process.env.UND_F0) CO.UND_F[0] = +process.env.UND_F0;
+if (process.env.PRESS_RUN) TAX.PRESS_RUN = +process.env.PRESS_RUN;
 if (process.env.TAX_SUSK) TAX.SUS_K = +process.env.TAX_SUSK;
 if (process.env.TAX_PEN) TAX.AUDIT_PEN = +process.env.TAX_PEN;
 if (process.env.TAX_RELIEF) Object.keys(TAX.RELIEF).forEach(k => { TAX.RELIEF[k] = TAX.RELIEF[k]! * +process.env.TAX_RELIEF!; });
+if (process.env.START_CASH) CO.START_CASH = +process.env.START_CASH;
 const arg = (k: string, d: string) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
 const games = +arg('games', '200'), seed0 = +arg('seed', '1'), only = arg('style', '');
 const MONTHS = 36;
@@ -31,7 +34,7 @@ export const BOT: Record<string, (W: World) => Plan> = {
     P.parties = FLOORS.map(() => 0);
     if (d === 0) P.parties[0] = n; else { P.parties[d] = Math.ceil(n * 0.6); P.parties[d - 1] = n - P.parties[d]; }
     P.pots = FLOORS.map(() => 4); P.train = 500;
-    if (W.month % 6 === 0 && us(W).cash > 10000) P.base = { f: d, amt: CO.BASE_STEP };
+    if (W.month % 6 === 0 && us(W).cash > 10000 * cashK()) P.base = { f: d, amt: CO.BASE_STEP };
     return grow(W, P);
   },
   hire: W => { const P = defaultPlan(W), d = W.unlocked - 1; if (W.last && W.last.perParty[d] > 400) P.hire[d] = 2; return grow(W, P); },
@@ -99,7 +102,7 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
   P.pots = FLOORS.map(() => pots);
   P.tool = 0;   // 단원마다 급여가 붙은 뒤로는 채집 장비 · 갈무리장이 본전이 안 된다 (시뮬레이션으로 확인함)
   const best = value.indexOf(Math.max(...value));
-  if (c.cash > 6000 && value[best] * (1 - CO.HIRE_CUT) - CO.HIRE_FEE > 150) P.hire[best] = 2;
+  if (c.cash > 6000 * cashK() && value[best] * (1 - CO.HIRE_CUT) - CO.HIRE_FEE > 150) P.hire[best] = 2;
   const key = deduce(W);
   P.guide = kit ? key.map((g, f) => addKit(W, f, g, P.parties[f])) : key;
   // 조 모양: 층마다 추리한 약점 직업은 두 자리에(소재용으로 더한 직업이 아니라), 기록상 손해 보는 직업은 빼고 전사로
@@ -107,11 +110,11 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
   // 포션: 교회 값이 상단보다 싸면(후원해서 교회가 예전 값으로 내줄 때) 교회에서 사고, 담합이 터지면 여유가 있을 때 한 번 후원한다
   const need = P.parties.reduce((a, n, f) => a + (n + P.hire[f]) * P.pots[f], 0);
   P.buy = { holy: churchPrice(W, 0) < W.potion ? Math.max(0, need - potsOf(us(W)).holy) : 0 };
-  P.donate = W.cartel && !W.cartel.donated[0] && c.cash > 8000 ? 1000 : 0;
+  P.donate = W.cartel && !W.cartel.donated[0] && c.cash > 8000 * cashK() ? 1000 : 0;
   // 근원: 찾은 근원이 있으면 여유가 있을 때 채굴장 기금을 넣는다. 채굴장과 그대로 두기는 순위가 비슷하고,
   // 봉인은 범람을 절반으로 줄이지만 우리 순위로는 손해다(200판 3.13 · 3.14 대 3.45). 봉인은 교회가 같은 돈을 보태 절반만 든다
   const rf = (W.roots || []).findIndex(r => r.found && !r.done);
-  if (rf >= 0 && c.cash > 8000) P.root = rootMode === 'none' ? null : { f: rf, seal: rootMode === 'seal' ? CO.ROOT_COST / 4 : 0, mine: rootMode === 'mine' ? CO.ROOT_COST / 2 : 0 };
+  if (rf >= 0 && c.cash > 8000 * cashK()) P.root = rootMode === 'none' ? null : { f: rf, seal: rootMode === 'seal' ? CO.ROOT_COST / 4 : 0, mine: rootMode === 'mine' ? CO.ROOT_COST / 2 : 0 };
   // 의뢰: 받는 달의 납품 의뢰는 그 층에 보내는 조가 석 달 동안 캐 올 양의 70%까지 맡는다
   P.take = Object.fromEntries(jobsSign(W).filter(J => P.parties[J.f]).map(J => {
     const per = L && L.res[0].sent[J.f] ? L.res[0].got[J.f] / L.res[0].sent[J.f] : FLOORS[J.f].take * 0.8;
@@ -168,7 +171,7 @@ export function deduce(W: World) {
 // 한 조를 더 보냈을 때 우리 몫이 가장 많이 느는 층에 한 조씩 나눈다. 조사할 수 없는 달은 원래 나누기(base)를 쓴다
 export function scoutSplit(W: World, n: number, pots: number, value: number[]) {
   const c = us(W), L = W.last;
-  if (!L || W.month < 3 || c.cash < 4000) return spreadBy(n, value, W.unlocked);
+  if (!L || W.month < 3 || c.cash < 4000 * cashK()) return spreadBy(n, value, W.unlocked);
   const big = W.cos.map((x, i) => [i, L.res[i].sent.reduce((a, b) => a + b, 0)] as [number, number]).filter(([i]) => W.cos[i].style !== 'player' && W.cos[i].style !== 'crowd').sort((a, b) => b[1] - a[1]).slice(0, 2).map(([i]) => W.cos[i].id);
   big.forEach(id => { if (!(W.probes || []).some(x => x.m === W.month && x.id === id)) probe(W, 'riv', id); });
   const known: Record<string, number[]> = {};
