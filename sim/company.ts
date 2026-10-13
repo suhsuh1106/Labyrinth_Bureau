@@ -4,8 +4,9 @@
 // 성향: even(고르게) · deep(깊은 층 위주) · hire(계약 파티를 씀) · smart(시장을 읽는 숙련자, 근원에는 채굴장)
 //       smartNoGuide · smartSeal · smartNoRoot: 숙련 봇에서 지침을 빼거나 근원을 달리 다룬 것
 import { setSeed } from '../src/core/rng';
-import { CO, TAX, FLOORS, cashK, aidAt, jobsExplore, churchPrice, ITEMS, type Filing, type Plan, type World, closeBooks, preview, defaultPlan, dormCost, jobsSign, partyMargin, roomOf, demandMul, potsOf, probe, floorMons, mapOf, maxParties, newWorld, torchRate, tripOdds, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
+import { CO, TAX, FLOORS, cashK, aidAt, jobsExplore, churchPrice, ITEMS, type Filing, type Plan, type World, closeBooks, preview, defaultPlan, dormCost, jobsSign, partyMargin, roomOf, demandMul, potsOf, probe, floorMons, mapOf, maxParties, newWorld, torchRate, tripOdds, sanitize, canTarget, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
 import { demandSeen } from '../src/ui/co/book';
+import { ASK_KEYS, DEX, type Dex, keySure } from '../src/core/dex';
 import { CLASSES } from '../src/core/data';
 
 // 영주청 숫자를 바꿔 보며 잴 때 (TAX_LOOT=0.15 TAX_SUSK=20 TAX_RELIEF=0.5 npm run sim)
@@ -17,6 +18,8 @@ if (process.env.TAX_PEN) TAX.AUDIT_PEN = +process.env.TAX_PEN;
 if (process.env.TAX_RELIEF) Object.keys(TAX.RELIEF).forEach(k => { TAX.RELIEF[k] = TAX.RELIEF[k]! * +process.env.TAX_RELIEF!; });
 if (process.env.START_CASH) CO.START_CASH = +process.env.START_CASH;
 if (process.env.FIND) CO.FIND = +process.env.FIND;
+for (const k of ['TARGET_AT', 'TARGET_W', 'TARGET_SUCC', 'TARGET_MAT', 'KEY_SUCC', 'KEY_CRISIS', 'MAT_SURE', 'ASK_AT'] as const) if (process.env['DEX_' + k]) DEX[k] = +process.env['DEX_' + k]!;
+if (process.env.ENC_W0) { const a = +process.env.ENC_W0; CO.ENC_W = [a, (1 - a) / 2, (1 - a) / 2]; }
 if (process.env.MAT_ENC) CO.MAT_ENC = +process.env.MAT_ENC;
 const arg = (k: string, d: string) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
 const games = +arg('games', '200'), seed0 = +arg('seed', '1'), only = arg('style', '');
@@ -44,7 +47,7 @@ export const BOT: Record<string, (W: World) => Plan> = {
   smartStay: W => { const P = smartPlan(W); P.dorm = false; return P; },
   smart: W => smartPlan(W),
   // 숙련 봇에서 추리만 뺀 것 (편성 지침이 순위에 얼마나 보태는지 재는 기준)
-  smartNoGuide: W => { const P = smartPlan(W); P.guide = P.guide.map(() => ''); P.tplF = undefined; return P; },
+  smartNoGuide: W => smartPlan(W, 'mine', true, false, false),
   // 숙련 봇에서 도감으로 소재 챙기기만 뺀 것 (갈무리 편성이 순위에 얼마나 보태는지 재는 기준)
   smartNoKit: W => smartPlan(W, 'mine', false),
   // 숙련 봇에 조사 의뢰(큰 용병단 둘의 이번 달 계획 사 보기)로 붐빔을 읽어 나누기를 더한 것 (아직 숙련 봇보다 못하다)
@@ -80,7 +83,7 @@ export const FILER: Record<string, (W: World) => Partial<Filing>> = {
 // 크게 남는 층에는 계약 파티를 쓴다.
 // 거점과 쌓아 두기는 지금 규모에서는 손해라 쓰지 않는다 (시뮬레이션으로 확인함)
 const GROW_K = +(process.env.GROW_K || 1.2), GROW_M = +(process.env.GROW_M || 80);
-export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine', kit = true, scout = false): Plan {
+export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine', kit = true, scout = false, guide = true): Plan {
   const c = us(W), P = defaultPlan(W), L = W.last, pots = 3;
   // 조당 남는 돈: 성공해서 캐 올 값(모형과 지난달 실제 조당 벌이의 중간) − 출정·포션 − 사망의 값(신입 계약금과 빈자리)
   const real = L ? L.perParty : null;
@@ -110,6 +113,7 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
   P.guide = kit ? key.map((g, f) => addKit(W, f, g, P.parties[f])) : key;
   // 조 모양: 층마다 추리한 약점 직업은 두 자리에(소재용으로 더한 직업이 아니라), 기록상 손해 보는 직업은 빼고 전사로
   P.tplF = FLOORS.map((_, f) => floorTpl(W, f, key[f], P.guide[f]));
+  if (!guide) { P.guide = P.guide.map(() => ''); P.tplF = undefined; }
   // 포션: 교회 값이 상단보다 싸면(후원해서 교회가 예전 값으로 내줄 때) 교회에서 사고, 담합이 터지면 여유가 있을 때 한 번 후원한다
   const need = P.parties.reduce((a, n, f) => a + (n + P.hire[f]) * P.pots[f], 0);
   P.buy = { holy: churchPrice(W, 0) < W.potion ? Math.max(0, need - potsOf(us(W)).holy) : 0 };
@@ -131,7 +135,17 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
   // 공사가 숙소 증축을 한 달씩 미루는 값이 커서 이 봇의 운영에선 손해였다 (의무실 1단계만 본전 근처)
   // 횃불: 지도만큼 헤맬 것을 셈해, 돌아설 확률이 TORCH_RISK 밑이 되는 데까지 들고 간다
   P.torch = FLOORS.map((_, f) => { const r = torchRate(f, mapOf(c, f)); let t = 1; while (t < CO.DAYS && tripOdds(t, r).dark > TORCH_RISK) t++; return t; });
-  return grow(W, P, GROW_K, GROW_M);
+  grow(W, P, GROW_K, GROW_M);
+  if (!c.crew || !guide) return P;
+  // 조를 짜 두고: 도감 이해도가 찬 주 몬스터는 노리고(지정 탐사), 단장이 가는 층의 몬스터 중 하나에 기록상 가장 그럴듯한 약점을 묻는다
+  const Q = sanitize(W, c, P), dex = W.dex || {};
+  Q.teams!.forEach(T => { const M = floorMons(W, T.f)[0]; if (canTarget(W, T.f, M.name)) T.target = M.name; });
+  const lead = (c.crew || []).find(x => x.lead), LT = lead ? Q.teams!.find(T => T.m.includes(lead.id)) : null;
+  if (LT) for (const M of floorMons(W, LT.f)) {
+    const D = dex[M.name]; if (!D || D.u < DEX.ASK_AT || keySure(D)) continue;
+    const k = guessKeys(D).find(x => !D.key[x]); if (k) { Q.ask = { mon: M.name, k }; break; }
+  }
+  return Q;
 }
 
 // 층의 조 모양: 기록상 갖추면 성공률이 10%p 넘게 떨어지는 직업은 빼고, 지침 직업은 두 자리에 넣는다
@@ -156,6 +170,13 @@ export function floorTpl(W: World, f: number, guide: string, kitG = guide) {
 // 현장 기록으로 약점 추리: 그 구성을 갖춘 파티와 안 갖춘 파티의 성공률을 견줘, 양쪽 다 여섯 번 넘게 나갔고
 // 갖춘 쪽이 12%p 넘게 높은 구성 중 차이가 가장 큰 것을 지침으로 삼는다
 export function deduce(W: World) {
+  // 명단이 있는 판: 도감에서 그 층 주 몬스터의 약점 (확정이면 그것, 아니면 기록상 가장 그럴듯한 것)
+  if (us(W).crew) return FLOORS.map((_, f) => {
+    if (f >= W.unlocked) return '';
+    const D = (W.dex || {})[floorMons(W, f)[0].name]; if (!D) return '';
+    const sure = Object.keys(D.key).find(k => D.key[k] === 'yes'); if (sure) return sure;
+    return guessKeys(D, 0.12, 6)[0] || '';
+  });
   return FLOORS.map((_, f) => {
     const all = W.obs[f]['*'];
     if (f >= W.unlocked || !all) return '';
@@ -265,3 +286,14 @@ if (process.argv[1] && process.argv[1].endsWith('company.ts')) {
   }
 }
 function W0() { return newWorld(); }
+
+// 도감 전적에서 약점 후보: 갖춘 쪽과 안 갖춘 쪽의 해낸 사람 비율 차가 큰 순 (아니라고 들은 것은 뺀다). 직업은 하나 이상을 갖춘 쪽으로 본다
+export function guessKeys(D: Dex, min = 0, n0 = 3) {
+  const r = (k: string) => D.rec[k] || { n: 0, w: 0, cr: 0, k: 0, p: 0 };
+  return ASK_KEYS.filter(k => D.key[k] !== 'no').map(k => {
+    const on = k.startsWith('c:') ? [r(k + ':1'), r(k + ':2')] : [r(k + ':1')], off = r(k + ':0');
+    const n = on.reduce((a, x) => a + x.n, 0), hit = on.reduce((a, x) => a + (x.k || 0), 0), ppl = on.reduce((a, x) => a + (x.p || 0), 0);
+    // 그 몬스터를 만난 날 해낸 사람 비율: 갖춘 쪽 − 안 갖춘 쪽
+    return { k, d: n >= n0 && off.n >= n0 && ppl && off.p ? hit / ppl - (off.k || 0) / off.p : -1 };
+  }).filter(x => x.d > min).sort((a, b) => b.d - a.d).map(x => x.k);
+}
