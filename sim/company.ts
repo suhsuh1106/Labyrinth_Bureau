@@ -10,6 +10,7 @@ import { CLASSES } from '../src/core/data';
 
 // 영주청 숫자를 바꿔 보며 잴 때 (TAX_LOOT=0.15 TAX_SUSK=20 TAX_RELIEF=0.5 npm run sim)
 if (process.env.TAX_LOOT) TAX.LOOT = +process.env.TAX_LOOT;
+if (process.env.UND_F0) CO.UND_F[0] = +process.env.UND_F0;
 if (process.env.TAX_SUSK) TAX.SUS_K = +process.env.TAX_SUSK;
 if (process.env.TAX_PEN) TAX.AUDIT_PEN = +process.env.TAX_PEN;
 if (process.env.TAX_RELIEF) Object.keys(TAX.RELIEF).forEach(k => { TAX.RELIEF[k] = TAX.RELIEF[k]! * +process.env.TAX_RELIEF!; });

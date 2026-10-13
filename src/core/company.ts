@@ -56,9 +56,10 @@ export const CO = {
   // 지도 이정표: 25 갈림길(위기 ×0.9), 50 주 사냥터(캐 오는 양 ×1.1), 75 근원 단서(성공 +3%p), 100 완성(기록실 3단계면 사본을 팔 수 있다)
   UND_EX: 15, UND_GUIDE: 15, UND_AI: 5,
   // 명단이 없는 쪽(경쟁 용병단 · 계약 파티)이 실력 · 조직력 대신 받는 성공 보정: AI_VET0에서 AI_VET_M달에 걸쳐 AI_VET까지
-  AI_VET0: 0.03, AI_VET: 0.12, AI_VET_M: 24, UND_SUCC: 0.25, UND_CRISIS: 1.5, UND_HARM: 0.5, UND_LOOT: 0.3, MAP0: 70,
-  // 지도: 조 하나가 다녀오면 (1 + 해낸 비율) × MAP_STEP만큼, 남은 칸이 적을수록 덜(× (1 − 지도/110)). 길잡이 ×1.5, 기록실 1단계 ×1.25, 정찰 조 ×SCOUT_MAP
-  MAP_STEP: 4, SCOUT_MAP: 2.5, SCOUT_CRISIS: 0.6, SCOUT_LOOT: 0.3, MAP_COPY: 1500, MAP_GIVE: 30,
+  AI_VET0: 0.03, AI_VET: 0.12, AI_VET_M: 24, UND_SUCC: 0.25, UND_CRISIS: 1.5, UND_HARM: 0.5, UND_LOOT: 0.3, MAP0: 0, UND_F: [0.4, 1, 1, 1, 1],
+  // 지도: 조 하나가 다녀오면 (1 + 해낸 비율) × 그 층의 MAP_STEP만큼, 남은 칸이 적을수록 덜(× (1 − 지도/110)). 길잡이 ×1.5, 기록실 1단계 ×1.25, 정찰 조 ×SCOUT_MAP.
+  // 넓은 층일수록 천천히 찬다 (1층은 모두가 0%에서 시작해 여러 달에 걸쳐 그린다)
+  MAP_STEP: [1, 2, 3, 4, 5], SCOUT_MAP: 2.5, SCOUT_CRISIS: 0.6, SCOUT_LOOT: 0.3, MAP_COPY: 1500, MAP_GIVE: 30,
   // 의뢰: 공표된 경쟁의 포상(1 · 2 · 3등)과 명성, 납품은 TAKE_STEP개 단위로 맡는다. 맡겠다는 쪽이 물량보다 많으면 명성 무게로 나눈다
   RACE_PRIZE: [900, 500, 250], RACE_FAME: [6, 3, 0], TAKE_STEP: 50, JOB_MAX: 2,
   // 교관: 달마다 내는 급료(훈련비). 효과는 훈련도가 차오르는 만큼 (지금 훈련비와 같은 원리)
@@ -487,14 +488,15 @@ export function teamUnd(c: Company, f: number, who: Person[] | null) {
   return Math.round(Math.min(100, m + Math.min(CO.UND_EX, best / 4) + (who.some(p => p.tr === '길잡이') ? CO.UND_GUIDE : 0)));
 }
 // 이해도가 바꾸는 것: 성공에 더할 값, 위기 · 사망 · 캐 오는 양 배수 (지도 이정표 포함)
-export function undMods(u: number, map: number) {
-  const x = (100 - u) / 100;
+// f: 층 (1층은 넓고 순해 모르는 데서 오는 손해가 UND_F배로 작다)
+export function undMods(u: number, map: number, f = 1) {
+  const x = (100 - u) / 100 * (CO.UND_F[f] ?? 1);
   return { succ: -CO.UND_SUCC * x + (map >= 75 ? 0.03 : 0), crisis: (1 + CO.UND_CRISIS * x) * (map >= 25 ? 0.9 : 1), harm: 1 + CO.UND_HARM * x, loot: (1 - CO.UND_LOOT * x) * (map >= 50 ? 1.1 : 1) };
 }
 // 우리 조 하나의 성공률 어림: 층 · 훈련 · 거점 · 봉인 · 빈자리에 조원마다 실력 단계 · 특성 · 조직력을 더한 값의 평균 (약점 · 역효과는 모른다)
 export function teamOdds(W: World, c: Company, f: number, who: Person[], pots: number, crowd: number, T: Team | null = null) {
   const p0 = succRate(c, f, pots, crowd) + (rootOf(W, f).done === 'seal' ? CO.SEAL_SUCC : 0);
-  const u = teamUnd(c, f, who), U = undMods(u, mapOf(c, f));
+  const u = teamUnd(c, f, who), U = undMods(u, mapOf(c, f), f);
   const pt0 = clamp(p0 + U.succ - who.filter(isRook).length * CO.ROOK_PEN - (CO.PARTY - who.length) * CO.SHORT_PEN, 0.05, 0.97);
   if (!who.length) return { p: pt0, coh: 0, u, U };
   const MM = memberMods(who, f, u);
@@ -878,7 +880,7 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
         // 층 이해도: 모르는 층일수록 덜 해내고 위기가 잦고 더 죽는다 (정찰 조는 위기가 적고 캐 오는 게 적다)
         let dark = false;
         if (q < P.parties[f]) { if (torchLeft[i] >= TAX.TORCH[f]) { torchLeft[i] -= TAX.TORCH[f]; torchUsed[i] += TAX.TORCH[f]; } else { dark = true; torchShort[i]++; } }
-        const scout = !!(TT && TT.scout), u = teamUnd(c, f, who), U = undMods(u, mapOf(c, f));
+        const scout = !!(TT && TT.scout), u = teamUnd(c, f, who), U = undMods(u, mapOf(c, f), f);
         const pp = clamp(p + U.succ + kw * CO.KEY_BONUS - bw * CO.BAD_PEN + (sealed && c.style === 'player' ? CO.SEAL_SUCC : 0) - rooks * CO.ROOK_PEN - (CO.PARTY - size) * CO.SHORT_PEN, 0.05, 0.97);
         // 우리 조는 조원마다 실력 단계 · 특성 · 조직력을 더해 굴린다
         const MM = who ? memberMods(who, f, u) : null;
@@ -893,7 +895,7 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
         lootW[f][i] += kl / CO.PARTY * U.loot * (scout ? CO.SCOUT_LOOT : 1); w += kl / CO.PARTY;
         // 지도: 다녀온 조가 그 층을 그려 온다 (해낸 사람이 많을수록, 길잡이 · 기록실 · 정찰 조면 더)
         if (q < P.parties[f]) {
-          const gain = (1 + k / size) * CO.MAP_STEP * (who && who.some(x => x.tr === '길잡이') ? 1.5 : 1) * (hqLv(c, 'rec') >= 1 ? 1.25 : 1) * (scout ? CO.SCOUT_MAP : 1) * (dark ? CO.DARK_MAP : 1);
+          const gain = (1 + k / size) * CO.MAP_STEP[f] * (who && who.some(x => x.tr === '길잡이') ? 1.5 : 1) * (hqLv(c, 'rec') >= 1 ? 1.25 : 1) * (scout ? CO.SCOUT_MAP : 1) * (dark ? CO.DARK_MAP : 1);
           mapGain[i][f] += gain;
           if (who && c.style === 'player') who.forEach((x, m) => { mapBy[x.id] = (mapBy[x.id] || 0) + gain * (did[m] ? 1.25 : 0.75) * (x.tr === '길잡이' ? 1.5 : 1) / size; });
         }
@@ -1630,7 +1632,7 @@ export function forecast(W: World, P: Plan): Forecast {
       const who = T ? T.m.filter((x): x is number => x != null).map(id => crew.get(id)).filter((x): x is Person => !!x) : null;
       const size = who ? who.length : CO.PARTY, rooks = who ? who.filter(isRook).length : 0;
       // 층 이해도 (계약 파티는 우리 지도를 모른다고 보지 않고 지도만큼)
-      const scout = !!(T && T.scout), u = teamUnd(c, f, who), U = undMods(u, mapOf(c, f));
+      const scout = !!(T && T.scout), u = teamUnd(c, f, who), U = undMods(u, mapOf(c, f), f);
       const pt0 = clamp(p0 + U.succ - rooks * CO.ROOK_PEN - (CO.PARTY - size) * CO.SHORT_PEN, 0.05, 0.97);
       // 우리 조는 조원마다 실력 단계 · 특성 · 조직력을 더한 성공률의 평균으로 (조원끼리 다른 성공률을 하나로 어림)
       const MM = who && who.length ? memberMods(who, f, u) : null;

@@ -1,6 +1,6 @@
 // 가정산: 출정이 끝난 뒤 영주청에 낼 신고서를 꾸미는 화면. 신고서는 장부의 참값이 기본이고, 칸을 고치면 이득과 쌓일 의심이 바로 보인다.
 // HTML 문자열만 만든다 (상태를 쓰지 않고 난수도 쓰지 않는다)
-import { FILE_KEYS, FILE_SRC, FLOORS, type FileKey, type Filing, TAX, type World, auditChance, preview, us } from '../../core/company';
+import { FILE_KEYS, FILE_SRC, FLOORS, ITEMS, type FileKey, type Filing, TAX, type World, auditChance, preview, us } from '../../core/company';
 import { ROW, lawsHtml } from './books';
 import { fmt, sgn, stepper } from './view';
 import { returnsHtml } from './reveal';
@@ -39,7 +39,7 @@ export function draftHtml(W: World, F0: Partial<Filing>, live = false) {
   const ok = r.ok.reduce((a, b) => a + b, 0), sent = r.sent.reduce((a, b) => a + b, 0) + r.hired.reduce((a, b) => a + b, 0);
   return `<div class="draftwrap">${returnsHtml(W, live)}<article class="co-sheet doc" id="draft">
     <div class="kind">제${D.m}월 가정산</div>
-    <p class="lead">판매 <b>${fmt(r.sales)}G</b>${r.adv ? ` (선금 ${fmt(r.adv)} 포함)` : ''} · 신고서 기본값 = 장부</p>
+    ${salesHtml(W)}
     <section class="rp"><h3>신고서</h3><div class="tw"><table class="grid filing"><thead><tr><th>항목</th><th class="n">장부</th><th class="n">신고</th><th class="n">세금 · 지원</th><th class="n">이득</th><th>맞대 볼 기록</th></tr></thead><tbody>${rows}
       ${X.bill.credit ? `<tr><td><b>교회 후원금 공제</b><small>후원금 ${fmt(D.donate)}G의 ${Math.round(TAX.DONATE_CREDIT * 100)}%</small></td><td></td><td></td><td class="n">공제 ${fmt(X.bill.credit)}</td><td></td><td class="dim">합법</td></tr>` : ''}
       </tbody></table></div>
@@ -57,3 +57,18 @@ export function draftHtml(W: World, F0: Partial<Filing>, live = false) {
   <div class="foot"><button type="button" class="ghost" data-act="file-reset">장부 그대로 다시</button><span class="tot">순이익 <b class="${netF < 0 ? 'neg' : 'pos'}">${sgn(netF)}G</b>${X.total ? ` <span class="dim">(장부 그대로보다 +${fmt(X.total)} · 감사 확률 ${Math.round(X.chance * 100)}%)</span>` : ''}</span><button type="button" class="seal" data-act="file">신고서 내기</button></div></div>`;
 }
 
+// 판매 내역: 품목마다 개수 · 판매액 · 세율 · 장부대로 낼 세금. 전리품은 영주세, 갈무리 소재는 법령이 붙은 것만, 의뢰 · 선금 · 지도 판매는 면세
+function salesHtml(W: World) {
+  const D = W.draft!, L = W.last!, r = L.res[D.i], lootR = D.lootRate * (1 - (D.relief || 0));
+  const lootV = ITEMS.map((_, j) => (r.sold[j] ? Math.round(r.sold[j] * L.price[j]) : 0)), lootSum = lootV.reduce((a, b) => a + b, 0);
+  const scale = lootSum ? (r.lootSales || 0) / lootSum : 1;   // 상단 단골 값(±5%)을 얹은 실제 판매액에 맞춘다
+  const rows: string[] = [];
+  ITEMS.forEach((it, j) => { if (!r.sold[j]) return; const v = Math.round(lootV[j] * scale); rows.push(`<tr><td>${it.name}</td><td class="n">${fmt(r.sold[j])}개</td><td class="n">${fmt(v)}</td><td class="n">${Math.round(lootR * 100)}%</td><td class="n">${fmt(v * lootR)}</td></tr>`); });
+  const mats = Object.entries(r.matSold).filter(([, n]) => n > 0), taxed = mats.filter(([m]) => D.matTaxed.includes(m)), free = mats.filter(([m]) => !D.matTaxed.includes(m));
+  taxed.forEach(([m, n]) => { const v = n * (L.matPrice[m] || 0); rows.push(`<tr><td>${m}</td><td class="n">${fmt(n)}개</td><td class="n">${fmt(v)}</td><td class="n">${Math.round(D.matRate * 100)}%</td><td class="n">${fmt(v * D.matRate)}</td></tr>`); });
+  if (free.length) { const n = free.reduce((a, [, k]) => a + k, 0), v = free.reduce((a, [m, k]) => a + k * (L.matPrice[m] || 0), 0); rows.push(`<tr><td>갈무리 소재<small>${free.slice(0, 4).map(([m]) => m).join(' · ')}${free.length > 4 ? ' …' : ''}</small></td><td class="n">${fmt(n)}개</td><td class="n">${fmt(v)}</td><td class="n dim">면세</td><td class="n dim">0</td></tr>`); }
+  const other = (r.jobPay || 0) + (r.adv || 0) + (r.mapSale || 0);
+  if (other) rows.push(`<tr><td>의뢰 · 선금 · 지도 판매</td><td></td><td class="n">${fmt(other)}</td><td class="n dim">면세</td><td class="n dim">0</td></tr>`);
+  return `<section class="rp"><h3>판매</h3><div class="tw"><table class="grid slim sales"><thead><tr><th>품목</th><th class="n">개수</th><th class="n">판매액</th><th class="n">세율</th><th class="n">세금</th></tr></thead><tbody>${rows.join('')}
+    <tr class="tot"><td>합계</td><td></td><td class="n">${fmt(r.sales)}</td><td></td><td class="n">${fmt(Math.round((r.lootSales || 0) * lootR) + taxed.reduce((a, [m, n]) => a + n * (L.matPrice[m] || 0) * D.matRate, 0))}</td></tr></tbody></table></div></section>`;
+}
