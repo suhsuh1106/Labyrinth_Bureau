@@ -1,5 +1,5 @@
 // 영주청: 법령 게시와 정산서의 신고 줄. 가정산 화면은 draft.ts. HTML 문자열만 만든다 (상태를 쓰지 않고 난수도 쓰지 않는다)
-import { jo, FILE_KEYS, FILE_SRC, FLOORS, type FileKey, type Law, TAX, type World, auditChance, lawsAt, us } from '../../core/company';
+import { jo, FILE_KEYS, FILE_SRC, FLOORS, type FileKey, type Law, TAX, type World, lawsAt } from '../../core/company';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
 // 신고서 칸: 이름, 단위, 고칠 때 한 번에 움직이는 양, 그 칸이 무엇을 바꾸는지
@@ -46,5 +46,5 @@ export function fileResultHtml(W: World) {
       ${B.refund ? `<tr><td class="neg">선금 반납 (덜 보낸 조)</td><td class="n">−${fmt(B.refund)}</td></tr>` : ''}
       ${r.spend.fine ? `<tr><td class="neg">추징금</td><td class="n">−${fmt(r.spend.fine)}</td></tr>` : ''}
     </tbody></table></div>
-    <p class="note">${diff.length ? `신고서에서 고친 칸: ${diff.join(' · ')} · 그로 얻은 돈 +${fmt(X.gain)}G.` : '장부 그대로 냈어요.'} 지금 의심 ${Math.round(us(W).sus || 0)} · 다음 신고 전 감사 확률 ${Math.round(auditChance((us(W).sus || 0) * TAX.SUS_FADE) * 100)}%.</p></section>`;
+    <p class="note">${diff.length ? `신고서에서 고친 칸: ${diff.join(' · ')} · 그로 얻은 돈 +${fmt(X.gain)}G.` : '장부 그대로 냈어요.'}</p></section>`;
 }

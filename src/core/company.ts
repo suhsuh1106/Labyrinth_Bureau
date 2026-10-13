@@ -358,7 +358,7 @@ export type MonthResult = {
   month: number; res: CoResult[]; plans: Plan[]; Q: number[]; price: number[]; potion: number; potQ: number; potionC: number; cartel: boolean;
   floors: { before: number; taken: number; crowd: number; cut?: number }[]; perParty: number[]; opened: number | null; rank: string[];
   // 우리 직영 파티 하나하나: 간 층, 갖춘 직업·장비, 성공, 사망 (귀환 보고에 쓴다)
-  ours: { f: number; keys: string[]; ok: boolean; d: number; mats: [string, number][]; first: string[]; kit: number; g: string; crisis?: number; pots?: number; n?: number; k?: number; hurt?: number; days?: Day[]; trip?: Trip; dead?: { n: string; day: number; pot: boolean }[] }[];   // dead: 죽은 단원 (이름, 몇째 날(0이면 어둠 속 귀환), 포션을 쓰고도)   // n: 간 사람, k: 해낸 사람, hurt: 다친 사람   // kit: 편성 줄 번호(-1이면 섞인 대로), g: 챙겨 간 것
+  ours: { f: number; keys: string[]; ok: boolean; d: number; mats: [string, number][]; first: string[]; kit: number; g: string; crisis?: number; pots?: number; n?: number; k?: number; hurt?: number; days?: Day[]; trip?: Trip; dead?: { n: string; day: number; pot: boolean }[]; cls?: string[]; potC?: number }[];   // cls: 간 사람들의 직업, potC: 들고 간 포션   // dead: 죽은 단원 (이름, 몇째 날(0이면 어둠 속 귀환), 포션을 쓰고도)   // n: 간 사람, k: 해낸 사람, hurt: 다친 사람   // kit: 편성 줄 번호(-1이면 섞인 대로), g: 챙겨 간 것
   matPrice: Record<string, number>; matRef: Record<string, number>;   // 소재 시세와, 그달 전까지의 평균 시세
   pressure: number; overflow: boolean;
   apps: number;   // 그달 마을 지원자
@@ -973,12 +973,12 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
           to.push([x.n, n]); const e = got.find(g => g[0] === x.n); if (e) e[1] += n; else got.push([x.n, n]);
           res[i].matSold[x.n] = (res[i].matSold[x.n] || 0) + n;
         };
-        let did: boolean[], lootK: number, winK = -1, dayLog: Day[] | undefined, trip: Trip | undefined, mapK = 1;
+        let potCarry = potsIn, did: boolean[], lootK: number, winK = -1, dayLog: Day[] | undefined, trip: Trip | undefined, mapK = 1;
         if (who) {
           // 우리 조의 탐사(expedition.ts): 날마다 횃불을 태우고 그 층 몬스터 하나를 만난다. 약점 · 역효과는 그날 만난 몬스터의 것만 먹힌다.
           // 노린 몬스터(지정 탐사)는 더 자주 만나고 더 잘 해내고 소재가 더 나온다. 약점 · 소재 조건을 확정해 두었으면 덤이 커진다
           const slots = size * CO.SLOT_PP, tc = Math.min(teamTorch(P, TT!), torchLeft[i], slots); torchLeft[i] -= tc;
-          potsIn = Math.min(potsIn, slots - tc);
+          potsIn = Math.min(potsIn, slots - tc); potCarry = potsIn;
           const dex = W.dex || (W.dex = {}), Dx = mons.map(M => dex[M.name]);
           const tg = mons.findIndex(M => M.name === TT!.target && (dex[M.name] ? dex[M.name].u : 0) >= DEX.TARGET_AT);
           const others = CO.ENC_W.reduce((a, v, j) => a + (j === tg ? 0 : v), 0);
@@ -1054,7 +1054,7 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
         if (c.style === 'player' && q < P.parties[f]) {
           ['*', ...keys].forEach(kk => { const o = W.obs[f][kk] || (W.obs[f][kk] = { n: 0, w: 0 }); o.n++; o.w += k / size; });   // '*'는 그 층 전체
           const first = got.filter(([m]) => bookOld && !bookOld[f].has(m) && !ours.some(o => o.mats.some(g => g[0] === m))).map(([m]) => m);
-          ours.push({ f, keys, ok, d: dq, mats: got, first, kit: kit.k, g: gk, crisis, pots: pu, n: size, k, hurt: hq, ...(dayLog ? { days: dayLog, trip } : {}), ...(dead.length ? { dead } : {}) });
+          ours.push({ f, keys, ok, d: dq, mats: got, first, kit: kit.k, g: gk, crisis, pots: pu, n: size, k, hurt: hq, ...(dayLog ? { days: dayLog, trip } : {}), ...(dead.length ? { dead } : {}), cls, potC: potCarry });
           if (ok && B) {
             const cs = ['*', ...condsOf(keys)];
             cs.forEach(kk => { B.n[kk] = (B.n[kk] || 0) + 1; });

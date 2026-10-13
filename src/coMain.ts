@@ -3,7 +3,7 @@ import './ui/co/base.css';
 import './ui/co/co.css';
 import { setSeed } from './core/rng';
 import { CO, FILE_KEYS, teamPots, teamTorch, type Plan, SRCS, type World, carryPlan, closeBooks, fileFix, fillTeams, formTeams, newWorld, probe, rankOf, roomOf, runMonth, sanitize, us } from './core/company';
-import { DESC_FIRST } from './ui/co/roster';
+import { DESC_FIRST, packBar } from './ui/co/roster';
 import { CLASSES, GEARS } from './core/data';
 import { plaqueHtml } from './ui/co/view';
 import { type DeskUi, DOC_KEYS, PLACE_KEYS, expWeekHtml, infoWeekHtml, resultWeekHtml, weeksHtml } from './ui/co/desk';
@@ -20,7 +20,15 @@ let live = false, runTimer: any = null;
 function save() { try { localStorage.setItem(KEY, JSON.stringify({ v: VERSION, W, plan, ui })); } catch { /* 저장이 막혀도 판은 계속된다 */ } }
 function load() { try { const d = JSON.parse(localStorage.getItem(KEY) || 'null'); return d && d.v === VERSION ? d : null; } catch { return null; } }
 
+// 다시 그려도 보던 자리를 지킨다: 창(장소 창 · 자료함 등) 안의 스크롤과 페이지 스크롤을 기억했다가 되돌린다
+function pathOf(e: Element) { const out: string[] = []; for (let x: Element | null = e; x && x.id !== 'desk'; x = x.parentElement) out.unshift(`${x.tagName}.${x.className}:${x.parentElement ? [...x.parentElement.children].indexOf(x) : 0}`); return out.join('>'); }
 function render() {
+  const y = window.scrollY, keep = [...document.querySelectorAll('#desk *')].filter(e => e.scrollTop > 0).map(e => [pathOf(e), e.scrollTop] as const);
+  draw();
+  if (keep.length) { const m = new Map(keep); document.querySelectorAll('#desk *').forEach(e => { const t = m.get(pathOf(e)); if (t) e.scrollTop = t; }); }
+  if (window.scrollY !== y) window.scrollTo({ top: y });
+}
+function draw() {
   $('stats').innerHTML = plaqueHtml(W);
   // 신고서를 아직 내지 않았으면 가정산에 머문다. 임기가 끝나면 정산만
   if (W.draft) ui.phase = 2;
@@ -218,7 +226,7 @@ function edit(k: string, i: number, fn: (v: number) => number, j = 0) {
     const key = FILE_KEYS[i], cur = fileFix(W, W.draft, ui.file || {});
     ui.file = fileFix(W, W.draft, { ...cur, [key]: Math.max(0, fn(cur[key])) });
     render(); save();
-    const el = document.querySelector(`input[data-k="file"][data-i="${i}"]`) as HTMLElement | null; if (el && document.activeElement === document.body) el.focus();
+    const el = document.querySelector(`input[data-k="file"][data-i="${i}"]`) as HTMLElement | null; if (el && document.activeElement === document.body) el.focus({ preventScroll: true });
     return;
   }
   if (k === 'train') plan.train = Math.max(0, fn(plan.train));
@@ -256,7 +264,7 @@ function edit(k: string, i: number, fn: (v: number) => number, j = 0) {
   }
   else if ((plan as any)[k]) (plan as any)[k][i] = Math.max(0, fn((plan as any)[k][i]));
   render(); save();
-  const el = document.querySelector(`input[data-k="${k}"][data-i="${i}"]`) as HTMLElement | null; if (el && document.activeElement === document.body) el.focus();
+  const el = document.querySelector(`input[data-k="${k}"][data-i="${i}"]`) as HTMLElement | null; if (el && document.activeElement === document.body) el.focus({ preventScroll: true });
 }
 
 // ---------- 귀환 장부 연출: 줄마다 띵 하고 뜨고, 장부 금액이 따라 오르내리고, 마지막에 순이익이 찍힌다 ----------
@@ -285,8 +293,32 @@ function countTo(el: HTMLElement, from: number, to: number) {
   requestAnimationFrame(f);
 }
 function stopRun() { clearTimeout(runTimer); runTimer = null; live = false; }
+// 귀환(가정산): 날마다 1조부터 차례로 그날 칸을 켜고 짐 막대를 그날 모습으로 바꾼다. 다 돌면 결과 · 단장 보고 · 잃은 사람을 띄운다
+function playTrips(box: HTMLElement) {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return finishRun();
+  const teams = [...box.querySelectorAll('li.rv')] as HTMLElement[];
+  const steps: (() => number)[] = [];
+  for (let j = 0; j < CO.DAYS; j++) teams.forEach(li => {
+    const cell = li.querySelectorAll('.days i')[j] as HTMLElement | undefined;
+    if (!cell || !cell.classList.contains('hid')) return;
+    steps.push(() => {
+      cell.classList.remove('hid'); cell.classList.add('pop');
+      const pw = li.querySelector('.packw') as HTMLElement | null;
+      if (pw) { const st = JSON.parse(pw.dataset.steps || '[]') as number[][], x = st[Math.min(j + 1, st.length - 1)]; pw.innerHTML = packBar(+(pw.dataset.slots || 0), x[1], x[2], x[0]); }
+      const s = cell.dataset.s || ''; SOUND[s.includes('die') ? 'die' : s.startsWith('ok') ? 'ok' : 'no']?.(j);
+      // 그 조의 마지막 칸이면 결과를 띄운다
+      const left = [...li.querySelectorAll('.days i.hid')].length;
+      if (!left) { li.querySelectorAll('.hid').forEach(e => e.classList.remove('hid')); const pw2 = li.querySelector('.packw') as HTMLElement | null; if (pw2) { const st = JSON.parse(pw2.dataset.steps || '[]') as number[][], x = st[st.length - 1]; pw2.innerHTML = packBar(+(pw2.dataset.slots || 0), x[1], x[2], x[0]); } }
+      return s.includes('die') ? 700 : 190;
+    });
+  });
+  let i = 0;
+  const step = () => { if (i >= steps.length) return finishRun(); runTimer = setTimeout(step, steps[i++]()); };
+  runTimer = setTimeout(step, 300);
+}
 function playRun() {
   const box = document.querySelector('.run.live') as HTMLElement | null; if (!box) return;
+  if (box.classList.contains('trips')) return playTrips(box);
   const items = [...box.querySelectorAll('li.rv')] as HTMLElement[], tv = box.querySelector('.tv') as HTMLElement;
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return finishRun();
   let acc = 0, i = 0, nOk = 0;
@@ -311,6 +343,8 @@ function finishRun() {
   const box = document.querySelector('.run.live') as HTMLElement | null;
   if (box) {
     box.querySelectorAll('li.rv').forEach(li => li.classList.add('on'));
+    box.querySelectorAll('.hid').forEach(e => e.classList.remove('hid'));
+    box.querySelectorAll('.packw').forEach(pw => { const p = pw as HTMLElement, st = JSON.parse(p.dataset.steps || '[]') as number[][], x = st[st.length - 1]; if (x) p.innerHTML = packBar(+(p.dataset.slots || 0), x[1], x[2], x[0]); });
     const fin = +(box.dataset.net || 0), tv = box.querySelector('.tv') as HTMLElement | null;
     if (tv) { tv.textContent = sgnG(fin); tv.classList.toggle('neg', fin < 0); box.classList.add(fin >= 0 ? 'win' : 'lose'); }
     box.classList.remove('live');

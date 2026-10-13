@@ -155,23 +155,15 @@ function mapHtml(W: World) {
 // 무엇을 사라고 말하지 않고 숫자만 보여 준다 (상태를 쓰지 않고 난수도 쓰지 않는다)
 function supplyHtml(W: World) {
   const L = W.last; if (!L || !L.ours || !L.ours.length) return '';
-  const P = L.plans[0], past = W.history.slice(-6);
-  const rows = FLOORS.map((F, f) => {
-    const ps = L.ours.filter(x => x.f === f); if (!ps.length) return '';
-    const cap = P.pots[f], carry = cap * ps.length, used = ps.reduce((a, x) => a + (x.pots || 0), 0), crisis = ps.reduce((a, x) => a + (x.crisis || 0), 0);
-    const teams = ps.map(x => `<span class="sup-t" title="${x.crisis ? `위기 ${x.crisis}번 · 포션 ${x.pots || 0}병` : '위기 없음'}">${
-      cap ? Array.from({ length: cap }, (_, b) => `<i class="${b < (x.pots || 0) ? 'u' : ''}"></i>`).join('') : '<em>빈손</em>'}${(x.crisis || 0) > (x.pots || 0) ? `<i class="x" title="포션 없이 맞은 위기"></i>`.repeat((x.crisis || 0) - (x.pots || 0)) : ''}</span>`).join('');
-    // 최근 몇 달 이 층에 간 우리 조 하나가 맞은 위기와 쓴 포션 (평균)
-    const hs = past.flatMap(M => (M.ours || []).filter(x => x.f === f)), n = hs.length;
-    const avg = n > 1 ? `<small>최근 ${past.filter(M => (M.ours || []).some(x => x.f === f)).length}달 조당 위기 ${(hs.reduce((a, x) => a + (x.crisis || 0), 0) / n).toFixed(1)} · 포션 ${(hs.reduce((a, x) => a + (x.pots || 0), 0) / n).toFixed(1)}병</small>` : '';
-    return `<div class="sup-r"><div class="sup-h"><b>${F.name}</b><span>${ps.length}조 · 위기 ${crisis}번</span></div><div class="sup-b">${teams}</div>
-      <div class="sup-n"><span>${carry ? `<b>${carry}병 중 ${used}병</b> 씀 <span class="dim">(${Math.round(used / carry * 100)}%)</span>` : `<b>포션 없이</b> 감`}</span>${avg}</div></div>`;
+  // 조마다 한 줄: 들고 간 포션 · 쓴 포션, 들고 간 횃불 · 태운 횃불, 위기 · 포션 없이 맞은 위기
+  const rows = L.ours.map((x, t) => {
+    const carry = x.potC ?? 0, used = x.pots || 0, cr = x.crisis || 0, bare = Math.max(0, cr - used), T = x.trip;
+    return `<tr><td><b>${t + 1}조</b> <span class="dim">${FLOORS[x.f].name}</span></td><td class="n">${used} / ${carry}병</td><td class="n">${T ? `${T.tu} / ${T.torch}개` : '-'}</td><td class="n">${cr}</td><td class="n${bare ? ' neg' : ' dim'}">${bare}</td></tr>`;
   }).join('');
   const c = us(W), st = potsOf(c), ex = potsExpiring(c), r = L.res[0];
   return `<section class="rp"><h3>보급 소모</h3>
-    <div class="sup">${rows}</div>
-    <div class="sup-key"><span><i class="u"></i>위기에 쓴 포션</span><span><i></i>들고 갔다 돌아온 포션</span><span><i class="x"></i>포션 없이 맞은 위기</span></div>
-    <p class="note">이번 달 포션 ${r.potNeed ? `${fmt(r.potNeed)}병을 ${fmt(r.spend.potion)}G에 사서 ` : ''}${fmt(r.potUsed)}병을 썼어요. 창고에 포션 ${fmt(st.pot)}병${st.holy ? ` · 성수 ${fmt(st.holy)}병` : ''}${ex.pot + ex.holy ? `, 그중 ${fmt(ex.pot + ex.holy)}병은 다음 달이 지나면 상해요` : ''}.</p>
+    <div class="tw"><table class="grid slim sup-t2"><thead><tr><th>조</th><th class="n">포션 씀 / 들고 감</th><th class="n">횃불 태움 / 들고 감</th><th class="n">위기</th><th class="n">포션 없이 맞음</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="note">포션 ${r.potNeed ? `구매 ${fmt(r.potNeed)}병 (${fmt(r.spend.potion)}G) · ` : ''}씀 ${fmt(r.potUsed)}병 · 창고 ${fmt(st.pot)}병${st.holy ? ` · 성수 ${fmt(st.holy)}병` : ''}${ex.pot + ex.holy ? ` · 다음 달 상함 ${fmt(ex.pot + ex.holy)}병` : ''}</p>
   </section>`;
 }
 
@@ -224,7 +216,7 @@ export function returnHtml(W: World) {
     const ps = L.ours.filter(x => x.f === f); if (!ps.length) return '';
     const ok = ps.filter(x => x.ok).length, d = ps.reduce((a, x) => a + x.d, 0);
     const rows = ps.map(x => {
-      const cls = x.keys.map(CLS_SHORT).filter(Boolean).join('·'), gear = x.keys.find(k => k.startsWith('g:'));
+      const cls = (x.cls || x.keys.map(CLS_SHORT).filter(Boolean)).join('·'), gear = x.keys.find(k => k.startsWith('g:'));
       const got = (x.mats || []).map(([m, n]) => `${(x.first || []).includes(m) ? `<b>${m} ×${n}</b><span class="bk-new">처음</span>` : `${m} ×${n}`}`).join(', ');
       const grade = x.k != null ? `<span class="grade g${Math.min(4, Math.max(1, x.k))}">${gradeOf(x.k)} ${x.k}/${x.n || 4}</span> ` : '';
       const trip = x.trip && x.days ? `<span class="dim">${x.days.filter(d => d.win).length}승 ${x.days.filter(d => !d.win).length}패${x.trip.end === 'torch' ? ' · 횃불 다 씀' : x.trip.end === 'pack' ? ' · 짐 다 참' : x.trip.end === 'flee' ? ' · 물러남' : ''}</span> ` : '';

@@ -1025,3 +1025,9 @@ table.dx-rec td.n { text-align: center; }
 table.dx-rec thead th:first-child { width: 34%; }
 table.dx-mats td:first-child { width: 32%; } table.dx-mats td:nth-child(2) { width: 14%; }
 .dx-eco li { overflow-wrap: anywhere; }
+
+/* 귀환 연출: 날마다 모든 조의 칸을 하나씩 켠다 (그 전엔 숨김) */
+.run .hid { visibility: hidden; }
+.run.trips .days i.pop { animation: dayin .22s both; }
+.run.trips.live li.rv.on .days i { animation: none; }
+.run .after { display: grid; gap: 6px; }

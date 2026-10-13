@@ -982,16 +982,12 @@ describe('내정 책상', () => {
 });
 
 describe('보급 소모', () => {
-  it('결과의 보급 소모는 층마다 들고 간 포션과 위기에 쓴 포션을 귀환 보고 그대로 센다', () => {
+  it('결과의 보급 소모는 조마다 들고 간 포션 · 쓴 포션 · 태운 횃불을 귀환 보고 그대로 센다', () => {
     setSeed(5); const W = newWorld();
     for (let m = 0; m < 3; m++) runMonth(W, defaultPlan(W));
     const L = W.last!, html = resultsHtml(W);
     expect(html).toContain('보급 소모');
-    FLOORS.forEach((_, f) => {
-      const ps = L.ours.filter(x => x.f === f); if (!ps.length) return;
-      const carry = L.plans[0].pots[f] * ps.length, used = ps.reduce((a, x) => a + (x.pots || 0), 0);
-      expect(html).toContain(`${carry}병 중 ${used}병`);
-    });
+    L.ours.forEach(x => { expect(x.potC).toBeLessThanOrEqual(L.plans[0].pots[x.f]); expect(html).toContain(`${x.pots || 0} / ${x.potC}병`); expect(html).toContain(`${x.trip!.tu} / ${x.trip!.torch}개`); });
     expect(L.ours.reduce((a, x) => a + (x.pots || 0), 0)).toBe(L.res[0].potUsed);
   });
 });
@@ -1189,7 +1185,7 @@ describe('영주청: 영주세 · 법령 · 가정산 · 감사', () => {
     setSeed(10); const W = newWorld();
     runMonth(W, BOT.smart(W));
     const h = draftHtml(W, { loot: 0 });
-    expect(h).toContain('신고서'); expect(h).toContain('data-k="file"'); expect(h).toContain('감사 확률'); expect(h).toContain('상단 경매장 장부');
+    expect(h).toContain('신고서'); expect(h).toContain('data-k="file"'); expect(h).not.toContain('감사 확률');   // 감사 확률은 보이지 않는다 (뒤통수로 온다) expect(h).toContain('상단 경매장 장부');
     closeBooks(W, { loot: Math.round(W.draft!.truth.loot * 0.9) });
     const R = resultsHtml(W);
     expect(R).toContain('영주청'); expect(R).toContain('영주세');

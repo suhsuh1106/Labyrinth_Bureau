@@ -4,7 +4,7 @@
 // 화면은 HTML 문자열만 만든다. 상태를 쓰지 않고 난수도 쓰지 않는다
 import { floorMons, CO, FLOORS, INTEL, ITEMS, TAX, type Filing, type Job, type Person, clamp, jobsExplore, mapOf, torchOf, undMods, jobsOpen, jobsSign, taxGuess, torchBuy, wageCo, candPrice, candWants, hqCost, hqKeep, hqLv, fcRank, forecast, townOf, type Plan, SRCS, type World, bedsOf, isRook, rookCount, churchPrice, dormCost, dormKeep, roomOf, wageOf, gearBuy, hireCost, intelBlock, intelCost, lootMul, maxParties, needOf, potsExpiring, potsOf, probeCost, probesLeft, sanitize, sortieCost, succRate, supOf, toolCost, trainBonus, us } from '../../core/company';
 import { CLASSES, GEARS, BUYERS } from '../../core/data';
-import { bookHtml, condLabel, kitHint } from './book';
+import { askPanel, bookHtml, condLabel, demandsNow, kitHint } from './book';
 import { SRC_INFO, intelHtml, rumorsHtml } from './intel';
 import { coIssue, paperHtml } from './paper';
 import { revealHtml } from './reveal';
@@ -58,7 +58,8 @@ function memoLine(W: World, tab: string): string {
   const L = W.last;
   if (tab === 'report') return L ? `제${L.month}월 · ${L.res[0].sent.reduce((a, b) => a + b, 0)}조 중 ${L.res[0].ok.reduce((a, b) => a + b, 0)}조 성공 · 순이익 ${sgn(L.res[0].net)}G` : '아직 보고서가 없어요';
   if (tab === 'paper') { const I = W.last ? coIssue(W) : null; return I ? `${I.hed} · ${I.dek}` : '아직 신문이 없어요'; }
-  if (tab === 'book') { const ds = W.mat ? W.mat.dem.filter(d => d.until >= W.month) : []; return ds.length ? ds.map(d => `${d.m} +${Math.round(d.mul * 100)}%`).join(' · ') : '찾는 곳 소식 없음'; }
+  // 도감 메모: 정보망 단계로 들을 수 있는 찾는 곳만 (조사 의뢰를 맡기지 않은 시장 소식을 새어 보이지 않게)
+  if (tab === 'book') { const { seen, hidden } = demandsNow(W); return seen.length ? seen.map(d => `${d.m} +${Math.round(d.mul * 100)}%`).join(' · ') + (hidden ? ` · 그 밖에 ${hidden}곳` : '') : hidden ? `찾는 곳 ${hidden}곳 (정보망이 모자라 못 들음)` : '찾는 곳 소식 없음'; }
   return '';
 }
 export function memoHtml(W: World, ui: DeskUi) {
@@ -489,6 +490,7 @@ export function expWeekHtml(W: World, raw: Plan, ui: DeskUi) {
     <div class="main">
       <div class="col">${jobsTrack(W, P)}${hasMemo ? `<div class="panel"><header><h2>작전 메모</h2></header><div class="memo">${memo}</div></div>` : ''}</div>
     </div>
+    ${c.crew ? askPanel(W, P) : ''}
     ${c.crew ? `<div class="panel sheetwrap"><header><h2>편성표</h2><span class="sub">배치 칸의 조를 누르면 그 조 빈자리로 · 머리글을 누르면 정렬</span></header>${tplBar(W, P)}${assignHtml(W, P, others, (ui.sort || {}).as)}
         <p class="note">조직력: 함께 나간 달만큼 성공 최대 +${Math.round(CO.CO_SUCC * 100)}%p · 위기 −${Math.round(CO.CO_CRISIS * 100)}%. 빈자리 하나당 성공 −${Math.round(CO.SHORT_PEN * 100)}%p.</p></div>` : ''}`;
 }

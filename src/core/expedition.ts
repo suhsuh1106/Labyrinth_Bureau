@@ -9,7 +9,8 @@
 import { rnd } from './rng';
 
 // 탐사 하루: 만난 몬스터, 이겼나, 해낸 사람 / 나선 사람, 실은 짐 칸, 갈무리한 것, 위기 · 사망
-export type Day = { mon: string; win: boolean; k: number; n: number; loot?: number; mats: [string, number][]; cr: number; d: number };
+// pk · tl · pl: 그날이 끝났을 때 전리품으로 찬 짐 칸, 남은 횃불, 남은 포션 (귀환 연출이 짐 막대를 날마다 그린다)
+export type Day = { mon: string; win: boolean; k: number; n: number; loot?: number; mats: [string, number][]; cr: number; d: number; pk?: number; tl?: number; pl?: number };
 // 탐사 한 번: 들고 간 횃불 · 태운 횃불, 짐 칸 · 전리품을 채운 칸 · 남은 횃불과 포션이 차지한 칸, 돌아선 까닭, 어둠 속 위기
 export type Trip = { torch: number; tu: number; slots: number; pack: number; rest: number; end: 'done' | 'torch' | 'pack' | 'flee'; dark: number };
 
@@ -49,6 +50,7 @@ export function runTrip(C: TripCfg) {
     }
     up.forEach((m, x) => { if (rnd() < C.crP(m, dd[x], j) / C.days) { D.cr++; if (C.hit(m, day + 1) === 'd') { D.d++; gone.add(m); } } });
     if (C.meet) C.meet(j, up, win, D.cr, kd);
+    D.pk = Math.round(pack * 10) / 10; D.tl = C.torch - tu; D.pl = C.pots();
     days.push(D);
     if (end === 'pack') break;
   }
