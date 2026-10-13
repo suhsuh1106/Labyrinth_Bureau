@@ -64,8 +64,7 @@ export function resultsHtml(W: World) {
       <tr><td>급여</td><td class="n">−${fmt(r.spend.wage)}</td></tr>
       ${r.spend.heal ? `<tr><td>치료비 (부상 ${r.hurt}명 · 다음 달 쉼)</td><td class="n">−${fmt(r.spend.heal)}</td></tr>` : ''}
       ${r.spend.job ? `<tr><td class="neg">의뢰 위약금 (못 채운 납품)</td><td class="n">−${fmt(r.spend.job)}</td></tr>` : ''}
-      ${r.spend.ws ? `<tr><td>공방 공사 · 유지비</td><td class="n">−${fmt(r.spend.ws)}</td></tr>` : ''}
-      ${r.spend.prep ? `<tr><td>장비 준비 (무장 손질 · 운반 사료)</td><td class="n">−${fmt(r.spend.prep)}</td></tr>` : ''}
+      ${r.spend.torch ? `<tr><td>횃불 ${fmt(r.spend.torch / CO.TORCH_PRICE)}개${r.torchShort ? ` <span class="neg">· 횃불 없이 간 조 ${r.torchShort}</span>` : ''}</td><td class="n">−${fmt(r.spend.torch)}</td></tr>` : ''}
       ${r.spend.hq ? `<tr><td>본부 공사 · 유지비</td><td class="n">−${fmt(r.spend.hq)}</td></tr>` : ''}
       ${r.recruitWant ? `<tr><td>신입 ${r.recruited}명 × ${fmt(r.recruitPrice)}G${r.recruited < r.recruitWant ? ` <span class="dim">(찾은 ${r.recruitWant}명 · 지원자가 모자람)</span>` : ''}</td><td class="n">−${fmt(r.spend.recruit)}</td></tr>` : ''}
       ${r.rookDone || r.rookDead ? `<tr><td class="dim">수습${r.rookDone ? ` ${r.rookDone}명이 대원이 됨` : ''}${r.rookDead ? `${r.rookDone ? ',' : ''} ${r.rookDead}명 사망` : ''}</td><td class="n dim">-</td></tr>` : ''}
@@ -83,8 +82,7 @@ export function resultsHtml(W: World) {
   const r0 = L.res[0], S = moneySeries(W), k = S.months.length - 1;
   const perParty = S.parties[k] ? r0.sales / S.parties[k] : 0, perHead = r0.net / S.heads[k];
   const prevNet = k > 0 ? S.net[k - 1] : null;
-  const wsNew = r0.wsDone ? `<div class="wsnew"><b>${WS_NEW[r0.wsDone]}</b><span>다음 달부터 ${r0.wsDone === 'arm' || r0.wsDone === 'cart' ? '편성표에서 조마다 고를 수 있어요 (내정에서 준비한 개수만큼)' : r0.wsDone === 'camp' ? '그 층에 가는 조가 덕을 봐요' : '갈무리한 소재가 늘어요'}.</span></div>` : '';
-  return `<div class="kind">제${L.month}월 정산</div>${wsNew}
+  return `<div class="kind">제${L.month}월 정산</div>
     <div class="kpi">
       <div><span>금고</span><b>${fmt(us(W).cash)}G</b><small>시작 ${fmt(S.start)}G</small></div>
       <div><span>순이익</span><b class="${r0.net < 0 ? 'neg' : 'pos'}">${sgn(r0.net)}</b><small>${prevNet == null ? '첫 달' : `지난달 ${sgn(prevNet)}`}</small></div>
@@ -124,8 +122,6 @@ function fcVsHtml(W: World) {
   </section>`;
 }
 
-// 공방 완공 알림 (그달 완공한 줄)
-const WS_NEW: Record<string, string> = { arm: '새 무장이 들어왔어요', cart: '새 운반 수단이 들어왔어요', cut: '갈무리 설비가 늘었어요', camp: '전진 거점이 섰어요' };
 
 // 의뢰: 이번 달 넘긴 양 · 받은 웃돈 · 포상 · 위약금 (끝난 의뢰는 결과). 기록을 읽어 보여 주기만 한다
 function jobsHtml(W: World) {

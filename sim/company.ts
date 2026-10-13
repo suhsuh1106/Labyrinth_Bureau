@@ -4,7 +4,7 @@
 // 성향: even(고르게) · deep(깊은 층 위주) · hire(계약 파티를 씀) · smart(시장을 읽는 숙련자, 근원에는 채굴장)
 //       smartNoGuide · smartSeal · smartNoRoot: 숙련 봇에서 지침을 빼거나 근원을 달리 다룬 것
 import { setSeed } from '../src/core/rng';
-import { CO, TAX, FLOORS, aidAt, jobsExplore, churchPrice, ITEMS, type Filing, type Plan, type World, closeBooks, preview, defaultPlan, dormCost, jobsSign, partyMargin, wsCost, wsLv, roomOf, demandMul, potsOf, probe, floorMons, maxParties, newWorld, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
+import { CO, TAX, FLOORS, aidAt, jobsExplore, churchPrice, ITEMS, type Filing, type Plan, type World, closeBooks, preview, defaultPlan, dormCost, jobsSign, partyMargin, roomOf, demandMul, potsOf, probe, floorMons, maxParties, newWorld, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
 import { demandSeen } from '../src/ui/co/book';
 import { CLASSES } from '../src/core/data';
 
@@ -73,10 +73,7 @@ export const FILER: Record<string, (W: World) => Partial<Filing>> = {
 // 조당 남는 돈(기준 시세와 지난 시세의 중간으로 어림)에 비례해 기울인다. 포션은 5병, 훈련비는 300(훈련은 갈수록 덜 올라 이 근처가 가장 낫다), 채집 장비 1단계,
 // 크게 남는 층에는 계약 파티를 쓴다.
 // 거점과 쌓아 두기는 지금 규모에서는 손해라 쓰지 않는다 (시뮬레이션으로 확인함)
-const GROW_K = +(process.env.GROW_K || 2), GROW_M = +(process.env.GROW_M || 150);
-// 숙련 봇의 공방 차례 (줄, 그 단계까지)와 공사비 몇 배가 있어야 짓는지
-const WS_ORDER: [string, number][] = (process.env.WS_ORDER || 'cart1,cut1,arm1,cart2,camp1,arm2,cut2,camp2').split(',').filter(Boolean).map(x => [x.slice(0, -1), +x.slice(-1)]);
-const WS_K = +(process.env.WS_K || 3);
+const GROW_K = +(process.env.GROW_K || 1.2), GROW_M = +(process.env.GROW_M || 80);
 export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine', kit = true, scout = false): Plan {
   const c = us(W), P = defaultPlan(W), L = W.last, pots = 3;
   // 조당 남는 돈: 성공해서 캐 올 값(모형과 지난달 실제 조당 벌이의 중간) − 출정·포션 − 사망의 값(신입 계약금과 빈자리)
@@ -122,16 +119,6 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
   }));
   // 탐사 계획서: 그 층에 보낼 조를 그대로 적어 내고 선금을 받는다
   jobsExplore(W).forEach(J => { if (P.parties[J.f]) P.take![J.id] = P.parties[J.f]; });
-  // 공방: 운반 → 갈무리 → 무장 → … 차례로, 금고가 공사비의 WS_K배를 넘을 때 하나씩. 거점은 조를 가장 많이 보내는 깊은 층에.
-  // 운반은 모든 조에 가장 좋은 것, 무장은 1층 말고(1층은 성공률이 천장 가까이라 손질비만 든다)
-  if (c.ws) {
-    const order = WS_ORDER.find(([k, lv]) => wsLv(c, k) < lv);
-    if (order && !c.pendingWs && W.month >= 2 && c.cash > wsCost(c, order[0]) * WS_K) {
-      P.wsBuild = order[0];
-      if (order[0] === 'camp') P.wsF = P.parties.reduce((b, n, f) => (f > 0 && n >= P.parties[b] ? f : b), Math.min(1, W.unlocked - 1));
-    }
-    P.load = { arm: FLOORS.map((_, f) => (f ? c.ws!.arm : 0)), cart: FLOORS.map(() => c.ws!.cart) };
-  }
   // 신입: 지원자 명단에서 실력 좋은 사람부터 빈 침상만큼
   if (c.crew && W.cand) P.pick = [...W.cand].sort((a, b) => (b.sk || 0) - (a.sk || 0)).slice(0, roomOf(c)).map(x => x.id);
   // 몸집: 조당 남는 돈이 급여보다 넉넉하면 숙소를 늘린다. 본부의 질(훈련장 · 의무실)은 올리지 않는다:

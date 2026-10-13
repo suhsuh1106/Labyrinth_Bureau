@@ -1,5 +1,5 @@
 // 용병단 엔진 (docs/plan.md 1단계): 장부, 재현성, 시장 규칙이 깨지지 않는지 확인한다
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { setSeed } from '../src/core/rng';
 import { CO, FLOORS, ITEMS, defaultPlan, emptyPlan, newWorld, potionPrice, priceOf, runMonth, us, worth } from '../src/core/company';
 import { FILE_KEYS, TAX, detOf, auditChance, billOf, closeBooks, fileFix, gainOf, jobsExplore, lawsAt, preview } from '../src/core/company';
@@ -7,7 +7,7 @@ import { draftHtml } from '../src/ui/co/draft';
 import { booksRumorHtml } from '../src/ui/co/intel';
 import { BOT, FILER, fileSmart, playGame } from '../sim/company';
 import { aiPlan, carryPlan, maxParties, outlook, rankOf, rollParty } from '../src/core/company';
-import { candPrice, candWants, churchPrice, cohesion, hqCost, hqLv, wsKeep, mapOf, memberMods, teamUnd, tierOf, undMods, wageOf, type Plan, type World } from '../src/core/company';
+import { candPrice, candWants, churchPrice, cohesion, hqCost, hqLv, mapOf, roomOf, supOf, torchOf, memberMods, teamUnd, tierOf, undMods, wageOf, type Plan, type World } from '../src/core/company';
 import { MONSTERS, TRAITS } from '../src/core/data';
 import { depthsHtml, newsLines, plaqueHtml, resultsHtml, returnHtml } from '../src/ui/co/view';
 import { DOC_TABS, expWeekHtml, infoWeekHtml, resultWeekHtml } from '../src/ui/co/desk';
@@ -210,11 +210,12 @@ describe('몬스터와 편성 지침', () => {
     expect(W.log.some(l => /챙겨 들어가기 시작했다/.test(l.t))).toBe(true);
     learned.forEach(c => c.learned.forEach((ok, f) => { if (ok) expect(aiPlan(W, W.cos.indexOf(c)).guide[f]).toBe(keyOf(W, f)); }));
   });
-  // 지침의 덕은 작다(200판 평균 순위 차이 0.1 안팎이고, 영주청 전에도 그랬다). 여기서는 지침이 손해를 보지 않는지만 본다
+  // 지침의 덕은 작다(200판 평균 순위: 공방을 뺀 뒤 3.35 대 3.37, 영주청 전에도 0.1 안팎). 여기서는 지침이 손해를 보지 않는지만 본다.
+  // 120판 순위 합의 노이즈가 ±4% 안팎이라 6%까지 둔다
   it('숙련 봇은 현장 기록으로 추리한 지침을 써도 지침 없이 둘 때보다 뒤처지지 않는다', () => {
     let a = 0, b = 0;
     for (let g = 1; g <= 120; g++) { a += rankOf(playGame(g, BOT.smart, FILER.smart)); b += rankOf(playGame(g, BOT.smartNoGuide, FILER.smartNoGuide)); }
-    expect(a).toBeLessThanOrEqual(b * 1.03);
+    expect(a).toBeLessThanOrEqual(b * 1.06);
   }, 90000);
 });
 
@@ -472,29 +473,33 @@ describe('정보망', () => {
 });
 
 describe('전리품 비율과 몬스터 적응', () => {
-  it('운반 수단을 들고 가면 성공 한 번에 캐 오는 양이 는다 (공방에서 연 단계, 준비한 만큼)', () => {
-    let a = 0, b = 0;
-    for (const cart of [0, 2]) for (let g = 1; g <= 10; g++) {
-      setSeed(g); const W = newWorld(); us(W).ws!.cart = 2;
-      for (let m = 0; m < 4; m++) {
-        const P = sanitize(W, us(W), BOT.even(W)); P.teams!.forEach(T => { if (cart) T.cart = cart; else delete T.cart; }); delete P.prep;
-        const M = runMonth(W, P); const per = M.res[0].got[0] / Math.max(1, M.res[0].ok[0]); if (cart) b += per; else a += per;
-        if (cart) expect(M.res[0].spend.prep).toBe(P.teams!.length * CO.CART_PREP[2]);
+  it('횃불: 비워 두면 모자란 만큼 사고, 우리 조가 층만큼 들고 가 창고에서 빠진다', () => {
+    setSeed(3); const W = newWorld(), c = us(W);
+    const P = defaultPlan(W), need = torchOf(sanitize(W, c, P).parties);
+    const r = runMonth(W, P).res[0];
+    expect(r.spend.torch).toBe(need * CO.TORCH_PRICE); expect(r.torchUsed).toBe(need); expect(r.torchShort).toBe(0);
+    expect(supOf(c).torch).toBe(0);
+    expect(W.draft!.truth.torch).toBe(need);
+  });
+  it('횃불 없이 간 조는 위기를 더 맞고 지도를 덜 그린다', () => {
+    let darkC = 0, litC = 0, darkMap = 0, litMap = 0;
+    for (const dark of [true, false]) for (let g = 1; g <= 12; g++) {
+      setSeed(g); const W = newWorld();
+      for (let m = 0; m < 3; m++) {
+        const P = defaultPlan(W); if (dark) P.buy = { torch: 0 };
+        const M = runMonth(W, P), r = M.res[0], cr = M.ours.reduce((a, o) => a + (o.crisis || 0), 0);
+        if (dark) { expect(r.torchShort).toBe(r.sent.reduce((a, b) => a + b, 0)); darkC += cr; darkMap += us(W).map![0]; } else { litC += cr; litMap += us(W).map![0]; }
       }
     }
-    expect(b).toBeGreaterThan(a * 1.15);
+    expect(darkC).toBeGreaterThan(litC); expect(darkMap).toBeLessThan(litMap);
   });
-  it('준비한 개수까지만 조에 붙고, 공방은 한 달에 하나씩 다음 달 완공되며 낮추면 바로 내려간다', () => {
-    setSeed(3); const W = newWorld(), c = us(W); c.ws!.arm = 2;
-    const P = sanitize(W, c, defaultPlan(W)); P.teams!.forEach(T => { T.arm = 2; }); P.prep = { arm2: 1 };
-    const Q = sanitize(W, c, P); expect(Q.teams!.filter(T => T.arm === 2).length).toBe(1);
-    expect(sanitize(W, c, { ...P, prep: undefined }).prep!.arm2).toBe(P.teams!.length);   // 비워 두면 붙인 만큼
-    const R = defaultPlan(W); R.wsBuild = 'cart';
-    const r = runMonth(W, R).res[0]; expect(r.spend.ws).toBe(wsKeep(c) - 0 + CO.WS_COST.cart[0]); expect(c.pendingWs!.k).toBe('cart');
-    expect(sanitize(W, c, { ...carryPlan(W, R), wsBuild: 'cut' }).wsBuild).toBeUndefined();   // 공사 중
-    const M = runMonth(W, carryPlan(W, R)); expect(c.ws!.cart).toBe(1); expect(M.res[0].wsDone).toBe('cart');
-    const D = carryPlan(W, R); D.wsDown = 'arm'; runMonth(W, D); expect(c.ws!.arm).toBe(1);
-    expect(resultsHtml(W)).toContain('공방');
+  it('신입은 고른 지원자만 들어오고(빈 침상까지), 처음 숙소는 18자리라 바로 고를 수 있다', () => {
+    setSeed(4); const W = newWorld(), c = us(W);
+    expect(bedsOf(c)).toBe(18); expect(roomOf(c)).toBe(2);
+    const none = carryPlan(W, defaultPlan(W)); expect(none.pick).toEqual([]);
+    runMonth(W, none); expect(c.crew!.length).toBeLessThanOrEqual(16);
+    const P = carryPlan(W, none); P.pick = (W.cand || []).slice(0, 2).map(x => x.id);
+    const r = runMonth(W, P).res[0]; expect(r.recruited).toBeLessThanOrEqual(2); expect(r.recruited).toBeGreaterThan(0);
   });
   it('약점대로 들어간 파티가 몰리면 몬스터가 적응해 약점이 바뀌고, 경쟁자는 다시 깨쳐야 한다', () => {
     setSeed(36); const W: World = newWorld();
@@ -736,10 +741,10 @@ describe('위기와 포션', () => {
 });
 
 describe('숙소 · 신입 모집 · 수습 · 명성', () => {
-  it('모두 작게 시작하고, 침상은 처음 인원만큼이다', () => {
+  it('모두 작게 시작하고, 침상은 처음 인원만큼이다 (우리 숙소는 여유 둘)', () => {
     setSeed(1); const W = newWorld();
     expect(us(W).members).toBe(CO.START_SIZE);
-    W.cos.forEach(c => { if (c.style !== 'crowd') expect(bedsOf(c)).toBe(c.members); });
+    W.cos.forEach(c => { if (c.style !== 'crowd') expect(bedsOf(c)).toBe(c.crew ? CO.HQ_BEDS[0] : c.members); });
     expect(us(W).cash).toBe(CO.START_CASH);
   });
   it('신입은 지원자 명단에서 빈 침상까지만 뽑히고, 고른 사람이 이름 · 실력 · 특성 그대로 들어온다', () => {
@@ -891,7 +896,7 @@ describe('성공 정도 · 부상 · 수입 어림', () => {
     runMonth(W, BOT.even(W)); runMonth(W, BOT.even(W));
     const P = carryPlan(W, W.last!.plans[0]);
     const h = expWeekHtml(W, P, { phase: 1, tab: 'report', pins: [] }) + resultsHtml(W) + resultWeekHtml(W, true);
-    expect(h).toContain('이번 달 어림'); expect(h).toContain('어림과 실제'); expect(h).toContain('지난달');
+    expect(h).toContain('수입 분포'); expect(h).toContain('어림과 실제'); expect(h).toContain('지난달');
     expect(h).not.toMatch(/undefined|NaN|Infinity|\[object/);
   });
 });
@@ -904,7 +909,7 @@ describe('내정 책상', () => {
     const home = infoWeekHtml(W, P, { phase: 0, tab: 'report', pins: [] });
     expect(home).toContain('하르덴'); expect(home).toContain('결재안'); expect(home).toContain('data-place="staff"');
     expect(home).not.toContain('class="reader');   // 처음엔 창이 닫혀 있다
-    const want: Record<string, string> = { staff: '지원자 명단', train: '훈련장', market: '상단 포션', church: '교회 성수', alley: '정보망' };
+    const want: Record<string, string> = { staff: '지원자 명단', train: '훈련장', market: '교회 성수', church: '근원 기금', alley: '정보망' };
     Object.entries(want).forEach(([place, word]) => {
       const h = infoWeekHtml(W, P, { phase: 0, tab: 'report', pins: [], place });
       expect(h, place).toContain(word); expect(h, place).not.toMatch(/undefined|NaN|\[object/);
@@ -1008,6 +1013,9 @@ describe('층 이해도 · 지도 완성도', () => {
 });
 
 describe('관리국 게시판: 의뢰', () => {
+  // 공표된 경쟁 · 납품 의뢰는 지금 닫아 두었다 (CO.JOBS_OPEN). 규칙은 남아 있어 열고 확인한다
+  beforeEach(() => { CO.JOBS_OPEN = true; });
+  afterEach(() => { CO.JOBS_OPEN = false; });
   it('첫 달 게시판은 판마다 같고, 납품은 맡은 만큼 판 것에서 넘겨 웃돈을 받는다', () => {
     setSeed(1); const a = newWorld(); setSeed(7); const b = newWorld();
     expect(JSON.stringify(a.jobs)).toBe(JSON.stringify(b.jobs));

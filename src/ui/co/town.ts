@@ -10,9 +10,9 @@ const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
 export const PLACES: Record<string, { name: string; where: string }> = {
   board: { name: '게시판', where: '관리국 게시판' },
   staff: { name: '인원', where: '회색늑대 숙소' },
-  train: { name: '건물', where: '훈련장 · 공방' },
-  market: { name: '상단 거리', where: '상단 거리' },
-  church: { name: '교회', where: '교회' },
+  train: { name: '본부', where: '훈련장 · 본부' },
+  market: { name: '보급', where: '상단 거리 · 보급' },
+  church: { name: '교회', where: '교회 · 근원 기금' },
   alley: { name: '정보망', where: '정보상' },
 };
 
@@ -24,9 +24,9 @@ const X = (x: number) => +(MAP.x + x * S).toFixed(1), Y = (y: number) => +(MAP.y
 type Spot = { box: [number, number, number, number]; act: string; attrs: string; label: string; sub: string; aria: string; tag?: 'top' | 'bottom' };
 const SPOTS: Record<string, Spot> = {
   board: { box: [470, 40, 740, 220], act: 'place', attrs: 'data-place="board"', label: '관리국 게시판', sub: '영주 · 상단 · 교회의 의뢰', aria: '관리국 게시판: 의뢰', tag: 'top' },
-  church: { box: [335, 215, 525, 460], act: 'place', attrs: 'data-place="church"', label: '교회', sub: '성수 · 근원 기금', aria: '교회: 성수와 근원 기금' },
-  market: { box: [555, 320, 860, 540], act: 'place', attrs: 'data-place="market"', label: '상단 거리', sub: '포션 · 장비 · 시장 조사', aria: '상단 거리: 포션과 장비 구매, 시장 조사' },
-  train: { box: [950, 455, 1075, 575], act: 'place', attrs: 'data-place="train"', label: '훈련장 · 공방', sub: '훈련 · 갈무리장 · 거점 · 도구', aria: '훈련장과 공방: 건물' },
+  church: { box: [335, 215, 525, 460], act: 'place', attrs: 'data-place="church"', label: '교회', sub: '근원 기금', aria: '교회: 근원 기금' },
+  market: { box: [555, 320, 860, 540], act: 'place', attrs: 'data-place="market"', label: '상단 거리', sub: '포션 · 성수 · 횃불 · 장비', aria: '상단 거리: 보급 구매' },
+  train: { box: [950, 455, 1075, 575], act: 'place', attrs: 'data-place="train"', label: '훈련장 · 본부', sub: '숙소 · 훈련장 · 기록실 · 의무실 · 교관', aria: '훈련장과 본부' },
   staff: { box: [1090, 460, 1378, 670], act: 'place', attrs: 'data-place="staff"', label: '회색늑대 숙소', sub: '인원 · 신입 · 부상자', aria: '회색늑대 숙소: 인원' },
   alley: { box: [25, 555, 265, 735], act: 'place', attrs: 'data-place="alley"', label: '정보상', sub: '정보망 · 조사 의뢰', aria: '정보상: 정보망과 조사 의뢰', tag: 'top' },
   gate: { box: [1140, 60, 1378, 228], act: 'phase', attrs: 'data-phase="1"', label: '미궁 입구', sub: '출정 편성으로 →', aria: '미궁 입구: 출정 편성으로' },
