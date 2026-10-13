@@ -27,7 +27,7 @@ function teamLines(W: World, live = false) {
     const back = T.end === 'torch' || T.end === 'flee';
     const days = Array.from({ length: CO.DAYS }, (_, j) => {
       const d = D[j], dd = dead.filter(z => z.day === j + 1);
-      if (d) return `<i class="${d.win ? 'w' : 'x'}${dd.length ? ' dead' : ''}${live ? ' hid' : ''}" data-s="${d.win ? 'ok' : 'no'}${dd.length ? ' die' : ''}" style="--j:${j}" title="${esc(`${j + 1}일 · ${d.mon} · ${d.win ? '승' : '패'} ${d.k}/${d.n}${d.mats.length ? ` · ${d.mats.map(([m, c]) => `${m} ×${c}`).join(', ')}` : ''}${d.cr ? ` · 위기 ${d.cr}` : ''}${dd.length ? ` · 사망 ${dd.map(z => z.n).join(', ')}` : ''}`)}">${dd.length ? '†' : d.cr ? '!' : ''}</i>`;
+      if (d) return `<i class="${d.win ? 'w' : 'x'}${dd.length ? ' dead' : ''}${live ? ' hid' : ''}" data-s="${d.win ? 'ok' : 'no'}${dd.length ? ' die' : ''}" style="--j:${j}" title="${esc(`${j + 1}일 · ${d.mon} · ${d.win ? '승' : '패'} ${d.k}/${d.n}${d.mats.length ? ` · ${d.mats.map(([m, c]) => `${m} ×${c}`).join(', ')}` : ''}${d.cr ? ` · 부상 주사위 ${d.cr}${d.sv ? ` · 포션으로 살림 ${d.sv}` : ''}` : ''}${dd.length ? ` · 사망 ${dd.map(z => z.n).join(', ')}` : ''}`)}">${dd.length ? '†' : d.cr ? '!' : ''}</i>`;
       if (j === D.length && back) { const z = dead.filter(y => y.day === 0); return `<i class="dk${z.length ? ' dead' : ''}${live ? ' hid' : ''}" data-s="${z.length ? 'die' : 'no'}" style="--j:${j}" title="${esc(`${END[T.end]} · 어둠 속 귀환${T.dark ? ` · 위기 ${T.dark}` : ''}${z.length ? ` · 사망 ${z.map(y => y.n).join(', ')}` : ''}`)}">${z.length ? '†' : T.dark ? '!' : ''}</i>`; }
       return `<i class="o" style="--j:${j}"></i>`;
     }).join('');
@@ -50,7 +50,7 @@ export function returnsHtml(W: World, live = false) {
   let no = 0; const fallen: string[] = [];
   FLOORS.forEach((F, f) => L.ours.filter(x => x.f === f).forEach(x => { no++; (x.dead || []).forEach(z => fallen.push(`<b>${esc(z.n)}</b> <span>${no}조 · ${F.name} · ${z.day ? `${z.day}일` : '어둠 속 귀환'}${z.pot ? ' · 포션 쓰고도' : ' · 포션 없이'}</span>`)); }));
   return `<section class="run trips${live ? ' live' : ''}" aria-label="제${L.month}월 귀환"><header><h3>제${L.month}월 귀환</h3><span class="dim">${ok}/${sent}조 해냄${r.hurt ? ` · 부상 ${r.hurt}` : ''}${r.deaths ? ` · <b class="neg">사망 ${r.deaths}</b>` : ''}</span>
-      <span class="legend-d"><i class="w"></i>승 <i class="x"></i>패 <i class="o"></i>못 감 · ! 위기 · † 사망 · 칸 하나가 하루 (최대 ${CO.DAYS}일) · 짐 <i class="l"></i>전리품 <i class="t"></i>횃불 <i class="p"></i>포션</span></header>
+      <span class="legend-d"><i class="w"></i>승 <i class="x"></i>패 <i class="o"></i>못 감 · ! 부상 · † 사망 · 칸 하나가 하루 (최대 ${CO.DAYS}일) · 짐 <i class="l"></i>전리품 <i class="t"></i>횃불 <i class="p"></i>포션</span></header>
     <div class="after${live ? ' hid' : ''}">${askLine(W)}</div>
     ${fallen.length ? `<div class="fallen after${live ? ' hid' : ''}"><span class="fx">†</span><div><small>잃은 사람</small>${fallen.map(t => `<p>${t}</p>`).join('')}</div></div>` : ''}
     <ol>${teamLines(W, live).map(l => `<li class="rv ${l.k} on" data-k="${l.k}"><span class="mk${live ? ' hid' : ''}" aria-hidden="true">${l.k === 'ok' ? '✓' : l.k === 'no' ? '✗' : '†'}</span><span class="tx">${l.t}</span><span class="am${live ? ' hid' : ''}">${l.amt || ''}</span></li>`).join('')}</ol></section>`;

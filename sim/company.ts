@@ -18,6 +18,12 @@ if (process.env.TAX_PEN) TAX.AUDIT_PEN = +process.env.TAX_PEN;
 if (process.env.TAX_RELIEF) Object.keys(TAX.RELIEF).forEach(k => { TAX.RELIEF[k] = TAX.RELIEF[k]! * +process.env.TAX_RELIEF!; });
 if (process.env.START_CASH) CO.START_CASH = +process.env.START_CASH;
 if (process.env.FIND) CO.FIND = +process.env.FIND;
+if (process.env.HARD_F) CO.HARD_F = process.env.HARD_F.split(',').map(Number);
+if (process.env.HARD_MAIN) CO.HARD_MAIN = +process.env.HARD_MAIN;
+if (process.env.INJ_K) CO.INJ_K = +process.env.INJ_K;
+if (process.env.INJ_BASE) CO.INJ_BASE = +process.env.INJ_BASE;
+if (process.env.INJ_REST) CO.INJ_REST = +process.env.INJ_REST;
+if (process.env.INJ_PEN) CO.INJ_PEN = +process.env.INJ_PEN;
 for (const k of ['TARGET_AT', 'TARGET_W', 'TARGET_SUCC', 'TARGET_MAT', 'KEY_SUCC', 'KEY_CRISIS', 'MAT_SURE', 'ASK_AT'] as const) if (process.env['DEX_' + k]) DEX[k] = +process.env['DEX_' + k]!;
 if (process.env.ENC_W0) { const a = +process.env.ENC_W0; CO.ENC_W = [a, (1 - a) / 2, (1 - a) / 2]; }
 if (process.env.MAT_ENC) CO.MAT_ENC = +process.env.MAT_ENC;

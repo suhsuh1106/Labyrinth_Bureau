@@ -1260,6 +1260,27 @@ describe('미궁 도감 · 단장 · 지정 탐사', () => {
     }
     expect(hurt).toBeGreaterThan(0);
   });
+  it('부상 주사위: 못 해낸 날 걸리면 다치고, 다친 채 또 걸리면 포션으로 살거나 죽는다', () => {
+    let saved = 0, died = 0, hurtOnly = 0;
+    for (let g = 1; g <= 10; g++) {
+      setSeed(g); const W = newWorld(), c = us(W); W.unlocked = 4;
+      for (let m = 0; m < 6; m++) {
+        const P = sanitize(W, c, defaultPlan(W)); P.teams!.forEach((T, t) => { T.f = 3; T.pots = t % 2 ? 3 : 0; }); P.parties = [0, 0, 0, P.teams!.length, 0];
+        const M = runMonth(W, P); closeBooks(W);
+        M.ours.forEach(o => {
+          const sv = o.days!.reduce((a, d) => a + (d.sv || 0), 0), dd = o.days!.reduce((a, d) => a + d.d, 0);
+          // 포션은 다친 사람이 또 걸렸을 때만 쓴다 (어둠 속 귀환에서 쓴 것은 날 칸 밖)
+          expect(o.pots || 0).toBeGreaterThanOrEqual(sv); expect(o.pots || 0).toBeLessThanOrEqual(sv + o.trip!.dark);
+          expect(o.pots || 0).toBeLessThanOrEqual(o.potC || 0);
+          expect(o.d).toBeGreaterThanOrEqual(dd);   // (어둠 속 귀환의 사망은 날 칸 밖)
+          (o.dead || []).forEach(z => expect(z.pot).toBe(false));   // 포션이 남아 있으면 죽지 않는다
+          if (o.d && (o.potC || 0) > (o.pots || 0)) throw new Error('포션이 남았는데 죽었다');
+          saved += o.pots || 0; died += o.d; hurtOnly += o.hurt || 0;
+        });
+      }
+    }
+    expect(saved).toBeGreaterThan(0); expect(died).toBeGreaterThan(0); expect(hurtOnly).toBeGreaterThan(0);
+  });
   it('단장 조사: 단장이 나선 날 그 몬스터를 만나면 답을 받는다. 맞으면 확정, 틀리면 아님 (이해도가 모자라면 묻지 못한다)', () => {
     setSeed(5); const W = newWorld(), c = us(W), main = MONSTERS[W.mons[0]].name;
     const P0 = defaultPlan(W); P0.ask = { mon: main, k: MONSTERS[W.mons[0]].key };
