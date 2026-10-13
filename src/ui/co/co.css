@@ -438,11 +438,28 @@ details.fold[open] > summary { margin-bottom: 6px; }
 .run li.ok .mk { background: #2f6b45; } .run li.no .mk { background: #6b5a2f; } .run li.die .mk { background: #a3312a; }
 .run li.ok .am { color: #b9dcc4; font-family: var(--f-body); font-size: 12.5px; }
 .run li.no .am, .run li.die .am { color: #f4b2a9; font-family: var(--f-body); font-size: 12.5px; }
-.run li.day { padding: 1px 6px 1px 30px; font-size: 12px; color: #c9d6cc; }
-.run li.day .mk { width: 12px; height: 12px; background: transparent; color: #6f8a7a; }
-.run li.day .am { font: 400 12px var(--f-body); color: #a5b8aa; }
-.run li.day .dn { display: inline-block; min-width: 2.6em; color: #8fa596; font-variant-numeric: tabular-nums; }
-.run li.day .pos { color: #86cf9f; font-weight: 700; } .run li.day .neg { color: #f08a7e; font-weight: 700; }
+/* 귀환: 날 칸(하루 하나) · 짐 막대 · 잃은 사람 */
+.run .trip { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; margin-top: 4px; }
+.run .trip small { font-size: 11.5px; color: #a5b8aa; }
+.run .days { display: inline-flex; gap: 3px; }
+.run .days i, .run .legend-d i { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 3px; font: 700 11px var(--f-num); font-style: normal; color: #fff; background: #2b3f35; border: 1px solid #3a5446; }
+.run .legend-d i { width: 10px; height: 10px; vertical-align: -1px; margin-left: 4px; }
+.run .days i.w, .run .legend-d i.w { background: #2f6b45; border-color: #4a9a68; }
+.run .days i.x, .run .legend-d i.x { background: #8a3a2a; border-color: #c0563f; }
+.run .days i.o, .run .legend-d i.o { background: transparent; border-style: dashed; }
+.run .days i.dk { background: #0b100d; border-color: #555; }
+.run .days i.dead { background: #a3312a; border-color: #ff8a7a; box-shadow: 0 0 0 1px #ff8a7a; }
+.run .legend-d { flex-basis: 100%; font-size: 11.5px; color: #a5b8aa; }
+.run .legend-d i.l { background: #b8925a; } .run .legend-d i.t { background: #d9822b; } .run .legend-d i.p { background: #c0392b; }
+.run .pack i { border-color: #6f8a7a; } .run .pack i.l { border-color: #b8925a; } .run .pack i.t { border-color: #d9822b; } .run .pack i.p { border-color: #c0392b; }
+.run.live li.rv.on .days i { animation: dayin .22s both; animation-delay: calc(var(--j) * 110ms); }
+@keyframes dayin { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: none; } }
+.run .fallen { display: flex; gap: 12px; align-items: center; background: #3a1512; border: 1px solid #a3312a; border-radius: 4px; padding: 8px 12px; }
+.run .fallen .fx { font: 700 30px var(--f-display); color: #ff8a7a; }
+.run .fallen small { font-size: 11px; color: #f4b2a9; }
+.run .fallen p { margin: 2px 0; font-size: 14px; color: #ffe1dc; } .run .fallen p span { font-size: 12px; color: #f4b2a9; }
+.run li .dead-n { color: #ff8a7a; font-size: 13.5px; }
+.run li.die { background: #2a1513; }
 .run li.gain .mk { background: #2a78d6; } .run li.gain .am { color: #9cc4f2; }
 .run li.cost .mk { background: #8a4a2a; } .run li.cost .am { color: #f4b2a9; }
 .run li.net { border-top: 1px solid #3a5446; margin-top: 4px; padding-top: 8px; font-weight: 700; font-size: 15px; }
@@ -950,3 +967,16 @@ table.tsum select { font: 12px var(--f-body); }
 .job-sum { font: 600 13px var(--f-num); margin: 2px 0 4px; }
 .job > p { font-size: 12px; color: var(--ink-soft); }
 .billsum > div.me { box-shadow: inset 0 0 0 2px var(--good); }
+
+/* 짐 칸: 횃불 · 포션 · 전리품 · 빈 칸 */
+.pack { display: inline-flex; gap: 2px; vertical-align: middle; }
+.pack i { width: 7px; height: 13px; border-radius: 1px; border: 1.5px solid var(--ink-soft); background: transparent; }
+.pack i.t { border-color: #d9822b; background: #d9822b; }
+.pack i.p { border-color: #c0392b; background: #c0392b; }
+.pack i.l { border-color: #8a6a3a; background: #b8925a; }
+table.tsum small { display: block; font-size: 11px; }
+table.tsum .step input { width: 40px; }
+
+/* 가정산 손익 */
+table.pl tr.sub td { border-top: 1px solid var(--rule); font-weight: 700; }
+table.pl tr.tot td { border-top: 2px solid var(--ink); font-weight: 700; font-size: 15px; }

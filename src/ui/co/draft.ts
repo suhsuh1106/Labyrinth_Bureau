@@ -40,6 +40,7 @@ export function draftHtml(W: World, F0: Partial<Filing>, live = false) {
   return `<div class="draftwrap">${returnsHtml(W, live)}<article class="co-sheet doc" id="draft">
     <div class="kind">제${D.m}월 가정산</div>
     ${salesHtml(W)}
+    ${plHtml(W, netF, X.bill)}
     <section class="rp"><h3>신고서</h3><div class="tw"><table class="grid filing"><thead><tr><th>항목</th><th class="n">장부</th><th class="n">신고</th><th class="n">세금 · 지원</th><th class="n">이득</th><th>맞대 볼 기록</th></tr></thead><tbody>${rows}
       ${X.bill.credit ? `<tr><td><b>교회 후원금 공제</b><small>후원금 ${fmt(D.donate)}G의 ${Math.round(TAX.DONATE_CREDIT * 100)}%</small></td><td></td><td></td><td class="n">공제 ${fmt(X.bill.credit)}</td><td></td><td class="dim">합법</td></tr>` : ''}
       </tbody></table></div>
@@ -71,4 +72,21 @@ function salesHtml(W: World) {
   if (other) rows.push(`<tr><td>의뢰 · 선금 · 지도 판매</td><td></td><td class="n">${fmt(other)}</td><td class="n dim">비과세</td><td class="n dim">0</td></tr>`);
   return `<section class="rp"><h3>판매</h3><div class="tw"><table class="grid slim sales"><thead><tr><th>품목</th><th class="n">개수</th><th class="n">판매액</th><th class="n">세율</th><th class="n">세금</th></tr></thead><tbody>${rows.join('')}
     <tr class="tot"><td>합계</td><td></td><td class="n">${fmt(r.sales)}</td><td></td><td class="n">${fmt(Math.round((r.lootSales || 0) * lootR) + taxed.reduce((a, [m, n]) => a + n * (L.matPrice[m] || 0) * D.matRate, 0))}</td></tr></tbody></table></div></section>`;
+}
+
+// 손익: 판매 − 지출 = 순이익(세금 전), 그리고 이 신고서대로의 세금 · 지원 → 순이익
+function plHtml(W: World, netF: number, B: ReturnType<typeof preview>['bill']) {
+  const L = W.last!, r = L.res[W.draft!.i], s = r.spend;
+  const loot = r.lootSales || 0, other = r.sales - loot - r.matSales;
+  const cost: [string, number][] = [['급여', s.wage], ['신입 계약금', s.recruit], ['치료비', s.heal || 0], ['출정 · 계약 조', s.sortie + s.hire + s.tool], ['포션', s.potion], ['횃불', s.torch || 0], ['장비', s.gear],
+    ['정보 · 조사', s.intel + s.probe], ['교관', s.train], ['숙소 · 본부', (s.dorm || 0) + (s.hq || 0) + s.base + s.proc], ['교회 후원 · 근원 기금', s.donate + s.root], ['의뢰 위약금', s.job || 0]];
+  const row = (t: string, v: number, cls = '') => `<tr class="${cls}"><td>${t}</td><td class="n ${v < 0 ? 'neg' : ''}">${sgn(Math.round(v))}</td></tr>`;
+  return `<section class="rp"><h3>손익</h3><div class="tw"><table class="grid slim pl"><tbody>
+    ${row('전리품 판매', loot)}${r.matSales ? row('갈무리 소재 판매', r.matSales) : ''}${other ? row('의뢰 · 선금 · 지도 판매', other) : ''}
+    ${row('판매 합계', r.sales, 'sub')}
+    ${cost.filter(([, v]) => v > 0).map(([t, v]) => row(t, -v)).join('')}
+    ${row('순이익 (세금 전)', r.net, 'sub')}
+    ${B.tax ? row('영주세 (이 신고서)', -B.tax) : ''}${B.sub + B.aid ? row('보급 · 층 지원금', B.sub + B.aid) : ''}${B.refund ? row('선금 반납', -B.refund) : ''}
+    ${row('순이익', netF, 'tot')}
+  </tbody></table></div></section>`;
 }

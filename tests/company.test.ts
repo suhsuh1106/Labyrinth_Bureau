@@ -495,7 +495,7 @@ describe('전리품 비율과 몬스터 적응', () => {
         M.ours.forEach(o => {
           const T = o.trip!, D = o.days!;
           expect(D.length).toBeLessThanOrEqual(CO.DAYS); expect(T.tu).toBeLessThanOrEqual(T.torch);
-          D.forEach(d => { expect(names(o.f)).toContain(d.mon); expect(d.win).toBe(d.k >= 2); if (!d.win) { expect(d.mats).toEqual([]); expect(d.loot || 0).toBe(0); } });
+          D.forEach(d => { expect(names(o.f)).toContain(d.mon); expect(d.win).toBe(d.k >= Math.min(2, d.n)); if (!d.win) { expect(d.mats).toEqual([]); expect(d.loot || 0).toBe(0); } });
           if (T.end === 'torch') { expect(T.tu).toBe(T.torch); torch++; }
           if (T.end === 'pack') pack++;
           if (T.end === 'done') expect(D.length).toBe(CO.DAYS);
@@ -508,6 +508,22 @@ describe('전리품 비율과 몬스터 적응', () => {
       }
     }
     expect(torch).toBeGreaterThan(0);
+  });
+  it('편성표에서 조마다 포션 · 횃불을 정하고, 죽은 단원은 이름과 날이 기록된다', () => {
+    setSeed(6); const W = newWorld(), c = us(W);
+    const P = sanitize(W, c, defaultPlan(W)); P.teams![0].pots = 2; P.teams![0].torch = 5; P.teams![1].pots = 0; P.teams![1].torch = 1;
+    const Q = sanitize(W, c, P), need = needOf(Q);
+    expect(need.torch).toBe(5 + 1 + Q.teams!.slice(2).reduce((a, T) => a + TAX.TORCH[T.f], 0));
+    expect(need.pot).toBe(2 + Q.teams!.slice(2).reduce((a, T) => a + P.pots[T.f], 0));
+    const M = runMonth(W, P);
+    expect(M.ours[0].trip!.torch).toBe(5); expect(M.ours[1].trip!.torch).toBe(1);
+    expect(M.ours[0].pots || 0).toBeLessThanOrEqual(2); expect(M.ours[1].pots || 0).toBe(0);
+    let dead = 0, d = 0;
+    for (let g = 1; g <= 10; g++) {
+      setSeed(g); const V = newWorld();
+      for (let m = 0; m < 8; m++) { const N = runMonth(V, BOT.smart(V)); closeBooks(V); N.ours.forEach(o => { d += o.d; dead += (o.dead || []).length; (o.dead || []).forEach(z => { expect(z.n).toBeTruthy(); expect(z.day).toBeLessThanOrEqual(o.days!.length + 1); }); }); }
+    }
+    expect(dead).toBe(d);
   });
   it('횃불 없이 간 조는 들어가지 못하고 어둠 속에서 위기를 맞고 지도를 덜 그린다', () => {
     let darkC = 0, litC = 0, darkMap = 0, litMap = 0;
