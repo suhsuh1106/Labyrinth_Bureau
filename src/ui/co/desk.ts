@@ -1,6 +1,6 @@
 // 행정실 책상: 한 달을 두 주차로 나눈다.
 // 정보 주차 — 자료함(보고서·신문·도감·조사 결과)을 열어 읽고, 조사 의뢰를 걸고, 정보망과 내정(건물·보급·창고·세력)을 정한다.
-// 탐험 주차 — 작전 메모를 옆에 두고 층마다 몇 조를 무엇을 챙겨 보낼지 정하고 도장을 찍는다. 결과는 다음 달 보고서가 된다.
+// 탐험 주차 — 이번 달 조사를 옆에 두고 층마다 몇 조를 무엇을 챙겨 보낼지 정하고 도장을 찍는다. 결과는 다음 달 보고서가 된다.
 // 화면은 HTML 문자열만 만든다. 상태를 쓰지 않고 난수도 쓰지 않는다
 import { floorMons, CO, FLOORS, INTEL, ITEMS, TAX, type Filing, type Job, type Person, clamp, jobsExplore, mapOf, torchOf, undMods, jobsOpen, jobsSign, taxGuess, torchBuy, wageCo, candPrice, candWants, hqCost, hqKeep, hqLv, fcRank, forecast, townOf, type Plan, SRCS, type World, bedsOf, isRook, rookCount, churchPrice, dormCost, dormKeep, roomOf, wageOf, gearBuy, hireCost, intelBlock, intelCost, lootMul, maxParties, needOf, potsExpiring, potsOf, probeCost, probesLeft, sanitize, sortieCost, succRate, supOf, toolCost, trainBonus, us } from '../../core/company';
 import { CLASSES, GEARS, BUYERS } from '../../core/data';
@@ -14,7 +14,7 @@ import { lawsHtml } from './books';
 import { assignHtml, candHtml, rosterHtml } from './roster';
 import { KTAG, depthsHtml, fmt, newsLines, pct, resultsHtml, sgn, stepper } from './view';
 
-export type DeskUi = { phase: number; tab: string; pins: string[]; rival?: string; open?: boolean; mute?: boolean;
+export type DeskUi = { phase: number; tab: string; pins?: string[]; rival?: string; open?: boolean; mute?: boolean;
   file?: Partial<Filing>;   // 가정산에서 고치는 신고서
   pick?: { t?: number; s?: number; id?: number } | null;
   sort?: Record<string, string>;   // 명단 정렬 (rs 인원 명단 · cd 지원자 · as 편성표): "열:방향"
@@ -54,23 +54,11 @@ function docBody(W: World, tab: string, P?: Plan) {
 }
 const docCount = (W: World, tab: string) => (tab === 'probe' ? (W.probes || []).filter(x => x.m === W.month).length : 0);
 // 작전 메모: 고정한 자료를 한두 줄로 줄여 탐험 주차 옆에 둔다
-function memoLine(W: World, tab: string): string {
-  const L = W.last;
-  if (tab === 'report') return L ? `제${L.month}월 · ${L.res[0].sent.reduce((a, b) => a + b, 0)}조 중 ${L.res[0].ok.reduce((a, b) => a + b, 0)}조 성공 · 순이익 ${sgn(L.res[0].net)}G` : '아직 보고서가 없어요';
-  if (tab === 'paper') { const I = W.last ? coIssue(W) : null; return I ? `${I.hed} · ${I.dek}` : '아직 신문이 없어요'; }
-  // 도감 메모: 정보망 단계로 들을 수 있는 찾는 곳만 (조사 의뢰를 맡기지 않은 시장 소식을 새어 보이지 않게)
-  if (tab === 'book') { const { seen, hidden } = demandsNow(W); return seen.length ? seen.map(d => `${d.m} +${Math.round(d.mul * 100)}%`).join(' · ') + (hidden ? ` · 그 밖에 ${hidden}곳` : '') : hidden ? `찾는 곳 ${hidden}곳 (정보망이 모자라 못 들음)` : '찾는 곳 소식 없음'; }
-  return '';
-}
-export function memoHtml(W: World, ui: DeskUi) {
-  const name = Object.fromEntries(DOC_TABS);
+// 이번 달 조사: 이번 달 돈 내고 맡긴 조사의 답을 출정 옆에 한 줄씩 (그달에만 쓸모 있는 영수증이다.
+// 지난 자료를 정리해 붙여 주는 메모는 두지 않는다: 무엇을 읽었는지 기억해 쓰는 것이 행정관의 일이다)
+export function memoHtml(W: World) {
   const probes = (W.probes || []).filter(x => x.m === W.month);
-  const items = [
-    ...probes.map(x => ({ src: '이번 주 조사', fresh: true, t: x.k === 'mkt' ? `<b>시장 조사</b> · ${(x.dem || []).map(d => `${d.m} +${Math.round(d.mul * 100)}%`).join(', ') || '웃돈 얹어 찾는 것 없음'}` : `<b>${W.cos.find(c => c.id === x.id)?.name} 조사</b> · ${(x.parties || []).map((v, f) => (v + ((x.hire || [])[f] || 0) ? `${FLOORS[f].name} ${v + ((x.hire || [])[f] || 0)}조` : '')).filter(Boolean).join(' · ')}` })),
-    ...ui.pins.filter(p => p !== 'probe').map(p => ({ src: name[p] || p, fresh: false, t: memoLine(W, p) })),
-  ];
-  return items.length ? items.map(m => `<div class="slip${m.fresh ? ' fresh' : ''}"><span class="slip-src">${m.src}</span><span>${m.t}</span></div>`).join('')
-    : '<div class="empty">고정한 자료가 없어요</div>';
+  return probes.map(x => `<div class="slip fresh"><span>${x.k === 'mkt' ? `<b>시장 조사</b> · ${(x.dem || []).map(d => `${d.m} +${Math.round(d.mul * 100)}%`).join(', ') || '웃돈 얹어 찾는 것 없음'}` : `<b>${W.cos.find(c => c.id === x.id)?.name} 조사</b> · ${(x.parties || []).map((v, f) => (v + ((x.hire || [])[f] || 0) ? `${FLOORS[f].name} ${v + ((x.hire || [])[f] || 0)}조` : '')).filter(Boolean).join(' · ') || '출정 없음'}`}</span></div>`).join('');
 }
 
 // ---------- 정보 주차 ----------
@@ -351,11 +339,10 @@ export function monthCost(W: World, raw: Plan) {
 
 export function readerHtml(W: World, ui: DeskUi, raw?: Plan) {
   if (!ui.open) return '';
-  const tab = DOC_TABS.some(t => t[0] === ui.tab) ? ui.tab : 'report', pinned = ui.pins.includes(tab);
+  const tab = DOC_TABS.some(t => t[0] === ui.tab) ? ui.tab : 'report';
   const docId = tab === 'report' ? 'results' : tab === 'probe' ? 'intel' : tab === 'book' ? 'book' : 'doc-' + tab;
   return `<div class="reader" role="dialog" aria-modal="true" aria-label="자료함"><div class="reader-in">
     <div class="reader-bar"><div class="tabs" role="tablist">${DOC_TABS.map(([id, n]) => `<button type="button" class="tab" role="tab" data-tab="${id}" aria-selected="${id === tab}">${n}</button>`).join('')}</div>
-      ${tab === 'probe' ? '' : `<button type="button" class="pin" data-pin="${tab}" aria-pressed="${pinned}">${pinned ? '메모에 고정됨' : '작전 메모에 고정'}</button>`}
       <button type="button" class="close" data-act="close-doc" aria-label="자료함 닫기">×</button></div>
     <article class="co-sheet doc" id="${docId}" role="tabpanel">${docBody(W, tab, raw ? sanitize(W, us(W), raw) : undefined)}</article></div></div>`;
 }
@@ -480,7 +467,7 @@ export function expWeekHtml(W: World, raw: Plan, ui: DeskUi) {
   if (need.pot > potHave) warn.push(`포션 부족 ${need.pot - potHave}병`);
   if (gearShort.length) warn.push(`장비 부족: ${gearShort.map(g => `${g} ${(need.gear[g] || 0) - (S.gear[g] || 0) - (gb[g] || 0)}벌`).join(', ')}`);
   if (c.cash - cost.all < 0) warn.push('금고 마이너스');
-  const memo = memoHtml(W, ui), hasMemo = !memo.includes('class="empty"');
+  const memo = memoHtml(W);
   return `<div class="panel floors-pick"><header><h2>층 선택</h2><span class="sub">조당 = 성공 × 캐 오는 양 × 시세 · 지도 낮으면 둘 다 줄고 위기는 늘어남 · 우리 조는 아래 편성표에서</span><span class="right">우리 <b>${sent}</b>/${maxParties(c)}조${hired ? ` · 계약 ${hired}조` : ''}</span></header>
       <div class="tw"><table class="grid pick"><thead><tr><th>층</th><th class="n">시세</th><th class="n">위험</th><th class="n">지도</th><th class="n">남들</th><th class="n">성공</th><th class="n">조당</th><th class="n">우리 조</th><th>계약 조</th><th class="n">출정비</th></tr></thead><tbody>${rows}</tbody></table></div>
       <p class="note">계약 조: 한 조 ${CO.HIRE_FEE}G · 캔 것의 ${pct(CO.HIRE_CUT)}는 그들 몫. 조마다 포션 · 횃불은 아래 편성표에서.</p></div>
@@ -488,7 +475,7 @@ export function expWeekHtml(W: World, raw: Plan, ui: DeskUi) {
     ${warn.length ? `<div class="warn">${warn.join(' · ')}</div>` : ''}
     <div class="foot"><button type="button" class="ghost" data-act="phase" data-phase="0">← 내정으로</button><span class="tot">나갈 돈 <b>${fmt(cost.all)}G</b> <span class="dim">(${cost.parts.map(([n, v]) => `${n} ${fmt(v)}`).join(' · ')})</span></span><button type="button" class="seal" id="go" data-act="go">결재 도장 찍기</button></div>
     <div class="main">
-      <div class="col">${jobsTrack(W, P)}${hasMemo ? `<div class="panel"><header><h2>작전 메모</h2></header><div class="memo">${memo}</div></div>` : ''}</div>
+      <div class="col">${jobsTrack(W, P)}${memo ? `<div class="panel"><header><h2>이번 달 조사</h2></header><div class="memo">${memo}</div></div>` : ''}</div>
     </div>
     ${c.crew ? askPanel(W, P) : ''}
     ${c.crew ? `<div class="panel sheetwrap"><header><h2>편성표</h2><span class="sub">배치 칸의 조를 누르면 그 조 빈자리로 · 머리글을 누르면 정렬</span></header>${tplBar(W, P)}${assignHtml(W, P, others, (ui.sort || {}).as)}

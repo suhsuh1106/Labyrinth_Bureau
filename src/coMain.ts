@@ -188,7 +188,6 @@ $('desk').addEventListener('click', (e: any) => {
   const t = e.target.closest('button, .spot[data-act], th[data-act]'); if (!t || t.disabled) return;
   if (t.dataset.act) return act(t);
   if (t.dataset.tab) { ui.tab = t.dataset.tab; render(); save(); return; }
-  if (t.dataset.pin) { const p = t.dataset.pin; ui.pins = ui.pins.includes(p) ? ui.pins.filter(x => x !== p) : [...ui.pins, p]; render(); save(); return; }
   if (t.dataset.k) edit(t.dataset.k, +t.dataset.i, (v: number) => v + +t.dataset.d, +(t.dataset.j || 0));
 });
 // 지도 위 장소는 Tab으로 고르고 Enter · Space로 연다

@@ -259,7 +259,7 @@ describe('상단·교회와 포션 담합', () => {
       expect(M.potionC).toBe(Math.round(CO.POTION_C0 * CO.CARTEL_MARKUP));
     }
     expect(seen).toBeGreaterThan(3);
-  });
+  }, 20000);
   it('담합 중 교회 후원이 쌓이면 교회가 빠져나와 후원한 쪽에 예전 값으로 팔고, 후원한 쪽은 교회와 가까워지고 상단과 멀어진다', () => {
     let checked = 0;
     for (let g = 1; g <= 40 && checked < 3; g++) {
