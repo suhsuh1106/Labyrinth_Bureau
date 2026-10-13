@@ -24,6 +24,7 @@ import { floorMax, keyOf } from '../src/core/company';
 import { fcRank, forecast, gradeOf } from '../src/core/company';
 import { bedsOf, classCap, dormCost, dormKeep, formTeams, recruitPrice, recruitWants, rookCount, rookSlots, shareOut } from '../src/core/company';
 import { CLASSES } from '../src/core/data';
+import { needOf, tripOdds } from '../src/core/company';
 
 describe('용병단 장부', () => {
   it('매달 모든 용병단의 금고 변화가 판매 수입에서 지출을 뺀 값과 같다', () => {
@@ -474,25 +475,60 @@ describe('정보망', () => {
 });
 
 describe('전리품 비율과 몬스터 적응', () => {
-  it('횃불: 비워 두면 모자란 만큼 사고, 우리 조가 층만큼 들고 가 창고에서 빠진다', () => {
+  it('횃불: 비워 두면 모자란 만큼 사고, 우리 조가 층만큼 들고 가서 태운 만큼만 창고에서 빠진다', () => {
     setSeed(3); const W = newWorld(), c = us(W);
-    const P = defaultPlan(W), need = torchOf(sanitize(W, c, P).parties);
-    const r = runMonth(W, P).res[0];
-    expect(r.spend.torch).toBe(need * CO.TORCH_PRICE); expect(r.torchUsed).toBe(need); expect(r.torchShort).toBe(0);
-    expect(supOf(c).torch).toBe(0);
-    expect(W.draft!.truth.torch).toBe(need);
+    const P = defaultPlan(W), Q = sanitize(W, c, P), need = needOf(Q).torch;
+    expect(need).toBe(Q.parties.reduce((a, n, f) => a + n * TAX.TORCH[f], 0));
+    const M = runMonth(W, P), r = M.res[0], burnt = M.ours.reduce((a, o) => a + o.trip!.tu, 0);
+    expect(r.spend.torch).toBe(need * CO.TORCH_PRICE); expect(r.torchUsed).toBe(burnt); expect(r.torchShort).toBe(0);
+    M.ours.forEach(o => { expect(o.trip!.tu).toBeLessThanOrEqual(o.trip!.torch); expect(o.trip!.tu).toBeGreaterThanOrEqual(1); });
+    expect(supOf(c).torch).toBe(need - burnt);
+    expect(W.draft!.truth.torch).toBe(burnt);
   });
-  it('횃불 없이 간 조는 위기를 더 맞고 지도를 덜 그린다', () => {
+  it('탐사는 날마다 몬스터 하나를 만난다: 이긴 날만 짐을 싣고, 횃불이 떨어지거나 짐이 차면 돌아선다', () => {
+    let pack = 0, torch = 0;
+    for (let g = 1; g <= 8; g++) {
+      setSeed(g); const W = newWorld();
+      for (let m = 0; m < 4; m++) {
+        const P = defaultPlan(W); P.torch = FLOORS.map(() => 2); P.pots = FLOORS.map(() => 3);
+        const M = runMonth(W, P), names = (f: number) => floorMons(W, f).map(x => x.name);
+        M.ours.forEach(o => {
+          const T = o.trip!, D = o.days!;
+          expect(D.length).toBeLessThanOrEqual(CO.DAYS); expect(T.tu).toBeLessThanOrEqual(T.torch);
+          D.forEach(d => { expect(names(o.f)).toContain(d.mon); expect(d.win).toBe(d.k >= 2); if (!d.win) { expect(d.mats).toEqual([]); expect(d.loot || 0).toBe(0); } });
+          if (T.end === 'torch') { expect(T.tu).toBe(T.torch); torch++; }
+          if (T.end === 'pack') pack++;
+          if (T.end === 'done') expect(D.length).toBe(CO.DAYS);
+          expect(T.pack).toBeLessThanOrEqual(T.slots + 1e-9);
+          // 그 조가 갈무리한 것 = 날마다 갈무리한 것의 합
+          const sum: Record<string, number> = {}; D.forEach(d => d.mats.forEach(([n, k]) => { sum[n] = (sum[n] || 0) + k; }));
+          expect(Object.fromEntries(o.mats)).toEqual(sum);
+          expect(D.reduce((a, d) => a + d.cr, 0) + T.dark).toBe(o.crisis);
+        });
+      }
+    }
+    expect(torch).toBeGreaterThan(0);
+  });
+  it('횃불 없이 간 조는 들어가지 못하고 어둠 속에서 위기를 맞고 지도를 덜 그린다', () => {
     let darkC = 0, litC = 0, darkMap = 0, litMap = 0;
     for (const dark of [true, false]) for (let g = 1; g <= 12; g++) {
       setSeed(g); const W = newWorld();
       for (let m = 0; m < 3; m++) {
         const P = defaultPlan(W); if (dark) P.buy = { torch: 0 };
         const M = runMonth(W, P), r = M.res[0], cr = M.ours.reduce((a, o) => a + (o.crisis || 0), 0);
-        if (dark) { expect(r.torchShort).toBe(r.sent.reduce((a, b) => a + b, 0)); darkC += cr; darkMap += us(W).map![0]; } else { litC += cr; litMap += us(W).map![0]; }
+        if (dark) { M.ours.forEach(o => { expect(o.trip!.end).toBe('torch'); expect(o.days).toEqual([]); }); expect(r.got[0]).toBe(0); darkC += cr; darkMap += us(W).map![0]; } else { litC += cr; litMap += us(W).map![0]; }
       }
     }
     expect(darkC).toBeGreaterThan(litC); expect(darkMap).toBeLessThan(litMap);
+  });
+  it('수입 어림: 횃불을 적게 들수록 다닐 날이 줄어 어림이 준다', () => {
+    expect(tripOdds(0, 0.3)).toEqual({ days: 0, dark: 1, burn: 0 });
+    expect(tripOdds(CO.DAYS, 0.9).dark).toBe(0);
+    const a = tripOdds(2, 0.5), b = tripOdds(4, 0.5);
+    expect(a.days).toBeLessThan(b.days); expect(a.dark).toBeGreaterThan(b.dark);
+    setSeed(5); const W = newWorld(), P = sanitize(W, us(W), defaultPlan(W));
+    const lo = forecast(W, { ...P, torch: FLOORS.map(() => 1) }), hi = forecast(W, { ...P, torch: FLOORS.map(() => 5) });
+    expect(lo.mean).toBeLessThan(hi.mean); expect(lo.torch!).toBeLessThan(hi.torch!);
   });
   it('신입은 고른 지원자만 들어오고(빈 침상까지), 처음 숙소는 18자리라 바로 고를 수 있다', () => {
     setSeed(4); const W = newWorld(), c = us(W);

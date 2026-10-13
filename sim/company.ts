@@ -4,7 +4,7 @@
 // 성향: even(고르게) · deep(깊은 층 위주) · hire(계약 파티를 씀) · smart(시장을 읽는 숙련자, 근원에는 채굴장)
 //       smartNoGuide · smartSeal · smartNoRoot: 숙련 봇에서 지침을 빼거나 근원을 달리 다룬 것
 import { setSeed } from '../src/core/rng';
-import { CO, TAX, FLOORS, cashK, aidAt, jobsExplore, churchPrice, ITEMS, type Filing, type Plan, type World, closeBooks, preview, defaultPlan, dormCost, jobsSign, partyMargin, roomOf, demandMul, potsOf, probe, floorMons, maxParties, newWorld, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
+import { CO, TAX, FLOORS, cashK, aidAt, jobsExplore, churchPrice, ITEMS, type Filing, type Plan, type World, closeBooks, preview, defaultPlan, dormCost, jobsSign, partyMargin, roomOf, demandMul, potsOf, probe, floorMons, mapOf, maxParties, newWorld, torchRate, tripOdds, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
 import { demandSeen } from '../src/ui/co/book';
 import { CLASSES } from '../src/core/data';
 
@@ -16,6 +16,8 @@ if (process.env.TAX_SUSK) TAX.SUS_K = +process.env.TAX_SUSK;
 if (process.env.TAX_PEN) TAX.AUDIT_PEN = +process.env.TAX_PEN;
 if (process.env.TAX_RELIEF) Object.keys(TAX.RELIEF).forEach(k => { TAX.RELIEF[k] = TAX.RELIEF[k]! * +process.env.TAX_RELIEF!; });
 if (process.env.START_CASH) CO.START_CASH = +process.env.START_CASH;
+if (process.env.FIND) CO.FIND = +process.env.FIND;
+if (process.env.MAT_ENC) CO.MAT_ENC = +process.env.MAT_ENC;
 const arg = (k: string, d: string) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
 const games = +arg('games', '200'), seed0 = +arg('seed', '1'), only = arg('style', '');
 const MONTHS = 36;
@@ -58,6 +60,7 @@ export const BOT: Record<string, (W: World) => Plan> = {
 // 신고서: 숙련 봇은 이번 달 감사 확률이 FILE_RISK를 넘지 않는 데까지만 전리품을 덜 적고 포션 · 횃불을 부풀린다
 // (출입 기록에 바로 걸리는 지원금 층 · 선금 층의 조는 손대지 않는다). 다른 봇은 장부 그대로 낸다
 const FILE_RISK = +(process.env.FILE_RISK || 0.04);
+const TORCH_RISK = +(process.env.TORCH_RISK || 0.1);
 const fileAt = (T: Filing, s: number): Partial<Filing> => ({ loot: Math.round(T.loot * (1 - 0.6 * s)), mat: Math.round(T.mat * (1 - 0.6 * s)), pot: Math.round(T.pot * (1 + 2 * s)), torch: Math.round(T.torch * (1 + s)) });
 export function fileSmart(W: World, risk = FILE_RISK): Partial<Filing> {
   const D = W.draft; if (!D) return {};
@@ -126,6 +129,8 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
   if (c.crew && W.cand) P.pick = [...W.cand].sort((a, b) => (b.sk || 0) - (a.sk || 0)).slice(0, roomOf(c)).map(x => x.id);
   // 몸집: 조당 남는 돈이 급여보다 넉넉하면 숙소를 늘린다. 본부의 질(훈련장 · 의무실)은 올리지 않는다:
   // 공사가 숙소 증축을 한 달씩 미루는 값이 커서 이 봇의 운영에선 손해였다 (의무실 1단계만 본전 근처)
+  // 횃불: 지도만큼 헤맬 것을 셈해, 돌아설 확률이 TORCH_RISK 밑이 되는 데까지 들고 간다
+  P.torch = FLOORS.map((_, f) => { const r = torchRate(f, mapOf(c, f)); let t = 1; while (t < CO.DAYS && tripOdds(t, r).dark > TORCH_RISK) t++; return t; });
   return grow(W, P, GROW_K, GROW_M);
 }
 

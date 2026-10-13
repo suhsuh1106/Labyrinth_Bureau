@@ -7,7 +7,7 @@ export const ROW: Record<FileKey, { n: string; u: string; step: number; dir: str
   loot: { n: '전리품 판매액', u: 'G', step: 100, dir: '덜 적으면 세금이 준다' },
   mat: { n: '과세 소재 판매액', u: 'G', step: 50, dir: '덜 적으면 세금이 준다' },
   pot: { n: '위기에 쓴 포션', u: '병', step: 1, dir: '더 적으면 지원금이 는다' },
-  torch: { n: '들고 간 횃불', u: '개', step: 2, dir: '더 적으면 지원금이 는다' },
+  torch: { n: '태운 횃불', u: '개', step: 2, dir: '더 적으면 지원금이 는다' },
   aid: { n: '지원금 층에 보낸 조', u: '조', step: 1, dir: '더 적으면 지원금이 는다' },
   adv: { n: '계획서 층에 보낸 조', u: '조', step: 1, dir: '더 적으면 돌려낼 선금이 준다' },
 };

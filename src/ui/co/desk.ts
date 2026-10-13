@@ -2,7 +2,7 @@
 // 정보 주차 — 자료함(보고서·신문·도감·조사 결과)을 열어 읽고, 조사 의뢰를 걸고, 정보망과 내정(건물·보급·창고·세력)을 정한다.
 // 탐험 주차 — 작전 메모를 옆에 두고 층마다 몇 조를 무엇을 챙겨 보낼지 정하고 도장을 찍는다. 결과는 다음 달 보고서가 된다.
 // 화면은 HTML 문자열만 만든다. 상태를 쓰지 않고 난수도 쓰지 않는다
-import { CO, FLOORS, INTEL, ITEMS, TAX, type Filing, type Job, type Person, clamp, jobsExplore, mapOf, torchOf, undMods, jobsOpen, jobsSign, taxGuess, torchBuy, wageCo, candPrice, candWants, hqCost, hqKeep, hqLv, fcRank, forecast, townOf, type Plan, SRCS, type World, bedsOf, isRook, rookCount, churchPrice, dormCost, dormKeep, roomOf, wageOf, gearBuy, hireCost, intelBlock, intelCost, lootMul, maxParties, needOf, potsExpiring, potsOf, probeCost, probesLeft, sanitize, sortieCost, succRate, supOf, toolCost, trainBonus, us } from '../../core/company';
+import { carryOf, torchRate, tripOdds, CO, FLOORS, INTEL, ITEMS, TAX, type Filing, type Job, type Person, clamp, jobsExplore, mapOf, torchOf, undMods, jobsOpen, jobsSign, taxGuess, torchBuy, wageCo, candPrice, candWants, hqCost, hqKeep, hqLv, fcRank, forecast, townOf, type Plan, SRCS, type World, bedsOf, isRook, rookCount, churchPrice, dormCost, dormKeep, roomOf, wageOf, gearBuy, hireCost, intelBlock, intelCost, lootMul, maxParties, needOf, potsExpiring, potsOf, probeCost, probesLeft, sanitize, sortieCost, succRate, supOf, toolCost, trainBonus, us } from '../../core/company';
 import { CLASSES, GEARS, BUYERS } from '../../core/data';
 import { bookHtml, condLabel, kitHint } from './book';
 import { SRC_INFO, intelHtml, rumorsHtml } from './intel';
@@ -197,7 +197,7 @@ export function storeHtml(W: World, raw: Plan, P: Plan) {
       ${row('상단 포션', H.pot, potN, need.pot - Math.min(need.pot, H.holy + holyN), useP, spoilP)}
       ${H.holy || holyN ? row('교회 성수', H.holy, holyN, Math.min(need.pot, H.holy + holyN), useH, spoilH) : ''}
       ${gears.join('')}
-      ${row('횃불', S.torch || 0, torchBuy(c, P), tor, Math.min(tor, (S.torch || 0) + torchBuy(c, P)), 0, '상하지 않음')}
+      ${row('횃불', S.torch || 0, torchBuy(c, P), tor, Math.min(tor, (S.torch || 0) + torchBuy(c, P), fc.torch || 0), 0, '상하지 않음 · 남은 것은 돌아옴')}
     </tbody></table></div>
     <div class="legend"><span><i class="sw use"></i>쓸 어림</span><span><i class="sw keep"></i>다음 달 남음</span><span><i class="sw rot"></i>상함</span></div></div>`;
 }
@@ -209,7 +209,7 @@ function buyPanel(W: World, raw: Plan, P: Plan) {
   const rows = [
     `<tr><td><b>상단 포션</b></td><td class="n">${W.potion}G</td><td class="n">${H.pot}</td><td class="n">${need.pot}</td><td>${stepper('buyPot', 0, potN, '상단 포션 구매', 5)}${autoBtn(auto, 'auto-pot')}</td><td class="n">${fmt(potN * W.potion)}G</td></tr>`,
     `<tr><td><b>교회 성수</b><small>사망 −${Math.round(CO.HOLY * 100)}% · 보관 ${CO.HOLY_KEEP}달</small></td><td class="n">${churchPrice(W, 0)}G</td><td class="n">${H.holy}</td><td class="n dim">-</td><td>${stepper('buyHoly', 0, holyN, '교회 성수 구매', 5)}</td><td class="n">${fmt(holyN * churchPrice(W, 0))}G</td></tr>`,
-    `<tr><td><b>횃불</b><small>조당 층별 ${TAX.TORCH.slice(0, W.unlocked).join(' · ')}개 · 없으면 위기 ×${CO.DARK_CRISIS}</small></td><td class="n">${CO.TORCH_PRICE}G</td><td class="n">${S.torch || 0}</td><td class="n">${need.torch}</td><td>${stepper('buyTorch', 0, tN, '횃불 구매', 5)}${autoBtn(tAuto, 'auto-torch')}</td><td class="n">${fmt(tN * CO.TORCH_PRICE)}G</td></tr>`,
+    `<tr><td><b>횃불</b><small>조당 개수는 출정 표에서 · 남으면 창고로</small></td><td class="n">${CO.TORCH_PRICE}G</td><td class="n">${S.torch || 0}</td><td class="n">${need.torch}</td><td>${stepper('buyTorch', 0, tN, '횃불 구매', 5)}${autoBtn(tAuto, 'auto-torch')}</td><td class="n">${fmt(tN * CO.TORCH_PRICE)}G</td></tr>`,
     ...GEAR_NAMES.map((g, i) => { const b = gearOf(W, raw, P, g); return `<tr><td><b>${g} 장비</b></td><td class="n">${CO.GEAR_PRICE}G</td><td class="n">${S.gear[g] || 0}</td><td class="n">${need.gear[g] || '-'}</td><td>${stepper('buyGear', i, b, `${g} 장비 구매`)}</td><td class="n">${fmt(b * CO.GEAR_PRICE)}G</td></tr>`; }),
   ];
   return `<div class="panel"><header><h2>보급 구매</h2><span class="sub">상단 · 교회 · 포션 보관 ${CO.POT_KEEP}달</span></header>
@@ -453,17 +453,20 @@ export function expWeekHtml(W: World, raw: Plan, ui: DeskUi) {
   const potHave = H.pot + H.holy + potB + holyB;
   // 층 선택: 층마다 한 줄. 시세 · 위험 · 지도 · 지난달 남들 · 성공 · 조당 어림, 그리고 우리 조 · 계약 조 · 포션 상한
   const rows = FLOORS.map((F, f) => {
-    if (f >= W.unlocked) return f === W.unlocked ? `<tr class="closed"><td><b>${F.name}</b><small>${ITEMS[f].name}</small></td><td colspan="10">닫힘 · 길 뚫기 ${Math.min(99, Math.round(W.prog / CO.OPEN_WINS[W.unlocked - 1] * 100))}%</td></tr>` : '';
+    if (f >= W.unlocked) return f === W.unlocked ? `<tr class="closed"><td><b>${F.name}</b><small>${ITEMS[f].name}</small></td><td colspan="11">닫힘 · 길 뚫기 ${Math.min(99, Math.round(W.prog / CO.OPEN_WINS[W.unlocked - 1] * 100))}%</td></tr>` : '';
     // 지도(이해도)가 낮으면 성공도 캐 오는 양도 준다 (조원 경험 · 길잡이는 빼고 지도만으로)
     const n = P.parties[f] + P.hire[f], crowd = n + others(f), U = undMods(mapOf(c, f), mapOf(c, f), f), p = clamp(succRate(c, f, P.pots[f], crowd) + U.succ, 0.05, 0.97);
     const cut = L && L.floors[f] && L.floors[f].cut ? Math.min(1, L.floors[f].cut!) : 1, per = p * F.take * lootMul(c, f) * U.loot * cut * 0.925 * W.price[f];
     const pr = L && L.Q[f] ? W.price[f] - ITEMS[f].P0 : 0;
+    // 횃불: 지도만큼 헤매는 것으로 셈한 돌아설 확률 (조원 경험 · 길잡이는 빼고)
+    const dark = tripOdds(carryOf(raw, f), torchRate(f, mapOf(c, f))).dark;
     return `<tr class="${n ? 'on' : ''}"><td><b>${F.name}</b><small>${ITEMS[f].name}</small></td>
       <td class="n">${fmtG(W.price[f])}G<small class="${pr > 0 ? 'pos' : pr < 0 ? 'neg' : ''}">기준 ${fmtG(ITEMS[f].P0)}</small></td>
       <td class="n">${pct(F.risk)}</td><td class="n">${Math.round(mapOf(c, f))}%</td><td class="n">${others(f)}조</td>
       <td class="n"><b>${pct(p)}</b></td><td class="n"><b>${fmt(per)}G</b></td>
       <td class="n"><b>${P.parties[f]}</b>조</td>
       <td>${stepper('hire', f, raw.hire[f], `${F.name} 계약 조`)}</td><td>${stepper('pots', f, raw.pots[f], `${F.name} 조당 포션 상한`)}</td>
+      <td>${stepper('torch', f, carryOf(raw, f), `${F.name} 조당 횃불`)}<small class="${dark >= 0.25 ? 'neg' : 'dim'}">돌아섬 ${pct(dark)}</small></td>
       <td class="n">${fmt(sc[f] + P.hire[f] * CO.HIRE_FEE)}G</td></tr>`;
   }).join('');
   const gearShort = GEAR_NAMES.filter(g => (need.gear[g] || 0) > (S.gear[g] || 0) + (gb[g] || 0));
@@ -478,8 +481,8 @@ export function expWeekHtml(W: World, raw: Plan, ui: DeskUi) {
   if (c.cash - cost.all < 0) warn.push('금고 마이너스');
   const memo = memoHtml(W, ui), hasMemo = !memo.includes('class="empty"');
   return `<div class="panel floors-pick"><header><h2>층 선택</h2><span class="sub">조당 = 성공 × 캐 오는 양 × 시세 · 지도 낮으면 둘 다 줄고 위기는 늘어남 · 우리 조는 아래 편성표에서</span><span class="right">우리 <b>${sent}</b>/${maxParties(c)}조${hired ? ` · 계약 ${hired}조` : ''}</span></header>
-      <div class="tw"><table class="grid pick"><thead><tr><th>층</th><th class="n">시세</th><th class="n">위험</th><th class="n">지도</th><th class="n">남들</th><th class="n">성공</th><th class="n">조당</th><th class="n">우리 조</th><th>계약 조</th><th>포션 상한</th><th class="n">출정비</th></tr></thead><tbody>${rows}</tbody></table></div>
-      <p class="note">계약 조: 한 조 ${CO.HIRE_FEE}G · 캔 것의 ${pct(CO.HIRE_CUT)}는 그들 몫. 포션 상한: 위기 때만 한 병씩, 남으면 창고로. 사람 배치는 아래 편성표.</p></div>
+      <div class="tw"><table class="grid pick"><thead><tr><th>층</th><th class="n">시세</th><th class="n">위험</th><th class="n">지도</th><th class="n">남들</th><th class="n">성공</th><th class="n">조당</th><th class="n">우리 조</th><th>계약 조</th><th>포션 상한</th><th>횃불</th><th class="n">출정비</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <p class="note">계약 조: 한 조 ${CO.HIRE_FEE}G · 캔 것의 ${pct(CO.HIRE_CUT)}는 그들 몫. 탐사: 최대 ${CO.DAYS}일 · 날마다 몬스터 하나. 포션: 위기 때 한 병. 횃불: 첫날 하나 · 그 뒤 날마다 확률로 하나(지도 낮을수록 자주) · 다 쓰면 돌아섬. 짐: 한 사람 ${CO.SLOT_PP}칸 · 횃불 · 포션이 먼저 차지. 남은 포션 · 횃불은 창고로.</p></div>
     ${fcPanel(W, P, cost.all)}
     ${warn.length ? `<div class="warn">${warn.join(' · ')}</div>` : ''}
     <div class="foot"><button type="button" class="ghost" data-act="phase" data-phase="0">← 내정으로</button><span class="tot">나갈 돈 <b>${fmt(cost.all)}G</b> <span class="dim">(${cost.parts.map(([n, v]) => `${n} ${fmt(v)}`).join(' · ')})</span></span><button type="button" class="seal" id="go" data-act="go">결재 도장 찍기</button></div>
