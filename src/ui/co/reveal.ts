@@ -7,7 +7,8 @@ import { fmtG } from './charts';
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
 const sgn = (n: number) => (n > 0 ? '+' : n < 0 ? '−' : '±') + fmt(Math.abs(n));
 
-// 조마다 한 줄: 어느 층에서 무엇을 갖추고 어떻게 돌아왔나
+const END: Record<string, string> = { done: '다 돌고 귀환', torch: '횃불 다 씀 · 어둠 속 귀환', pack: '짐 다 참 · 귀환', flee: '쓰러진 사람이 많아 물러남' };
+// 조마다 한 줄: 어느 층에서 무엇을 갖추고 어떻게 돌아왔나. 그 아래 날마다 한 줄: 만난 몬스터, 승패, 짐, 갈무리, 위기
 function teamLines(W: World) {
   const L = W.last!, lines: { k: string; v: number; t: string; amt?: string }[] = [];
   let no = 0;
@@ -15,19 +16,25 @@ function teamLines(W: World) {
     const cls = x.keys.filter(k => k.startsWith('c:')).map(k => k.slice(2)).join('·'), gear = x.keys.find(k => k.startsWith('g:'));
     const mats = (x.mats || []).map(([m, n]) => `${m} ×${n}`).join(', ');
     // 성공 정도: 해낸 사람 수만큼 점을 채운다 (부상 · 사망은 따로 적는다)
-    const n = x.n || 4, k = x.k != null ? x.k : x.ok ? n : 0;
+    const n = x.n || 4, k = x.k != null ? x.k : x.ok ? n : 0, T = x.trip, D = x.days;
     const dots = `<span class="men" aria-hidden="true">${Array.from({ length: n }, (_, m) => `<i class="${m < k ? 'ok' : ''}"></i>`).join('')}</span>`;
+    const trip = T ? `${D ? D.filter(d => d.win).length : 0}승 ${D ? D.filter(d => !d.win).length : 0}패 · 횃불 ${T.tu}/${T.torch} · 짐 ${fmt1(T.pack)}/${T.slots}칸${T.rest ? ` (횃불 · 포션 ${T.rest})` : ''}` : (k ? `${Math.round(k / 4 * 100)}%` : '빈손');
     lines.push({ k: x.d ? 'die' : x.ok ? 'ok' : 'no', v: 0, t: `<b>${++no}조</b> ${F.name} <span class="grade g${Math.min(4, Math.max(1, k))}">${gradeOf(k)}</span>${dots} <span class="dim">${cls || '혼성'}${gear ? ` · ${gear.slice(2)}` : ''}${n < 4 ? ` · ${n}명` : ''}</span>`,
-      amt: `${k ? `${Math.round(k / 4 * 100)}%${mats ? ` · ${mats}` : ''}` : '빈손'}${x.crisis ? ` · 위기 ${x.crisis}${x.pots ? ` · 포션 ${x.pots}` : ''}` : ''}${x.hurt ? ` · ${x.hurt}명 부상` : ''}${x.d ? ` · ${x.d}명 사망` : ''}` });
+      amt: `${trip}${x.hurt ? ` · ${x.hurt}명 부상` : ''}${x.d ? ` · ${x.d}명 사망` : ''}` });
+    if (!D || !T) { if (mats || x.crisis) lines[lines.length - 1].amt += `${mats ? ` · ${mats}` : ''}${x.crisis ? ` · 위기 ${x.crisis}` : ''}`; return; }
+    D.forEach((d, j) => lines.push({ k: 'day', v: 0, t: `<span class="dn">${j + 1}일</span> ${d.mon} <span class="${d.win ? 'pos' : 'neg'}">${d.win ? '승' : '패'}</span> <span class="dim">${d.k}/${d.n}</span>`,
+      amt: [d.loot ? `짐 +${fmt1(d.loot)}` : '', d.mats.map(([m, c]) => `${m} ×${c}`).join(', '), d.cr ? `위기 ${d.cr}` : '', d.d ? `<b class="neg">사망 ${d.d}</b>` : ''].filter(Boolean).join(' · ') }));
+    lines.push({ k: 'day', v: 0, t: `<span class="dn">${T.end === 'done' ? '귀환' : `${D.length + (T.end === 'torch' || T.end === 'flee' ? 1 : 0)}일`}</span> ${END[T.end]}`, amt: T.dark ? `위기 ${T.dark}` : '' });
   }));
   return lines;
 }
+const fmt1 = (n: number) => (Math.round(n * 10) / 10).toLocaleString('ko-KR');
 // 가정산 위에 붙이는 귀환 결과: 조마다 한 줄 (돈은 신고서를 낸 뒤 정산에서)
 export function returnsHtml(W: World, live = false) {
   const L = W.last; if (!L) return '';
   const r = L.res[0], ok = r.ok.reduce((a, b) => a + b, 0), sent = r.sent.reduce((a, b) => a + b, 0) + r.hired.reduce((a, b) => a + b, 0);
   return `<section class="run${live ? ' live' : ''}" aria-label="제${L.month}월 귀환"><header><h3>제${L.month}월 귀환</h3><span class="dim">${ok}/${sent}조 해냄${r.hurt ? ` · 부상 ${r.hurt}` : ''}${r.deaths ? ` · <b class="neg">사망 ${r.deaths}</b>` : ''}</span></header>
-    <ol>${teamLines(W).map(l => `<li class="rv ${l.k}${live ? '' : ' on'}" data-k="${l.k}"><span class="mk" aria-hidden="true">${l.k === 'ok' ? '✓' : l.k === 'no' ? '✗' : '†'}</span><span class="tx">${l.t}</span><span class="am">${l.amt || ''}</span></li>`).join('')}</ol></section>`;
+    <ol>${teamLines(W).map(l => `<li class="rv ${l.k}${live ? '' : ' on'}" data-k="${l.k}"><span class="mk" aria-hidden="true">${l.k === 'ok' ? '✓' : l.k === 'no' ? '✗' : l.k === 'day' ? '·' : '†'}</span><span class="tx">${l.t}</span><span class="am">${l.amt || ''}</span></li>`).join('')}</ol></section>`;
 }
 export function revealHtml(W: World, live: boolean, mute = false) {
   const L = W.last; if (!L) return '';

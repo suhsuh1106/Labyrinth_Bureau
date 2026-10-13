@@ -2,7 +2,7 @@
 import './ui/co/base.css';
 import './ui/co/co.css';
 import { setSeed } from './core/rng';
-import { CO, FILE_KEYS, type Plan, SRCS, type World, carryPlan, closeBooks, fileFix, fillTeams, formTeams, newWorld, probe, rankOf, roomOf, runMonth, sanitize, us } from './core/company';
+import { CO, FILE_KEYS, FLOORS, carryOf, type Plan, SRCS, type World, carryPlan, closeBooks, fileFix, fillTeams, formTeams, newWorld, probe, rankOf, roomOf, runMonth, sanitize, us } from './core/company';
 import { DESC_FIRST } from './ui/co/roster';
 import { CLASSES, GEARS } from './core/data';
 import { plaqueHtml } from './ui/co/view';
@@ -11,7 +11,7 @@ import { draftHtml } from './ui/co/draft';
 import { advanceArrival, arrivalOpen, closeArrival, playArrival } from './ui/co/arrival';
 
 const $ = (id: string): any => document.getElementById(id);
-const KEY = 'lb-co', VERSION = 15, MONTHS = 36;   // 15: 공방 없앰 · 횃불 창고 · 숙소 18 (이전 판은 새 게임으로)
+const KEY = 'lb-co', VERSION = 16, MONTHS = 36;   // 16: 날마다 조우하는 탐사 · 조당 횃불 (이전 판은 새 게임으로)
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
 let W: World, plan: Plan, ui: DeskUi;
 // 도장을 막 찍은 결과 화면이면 귀환 장부를 한 줄씩 띄운다 (저장하지 않는 화면 상태)
@@ -248,6 +248,7 @@ function edit(k: string, i: number, fn: (v: number) => number, j = 0) {
   }
   else if (k === 'base') { const f = plan.base ? plan.base.f : Math.max(0, W.unlocked - 1); plan.base = { f, amt: Math.max(0, fn(plan.base ? plan.base.amt : 0)) }; }
   else if (k === 'pots') plan.pots[i] = Math.max(0, Math.min(8, fn(plan.pots[i])));
+  else if (k === 'torch') { plan.torch = FLOORS.map((_, f) => carryOf(plan, f)); plan.torch[i] = Math.max(0, Math.min(CO.DAYS, fn(plan.torch[i]))); }
   else if ((plan as any)[k]) (plan as any)[k][i] = Math.max(0, fn((plan as any)[k][i]));
   render(); save();
   const el = document.querySelector(`input[data-k="${k}"][data-i="${i}"]`) as HTMLElement | null; if (el && document.activeElement === document.body) el.focus();
@@ -296,7 +297,7 @@ function playRun() {
     if (v && tv) { countTo(tv, acc, acc + v); acc += v; }
     SOUND[k] && SOUND[k](k === 'ok' ? nOk++ : i);
     const next = items[i] ? items[i].dataset.k : '';
-    runTimer = setTimeout(step, k === 'ok' || k === 'no' ? 170 : k === 'die' ? 420 : next === 'net' ? 900 : k === 'gain' ? 480 : 340);
+    runTimer = setTimeout(step, k === 'day' ? 140 : k === 'ok' || k === 'no' ? 170 : k === 'die' ? 420 : next === 'net' ? 900 : k === 'gain' ? 480 : 340);
   };
   runTimer = setTimeout(step, 350);
 }

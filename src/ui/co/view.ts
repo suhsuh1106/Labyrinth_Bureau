@@ -227,7 +227,8 @@ export function returnHtml(W: World) {
       const cls = x.keys.map(CLS_SHORT).filter(Boolean).join('·'), gear = x.keys.find(k => k.startsWith('g:'));
       const got = (x.mats || []).map(([m, n]) => `${(x.first || []).includes(m) ? `<b>${m} ×${n}</b><span class="bk-new">처음</span>` : `${m} ×${n}`}`).join(', ');
       const grade = x.k != null ? `<span class="grade g${Math.min(4, Math.max(1, x.k))}">${gradeOf(x.k)} ${x.k}/${x.n || 4}</span> ` : '';
-      const what = grade + (x.k ? (got || '<span class="dim">갈무리한 것 없음</span>') : x.k == null && !x.ok ? `<span class="dim">실패</span>` : '') + (x.crisis ? ` <span class="dim">· 위기 ${x.crisis}${x.pots ? ` · 포션 ${x.pots}` : ''}</span>` : '');
+      const trip = x.trip && x.days ? `<span class="dim">${x.days.filter(d => d.win).length}승 ${x.days.filter(d => !d.win).length}패${x.trip.end === 'torch' ? ' · 횃불 다 씀' : x.trip.end === 'pack' ? ' · 짐 다 참' : x.trip.end === 'flee' ? ' · 물러남' : ''}</span> ` : '';
+      const what = grade + trip + (x.k ? (got || '<span class="dim">갈무리한 것 없음</span>') : x.k == null && !x.ok ? `<span class="dim">실패</span>` : '') + (x.crisis ? ` <span class="dim">· 위기 ${x.crisis}${x.pots ? ` · 포션 ${x.pots}` : ''}</span>` : '');
       return `<div class="ld${(x.first || []).length ? ' first' : ''}"><span class="ld-w">${x.kit >= 0 ? `<span class="ktag">${KTAG[x.kit]}</span>` : ''}${++no}조 · ${cls || '혼성'}${gear ? ` · ${gear.slice(2)}` : ''}</span><span>${what}${x.hurt ? ` · <b class="hurt">${x.hurt}명 부상</b>` : ''}${x.d ? ` · <b class="neg">${x.d}명 사망</b>` : ''}</span></div>`;
     }).join('');
     // 같은 층의 편성 줄끼리 견주기: 줄마다 조 · 성공 · 사망 · 조당 소재 값, 그리고 줄 사이에 차이가 난 소재 둘
