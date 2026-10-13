@@ -3,12 +3,14 @@
 // 기록을 읽어 HTML만 만든다. 상태를 쓰지 않고 난수도 쓰지 않는다
 import { CO, FLOORS, ITEMS, type World, gradeOf } from '../../core/company';
 import { packBar } from './roster';
+import { ASK_SAY, TRIP_END } from '../../core/events';
+import { DEX, keyName } from '../../core/dex';
 import { fmtG } from './charts';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
 const sgn = (n: number) => (n > 0 ? '+' : n < 0 ? '−' : '±') + fmt(Math.abs(n));
 
-const END: Record<string, string> = { done: '다 돌고 귀환', torch: '횃불 다 씀', pack: '짐 다 참', flee: '쓰러진 사람이 많아 물러남' };
+const END = TRIP_END;
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 // 조마다 한 줄: 어느 층에서 누가 갔고, 날마다(칸 하나가 하루) 이겼나 졌나, 짐이 얼마나 찼나, 누가 죽었나.
 // 날마다의 자세한 것(몬스터 · 갈무리 · 위기)은 칸에 마우스를 올리면 보인다
@@ -46,6 +48,7 @@ export function returnsHtml(W: World, live = false) {
   FLOORS.forEach((F, f) => L.ours.filter(x => x.f === f).forEach(x => { no++; (x.dead || []).forEach(z => fallen.push(`<b>${esc(z.n)}</b> <span>${no}조 · ${F.name} · ${z.day ? `${z.day}일` : '어둠 속 귀환'}${z.pot ? ' · 포션 쓰고도' : ' · 포션 없이'}</span>`)); }));
   return `<section class="run${live ? ' live' : ''}" aria-label="제${L.month}월 귀환"><header><h3>제${L.month}월 귀환</h3><span class="dim">${ok}/${sent}조 해냄${r.hurt ? ` · 부상 ${r.hurt}` : ''}${r.deaths ? ` · <b class="neg">사망 ${r.deaths}</b>` : ''}</span>
       <span class="legend-d"><i class="w"></i>승 <i class="x"></i>패 <i class="o"></i>못 감 · ! 위기 · † 사망 · 칸 하나가 하루 (최대 ${CO.DAYS}일) · 짐 <i class="l"></i>전리품 <i class="t"></i>횃불 <i class="p"></i>포션</span></header>
+    ${askLine(W)}
     ${fallen.length ? `<div class="fallen"><span class="fx">†</span><div><small>잃은 사람</small>${fallen.map(t => `<p>${t}</p>`).join('')}</div></div>` : ''}
     <ol>${teamLines(W).map(l => `<li class="rv ${l.k}${live ? '' : ' on'}" data-k="${l.k}"><span class="mk" aria-hidden="true">${l.k === 'ok' ? '✓' : l.k === 'no' ? '✗' : '†'}</span><span class="tx">${l.t}</span><span class="am">${l.amt || ''}</span></li>`).join('')}</ol></section>`;
 }
@@ -76,4 +79,16 @@ export function revealHtml(W: World, live: boolean, mute = false) {
       <button type="button" class="mute" data-act="mute">${mute ? '소리 켜기' : '소리 끄기'}</button>${live ? '<button type="button" class="skip" data-act="skip-run">건너뛰기</button>' : ''}</header>
     <ol>${lines.map(l => `<li class="rv ${l.k}${live ? '' : ' on'}" data-k="${l.k}" data-v="${l.v}"><span class="mk" aria-hidden="true">${l.k === 'ok' ? '✓' : l.k === 'no' ? '✗' : l.k === 'die' ? '†' : l.k === 'gain' ? '+' : l.k === 'cost' ? '−' : '='}</span><span class="tx">${l.t}</span><span class="am">${l.amt || ''}</span></li>`).join('')}</ol>
   </section>`;
+}
+
+// 단장 조사의 답과 크게 다친 단장 (귀환 결과 위 한 줄)
+function askLine(W: World) {
+  const L = W.last!, A = L.ask, out: string[] = [];
+  if (A) {
+    const k = keyName(A.k);
+    const t = A.ans === 'away' ? ASK_SAY.away : A.ans === 'miss' ? ASK_SAY.miss(A.mon) : A.m ? ASK_SAY.mat[A.ans](A.mon, k, A.m) : ASK_SAY.key[A.ans](A.mon, k);
+    out.push(`<p class="ask ${A.ans}"><small>단장 조사</small> ${esc(t)}${A.ans === 'yes' ? ' <b class="st">확정</b>' : A.ans === 'no' ? ' <b class="st no">아님</b>' : ''}</p>`);
+  }
+  if (L.leadHurt) out.push(`<p class="ask hurt"><small>단장</small> ${esc(L.leadHurt)} 크게 다침 · ${DEX.LEAD_REST}달 쉼</p>`);
+  return out.join('');
 }

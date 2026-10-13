@@ -11,7 +11,7 @@ import { draftHtml } from './ui/co/draft';
 import { advanceArrival, arrivalOpen, closeArrival, playArrival } from './ui/co/arrival';
 
 const $ = (id: string): any => document.getElementById(id);
-const KEY = 'lb-co', VERSION = 17, MONTHS = 36;   // 17: 조마다 포션 · 횃불 · 죽은 단원 기록 (이전 판은 새 게임으로)
+const KEY = 'lb-co', VERSION = 18, MONTHS = 36;   // 18: 미궁 도감(몬스터별 기록 · 이해도) · 단장 · 지정 탐사 (이전 판은 새 게임으로)
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
 let W: World, plan: Plan, ui: DeskUi;
 // 도장을 막 찍은 결과 화면이면 귀환 장부를 한 줄씩 띄운다 (저장하지 않는 화면 상태)
@@ -200,6 +200,8 @@ $('desk').addEventListener('change', (e: any) => {
     K.g = ps.sort().join('+'); render(); save(); return;
   }
   if (k === 'tpl') { const tp = [...(plan.tpl || CO.TPL0)]; tp[+t.dataset.i] = t.value; plan.tpl = tp; render(); save(); return; }
+  if (k === 'ask') { if (t.value) plan.ask = JSON.parse(t.value); else delete plan.ask; render(); save(); return; }
+  if (k === 'target') { const T = plan.teams && plan.teams[+t.dataset.i]; if (T) { if (t.value) T.target = t.value; else delete T.target; } render(); save(); return; }
   if (k === 'teamG') { const T = plan.teams && plan.teams[+t.dataset.i]; if (T) T.g = t.value; render(); save(); return; }
   if (k === 'assign') { assignTo(+t.dataset.id, t.value); tidyTeams(); render(); save(); return; }
   if (k === 'spyOn') { const on = [...(plan.spyOn || [])]; on[+t.dataset.i] = t.value; plan.spyOn = on.filter(Boolean); render(); save(); return; }

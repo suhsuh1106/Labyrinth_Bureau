@@ -25,6 +25,7 @@ import { fcRank, forecast, gradeOf } from '../src/core/company';
 import { bedsOf, classCap, dormCost, dormKeep, formTeams, recruitPrice, recruitWants, rookCount, rookSlots, shareOut } from '../src/core/company';
 import { CLASSES } from '../src/core/data';
 import { needOf, tripOdds } from '../src/core/company';
+import { DEX } from '../src/core/dex';
 
 describe('용병단 장부', () => {
   it('매달 모든 용병단의 금고 변화가 판매 수입에서 지출을 뺀 값과 같다', () => {
@@ -190,19 +191,20 @@ describe('몬스터와 편성 지침', () => {
     const faded = W.history.reduce((a, M) => a * CO.OBS_FADE + M.res[0].sent[0], 0);
     expect(W.obs[0]['*'].n).toBeCloseTo(faded, 6);
   });
-  it('약점을 지침으로 삼으면 역효과를 지침으로 삼을 때보다 우리 성공률이 높다', () => {
-    let good = 0, bad = 0, n = 0;
-    for (let seed = 1; seed <= 80; seed++) {
+  it('약점은 그날 만난 몬스터의 것만 먹힌다: 주 몬스터의 약점을 갖추면 주 몬스터를 만난 날 더 해낸다', () => {
+    const rate = { key: [0, 0], bad: [0, 0] }, fauna = { key: [0, 0], bad: [0, 0] };
+    for (let seed = 1; seed <= 60; seed++) {
       for (const which of ['key', 'bad'] as const) {
-        setSeed(seed); const W = newWorld();
-        for (let m = 0; m < 10; m++) {
-          const P = defaultPlan(W); P.guide[0] = MONSTERS[W.mons[0]][which];
-          const M = runMonth(W, P), r = M.res[0];
-          if (which === 'key') { good += r.win[0]; n += r.sent[0]; } else bad += r.win[0];   // 해낸 사람을 조로 센 값
+        setSeed(seed); const W = newWorld(), main = MONSTERS[W.mons[0]];
+        for (let m = 0; m < 6; m++) {
+          const P = defaultPlan(W); P.guide[0] = main[which];
+          runMonth(W, P).ours.forEach(o => o.days!.forEach(d => { const R = d.mon === main.name ? rate : fauna; R[which][0] += d.k; R[which][1] += d.n; }));   // 해낸 사람 비율
         }
       }
     }
-    expect(good / n - bad / n).toBeGreaterThan(0.08);   // 1층은 순하고 성공률이 천장 가까이라 약점 차이가 작다
+    const r = (x: number[]) => x[0] / x[1];
+    expect(r(rate.key) - r(rate.bad)).toBeGreaterThan(0.08);
+    expect(Math.abs(r(fauna.key) - r(fauna.bad))).toBeLessThan(r(rate.key) - r(rate.bad));   // 곁 몬스터에게는 주 몬스터의 약점이 먹히지 않는다
   });
   it('경쟁 용병단은 한 층에 오래 드나들면 약점을 깨치고, 그 소문이 기록에 남는다', () => {
     const W = playGame(8, BOT.smart);
@@ -338,18 +340,17 @@ describe('미궁의 압력과 근원', () => {
     expect(over).toBeGreaterThan(10);
     expect(warned).toBe(over);
   });
-  it('근원은 약점대로 들어가 성공을 쌓은 우리 파티만 찾는다', () => {
+  it('근원은 도감에서 주 몬스터의 이해도가 다 차고 약점을 확정한 뒤에만 찾는다', () => {
     let smart = 0, even = 0;
     for (let g = 1; g <= 10; g++) {
-      smart += playGame(g, BOT.smart).roots!.filter(r => r.found).length;
+      const W = playGame(g, BOT.smart);
+      smart += W.roots!.filter(r => r.found).length;
       even += playGame(g, BOT.even).roots!.filter(r => r.found).length;
+      W.roots!.forEach((R, f) => { if (!R.found) return; const D = W.dex![MONSTERS[W.mons[f]].name]; expect(D.u).toBeGreaterThanOrEqual(DEX.ROOT_AT); expect(W.history[R.found - 1].res[0].sent[f]).toBeGreaterThan(0); });
     }
-    // 고르게 둔 봇은 기본 편성으로 우연히 두 명이 겹친 조로만 가끔 찾는다
-    expect(even).toBeLessThan(smart);
-    expect(smart).toBeGreaterThan(5);
-    const W = playGame(3, BOT.smart);
-    // 찾은 달에는 우리 조가 그 층에 약점을 갖추고 들어갔다
-    W.roots!.forEach((R, f) => { if (R.found) { const M = W.history[R.found - 1], mon = MONSTERS[W.mons[f]]; expect(M.res[0].sent[f]).toBeGreaterThan(0); expect([mon.key, mon.alt].some(k => M.ours.some(o => o.f === f && o.keys.includes(k)))).toBe(true); } });
+    // 고르게 둔 봇은 단장에게 묻지 않아 약점을 확정하지 못한다
+    expect(even).toBe(0);
+    expect(smart).toBeGreaterThan(3);
   });
   it('봉인 기금은 교회가 같은 돈을 보태고, 다 차면 압력이 빠지고 층이 작아지며 교회와 가까워진다', () => {
     setSeed(4); const W: World = newWorld();
@@ -916,8 +917,8 @@ describe('성공 정도 · 부상 · 수입 어림', () => {
       hurt.forEach(x => expect(on.has(x.id)).toBe(false));   // 다친 사람은 조에 넣지 않는다
       expect(maxParties(c)).toBe(Math.floor(c.crew!.filter(x => !x.hurt).length / CO.PARTY));
       runMonth(W, Q);
-      const back = hurt.filter(x => c.crew!.some(y => y.id === x.id && !y.hurt));
-      expect(back.length).toBe(hurt.filter(x => c.crew!.some(y => y.id === x.id)).length);   // 한 달 쉬고 돌아온다 (쉬는 달엔 나가지 않아 다시 다치지 않는다)
+      const back = hurt.filter(x => !x.lead && c.crew!.some(y => y.id === x.id && !y.hurt));
+      expect(back.length).toBe(hurt.filter(x => !x.lead && c.crew!.some(y => y.id === x.id)).length);   // (단장은 크게 다쳐 두 달 쉰다)   // 한 달 쉬고 돌아온다 (쉬는 달엔 나가지 않아 다시 다치지 않는다)
     }
     expect(seen).toBeGreaterThan(0);
   });
@@ -1231,5 +1232,61 @@ describe('영주청: 영주세 · 법령 · 가정산 · 감사', () => {
     expect(sanitize(W, us(W), P).pots.every(v => v === 0)).toBe(true);
     const r = runMonth(W, P).res[0];
     expect(r.potUsed).toBe(0); expect(r.potNeed).toBe(0); expect(r.spend.potion).toBe(0);
+  });
+});
+
+describe('미궁 도감 · 단장 · 지정 탐사', () => {
+  it('만날 때마다 그 몬스터의 기록과 이해도가 쌓인다 (우리 조만)', () => {
+    setSeed(11); const W = newWorld();
+    const M = runMonth(W, defaultPlan(W)), met: Record<string, number> = {};
+    M.ours.forEach(o => o.days!.forEach(d => { met[d.mon] = (met[d.mon] || 0) + 1; }));
+    Object.entries(met).forEach(([name, n]) => {
+      const D = W.dex![name]; expect(D.n).toBe(n); expect(D.u).toBeGreaterThan(0); expect(D.u).toBeLessThanOrEqual(100);
+      expect([0, 1, 2].reduce((a, v) => a + (D.rec['c:전사:' + v]?.n || 0), 0)).toBe(n);   // 직업마다 칸 셋을 더하면 마주침
+      Object.values(D.mats).forEach(X => expect(X.got).toBeGreaterThanOrEqual(0));
+    });
+    const got: Record<string, number> = {}; M.ours.forEach(o => o.mats.forEach(([m, k]) => { got[m] = (got[m] || 0) + k; }));
+    Object.entries(got).forEach(([m, k]) => { const D = Object.values(W.dex!).find(x => x.mats[m]); expect(D!.mats[m].got).toBe(k); });
+  });
+  it('단장은 처음부터 가장 숙련된 사람이고, 죽지 않는다 (크게 다쳐 두 달 쉰다)', () => {
+    let hurt = 0;
+    for (let g = 1; g <= 12; g++) {
+      setSeed(g); const W = newWorld(), c = us(W), lead = c.crew!.find(x => x.lead)!;
+      expect(c.crew!.filter(x => x.lead).length).toBe(1);
+      expect(lead.sk).toBe(Math.max(...c.crew!.map(x => x.sk || 0)));
+      W.unlocked = 5;
+      for (let m = 0; m < 8; m++) {
+        const P = sanitize(W, c, defaultPlan(W)); P.teams!.forEach(T => { T.f = 4; }); P.parties = [0, 0, 0, 0, P.teams!.length];
+        const M = runMonth(W, P); closeBooks(W);
+        expect(c.crew!.some(x => x.id === lead.id)).toBe(true);
+        if (M.leadHurt) { hurt++; expect(c.crew!.find(x => x.id === lead.id)!.hurt).toBe(DEX.LEAD_REST); }
+      }
+    }
+    expect(hurt).toBeGreaterThan(0);
+  });
+  it('단장 조사: 단장이 나선 날 그 몬스터를 만나면 답을 받는다. 맞으면 확정, 틀리면 아님 (이해도가 모자라면 묻지 못한다)', () => {
+    setSeed(5); const W = newWorld(), c = us(W), main = MONSTERS[W.mons[0]].name;
+    const P0 = defaultPlan(W); P0.ask = { mon: main, k: MONSTERS[W.mons[0]].key };
+    expect(sanitize(W, c, P0).ask).toBeUndefined();   // 처음엔 이해도 0
+    const wrong = MONSTERS[W.mons[0]].key === 'g:은' ? 'g:둔기' : 'g:은';
+    let tries = 0; const done: string[] = [];
+    while (done.length < 2 && tries++ < 24) {
+      const P = carryPlan(W, W.last ? W.last.plans[0] : defaultPlan(W));
+      const D = W.dex && W.dex[main];
+      if (D && D.u >= DEX.ASK_AT) P.ask = { mon: main, k: done.length ? MONSTERS[W.mons[0]].key : wrong };   // 틀린 것을 먼저, 그다음 맞는 것
+      const M = runMonth(W, P); closeBooks(W);
+      if (M.ask && (M.ask.ans === 'yes' || M.ask.ans === 'no')) { expect(W.dex![main].key[M.ask.k]).toBe(M.ask.ans); expect(M.ask.ans).toBe(M.ask.k === MONSTERS[W.mons[0]].key ? 'yes' : 'no'); done.push(M.ask.ans); }
+    }
+    expect(done).toEqual(['no', 'yes']);
+  });
+  it('지정 탐사: 이해도가 차야 노릴 수 있고, 노린 몬스터를 더 자주 만난다', () => {
+    setSeed(9); const W = newWorld(), c = us(W), fauna = floorMons(W, 0)[1].name;
+    const P = sanitize(W, c, defaultPlan(W)); P.teams!.forEach(T => { T.target = fauna; });
+    expect(sanitize(W, c, P).teams!.every(T => !T.target)).toBe(true);
+    W.dex = { [fauna]: { n: 0, w: 0, cr: 0, u: DEX.TARGET_AT, at: 1, rec: {}, mats: {}, key: {}, mat: {} } };
+    expect(sanitize(W, c, P).teams!.every(T => T.target === fauna)).toBe(true);
+    let aim = 0, all = 0;
+    for (let m = 0; m < 4; m++) { const Q = carryPlan(W, P); const M = runMonth(W, Q); closeBooks(W); M.ours.forEach(o => o.days!.forEach(d => { all++; if (d.mon === fauna) aim++; })); }
+    expect(aim / all).toBeGreaterThan(0.4);   // 섞여 만나면 0.3
   });
 });

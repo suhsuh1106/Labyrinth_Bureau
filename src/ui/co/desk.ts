@@ -2,7 +2,7 @@
 // 정보 주차 — 자료함(보고서·신문·도감·조사 결과)을 열어 읽고, 조사 의뢰를 걸고, 정보망과 내정(건물·보급·창고·세력)을 정한다.
 // 탐험 주차 — 작전 메모를 옆에 두고 층마다 몇 조를 무엇을 챙겨 보낼지 정하고 도장을 찍는다. 결과는 다음 달 보고서가 된다.
 // 화면은 HTML 문자열만 만든다. 상태를 쓰지 않고 난수도 쓰지 않는다
-import { CO, FLOORS, INTEL, ITEMS, TAX, type Filing, type Job, type Person, clamp, jobsExplore, mapOf, torchOf, undMods, jobsOpen, jobsSign, taxGuess, torchBuy, wageCo, candPrice, candWants, hqCost, hqKeep, hqLv, fcRank, forecast, townOf, type Plan, SRCS, type World, bedsOf, isRook, rookCount, churchPrice, dormCost, dormKeep, roomOf, wageOf, gearBuy, hireCost, intelBlock, intelCost, lootMul, maxParties, needOf, potsExpiring, potsOf, probeCost, probesLeft, sanitize, sortieCost, succRate, supOf, toolCost, trainBonus, us } from '../../core/company';
+import { floorMons, CO, FLOORS, INTEL, ITEMS, TAX, type Filing, type Job, type Person, clamp, jobsExplore, mapOf, torchOf, undMods, jobsOpen, jobsSign, taxGuess, torchBuy, wageCo, candPrice, candWants, hqCost, hqKeep, hqLv, fcRank, forecast, townOf, type Plan, SRCS, type World, bedsOf, isRook, rookCount, churchPrice, dormCost, dormKeep, roomOf, wageOf, gearBuy, hireCost, intelBlock, intelCost, lootMul, maxParties, needOf, potsExpiring, potsOf, probeCost, probesLeft, sanitize, sortieCost, succRate, supOf, toolCost, trainBonus, us } from '../../core/company';
 import { CLASSES, GEARS, BUYERS } from '../../core/data';
 import { bookHtml, condLabel, kitHint } from './book';
 import { SRC_INFO, intelHtml, rumorsHtml } from './intel';
@@ -12,7 +12,7 @@ import { fcChart, fmtG } from './charts';
 import { PLACES, townSceneHtml } from './town';
 import { lawsHtml } from './books';
 import { assignHtml, candHtml, rosterHtml } from './roster';
-import { KTAG, depthsHtml, fieldHtml, fmt, newsLines, pct, resultsHtml, sgn, stepper } from './view';
+import { KTAG, depthsHtml, fmt, newsLines, pct, resultsHtml, sgn, stepper } from './view';
 
 export type DeskUi = { phase: number; tab: string; pins: string[]; rival?: string; open?: boolean; mute?: boolean;
   file?: Partial<Filing>;   // 가정산에서 고치는 신고서
@@ -46,11 +46,11 @@ function rumorHtml(W: World) {
 }
 
 export const DOC_TABS: [string, string][] = [['report', '보고서'], ['paper', '신문'], ['book', '도감'], ['probe', '조사 결과']];
-function docBody(W: World, tab: string) {
+function docBody(W: World, tab: string, P?: Plan) {
   if (tab === 'report') return resultsHtml(W);
   if (tab === 'paper') return (W.last ? paperHtml(W) : '<p class="note">첫 정산이 끝나면 변경 일보가 나와요.</p>') + rumorHtml(W);
-  if (tab === 'book') return bookHtml(W);
-  return `<h3>이번 주 조사</h3>${probesHtml(W)}${intelHtml(W)}<h3>현장 기록</h3>${fieldHtml(W)}`;
+  if (tab === 'book') return bookHtml(W, P);
+  return `<h3>이번 주 조사</h3>${probesHtml(W)}${intelHtml(W)}`;
 }
 const docCount = (W: World, tab: string) => (tab === 'probe' ? (W.probes || []).filter(x => x.m === W.month).length : 0);
 // 작전 메모: 고정한 자료를 한두 줄로 줄여 탐험 주차 옆에 둔다
@@ -348,7 +348,7 @@ export function monthCost(W: World, raw: Plan) {
   return { all, exp: parts[0][1], parts: parts.filter(([, v]) => v > 0) };
 }
 
-export function readerHtml(W: World, ui: DeskUi) {
+export function readerHtml(W: World, ui: DeskUi, raw?: Plan) {
   if (!ui.open) return '';
   const tab = DOC_TABS.some(t => t[0] === ui.tab) ? ui.tab : 'report', pinned = ui.pins.includes(tab);
   const docId = tab === 'report' ? 'results' : tab === 'probe' ? 'intel' : tab === 'book' ? 'book' : 'doc-' + tab;
@@ -356,7 +356,7 @@ export function readerHtml(W: World, ui: DeskUi) {
     <div class="reader-bar"><div class="tabs" role="tablist">${DOC_TABS.map(([id, n]) => `<button type="button" class="tab" role="tab" data-tab="${id}" aria-selected="${id === tab}">${n}</button>`).join('')}</div>
       ${tab === 'probe' ? '' : `<button type="button" class="pin" data-pin="${tab}" aria-pressed="${pinned}">${pinned ? '메모에 고정됨' : '작전 메모에 고정'}</button>`}
       <button type="button" class="close" data-act="close-doc" aria-label="자료함 닫기">×</button></div>
-    <article class="co-sheet doc" id="${docId}" role="tabpanel">${docBody(W, tab)}</article></div></div>`;
+    <article class="co-sheet doc" id="${docId}" role="tabpanel">${docBody(W, tab, raw ? sanitize(W, us(W), raw) : undefined)}</article></div></div>`;
 }
 
 // 내정: 책상 위 마을 지도(누르면 장소 창)와 옆에 붙은 결재안(이번 달 들어올 돈 · 나갈 돈 전부)
@@ -429,7 +429,7 @@ export function infoWeekHtml(W: World, raw: Plan, ui: DeskUi) {
   const seals = sealsOf(W, raw);
   return `${placeBar(seals)}<div class="town">${townSceneHtml(fmt(townOf(W)), seals)}${ledgerHtml(W, raw)}</div>
     ${storeHtml(W, raw, sanitize(W, us(W), raw))}
-    ${readerHtml(W, ui)}${placeHtml(W, raw, ui)}`;
+    ${readerHtml(W, ui, raw)}${placeHtml(W, raw, ui)}`;
 }
 
 // ---------- 출정 ----------
@@ -473,6 +473,9 @@ export function expWeekHtml(W: World, raw: Plan, ui: DeskUi) {
   if (empty) warn.push(`빈자리 ${empty}`);
   if (c.crew && resting) warn.push(`대기 ${resting}명`);
   if (hurtN) warn.push(`부상 ${hurtN}명 쉼`);
+  const lead = (c.crew || []).find(x => x.lead);
+  if (P.ask && lead && !(P.teams || []).some(T => T.m.includes(lead.id))) warn.push(`단장 조사(${P.ask.mon}): 단장이 ${lead.hurt ? '부상' : '대기'} 중`);
+  else if (P.ask && lead) { const LT = P.teams!.find(T => T.m.includes(lead.id))!; if (!floorMons(W, LT.f).some(M => M.name === P.ask!.mon)) warn.push(`단장 조사(${P.ask.mon}): 단장 조가 다른 층에 감`); }
   if (need.pot > potHave) warn.push(`포션 부족 ${need.pot - potHave}병`);
   if (gearShort.length) warn.push(`장비 부족: ${gearShort.map(g => `${g} ${(need.gear[g] || 0) - (S.gear[g] || 0) - (gb[g] || 0)}벌`).join(', ')}`);
   if (c.cash - cost.all < 0) warn.push('금고 마이너스');

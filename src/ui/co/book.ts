@@ -1,17 +1,20 @@
-// 미궁 도감: ① 어디서 무엇을 찾나(시장 소식) ② 어떻게 얻었나(우리 조의 수집 기록).
+// 미궁 도감(헌터 노트): ① 어디서 무엇을 찾나(시장 소식) ② 몬스터마다 한 장 — 이해도 · 생태 · 전적 · 소재 · 단장 조사.
+// 도감은 기록만 보여 준다 (약점을 별점이나 "~인 듯"으로 알려 주지 않는다. 짐작은 플레이어가 한다).
 // 기록을 읽어 보여 주기만 한다. 상태를 쓰지 않고 난수도 쓰지 않는다
-import { FLOORS, INTEL, type World, allMats, floorMons, guideParts, condsOf } from '../../core/company';
-import { BUYERS, SRC_NAME } from '../../core/data';
+import { FLOORS, INTEL, type Plan, type World, allMats, floorMons, guideParts, condsOf, us } from '../../core/company';
+import { BUYERS, FAUNA, MONSTERS, SRC_NAME } from '../../core/data';
+import { ecoOf } from '../../core/monsters';
+import { ASK_KEYS, CLASS_KEYS, DEX, type Dex, GEAR_KEYS, askable, keyName, keySure } from '../../core/dex';
 
 const lvOf = (W: World, k: keyof typeof INTEL.BASE) => (W.intel ? W.intel.lv[k] : INTEL.BASE[k]);
-const pct = (v: number) => Math.round(v * 100) + '%';
+const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 
 // 찾는 곳 소식을 들을 수 있는가: 게시판은 누구나, 상단 시세표·교회 소식지는 그 정보망 단계만큼
 export const demandSeen = (W: World, who: number) => {
   const B = BUYERS[who];
   return B.src === 'board' || (B.src === 'mkt' ? lvOf(W, 'mkt') : lvOf(W, 'chu')) >= B.lv;
 };
-// 도감 기록의 조건 이름: "궁수", "냉기 장비", "사제 + 은 장비"
+// 갖춘 것의 이름: "궁수", "냉기 장비", "사제 + 은 장비"
 export const condLabel = (k: string) => guideParts(k).map(p => (p.startsWith('c:') ? p.slice(2) : `${p.slice(2)} 장비`)).join(' + ');
 // 지금 나와 있는 찾는 곳 (보이는 것과 안 보이는 수)
 export function demandsNow(W: World) {
@@ -19,18 +22,7 @@ export function demandsNow(W: World) {
   return { seen: ds.filter(d => demandSeen(W, d.who)), hidden: ds.filter(d => !demandSeen(W, d.who)).length };
 }
 
-// 한 소재의 기록: 성공한 조 전체에서의 비율과, 그보다 잘 나온 조건 몇 개. 짝 조건은 귀환 보고 2단계부터 나눠 본다
-export function matRows(W: World, f: number, m: string) {
-  const B = W.mat ? W.mat.book[f] : null, g = B && B.got[m];
-  if (!B || !g || !g['*']) return null;
-  const all = { k: '*', a: g['*'], n: B.n['*'] || 0 }, base = all.a / Math.max(1, all.n), pairs = lvOf(W, 'ret') >= 2;
-  const rows = Object.keys(g).filter(k => k !== '*' && (pairs || !k.includes('+')) && (B.n[k] || 0) >= 5)
-    .map(k => ({ k, a: g[k], n: B.n[k] })).filter(x => x.a / x.n > base + 0.05)
-    .sort((x, y) => y.a / y.n - x.a / x.n).slice(0, 3);
-  return [all, ...rows];
-}
-
-// 결정표 편성 칸 아래: 고른 직업·장비로 갔던 조가 얻은 것 (기록이 있는 것만)
+// 결정표 편성 칸 아래: 고른 직업·장비로 갔던 조가 얻은 것 (옛 도감 기록이 있는 것만)
 export function kitHint(W: World, f: number, guide: string) {
   const B = W.mat ? W.mat.book[f] : null, ps = guideParts(guide);
   if (!B || !ps.length) return '';
@@ -43,28 +35,79 @@ export function kitHint(W: World, f: number, guide: string) {
   return out.length ? `기록상 ${out.slice(0, 3).join(' · ')}` : '이 조합에서 특별히 더 나온 소재는 아직 없어요';
 }
 
-export function bookHtml(W: World) {
+const pctOf = (w: number, n: number) => (n ? `${Math.round(w / n * 100)}%` : '-');
+const stamp = (a: string | undefined) => (a === 'yes' ? '<span class="dx-st yes">확정</span>' : a === 'no' ? '<span class="dx-st no">아님</span>' : '');
+// 전적표 한 칸: 승률(마주침). 마주침이 적으면 흐리게
+// 전적표 한 칸: 그 조우에서 해낸 사람 비율 (작은 글씨는 마주친 수 · 승). 마주침이 적으면 흐리게
+const cell = (r: { n: number; w: number; k?: number; p?: number } | undefined) => (r && r.n ? `<td class="n${r.n < 3 ? ' thin' : ''}" title="마주침 ${r.n} · 승 ${r.w}">${pctOf(r.k || 0, r.p || 0)}<small>${r.n}번</small></td>` : '<td class="n dim">-</td>');
+
+function recTable(D: Dex) {
+  const cls = CLASS_KEYS.map(k => `<tr><th>${keyName(k)}${stamp(D.key[k])}</th>${[0, 1, 2].map(v => cell(D.rec[`${k}:${v}`])).join('')}</tr>`).join('');
+  const gear = GEAR_KEYS.map(k => `<tr><th>${keyName(k)}${stamp(D.key[k])}</th>${[0, 1].map(v => cell(D.rec[`${k}:${v}`])).join('')}<td></td></tr>`).join('');
+  return `<table class="grid slim dx-rec"><thead><tr><th>갖춘 것</th><th class="n">없음</th><th class="n">하나 · 있음</th><th class="n">둘 이상</th></tr></thead><tbody>${cls}${gear}</tbody></table>
+    <p class="note">칸: 그 몬스터를 만난 날 해낸 사람 비율 · 아래는 마주친 수(칸에 올리면 이긴 수). 그날 나선 사람의 직업과 들고 간 장비로 센다</p>`;
+}
+// 소재: 얻은 것만. 이긴 조우 중 그 소재가 나온 비율을 갖춘 것별로 (기록이 셋 이상인 것 중 높은 셋과 전체)
+function matsHtml(W: World, D: Dex, mats: { n: string; val: number }[]) {
+  const ref = (n: string, v: number) => (W.mat && W.mat.ref[n]) || v;
+  const known = mats.filter(x => D.mats[x.n] && D.mats[x.n].got > 0), unknown = mats.length - known.length;
+  const rows = known.map(x => {
+    const X = D.mats[x.n], r = (k: string) => X.rec[k] || { n: 0, g: 0 };
+    const all = [0, 1, 2].reduce((a, v) => ({ n: a.n + r(`c:전사:${v}`).n, g: a.g + r(`c:전사:${v}`).g }), { n: 0, g: 0 });
+    const by = ASK_KEYS.map(k => { const on = k.startsWith('c:') ? [r(`${k}:1`), r(`${k}:2`)] : [r(`${k}:1`)]; const n = on.reduce((a, y) => a + y.n, 0), g = on.reduce((a, y) => a + y.g, 0); return { k, n, g }; })
+      .filter(y => y.n >= 3 && y.g > 0).sort((a, b) => b.g / b.n - a.g / a.n).slice(0, 3);
+    const asked = Object.entries(D.mat[x.n] || {}).map(([k, a]) => `${keyName(k)}${stamp(a)}`).join(' ');
+    return `<tr><td><b>${x.n}</b><small>${ref(x.n, x.val)}G 안팎</small></td><td class="n">${X.got}개</td>
+      <td class="dx-got">이긴 날 ${all.n}번 중 ${all.g}번${by.map(y => ` · ${keyName(y.k)} 갖춘 날 ${y.n}번 중 ${y.g}번`).join('')}${asked ? `<div>${asked}</div>` : ''}</td></tr>`;
+  }).join('');
+  return `<table class="grid slim dx-mats"><tbody>${rows || '<tr><td class="dim">아직 얻은 소재가 없어요</td></tr>'}</tbody></table>${unknown ? `<p class="note">알려지지 않은 소재 ${unknown}</p>` : ''}`;
+}
+// 단장 조사 고르기: 약점(확정 전까지) · 얻은 소재의 조건. 이미 답을 받은 것은 뺀다
+function askHtml(W: World, P: Plan | undefined, name: string, D: Dex, mats: string[]) {
+  if (D.u < DEX.ASK_AT) return `<p class="note">단장 조사: 이해도 ${DEX.ASK_AT}부터</p>`;
+  const cur = P && P.ask && P.ask.mon === name ? P.ask : null;
+  const keyOpts = keySure(D) ? [] : ASK_KEYS.filter(k => askable(D, { mon: name, k })).map(k => `<option value="${esc(JSON.stringify({ mon: name, k }))}"${cur && !cur.m && cur.k === k ? ' selected' : ''}>약점이 ${keyName(k)}인가</option>`);
+  const matOpts = mats.filter(m => D.mats[m] && D.mats[m].got > 0).map(m => {
+    const os = ASK_KEYS.filter(k => askable(D, { mon: name, k, m })).map(k => `<option value="${esc(JSON.stringify({ mon: name, k, m }))}"${cur && cur.m === m && cur.k === k ? ' selected' : ''}>${keyName(k)}을 갖추면 잘 나오나</option>`);
+    return os.length ? `<optgroup label="${esc(m)}">${os.join('')}</optgroup>` : '';
+  }).join('');
+  if (!keyOpts.length && !matOpts) return '<p class="note">단장 조사: 물을 것이 남지 않았어요</p>';
+  const c = us(W), lead = (c.crew || []).find(x => x.lead), LT = lead && P && P.teams ? P.teams.find(T => T.m.includes(lead.id)) : null;
+  const where = !lead ? '' : lead.hurt ? `단장 ${esc(lead.n || '')} 부상 · 이번 달 못 나감` : LT ? `단장은 ${FLOORS[LT.f].name} 조` : '단장이 대기 중 · 조에 넣어야 함';
+  return `<div class="dx-ask"><label><b>단장 조사</b> <select data-k="ask" aria-label="${esc(name)} 단장 조사"><option value="">이번 달엔 묻지 않음</option>${keyOpts.length ? `<optgroup label="약점">${keyOpts.join('')}</optgroup>` : ''}${matOpts}</select></label>
+    ${cur ? `<small class="${LT ? 'dim' : 'neg'}">${where} · 단장이 나선 날 이 몬스터를 만나면 답을 받아요 (맞으면 확정, 아니면 아님)</small>` : '<small class="dim">한 달에 하나</small>'}</div>`;
+}
+
+function monCard(W: World, P: Plan | undefined, f: number, j: number) {
+  const M = floorMons(W, f)[j], raw = j ? FAUNA[f][j - 1] : MONSTERS[W.mons[f]], D = (W.dex || {})[M.name];
+  const head = `<header><h4>${M.name}</h4><span class="dx-tag">${j ? '곁 몬스터' : '주 몬스터'}</span>${D ? `<span class="dim">마주침 ${D.n} · 승 ${D.w} · 패 ${D.n - D.w}</span>` : ''}</header>`;
+  if (!D) return `<article class="dx-card unk">${head}<p class="note">아직 만나지 못했어요</p></article>`;
+  const eco = ecoOf(raw).map((t, k) => (D.u >= DEX.ECO_AT[k] ? `<li>${t}</li>` : `<li class="lock">이해도 ${DEX.ECO_AT[k]}에서</li>`)).join('');
+  const marks = [DEX.REC_AT, DEX.TARGET_AT, ...(j ? [] : [DEX.ROOT_AT])].map(v => `<i style="left:${v}%" title="${v}"></i>`).join('');
+  const target = D.u >= DEX.TARGET_AT ? '<span class="pos">지정 탐사 가능</span>' : `지정 탐사: 이해도 ${DEX.TARGET_AT}부터`;
+  const root = j ? '' : ` · 근원: ${(W.roots && W.roots[f] && W.roots[f].found) ? '<span class="pos">찾음</span>' : `이해도 ${DEX.ROOT_AT} + 약점 확정`}`;
+  return `<article class="dx-card">${head}
+    <div class="dx-u"><span class="dx-bar" role="img" aria-label="이해도 ${Math.round(D.u)}"><b style="width:${Math.min(100, D.u)}%"></b>${marks}</span><span>이해도 <b>${Math.round(D.u)}</b></span></div>
+    <div class="dx-body"><div class="dx-img" aria-hidden="true">그림</div><ul class="dx-eco">${eco}</ul></div>
+    <h5>전적</h5>${D.u >= DEX.REC_AT ? recTable(D) : `<p class="note">이해도 ${DEX.REC_AT}에서</p>`}
+    <h5>소재</h5>${matsHtml(W, D, M.mats)}
+    ${askHtml(W, P, M.name, D, M.mats.map(x => x.n))}
+    <p class="note">${target}${root}</p></article>`;
+}
+
+export function bookHtml(W: World, P?: Plan) {
   const { seen, hidden } = demandsNow(W), mats = allMats(W), byName = Object.fromEntries(mats.map(x => [x.n, x]));
   const news = seen.map(d => {
     const x = byName[d.m], B = BUYERS[d.who];
     return `<tr><td>${B.who}</td><td><b>${d.m}</b>${d.at >= W.month - 1 ? '<span class="bk-new">새 소식</span>' : ''}<small>${x ? FLOORS[x.f].name : ''}</small></td><td class="n pos">평소 +${Math.round(d.mul * 100)}%</td><td>제${d.until}월까지</td><td class="dim">${SRC_NAME[B.src]}</td></tr>`;
   }).join('');
   const lock = hidden ? `<tr class="bk-lock"><td colspan="5">${hidden}곳이 더 찾는다는 말이 있어요 · 상단 장부나 교회 기록 단계를 올리면 보여요</td></tr>` : '';
-  const wanted = new Set(seen.map(d => d.m));
-  const floors = FLOORS.slice(0, W.unlocked).map((F, f) => {
-    const B = W.mat ? W.mat.book[f] : null;
-    if (!B || !B.n['*']) return `<div class="bk-floor"><h4>${F.name}</h4><p class="note">아직 기록 없음</p></div>`;
-    const mons = floorMons(W, f).map(M => `<div class="bk-mon"><b class="bk-mn">${M.name}</b>${M.mats.map(x => {
-      const rows = matRows(W, f, x.n), want = wanted.has(x.n) ? '<span class="dim"> · 찾는 곳 있음</span>' : '';
-      if (!rows) return `<div class="bk-mat"><b>${rows === null && !wanted.has(x.n) ? '이름 모를 소재' : x.n}${want}</b><div class="bk-none">아직 못 얻음 · 어떻게 나오는지 몰라요</div></div>`;
-      return `<div class="bk-mat"><b>${x.n}${want}</b>${rows.map(r => `<div class="bk-rec${r.n < 5 ? ' thin' : ''}"${r.n < 5 ? ' title="아직 몇 조 안 돼서 믿기 일러요"' : ''}><span>${r.k === '*' ? '성공한 조 전체' : condLabel(r.k)}</span><span class="bk-bar"><i style="width:${pct(r.a / Math.max(1, r.n))}"></i></span><span class="n">${r.a}/${r.n}조</span><span class="n">${pct(r.a / Math.max(1, r.n))}</span></div>`).join('')}</div>`;
-    }).join('')}</div>`).join('');
-    return `<div class="bk-floor"><h4>${F.name} <span class="dim">· 성공한 우리 조 ${B.n['*']}조</span></h4><div class="bk-mons">${mons}</div></div>`;
-  }).join('');
+  const ask = W.last && W.last.ask;
+  const floors = FLOORS.slice(0, W.unlocked).map((F, f) => `<section class="dx-floor"><h4>${F.name}</h4><div class="dx-cards">${[0, 1, 2].map(j => monCard(W, P, f, j)).join('')}</div></section>`).join('');
   return `<h3>어디서 무엇을 찾나</h3>
     <div class="tw"><table class="grid bk-sold"><thead><tr><th>찾는 곳</th><th>소재</th><th class="n">값</th><th>기한</th><th>들은 곳</th></tr></thead>
       <tbody>${news || (hidden ? '' : '<tr><td colspan="5" class="dim">지금 들려오는 소식이 없어요</td></tr>')}${lock}</tbody></table></div>
-    <h3>어떻게 얻었나 · 막대는 그 조건으로 간 조 중 얻어 온 비율</h3>
-    ${lvOf(W, 'ret') < 2 ? '<p class="note">직업·장비의 짝은 귀환 보고 2단계부터 보여요</p>' : ''}
+    <h3>몬스터</h3>
+    <p class="note">만날수록 이해도가 찹니다. 이해도 ${DEX.REC_AT} 전적 · ${DEX.TARGET_AT} 지정 탐사(편성표) · 단장 조사는 한 달에 하나${ask ? ` · 지난달 단장 조사: ${ask.mon} — ${ask.m ? `${ask.m}, ` : ''}${keyName(ask.k)} ${ask.ans === 'yes' ? '확정' : ask.ans === 'no' ? '아님' : ask.ans === 'miss' ? '만나지 못함' : '단장이 나가지 않음'}` : ''}</p>
     ${floors}`;
 }
