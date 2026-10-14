@@ -19,7 +19,12 @@ export const CO = {
   // 날마다 그 층 몬스터 하나(주인 · 곁 몬스터 둘, ENC_W 무게)를 만나 조원마다 굴리고, 둘 이상 해내면 이긴다.
   // 이기면 해낸 몫만큼 전리품을 짐에 싣고(하루 한 조 다 해내면 LOOT_SLOT칸) 그 몬스터의 소재를 MAT_ENC배 확률로 갈무리한다. 위기는 날마다 한 달 몫의 1/DAYS.
   // 짐 칸: 한 사람 SLOT_PP칸. 횃불 · 포션이 먼저 차지하고, 다 쓴 만큼 비운다. 짐이 다 차면 돌아선다. 캐 오는 양은 다닌 날 몫 × FIND
-  DAYS: 6, TORCH_F: [0.15, 0.25, 0.3, 0.35, 0.4], TORCH_UND: 0.4, DARK_MIN: 0.05, DARK_BACK: 0.5,
+  DAYS: 6, TORCH_F: [0.15, 0.25, 0.3, 0.35, 0.4], TORCH_UND: 0.4, DARK_MIN: 0.2, DARK_BACK: 0.5,
+  // 부상 주사위: 해내지 못한 조원마다 INJ_BASE + INJ_K × 층 위험 (× 모르는 만큼 · 특성 · 조직력). 걸리면 포션으로 먼저 막고, 없으면 다치고(성공 −INJ_PEN),
+  // 다친 채 또 걸리면 죽는다. 진 날도 해낸 사람 몫의 LOSE_LOOT배는 싣는다. INJ_REST면 다친 사람은 다음 달 쉰다.
+  // 조우 난이도: 우리 조의 하루 굴림에서 층마다 HARD_F, 주 몬스터면 HARD_MAIN을 더 뺀다 (얕은 층은 순해서 거의 다 이기던 것을 어렵게. 깊은 층은 원래 어렵다)
+  // 숙련도: 실력 단계(신입 · 수련 · 숙련 · 노련 · 명인)마다 부상 주사위에 INJ_TIER를 곱한다 (명인은 실패해도 잘 안 다친다)
+  INJ_BASE: 0.02, INJ_K: 0.3, INJ_PEN: 0.15, INJ_REST: 1, LOSE_LOOT: 0.5, INJ_TIER: [1.2, 1.1, 1, 0.9, 0.8], HARD_F: [0.2, 0.15, 0.05, 0, 0], HARD_MAIN: 0.08,
   ENC_W: [0.4, 0.3, 0.3], SLOT_PP: 3, LOOT_SLOT: 1.5, MAT_ENC: 0.6, FIND: 1.12,
   // 관리국 게시판의 공표된 경쟁 · 납품 의뢰 (지금은 닫아 둔다. 탐사 계획서는 따로 열려 있다)
   JOBS_OPEN: false,
@@ -358,7 +363,7 @@ export type MonthResult = {
   month: number; res: CoResult[]; plans: Plan[]; Q: number[]; price: number[]; potion: number; potQ: number; potionC: number; cartel: boolean;
   floors: { before: number; taken: number; crowd: number; cut?: number }[]; perParty: number[]; opened: number | null; rank: string[];
   // 우리 직영 파티 하나하나: 간 층, 갖춘 직업·장비, 성공, 사망 (귀환 보고에 쓴다)
-  ours: { f: number; keys: string[]; ok: boolean; d: number; mats: [string, number][]; first: string[]; kit: number; g: string; crisis?: number; pots?: number; n?: number; k?: number; hurt?: number; days?: Day[]; trip?: Trip; dead?: { n: string; day: number; pot: boolean }[] }[];   // dead: 죽은 단원 (이름, 몇째 날(0이면 어둠 속 귀환), 포션을 쓰고도)   // n: 간 사람, k: 해낸 사람, hurt: 다친 사람   // kit: 편성 줄 번호(-1이면 섞인 대로), g: 챙겨 간 것
+  ours: { f: number; keys: string[]; ok: boolean; d: number; mats: [string, number][]; first: string[]; kit: number; g: string; crisis?: number; pots?: number; n?: number; k?: number; hurt?: number; days?: Day[]; trip?: Trip; dead?: { n: string; day: number; pot: boolean }[]; cls?: string[]; potC?: number }[];   // cls: 간 사람들의 직업, potC: 들고 간 포션   // dead: 죽은 단원 (이름, 몇째 날(0이면 어둠 속 귀환), 포션을 쓰고도)   // n: 간 사람, k: 해낸 사람, hurt: 다친 사람   // kit: 편성 줄 번호(-1이면 섞인 대로), g: 챙겨 간 것
   matPrice: Record<string, number>; matRef: Record<string, number>;   // 소재 시세와, 그달 전까지의 평균 시세
   pressure: number; overflow: boolean;
   apps: number;   // 그달 마을 지원자
@@ -973,12 +978,12 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
           to.push([x.n, n]); const e = got.find(g => g[0] === x.n); if (e) e[1] += n; else got.push([x.n, n]);
           res[i].matSold[x.n] = (res[i].matSold[x.n] || 0) + n;
         };
-        let did: boolean[], lootK: number, winK = -1, dayLog: Day[] | undefined, trip: Trip | undefined, mapK = 1;
+        let potCarry = potsIn, did: boolean[], lootK: number, winK = -1, dayLog: Day[] | undefined, trip: Trip | undefined, mapK = 1;
         if (who) {
           // 우리 조의 탐사(expedition.ts): 날마다 횃불을 태우고 그 층 몬스터 하나를 만난다. 약점 · 역효과는 그날 만난 몬스터의 것만 먹힌다.
           // 노린 몬스터(지정 탐사)는 더 자주 만나고 더 잘 해내고 소재가 더 나온다. 약점 · 소재 조건을 확정해 두었으면 덤이 커진다
           const slots = size * CO.SLOT_PP, tc = Math.min(teamTorch(P, TT!), torchLeft[i], slots); torchLeft[i] -= tc;
-          potsIn = Math.min(potsIn, slots - tc);
+          potsIn = Math.min(potsIn, slots - tc); potCarry = potsIn;
           const dex = W.dex || (W.dex = {}), Dx = mons.map(M => dex[M.name]);
           const tg = mons.findIndex(M => M.name === TT!.target && (dex[M.name] ? dex[M.name].u : 0) >= DEX.TARGET_AT);
           const others = CO.ENC_W.reduce((a, v, j) => a + (j === tg ? 0 : v), 0);
@@ -990,10 +995,29 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
           const R = runTrip({
             size, days: CO.DAYS, slots, torch: tc, rate: torchRate(f, u), names: mons.map(M => M.name), w: wts,
             lootSlot: CO.LOOT_SLOT, darkMin: CO.DARK_MIN, darkBack: CO.DARK_BACK, party: CO.PARTY,
-            pots: () => potsIn,
-            pm: (m, j) => clamp(ppBase + vs[j] + MM!.pp[m], 0.05, 0.97),
-            crP: (m, ok, j) => crP(m, ok) * (j >= 0 && j === tg && keySure(Dx[j]) ? DEX.KEY_CRISIS : 1),
-            hit, loot: m => MM!.loot[m],
+            injPen: CO.INJ_PEN, loseLoot: CO.LOSE_LOOT, pots: () => potsIn,
+            // 조우 난이도: 층마다 HARD_F, 주 몬스터는 HARD_MAIN만큼 더 해내기 어렵다
+            pm: (m, j) => clamp(ppBase + vs[j] - CO.HARD_F[f] - (j ? 0 : CO.HARD_MAIN) + MM!.pp[m], 0.05, 0.97),
+            injP: (m, j) => { const p0 = CO.INJ_BASE + CO.INJ_K * F.risk; return Math.min(0.9, (j < 0 ? CO.DARK_MIN + p0 * CO.DARK_BACK : p0) * MM!.cr[m] * CO.INJ_TIER[tierOf(who[m])] * U.crisis * (scout ? CO.SCOUT_CRISIS : 1) * (j >= 0 && j === tg && keySure(Dx[j]) ? DEX.KEY_CRISIS : 1)); },
+            hurt: m => { hurtOnce(m); if (!MM!.medic && CO.INJ_REST) hurtP[i].add(who[m].id); },
+            // 포션: 성수부터 쓴다. 성수는 HOLY의 확률로 병을 비우지 않고 막는다 (모두 성수면 한 병이 1 + HOLY병 몫)
+            usePot: () => {
+              if (potsIn <= 0) return false;
+              const holyNow = potUse[i].holyLeft > 0;
+              if (holyNow && rnd() < CO.HOLY) return 'holy';
+              potsIn--; pu++; potUse[i].used++;
+              if (holyNow) { potUse[i].holyLeft--; potUse[i].h++; }
+              return holyNow ? 'holy' : 'pot';
+            },
+            kill: (m, day) => {
+              const x = who[m];
+              if (x.lead) { heavyP[i].set(x.id, DEX.LEAD_REST); leadHurt = x.n || x.c; return false; }   // 단장은 죽지 않는다
+              if (hqLv(c, 'med') >= 2 && rnd() < (hqLv(c, 'med') >= 3 ? CO.MED_SAVE3 : CO.MED_SAVE)) { heavyP[i].set(x.id, 1); return false; }   // 의무실 2단계
+              if (x.tr === '강골' && rnd() < 0.5) return false;   // 강골: 포션 없이도 반은 버틴다
+              if (hurtM.delete(m)) hq--;   // 다쳤던 사람이 죽었으면 부상에서 뺀다
+              deadP[i].add(x.id); dq++; dead.push({ n: x.n || x.c, day, pot: false }); return true;
+            },
+            loot: m => MM!.loot[m],
             win: (j, kd) => {
               const out: [string, number][] = [], M = mons[j], aim = j === tg;
               M.mats.forEach(x => { if (rnd() < matChance(x, keys, full) * kd / CO.PARTY * CO.MAT_ENC * MM!.mat * (aim ? DEX.TARGET_MAT * (matSure(Dx[j], x.n) ? DEX.MAT_SURE : 1) : 1)) addMat(out, x); });
@@ -1014,7 +1038,7 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
             },
           });
           torchLeft[i] += tc - R.tu; torchUsed[i] += R.tu;
-          dayLog = R.days; trip = R.trip;
+          dayLog = R.days; trip = R.trip; crisis = R.days.reduce((a, d) => a + d.cr, 0) + R.trip.dark;
           did = R.wins.map((w, m) => R.seen[m] > 0 && w * 2 >= R.seen[m]);
           winK = R.wins.reduce((a, w, m) => a + (R.seen[m] ? w / R.seen[m] * MM!.loot[m] : 0), 0);
           lootK = R.lootSum / CO.DAYS * CO.FIND * CO.PARTY;
@@ -1054,7 +1078,7 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
         if (c.style === 'player' && q < P.parties[f]) {
           ['*', ...keys].forEach(kk => { const o = W.obs[f][kk] || (W.obs[f][kk] = { n: 0, w: 0 }); o.n++; o.w += k / size; });   // '*'는 그 층 전체
           const first = got.filter(([m]) => bookOld && !bookOld[f].has(m) && !ours.some(o => o.mats.some(g => g[0] === m))).map(([m]) => m);
-          ours.push({ f, keys, ok, d: dq, mats: got, first, kit: kit.k, g: gk, crisis, pots: pu, n: size, k, hurt: hq, ...(dayLog ? { days: dayLog, trip } : {}), ...(dead.length ? { dead } : {}) });
+          ours.push({ f, keys, ok, d: dq, mats: got, first, kit: kit.k, g: gk, crisis, pots: pu, n: size, k, hurt: hq, ...(dayLog ? { days: dayLog, trip } : {}), ...(dead.length ? { dead } : {}), cls, potC: potCarry });
           if (ok && B) {
             const cs = ['*', ...condsOf(keys)];
             cs.forEach(kk => { B.n[kk] = (B.n[kk] || 0) + 1; });
@@ -1760,15 +1784,23 @@ export function forecast(W: World, P: Plan): Forecast {
       // 우리 조는 조원마다 실력 단계 · 특성 · 조직력을 더한 성공률의 평균으로 (조원끼리 다른 성공률을 하나로 어림)
       const MM = who && who.length ? memberMods(who, f, u) : null;
       const pt = MM ? MM.pp.reduce((a, d) => a + clamp(pt0 + d, 0.05, 0.97), 0) / who!.length : pt0;
-      const crM = (MM ? MM.cr.reduce((a, x) => a + x, 0) / who!.length : 1) * U.crisis * (scout ? CO.SCOUT_CRISIS : 1), loM = (MM ? MM.loot.reduce((a, x) => a + x, 0) / who!.length : 1) * U.loot * (scout ? CO.SCOUT_LOOT : 1);
+      const crM = (MM ? MM.cr.reduce((a, x, m) => a + x * CO.INJ_TIER[tierOf(who![m])], 0) / who!.length : 1) * U.crisis * (scout ? CO.SCOUT_CRISIS : 1), loM = (MM ? MM.loot.reduce((a, x) => a + x, 0) / who!.length : 1) * U.loot * (scout ? CO.SCOUT_LOOT : 1);
       const keys = who ? [...new Set(who.map(x => 'c:' + x.c)), ...(T!.g ? [T!.g] : [])] : [];
       // 우리 조의 탐사: 횃불로 다닐 날의 기대만큼 캐고 갈무리하고 위기를 맞는다. 횃불이 떨어질 확률만큼 어둠 속 위기를 더한다
       const pk = T ? teamPots(P, T) : P.pots[f], odds = who ? tripOdds(Math.min(T ? teamTorch(P, T) : carryOf(P, f), size * CO.SLOT_PP), torchRate(f, u)) : null, dk = odds ? odds.days : 1, lk = odds ? dk * CO.FIND : 1;
       if (odds) burn += odds.burn;
+      // 우리 조의 하루: 조우 난이도를 빼고, 진 날(둘 미만 해냄)은 해낸 몫의 LOSE_LOOT배만 싣고 갈무리가 없다
+      const pd = odds ? clamp(pt - CO.HARD_F[f] - CO.HARD_MAIN * CO.ENC_W[0], 0.03, 0.97) : pt, one1 = size * pd * Math.pow(1 - pd, size - 1);
+      const pwin = odds ? 1 - Math.pow(1 - pd, size) - one1 : 1, lf = odds ? 1 - (1 - CO.LOSE_LOOT) * one1 / Math.max(1e-9, size * pd) : 1;
       const matOf = (M: typeof mons[number]) => M.mats.reduce((b, x) => b + matChance(x, keys, full) / CO.PARTY * ((W.mat && W.mat.ref[x.n]) || x.val) * (x.k ? (x.k[0] + x.k[1]) / 2 : 1) * demandMul(W, x.n), 0);
-      const mat = hired ? 0 : (MM ? MM.mat : 1) * (odds ? mons.reduce((a, M, j) => a + CO.ENC_W[j] * CO.DAYS * CO.MAT_ENC * matOf(M), 0) * dk : mons.reduce((a, M) => a + matOf(M), 0));
-      parts.push({ n: size, p: pt, v: per * loM * lk * (hired ? 1 - CO.HIRE_CUT : 1) + mat }); lootE += size * pt * per * loM * lk * (hired ? 1 - CO.HIRE_CUT : 1);
-      if (!hired) {
+      const mat = hired ? 0 : (MM ? MM.mat : 1) * (odds ? mons.reduce((a, M, j) => a + CO.ENC_W[j] * CO.DAYS * CO.MAT_ENC * matOf(M), 0) * dk * pwin : mons.reduce((a, M) => a + matOf(M), 0));
+      parts.push({ n: size, p: pd, v: per * loM * lk * lf * (hired ? 1 - CO.HIRE_CUT : 1) + mat }); lootE += size * pd * per * loM * lk * lf * (hired ? 1 - CO.HIRE_CUT : 1);
+      if (!hired && odds) {
+        // 우리 조: 부상 주사위. 한 사람이 맞을 주사위 수 h (다닌 날 × 못 해낼 확률 × 주사위), 처음 하나는 부상, 그 뒤는 포션이 막고 모자라면 사망
+        // 조 전체가 맞을 주사위 size × h 중 포션이 먼저 pk만큼 막고, 남은 것이 한 사람에 h2씩: 처음 하나는 부상, 그 뒤는 사망
+        const h = dk * CO.DAYS * (1 - pd) * Math.min(0.9, (CO.INJ_BASE + CO.INJ_K * F.risk) * crM), h2 = Math.max(0, size * h - pk) / size, one = 1 - Math.exp(-h2);
+        dead += size * Math.max(0, h2 - one); hurt += size * one * CO.INJ_REST; crisis += Math.min(size * h, pk);
+      } else if (!hired) {
         const cp0 = pt * Math.min(0.95, F.risk * CO.CRISIS_OK * crM) + (1 - pt) * Math.min(0.95, F.risk * CO.CRISIS_FAIL * crM);
         const cp = cp0 * dk + (odds ? odds.dark * Math.min(0.9, CO.DARK_MIN + Math.min(0.95, F.risk * CO.CRISIS_FAIL * crM) * CO.DARK_BACK) : 0), die = pk ? Math.min(0.9, F.harm * U.harm) : CO.CRISIS_DEATH;
         dead += size * cp * die; hurt += size * cp * (1 - die) * (pk ? CO.INJURE : 1); crisis += Math.min(size * cp, pk);

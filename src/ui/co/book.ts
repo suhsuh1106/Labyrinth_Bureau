@@ -63,19 +63,21 @@ function matsHtml(W: World, D: Dex, mats: { n: string; val: number }[]) {
   return `<table class="grid slim dx-mats"><tbody>${rows || '<tr><td class="dim">아직 얻은 소재가 없어요</td></tr>'}</tbody></table>${unknown ? `<p class="note">알려지지 않은 소재 ${unknown}</p>` : ''}`;
 }
 // 단장 조사 고르기: 약점(확정 전까지) · 얻은 소재의 조건. 이미 답을 받은 것은 뺀다
-function askHtml(W: World, P: Plan | undefined, name: string, D: Dex, mats: string[]) {
-  if (D.u < DEX.ASK_AT) return `<p class="note">단장 조사: 이해도 ${DEX.ASK_AT}부터</p>`;
-  const cur = P && P.ask && P.ask.mon === name ? P.ask : null;
-  const keyOpts = keySure(D) ? [] : ASK_KEYS.filter(k => askable(D, { mon: name, k })).map(k => `<option value="${esc(JSON.stringify({ mon: name, k }))}"${cur && !cur.m && cur.k === k ? ' selected' : ''}>약점이 ${keyName(k)}인가</option>`);
-  const matOpts = mats.filter(m => D.mats[m] && D.mats[m].got > 0).map(m => {
-    const os = ASK_KEYS.filter(k => askable(D, { mon: name, k, m })).map(k => `<option value="${esc(JSON.stringify({ mon: name, k, m }))}"${cur && cur.m === m && cur.k === k ? ' selected' : ''}>${keyName(k)}을 갖추면 잘 나오나</option>`);
-    return os.length ? `<optgroup label="${esc(m)}">${os.join('')}</optgroup>` : '';
-  }).join('');
-  if (!keyOpts.length && !matOpts) return '<p class="note">단장 조사: 물을 것이 남지 않았어요</p>';
-  const c = us(W), lead = (c.crew || []).find(x => x.lead), LT = lead && P && P.teams ? P.teams.find(T => T.m.includes(lead.id)) : null;
-  const where = !lead ? '' : lead.hurt ? `단장 ${esc(lead.n || '')} 부상 · 이번 달 못 나감` : LT ? `단장은 ${FLOORS[LT.f].name} 조` : '단장이 대기 중 · 조에 넣어야 함';
-  return `<div class="dx-ask"><label><b>단장 조사</b> <select data-k="ask" aria-label="${esc(name)} 단장 조사"><option value="">이번 달엔 묻지 않음</option>${keyOpts.length ? `<optgroup label="약점">${keyOpts.join('')}</optgroup>` : ''}${matOpts}</select></label>
-    ${cur ? `<small class="${LT ? 'dim' : 'neg'}">${where} · 단장이 나선 날 이 몬스터를 만나면 답을 받아요 (맞으면 확정, 아니면 아님)</small>` : '<small class="dim">한 달에 하나</small>'}</div>`;
+// 단장 조사 고르기 (출정 화면): 열린 층의 몬스터 중 이해도 ASK_AT 이상인 것에 물을 것 하나. 이미 답을 받은 것은 뺀다
+export function askPanel(W: World, P: Plan) {
+  const dex = W.dex || {}, cur = P.ask;
+  const groups = FLOORS.slice(0, W.unlocked).flatMap((F, f) => floorMons(W, f).map(M => {
+    const D = dex[M.name]; if (!D || D.u < DEX.ASK_AT) return '';
+    const opt = (A: { mon: string; k: string; m?: string }, t: string) => `<option value="${esc(JSON.stringify(A))}"${cur && cur.mon === A.mon && cur.k === A.k && (cur.m || '') === (A.m || '') ? ' selected' : ''}>${t}</option>`;
+    const keys = keySure(D) ? [] : ASK_KEYS.filter(k => askable(D, { mon: M.name, k })).map(k => opt({ mon: M.name, k }, `약점이 ${keyName(k)}인가`));
+    const mats = M.mats.filter(x => D.mats[x.n] && D.mats[x.n].got > 0).flatMap(x => ASK_KEYS.filter(k => askable(D, { mon: M.name, k, m: x.n })).map(k => opt({ mon: M.name, k, m: x.n }, `${x.n}: ${keyName(k)}을 갖추면 잘 나오나`)));
+    return keys.length || mats.length ? `<optgroup label="${esc(`${F.name} ${M.name}`)}">${[...keys, ...mats].join('')}</optgroup>` : '';
+  })).join('');
+  const c = us(W), lead = (c.crew || []).find(x => x.lead), LT = lead && P.teams ? P.teams.find(T => T.m.includes(lead.id)) : null;
+  const where = !lead ? '' : lead.hurt ? `단장 ${esc(lead.n || '')} 부상 · 이번 달 못 나감` : LT ? `단장 ${esc(lead.n || '')} · ${LT ? `${P.teams!.indexOf(LT) + 1}조 · ${FLOORS[LT.f].name}` : ''}` : `단장 ${esc(lead.n || '')} 대기 중`;
+  const ok = !cur || (LT && floorMons(W, LT.f).some(M => M.name === cur.mon));
+  return `<div class="panel ask-p"><header><h2>단장 조사</h2><span class="sub">한 달에 하나 · 단장이 나선 날 그 몬스터를 만나면 답 (맞으면 확정, 아니면 아님)</span><span class="right">${where}</span></header>
+    ${groups ? `<select data-k="ask" aria-label="단장 조사"><option value="">이번 달엔 묻지 않음</option>${groups}</select>${cur && !ok ? '<p class="note neg">단장이 그 몬스터가 사는 층의 조에 있어야 해요</p>' : ''}` : `<p class="note">물을 몬스터 없음 · 도감 이해도 ${DEX.ASK_AT}부터</p>`}</div>`;
 }
 
 function monCard(W: World, P: Plan | undefined, f: number, j: number) {
@@ -91,7 +93,7 @@ function monCard(W: World, P: Plan | undefined, f: number, j: number) {
     <div class="dx-body"><div class="dx-img" aria-hidden="true">그림</div><ul class="dx-eco">${eco}</ul></div>
     <h5>전적</h5>${D.u >= DEX.REC_AT ? recTable(D) : `<p class="note">이해도 ${DEX.REC_AT}에서</p>`}
     <h5>소재</h5>${matsHtml(W, D, M.mats)}
-    ${askHtml(W, P, M.name, D, M.mats.map(x => x.n))}
+    ${P && P.ask && P.ask.mon === M.name ? `<p class="note"><b>이번 달 단장 조사</b> · ${P.ask.m ? `${P.ask.m}: ` : '약점: '}${keyName(P.ask.k)}</p>` : D.u < DEX.ASK_AT ? `<p class="note">단장 조사: 이해도 ${DEX.ASK_AT}부터</p>` : ''}
     <p class="note">${target}${root}</p></article>`;
 }
 
@@ -108,6 +110,6 @@ export function bookHtml(W: World, P?: Plan) {
     <div class="tw"><table class="grid bk-sold"><thead><tr><th>찾는 곳</th><th>소재</th><th class="n">값</th><th>기한</th><th>들은 곳</th></tr></thead>
       <tbody>${news || (hidden ? '' : '<tr><td colspan="5" class="dim">지금 들려오는 소식이 없어요</td></tr>')}${lock}</tbody></table></div>
     <h3>몬스터</h3>
-    <p class="note">만날수록 이해도가 찹니다. 이해도 ${DEX.REC_AT} 전적 · ${DEX.TARGET_AT} 지정 탐사(편성표) · 단장 조사는 한 달에 하나${ask ? ` · 지난달 단장 조사: ${ask.mon} — ${ask.m ? `${ask.m}, ` : ''}${keyName(ask.k)} ${ask.ans === 'yes' ? '확정' : ask.ans === 'no' ? '아님' : ask.ans === 'miss' ? '만나지 못함' : '단장이 나가지 않음'}` : ''}</p>
+    <p class="note">만날수록 이해도가 찹니다. 이해도 ${DEX.REC_AT} 전적 · ${DEX.TARGET_AT} 지정 탐사(편성표) · 단장 조사는 출정에서 한 달에 하나${ask ? ` · 지난달 단장 조사: ${ask.mon} — ${ask.m ? `${ask.m}, ` : ''}${keyName(ask.k)} ${ask.ans === 'yes' ? '확정' : ask.ans === 'no' ? '아님' : ask.ans === 'miss' ? '만나지 못함' : '단장이 나가지 않음'}` : ''}</p>
     ${floors}`;
 }

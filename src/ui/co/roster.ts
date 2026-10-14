@@ -79,7 +79,7 @@ export function assignHtml(W: World, P: Plan, others: (f: number) => number, sor
       <td><span class="ubar" title="${esc(uTip)}"><i><b style="width:${o.u}%"></b></i><span class="n">${o.u}</span></span></td>
       <td><span class="cobar" title="조원 둘씩 함께 나간 달의 평균 (${CO.CO_MAX}달이 끝)"><i><b style="width:${Math.round(o.coh * 100)}%"></b></i><span class="n">${Math.round(o.coh * 100)}</span><small class="dim">+${Math.round(o.coh * CO.CO_SUCC * 100)}%p</small></span></td>
       <td class="n"><b>${Math.round(o.p * 100)}%</b></td>
-      <td>${stepper('tpots', t, pk, `${t + 1}조 포션`)}<small class="dim" title="포션을 써도 위기를 맞은 사람은 이 확률로 죽는다">사망 ${Math.round(Math.min(0.9, FLOORS[T.f].harm * o.U.harm) * 100)}%</small></td>
+      <td>${stepper('tpots', t, pk, `${t + 1}조 포션`)}<small class="dim" title="못 해낸 날 부상 주사위에 걸릴 확률 (조원 실력 평균) · 걸리면 포션 한 병이 먼저 막고, 없으면 다치고, 다친 채 또 걸리면 죽는다">부상 ${Math.round(Math.min(0.9, (CO.INJ_BASE + CO.INJ_K * FLOORS[T.f].risk) * o.U.crisis * (who.length ? who.reduce((x, p) => x + CO.INJ_TIER[tierOf(p)], 0) / who.length : 1)) * 100)}%</small></td>
       <td>${stepper('ttorch', t, tk, `${t + 1}조 횃불`)}<small class="${dark >= 0.25 ? 'neg' : 'dim'}" title="첫날 하나, 그 뒤 날마다 ${Math.round(torchRate(T.f, o.u) * 100)}% 확률로 하나 · 다 쓰면 돌아섬">돌아섬 ${Math.round(dark * 100)}%</small></td>
       <td>${packBar(who.length * CO.SLOT_PP, tk, pk)}</td>
       <td><select data-k="teamG" data-i="${t}" aria-label="${t + 1}조 장비"><option value="">섞인 대로</option>${GEAR_NAMES.map(g => `<option value="g:${g}"${T.g === 'g:' + g ? ' selected' : ''}>${g}</option>`).join('')}</select></td>
