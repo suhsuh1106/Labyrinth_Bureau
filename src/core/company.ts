@@ -24,8 +24,8 @@ export const CO = {
   // 다친 채 또 걸리면 죽는다. 진 날도 해낸 사람 몫의 LOSE_LOOT배는 싣는다. INJ_REST면 다친 사람은 다음 달 쉰다.
   // 조우 난이도: 우리 조의 하루 굴림에서 층마다 HARD_F, 주 몬스터면 HARD_MAIN을 더 뺀다 (얕은 층은 순해서 거의 다 이기던 것을 어렵게. 깊은 층은 원래 어렵다)
   // 숙련도: 실력 단계(신입 · 수련 · 숙련 · 노련 · 명인)마다 부상 주사위에 INJ_TIER를 곱한다 (명인은 실패해도 잘 안 다친다)
-  INJ_BASE: 0.02, INJ_K: 0.3, INJ_PEN: 0.15, INJ_REST: 1, LOSE_LOOT: 0.5, INJ_TIER: [1.2, 1.1, 1, 0.9, 0.8], HARD_F: [0.2, 0.15, 0.05, 0, 0], HARD_MAIN: 0.08,
-  ENC_W: [0.4, 0.3, 0.3], SLOT_PP: 3, LOOT_SLOT: 1.5, MAT_ENC: 0.6, FIND: 1.12,
+  INJ_BASE: 0.02, INJ_K: 0.3, INJ_PEN: 0.15, INJ_REST: 1, LOSE_LOOT: 0.5, INJ_TIER: [1.2, 1.1, 1, 0.9, 0.8], HARD_F: [0.05, 0.16, 0.06, 0, 0], HARD_MAIN: 0.08,
+  ENC_W: [0.4, 0.3, 0.3], SLOT_PP: 3, LOOT_SLOT: 1.8, MAT_ENC: 0.6, FIND: 1.12,
   // 관리국 게시판의 공표된 경쟁 · 납품 의뢰 (지금은 닫아 둔다. 탐사 계획서는 따로 열려 있다)
   JOBS_OPEN: false,
   // 거점 2단계면 성공 한 번에 BASE_TAKE개를 더 캔다
@@ -144,7 +144,7 @@ export const TAX = {
   MAT_RATE: 0.3, MAT_SHARE: 0.12, MAT_LEN: 12,
   // 보급 지원금: 위기에 쓴 포션 한 병, 태운 횃불 하나마다. TORCH는 조마다 들고 가는 기본 개수 (층이 깊을수록 많이).
   // 영주청이 모두에게 준 지원금이 SUB_BUDGET을 넘으면 절반으로, 그다음엔 끊는다 (누가 부풀리든 모두의 지원금이 빨리 마른다)
-  SUB_POT: 6, SUB_TORCH: 3, TORCH: [3, 4, 4, 5, 5], SUB_BUDGET: [30000, 60000],
+  SUB_POT: 6, SUB_TORCH: 3, TORCH: [5, 5, 5, 6, 6], SUB_BUDGET: [30000, 60000],
   // 층 지원금: 사람이 덜 가는 열린 층에 조당 (그 층 한 조가 캐 오는 기준 값 × AID_K), AID_LEN달
   AID_K: 0.12, AID_LEN: 6,
   // 탐사 계획서: 새 층이 열리면 ADV_LEN달 동안, 내정에서 그 층에 보낼 조를 적어 내면 조당 선금(기준 값 × ADV_K)을 바로 준다. 덜 보내면 모자란 조만큼 ADV_REFUND배를 돌려낸다
