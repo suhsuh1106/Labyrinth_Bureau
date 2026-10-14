@@ -1,6 +1,6 @@
 // 가정산: 출정이 끝난 뒤 영주청에 낼 신고서를 꾸미는 화면. 신고서는 장부의 참값이 기본이고, 칸을 고치면 이득과 쌓일 의심이 바로 보인다.
 // HTML 문자열만 만든다 (상태를 쓰지 않고 난수도 쓰지 않는다)
-import { FILE_KEYS, FILE_SRC, FLOORS, ITEMS, type FileKey, type Filing, TAX, type World, preview, us } from '../../core/company';
+import { FILE_KEYS, FILE_SRC, FLOORS, ITEMS, type FileKey, type Filing, TAX, type World, preview, profitOf, us } from '../../core/company';
 import { ROW, lawsHtml } from './books';
 import { fmt, sgn, stepper } from './view';
 import { returnsHtml } from './reveal';
@@ -34,7 +34,7 @@ export function draftHtml(W: World, F0: Partial<Filing>, live = false) {
       <td class="n">${stepper('file', i, X.F[k], `${R.n} 신고`, R.step)}</td><td class="n">${effect(k)}</td>
       <td class="n ${g ? 'pos' : 'dim'}">${g ? '+' + fmt(g) : '-'}</td><td class="rec${off ? ' hot' : ' dim'}">${off ? FILE_SRC[k] : R.dir}</td></tr>`;
   }).join('');
-  const pay = (B: typeof honest) => B.sub + B.aid - B.tax - B.refund, netH = r.net + pay(honest), netF = r.net + pay(X.bill);
+  const pay = (B: typeof honest) => B.sub + B.aid - B.tax - B.refund, op = profitOf(r), netH = op + pay(honest), netF = op + pay(X.bill);
   const ok = r.ok.reduce((a, b) => a + b, 0), sent = r.sent.reduce((a, b) => a + b, 0) + r.hired.reduce((a, b) => a + b, 0);
   return `<div class="draftwrap">${returnsHtml(W, live)}<article class="co-sheet doc" id="draft">
     <div class="kind">제${D.m}월 가정산</div>
@@ -44,7 +44,7 @@ export function draftHtml(W: World, F0: Partial<Filing>, live = false) {
       ${X.bill.credit ? `<tr><td><b>교회 후원금 공제</b><small>후원금 ${fmt(D.donate)}G의 ${Math.round(TAX.DONATE_CREDIT * 100)}%</small></td><td></td><td></td><td class="n">공제 ${fmt(X.bill.credit)}</td><td></td><td class="dim">합법</td></tr>` : ''}
       </tbody></table></div>
       <div class="billsum">
-        <div><small>순이익 (세금 전)</small><b class="${r.net < 0 ? 'neg' : 'pos'}">${sgn(r.net)}G</b><i>판매 − 지출</i></div>
+        <div><small>순이익 (세금 전)</small><b class="${op < 0 ? 'neg' : 'pos'}">${sgn(op)}G</b><i>판매 − 비용${r.capex ? ' · 공사비는 자산' : ''}</i></div>
         <div><small>순이익 (장부 그대로)</small><b class="${netH < 0 ? 'neg' : 'pos'}">${sgn(netH)}G</b><i>세금 ${fmt(honest.tax)} · 지원 ${fmt(honest.sub + honest.aid)}${honest.refund ? ` · 반납 ${fmt(honest.refund)}` : ''}</i></div>
         <div class="me"><small>순이익 (이 신고서)</small><b class="${netF < 0 ? 'neg' : 'pos'}">${sgn(netF)}G</b><i>${X.total ? `장부 그대로보다 <b class="pos">+${fmt(X.total)}</b> · 걸리면 ×${1 + TAX.AUDIT_PEN} 추징` : '장부 그대로'}</i></div>
       </div>
@@ -75,14 +75,15 @@ function plHtml(W: World, netF: number, B: ReturnType<typeof preview>['bill']) {
   const L = W.last!, r = L.res[W.draft!.i], s = r.spend;
   const loot = r.lootSales || 0, other = r.sales - loot - r.matSales;
   const cost: [string, number][] = [['급여', s.wage + (s.fire || 0)], ['신입 계약금', s.recruit], ['치료비', s.heal || 0], ['계약 조', s.sortie + s.hire + s.tool], ['포션', s.potion], ['횃불', s.torch || 0], ['식량 · 정비 도구', (s.food || 0) + (s.mend || 0)], ['장비', s.gear],
-    ['정보 · 조사', s.intel + s.probe], ['교관', s.train], ['숙소 · 본부', (s.dorm || 0) + (s.hq || 0) + s.base + s.proc], ['교회 후원 · 근원 기금', s.donate + s.root], ['의뢰 위약금', s.job || 0]];
+    ['정보 · 조사', s.intel + s.probe], ['교관', s.train], ['숙소 · 본부 유지비', (s.dorm || 0) + (s.hq || 0) - (r.capex || 0) + s.base + s.proc], ['건물 감가상각', r.dep || 0], ['교회 후원 · 근원 기금', s.donate + s.root], ['의뢰 위약금', s.job || 0]];
   const row = (t: string, v: number, cls = '') => `<tr class="${cls}"><td>${t}</td><td class="n ${v < 0 ? 'neg' : ''}">${sgn(Math.round(v))}</td></tr>`;
   return `<section class="rp"><h3>손익</h3><div class="tw"><table class="grid slim pl"><tbody>
     ${row('전리품 판매', loot)}${r.matSales ? row('갈무리 소재 판매', r.matSales) : ''}${other ? row('의뢰 · 선금 · 지도 판매', other) : ''}
     ${row('판매 합계', r.sales, 'sub')}
     ${cost.filter(([, v]) => v > 0).map(([t, v]) => row(t, -v)).join('')}
-    ${row('순이익 (세금 전)', r.net, 'sub')}
+    ${row('순이익 (세금 전)', profitOf(r), 'sub')}
     ${B.tax ? row('영주세 (이 신고서)', -B.tax) : ''}${B.sub + B.aid ? row('보급 · 층 지원금', B.sub + B.aid) : ''}${B.refund ? row('선금 반납', -B.refund) : ''}
     ${row('순이익', netF, 'tot')}
+    ${r.capex || r.dep ? row(`금고 변화 <small class="dim">순이익${r.capex ? ` − 공사비 ${fmt(r.capex)} (건물 자산)` : ''}${r.dep ? ` + 감가상각 ${fmt(r.dep)}` : ''}</small>`, netF - (r.capex || 0) + (r.dep || 0)) : ''}
   </tbody></table></div></section>`;
 }

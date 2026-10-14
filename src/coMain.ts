@@ -11,7 +11,7 @@ import { draftHtml } from './ui/co/draft';
 import { advanceArrival, arrivalOpen, closeArrival, playArrival } from './ui/co/arrival';
 
 const $ = (id: string): any => document.getElementById(id);
-const KEY = 'lb-co', VERSION = 19, MONTHS = 36;   // 19: 식량 · 정비 도구 · 층별 기본 채비 · 해고 (이전 판은 새 게임으로)
+const KEY = 'lb-co', VERSION = 20, MONTHS = 36;   // 20: 건물 자산(장부가) · 조 번호 · 도감 탭 (이전 판은 새 게임으로)
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
 let W: World, plan: Plan, ui: DeskUi;
 // 도장을 막 찍은 결과 화면이면 귀환 장부를 한 줄씩 띄운다 (저장하지 않는 화면 상태)
@@ -130,6 +130,8 @@ function act(b: HTMLElement) {
     if (r) { ui.tab = 'probe'; say(a === 'probe-mkt' ? '시장 조사 답이 왔어요' : '타 용병단 조사 답이 왔어요'); }
     render(); save(); return;
   }
+  if (a === 'dex-tab') { ui.dexMon = b.dataset.mon; render(); save(); return; }
+  if (a === 'seen') { ui.seen = W.month; render(); save(); return; }
   if (a === 'place') { ui.place = b.dataset.place; ui.open = false; render(); save(); (document.querySelector('.place .close') as HTMLElement | null)?.focus(); return; }
   if (a === 'close-place') { const k = ui.place; ui.place = undefined; render(); save(); (document.querySelector(`.spot[data-place="${k}"]`) as HTMLElement | null)?.focus(); return; }
   if (a === 'open-doc') { ui.tab = b.dataset.tab || 'report'; ui.open = true; ui.place = undefined; render(); save(); (document.querySelector('.reader .close') as HTMLElement | null)?.focus(); return; }

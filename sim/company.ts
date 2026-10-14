@@ -4,12 +4,15 @@
 // 성향: even(고르게) · deep(깊은 층 위주) · hire(계약 파티를 씀) · smart(시장을 읽는 숙련자, 근원에는 채굴장)
 //       smartNoGuide · smartSeal · smartNoRoot: 숙련 봇에서 지침을 빼거나 근원을 달리 다룬 것
 import { setSeed } from '../src/core/rng';
-import { CO, TAX, FLOORS, cashK, aidAt, jobsExplore, churchPrice, ITEMS, type Filing, type Plan, type World, closeBooks, preview, defaultPlan, dormCost, jobsSign, partyMargin, roomOf, demandMul, potsOf, probe, floorMons, mapOf, maxParties, newWorld, torchRate, tripOdds, sanitize, canTarget, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
+import { CO, TAX, FLOORS, potShock, cashK, aidAt, jobsExplore, churchPrice, ITEMS, type Filing, type Plan, type World, closeBooks, preview, defaultPlan, dormCost, jobsSign, partyMargin, roomOf, demandMul, potsOf, probe, floorMons, mapOf, maxParties, newWorld, torchRate, tripOdds, sanitize, canTarget, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
 import { demandSeen } from '../src/ui/co/book';
 import { ASK_KEYS, DEX, type Dex, keySure } from '../src/core/dex';
 import { CLASSES } from '../src/core/data';
 
 // 영주청 숫자를 바꿔 보며 잴 때 (TAX_LOOT=0.15 TAX_SUSK=20 TAX_RELIEF=0.5 npm run sim)
+if (process.env.KEY_BONUS) CO.KEY_BONUS = +process.env.KEY_BONUS;
+if (process.env.DEP) CO.DEP = +process.env.DEP;
+const ASK_ALL = process.env.ASK_ALL === '1';   // 단장 조사를 소거법으로 (짐작이 없으면 아직 묻지 않은 것부터). 켜면 숙련 봇 1위 86%라 밸런스를 정한 뒤 기본으로
 if (process.env.TAX_LOOT) TAX.LOOT = +process.env.TAX_LOOT;
 if (process.env.UND_F0) CO.UND_F[0] = +process.env.UND_F0;
 if (process.env.PRESS_RUN) TAX.PRESS_RUN = +process.env.PRESS_RUN;
@@ -129,6 +132,8 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
   // 포션: 교회 값이 상단보다 싸면(후원해서 교회가 예전 값으로 내줄 때) 교회에서 사고, 담합이 터지면 여유가 있을 때 한 번 후원한다
   const need = P.parties.reduce((a, n, f) => a + (n + P.hire[f]) * P.pots[f], 0);
   P.buy = { holy: churchPrice(W, 0) < W.potion ? Math.max(0, need - potsOf(us(W)).holy) : 0 };
+  // 약초 흉년 소문이 돌면 다음 달 몫까지 미리 사 둔다 (포션은 두 달 간다)
+  if (potShock(W.month + 1) > potShock(W.month)) { const H = potsOf(us(W)); P.buy.pot = Math.max(0, need * 2 - H.pot - H.holy - P.buy.holy!); }
   P.donate = W.cartel && !W.cartel.donated[0] && c.cash > 8000 * cashK() ? 1000 : 0;
   // 근원: 찾은 근원이 있으면 여유가 있을 때 채굴장 기금을 넣는다. 채굴장과 그대로 두기는 순위가 비슷하고,
   // 봉인은 범람을 절반으로 줄이지만 우리 순위로는 손해다(200판 3.13 · 3.14 대 3.45). 봉인은 교회가 같은 돈을 보태 절반만 든다
@@ -154,7 +159,12 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
   // (주 몬스터는 어려워서 약점을 확정한 뒤에만 노린다)
   Q.teams!.forEach(T => { const M = floorMons(W, T.f)[0]; if (canTarget(W, T.f, M.name) && keySure(dex[M.name])) T.target = M.name; });
   const lead = (c.crew || []).find(x => x.lead), LT = lead ? Q.teams!.find(T => T.m.includes(lead.id)) : null;
-  if (LT) for (const M of floorMons(W, LT.f)) {
+  // (기록에서 짐작이 서면 그것부터, 서지 않으면 아직 묻지 않은 것을 하나씩 지워 간다. 묻는 데 돈이 들지 않는다)
+  if (LT && ASK_ALL) for (const M of floorMons(W, LT.f)) {
+    const D = dex[M.name]; if (!D || D.u < DEX.ASK_AT || keySure(D)) continue;
+    const k = guessKeys(D).find(x => !D.key[x]) || ASK_KEYS.find(x => !D.key[x]); if (k) { Q.ask = { mon: M.name, k }; break; }
+  }
+  else if (LT) for (const M of floorMons(W, LT.f)) {
     const D = dex[M.name]; if (!D || D.u < DEX.ASK_AT || keySure(D)) continue;
     const k = guessKeys(D).find(x => !D.key[x]); if (k) { Q.ask = { mon: M.name, k }; break; }
   }
