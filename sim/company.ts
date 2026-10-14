@@ -25,6 +25,9 @@ if (process.env.INJ_BASE) CO.INJ_BASE = +process.env.INJ_BASE;
 if (process.env.INJ_REST) CO.INJ_REST = +process.env.INJ_REST;
 if (process.env.INJ_PEN) CO.INJ_PEN = +process.env.INJ_PEN;
 if (process.env.LOSE_LOOT) CO.LOSE_LOOT = +process.env.LOSE_LOOT;
+if (process.env.SLOT_PP) CO.SLOT_PP = +process.env.SLOT_PP;
+if (process.env.LOOT_SLOT) CO.LOOT_SLOT = +process.env.LOOT_SLOT;
+if (process.env.P0X) ITEMS[0].P0 *= +process.env.P0X;
 for (const k of ['TARGET_AT', 'TARGET_W', 'TARGET_SUCC', 'TARGET_MAT', 'KEY_SUCC', 'KEY_CRISIS', 'MAT_SURE', 'ASK_AT'] as const) if (process.env['DEX_' + k]) DEX[k] = +process.env['DEX_' + k]!;
 if (process.env.ENC_W0) { const a = +process.env.ENC_W0; CO.ENC_W = [a, (1 - a) / 2, (1 - a) / 2]; }
 if (process.env.MAT_ENC) CO.MAT_ENC = +process.env.MAT_ENC;
@@ -112,7 +115,8 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
   const order = value.map((v, f) => [v, f]).sort((a, b) => b[0] - a[0]);
   for (let k = 0, rest = n - P.parties.reduce((a, b) => a + b, 0); rest > 0; k++, rest--) P.parties[order[k % W.unlocked][1]]++;
   if (scout) P.parties = scoutSplit(W, n, pots, value);
-  P.pots = FLOORS.map(() => pots);
+  // 포션: 얕은 층은 덜 다쳐서 적게 (짐 칸을 전리품에 남긴다)
+  P.pots = FLOORS.map((_, f) => Math.min(pots, 1 + f));
   P.tool = 0;   // 단원마다 급여가 붙은 뒤로는 채집 장비 · 갈무리장이 본전이 안 된다 (시뮬레이션으로 확인함)
   const best = value.indexOf(Math.max(...value));
   if (c.cash > 6000 * cashK() && value[best] * (1 - CO.HIRE_CUT) - CO.HIRE_FEE > 150) P.hire[best] = 2;

@@ -55,13 +55,16 @@ export function resultsHtml(W: World) {
       ${r.matSales ? `<tr><td>갈무리 소재 ${Object.values(r.matSold).reduce((a, b) => a + b, 0)}개</td><td class="n">${fmt(r.matSales)}</td></tr>` : ''}
       ${r.adv ? `<tr><td>탐사 선금 (영주청)</td><td class="n">${fmt(r.adv)}</td></tr>` : ''}
       ${r.file && r.file.bill.sub + r.file.bill.aid ? `<tr><td>보급 · 층 지원금 (영주청)</td><td class="n">${fmt(r.file.bill.sub + r.file.bill.aid)}</td></tr>` : ''}
-      <tr><td>출정</td><td class="n">−${fmt(r.spend.sortie)}</td></tr>
+      ${r.spend.sortie ? `<tr><td>계약 파티 출정비</td><td class="n">−${fmt(r.spend.sortie)}</td></tr>` : ''}
+      ${r.spend.food ? `<tr><td>식량 ${fmt(r.spend.food / CO.FOOD_PRICE)}개</td><td class="n">−${fmt(r.spend.food)}</td></tr>` : ''}
+      ${r.spend.mend ? `<tr><td>정비 도구 ${fmt(r.spend.mend / CO.MEND_PRICE)}개</td><td class="n">−${fmt(r.spend.mend)}</td></tr>` : ''}
       ${r.spend.potion ? `<tr><td>포션 구매 ${r.potNeed}병 (교회 ${r.potC}병)</td><td class="n">−${fmt(r.spend.potion)}</td></tr>` : ''}
       ${r.potUsed ? `<tr><td class="dim">위기에 쓴 포션 ${r.potUsed}병 (나머지는 창고로)</td><td class="n dim">-</td></tr>` : ''}
       ${r.spend.gear ? `<tr><td>장비 ${r.spend.gear / CO.GEAR_PRICE}벌</td><td class="n">−${fmt(r.spend.gear)}</td></tr>` : ''}
       ${r.spend.probe ? `<tr><td>조사 의뢰</td><td class="n">−${fmt(r.spend.probe)}</td></tr>` : ''}
       ${r.spend.hire ? `<tr><td>계약 파티 수수료</td><td class="n">−${fmt(r.spend.hire)}</td></tr>` : ''}
       <tr><td>급여</td><td class="n">−${fmt(r.spend.wage)}</td></tr>
+      ${r.spend.fire ? `<tr><td>해고 위로금 ${(r.fired || []).length}명 <span class="dim">${(r.fired || []).join(', ')}</span></td><td class="n">−${fmt(r.spend.fire)}</td></tr>` : ''}
       ${r.spend.heal ? `<tr><td>치료비 (부상 ${r.hurt}명 · 다음 달 쉼)</td><td class="n">−${fmt(r.spend.heal)}</td></tr>` : ''}
       ${r.spend.job ? `<tr><td class="neg">의뢰 위약금 (못 채운 납품)</td><td class="n">−${fmt(r.spend.job)}</td></tr>` : ''}
       ${r.spend.torch ? `<tr><td>횃불 ${fmt(r.spend.torch / CO.TORCH_PRICE)}개${r.torchShort ? ` <span class="neg">· 횃불 없이 간 조 ${r.torchShort}</span>` : ''}</td><td class="n">−${fmt(r.spend.torch)}</td></tr>` : ''}

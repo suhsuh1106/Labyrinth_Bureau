@@ -1307,3 +1307,36 @@ describe('미궁 도감 · 단장 · 지정 탐사', () => {
     expect(aim / all).toBeGreaterThan(0.4);   // 섞여 만나면 0.3
   });
 });
+
+describe('채비: 식량 · 정비 도구 · 해고', () => {
+  it('식량과 정비 도구는 조마다 정한 만큼 들고 가서 먹은 · 쓴 만큼 빠지고, 남은 것은 창고로 돌아온다', () => {
+    setSeed(3); const W = newWorld(), c = us(W);
+    const P = sanitize(W, c, defaultPlan(W)); P.food = FLOORS.map(() => 3); P.mend = FLOORS.map(() => 2);
+    const M = runMonth(W, P); closeBooks(W);
+    const need = needOf(sanitize(W, c, P));
+    expect(M.res[0].spend.food).toBe(need.food * CO.FOOD_PRICE);
+    expect(M.res[0].spend.mend).toBe(need.mend * CO.MEND_PRICE);
+    const ate = M.ours.reduce((a, o) => a + (o.trip!.fu || 0), 0), used = M.ours.reduce((a, o) => a + (o.trip!.tk || 0), 0);
+    expect(supOf(c).food).toBe(need.food - ate); expect(supOf(c).mend).toBe(need.mend - used);
+    // 사흘치만 들고 가면 나흘째부터 굶는다
+    M.ours.forEach(o => o.days!.forEach((d, j) => { if (j >= 3) expect(d.hg || 0).toBeGreaterThan(0); else expect(d.hg || 0).toBe(0); }));
+  });
+  it('식량 없이 보내면 굶은 날 성공이 떨어져 지는 날이 는다', () => {
+    const lose = (food: number) => { let l = 0, n = 0; for (let s = 1; s <= 12; s++) { setSeed(s); const W = newWorld(); const P = sanitize(W, us(W), defaultPlan(W)); P.food = FLOORS.map(() => food); const M = runMonth(W, P); M.ours.forEach(o => o.days!.forEach(d => { n++; if (!d.win) l++; })); } return l / n; };
+    expect(lose(0)).toBeGreaterThan(lose(CO.DAYS));
+  });
+  it('해고: 고른 단원은 이번 달 첫머리에 떠나 조에 들지 않고, 위로금으로 한 달 급여를 받는다. 단장은 내보낼 수 없다', () => {
+    setSeed(4); const W = newWorld(), c = us(W);
+    const lead = c.crew!.find(p => p.lead)!, out = c.crew!.filter(p => !p.lead).slice(0, 2);
+    const P = defaultPlan(W); P.fire = [lead.id, ...out.map(p => p.id)];
+    const Q = sanitize(W, c, P);
+    expect(Q.fire).toEqual(out.map(p => p.id));
+    expect(Q.teams!.some(T => T.m.some(id => out.some(p => p.id === id)))).toBe(false);
+    const n0 = c.crew!.length, M = runMonth(W, P);
+    expect(c.crew!.some(p => out.some(x => x.id === p.id))).toBe(false);
+    expect(c.crew!.some(p => p.id === lead.id)).toBe(true);
+    expect(M.res[0].spend.fire).toBe(Math.round(out.reduce((a, p) => a + (CO.TIER_WAGE[tierOf(p)] - (p.tr === '새가슴' ? CO.CHICKEN_WAGE : 0)), 0) * CO.FIRE_PAY));
+    expect(c.crew!.length).toBeLessThanOrEqual(n0 - 2 + M.res[0].recruited);
+    expect(carryPlan(W, P).fire).toBeUndefined();
+  });
+});
