@@ -24,7 +24,7 @@ import { floorMax, keyOf } from '../src/core/company';
 import { fcRank, forecast, gradeOf } from '../src/core/company';
 import { bedsOf, classCap, dormCost, dormKeep, formTeams, recruitPrice, recruitWants, rookCount, rookSlots, shareOut } from '../src/core/company';
 import { CLASSES } from '../src/core/data';
-import { needOf, tripOdds, potShock, profitOf, drillGain, weakShare, badShare, classBad, hireCap } from '../src/core/company';
+import { needOf, tripOdds, potShock, profitOf, drillGain, weakShare, badShare, classBad, hireCap, synOf, synTags, teamSlots, SYN } from '../src/core/company';
 import { WEAK_KEYS } from '../src/core/data';
 import { DEX } from '../src/core/dex';
 
@@ -1306,5 +1306,22 @@ describe('약점 짝 · 계약 조', () => {
       const n0 = c.crew!.length, M = runMonth(W, P);
       expect(M.res[0].deaths).toBe(0); expect(M.res[0].hurt).toBe(0); expect(c.crew!.length).toBe(n0 + M.res[0].recruited);
     }
+  });
+});
+
+describe('조 시너지 · 단장', () => {
+  const P = (c: string, lead = false) => ({ id: 0, c, sk: 40, ...(lead ? { lead: true } : {}) }) as any;
+  it('직업 수로 시너지가 켜진다: 전사 둘이면 짐 한 칸 더, 단장이 있으면 역효과 없음', () => {
+    expect(synOf([P('전사'), P('궁수')]).war).toBe(false);
+    expect(synOf([P('전사'), P('전사')]).war).toBe(true);
+    expect(teamSlots([P('전사'), P('전사'), P('궁수'), P('도적')])).toBe(4 * CO.SLOT_PP + SYN.WAR2_SLOT);
+    expect(synOf([P('사제'), P('사제')]).pri2).toBe(true);
+    expect(synOf([P('마법사'), P('마법사')]).mag2).toBe(true);
+    expect(synOf([P('전사', true)]).lead).toBe(true);
+    expect(synTags([P('도적'), P('궁수'), P('궁수')]).map(t => t[0])).toEqual(['도적', '궁수 2']);
+  });
+  it('도적이 끼면 그 조의 층 이해도가 오른다', () => {
+    setSeed(2); const W = newWorld(), c = us(W);
+    expect(teamUnd(c, 0, [P('도적'), P('전사')])).toBe(teamUnd(c, 0, [P('궁수'), P('전사')]) + SYN.ROG1_UND);
   });
 });
