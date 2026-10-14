@@ -91,7 +91,7 @@ function askLine(W: World) {
   const L = W.last!, A = L.ask, out: string[] = [];
   if (A) {
     const k = A.m ? keyName(A.k) : weakName(A.k);
-    const t = A.ans === 'away' ? ASK_SAY.away : A.ans === 'miss' ? ASK_SAY.miss(A.mon) : A.m ? ASK_SAY.mat[A.ans](A.mon, k, A.m) : ASK_SAY.key[A.ans](A.mon, k);
+    const t = A.ans === 'away' ? ASK_SAY.away : A.ans === 'miss' ? ASK_SAY.miss(A.mon) : A.m ? ASK_SAY.mat[A.ans](A.mon, k, A.m) : A.b ? ASK_SAY.bad[A.ans](A.mon, k) : ASK_SAY.key[A.ans](A.mon, k);
     out.push(`<p class="ask ${A.ans}"><small>단장 조사</small> ${esc(t)}${A.ans === 'yes' ? ' <b class="st">확정</b>' : A.ans === 'no' ? ' <b class="st no">아님</b>' : ''}</p>`);
   }
   if (L.leadHurt) out.push(`<p class="ask hurt"><small>단장</small> ${esc(L.leadHurt)} 크게 다침 · ${DEX.LEAD_REST}달 쉼</p>`);

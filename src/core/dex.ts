@@ -22,9 +22,9 @@ export type DexRec = { n: number; w: number; cr: number; k?: number; p?: number 
 export type DexMat = { got: number; rec: Record<string, { n: number; g: number }> };
 export type Ans = 'yes' | 'no';
 // at: 처음 만난 달
-export type Dex = { n: number; w: number; cr: number; u: number; at: number; rec: Record<string, DexRec>; mats: Record<string, DexMat>; key: Record<string, Ans>; mat: Record<string, Record<string, Ans>> };
+export type Dex = { n: number; w: number; cr: number; u: number; at: number; rec: Record<string, DexRec>; mats: Record<string, DexMat>; key: Record<string, Ans>; mat: Record<string, Record<string, Ans>>; bad?: Record<string, Ans> };   // bad: 역효과 조사의 답
 // 단장 조사: 몬스터(mon), 물은 것(k: 'c:마법사' · 'g:냉기'), 소재(m, 없으면 약점을 묻는다)
-export type Ask = { mon: string; k: string; m?: string };
+export type Ask = { mon: string; k: string; m?: string; b?: boolean };   // b: 역효과를 묻는다
 export type AskRes = Ask & { ans: Ans | 'miss' | 'away' };
 
 // 전적의 칸: 직업마다 0 · 1 · 2(둘 이상), 장비마다 0 · 1
@@ -58,10 +58,13 @@ export function dexWin(D: Dex, conds: string[], mats: string[], got: Set<string>
 export function dexGot(D: Dex, m: string, n: number) { const X = D.mats[m] || (D.mats[m] = { got: 0, rec: {} }); X.got += n; }
 // 확정해 둔 약점이 있나 · 이 소재의 조건을 확정해 두었나
 export const keySure = (D: Dex | undefined) => !!D && Object.values(D.key).includes('yes');
+// 확정해 둔 역효과 (없으면 '')
+export const badSure = (D: Dex | undefined) => (D && D.bad ? Object.keys(D.bad).find(k => D.bad![k] === 'yes') || '' : '');
 export const matSure = (D: Dex | undefined, m: string) => !!D && !!D.mat[m] && Object.values(D.mat[m]).includes('yes');
 // 물을 수 있는가: 이해도 ASK_AT 이상, 아직 답을 받지 않은 것, 소재는 한 번은 얻은 것
 export function askable(D: Dex | undefined, A: Ask) {
   if (!D || D.u < DEX.ASK_AT || !(A.m ? MAT_KEYS : WEAK_KEYS).includes(A.k)) return false;
   if (A.m) return !!D.mats[A.m] && D.mats[A.m].got > 0 && !(D.mat[A.m] && D.mat[A.m][A.k]);
+  if (A.b) return !(D.bad && D.bad[A.k]) && !badSure(D) && D.key[A.k] !== 'yes';
   return !D.key[A.k] && !keySure(D);
 }

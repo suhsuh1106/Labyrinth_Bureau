@@ -6,7 +6,7 @@
 import { setSeed } from '../src/core/rng';
 import { CO, TAX, FLOORS, potShock, cashK, aidAt, jobsExplore, churchPrice, ITEMS, type Filing, type Plan, type World, closeBooks, preview, defaultPlan, dormCost, jobsSign, partyMargin, roomOf, demandMul, potsOf, probe, floorMons, mapOf, maxParties, newWorld, torchRate, tripOdds, sanitize, canTarget, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
 import { demandSeen } from '../src/ui/co/book';
-import { ASK_KEYS, DEX, MAT_KEYS, type Dex, keySure } from '../src/core/dex';
+import { ASK_KEYS, DEX, MAT_KEYS, type Dex, askable, badSure, keySure } from '../src/core/dex';
 import { CLASSES, PAIR_CLASS, classWeaks } from '../src/core/data';
 
 // 영주청 숫자를 바꿔 보며 잴 때 (TAX_LOOT=0.15 TAX_SUSK=20 TAX_RELIEF=0.5 npm run sim)
@@ -169,6 +169,11 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
   else if (LT) for (const M of floorMons(W, LT.f)) {
     const D = dex[M.name]; if (!D || D.u < DEX.ASK_AT || keySure(D)) continue;
     const k = guessKeys(D).find(x => !D.key[x]); if (k) { Q.ask = { mon: M.name, k }; break; }
+  }
+  // 약점을 확정한 몬스터는 역효과를 하나씩 지워 가며 묻는다 (확정하면 맨몸 역효과가 준다)
+  if (LT && !Q.ask) for (const M of floorMons(W, LT.f)) {
+    const D = dex[M.name]; if (!D || !keySure(D) || badSure(D)) continue;
+    const k = ASK_KEYS.find(x => askable(D, { mon: M.name, k: x, b: true })); if (k) { Q.ask = { mon: M.name, k, b: true }; break; }
   }
   return Q;
 }

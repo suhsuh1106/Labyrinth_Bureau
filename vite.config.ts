@@ -4,5 +4,5 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   base: process.env.PAGES_BASE ?? '/',
   // 판 단위 시험(36개월 × 여러 시드)은 CI에서 파일 셋이 함께 돌면 5초를 넘긴다
-  test: { include: ['tests/**/*.test.ts'], testTimeout: 60000 },
+  test: { include: ['tests/**/*.test.ts'], testTimeout: 120000 },
 } as any);

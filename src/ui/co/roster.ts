@@ -3,7 +3,7 @@
 import { CO, FLOORS, type Person, type Plan, type World, candPrice, cohesion, hqLv, mapOf, personWage, recruitPrice, roomOf, teamOdds, teamPots, teamTorch, teamFood, teamMend, foodDays, clamp, tierOf, torchRate, tripOdds, us, drillGain, isRook, weakShare, synTags, teamSlots, synOf, SYN } from '../../core/company';
 import { stepper } from './view';
 import { floorMons } from '../../core/company';
-import { DEX } from '../../core/dex';
+import { DEX, badSure } from '../../core/dex';
 import { GEARS, PAIR_CLASS, TIER_N, TRAITS, WEAK_KEYS } from '../../core/data';
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
@@ -71,7 +71,10 @@ export function assignHtml(W: World, P: Plan, others: (f: number) => number, sor
     const pk = teamPots(P, T), tk = teamTorch(P, T), fd = teamFood(P, T), md = teamMend(P, T), fdays = T.food != null ? clamp(Math.floor(T.food), 0, CO.DAYS) : foodDays(P, T.f), dark = tripOdds(Math.min(tk, teamSlots(who)), torchRate(T.f, o.u) * (synOf(who).arc ? SYN.ARC1_TORCH : 1)).dark;
     const bonded = cohesion(who) > 0, fresh = bonded ? who.filter(p => who.every(x => x.id === p.id || !((p.mt && p.mt[x.id]) || 0))).length : 0;
     const scoutOk = hqLv(c, 'rec') >= 2 && who.length <= 3;
-    const warn = [...(who.length < CO.PARTY && !T.scout ? [`빈자리 ${CO.PARTY - who.length}`] : []), ...(fresh ? [`새 얼굴 ${fresh}`] : []),
+    // 확정한 역효과: 그 층 몬스터의 역효과 장비를 들었거나, 그 속성을 맡는 직업이 맨몸으로 끼었으면 (단장이 있으면 괜찮다)
+    const badW = synOf(who).lead ? [] : floorMons(W, T.f).flatMap(M => { const b = badSure((W.dex || {})[M.name]); if (!b) return []; const nm = b.slice(2);
+      return T.g === b ? [`역효과 ${nm} 장비`] : who.some(p => PAIR_CLASS[nm] === p.c) ? [`역효과 ${PAIR_CLASS[nm]}`] : []; });
+    const warn = [...new Set(badW),...(who.length < CO.PARTY && !T.scout ? [`빈자리 ${CO.PARTY - who.length}`] : []), ...(fresh ? [`새 얼굴 ${fresh}`] : []),
       ...(T.f > 0 && o.u < 50 && who.some(p => p.tr === '새가슴') ? ['새가슴'] : [])];
     const best = Math.max(0, ...who.map(p => (p.ex && p.ex[T.f]) || 0)), m = Math.round(mapOf(c, T.f)), guide = who.some(p => p.tr === '길잡이');
     const uTip = `지도 ${m}${best ? ` + 고참 경험 ${Math.round(Math.min(CO.UND_EX, best / 4))}` : ''}${guide ? ` + 길잡이 ${CO.UND_GUIDE}` : ''} · 성공 ${o.U.succ >= 0 ? '+' : '−'}${Math.round(Math.abs(o.U.succ) * 100)}%p · 위기 ×${o.U.crisis.toFixed(2)} · 캐 오는 양 ×${o.U.loot.toFixed(2)}`;

@@ -5,7 +5,7 @@
 import { PAIR_CLASS, weakKey, ANOMALIES, BUYERS, CLASSES, CLASS_SHARE, FAMILY, FAUNA, GEARS, GEAR_SHARE, GIVEN, KEYS, MAT_TIER, MONSTERS, type Mat, ROOT_LORE, TRAIT_KEYS } from './data';
 import { rnd } from './rng';
 import { type Day, type Trip, runTrip } from './expedition';
-import { type Ask, type AskRes, DEX, type Dex, askable, condKeys, dexGot, dexMeet, dexWin, keySure, matSure, newDex } from './dex';
+import { type Ask, type AskRes, DEX, type Dex, askable, badSure, condKeys, dexGot, dexMeet, dexWin, keySure, matSure, newDex } from './dex';
 import { DEX_ADAPT, LEAD_HURT } from './events';
 export type { Day, Trip } from './expedition';
 import { keyWord } from './util';
@@ -145,7 +145,7 @@ export const CO = {
   GEAR_PRICE: 80, GEAR_BREAK: 0.1, GEAR_LOST: 0.35,
   // 역효과: 그 속성 장비를 들고 그 몬스터를 만나면 성공 −BAD_PEN에 장비가 BAD_BREAK배 잘 망가지고,
   // 장비 없이 그 속성을 맡는 직업이 맨몸으로 나서면 그 사람의 부상 주사위가 BAD_INJ배
-  BAD_BREAK: 2, BAD_INJ: 1.5,
+  BAD_BREAK: 2, BAD_INJ: 1.5, BAD_INJ_KNOWN: 1.25,   // 역효과를 단장 조사로 확정해 두면 맨몸 역효과가 줄어든다 (알고 가면 조심한다)
   // 조사 의뢰: 정보 주차에 돈을 내면 이번 달 것을 바로 알려 준다. 한 달에 PROBE_MAX번까지
   PROBE_MKT: 150, PROBE_RIV: 200, PROBE_MAX: 3,
   // 편성 줄: 한 층의 우리 조를 줄마다 다르게 챙겨 보낸다 (층마다 KIT_MAX줄까지, 나머지는 섞인 대로)
@@ -1093,7 +1093,7 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
             food: fc, foodSlot: CO.FOOD_SLOT, hungerPen: CO.HUNGER_PEN, tools: mc, toolPen: CO.MEND_PEN,
             // 조우 난이도: 층마다 HARD_F, 주 몬스터는 HARD_MAIN만큼 더 해내기 어렵다
             pm: (m, j) => clamp(ppBase + vs[j] - CO.HARD_F[f] - (j ? 0 : CO.HARD_MAIN) + MM!.pp[m], 0.05, 0.97),
-            injP: (m, j) => { const p0 = CO.INJ_BASE + CO.INJ_K * F.risk; return Math.min(0.9, (j < 0 ? CO.DARK_MIN + p0 * CO.DARK_BACK : p0) * (j >= 0 && !S.lead && classBad(mons[j].bad, who[m].c, keys) ? CO.BAD_INJ : 1) * (S.pri ? SYN.PRI1_INJ : 1) * MM!.cr[m] * CO.INJ_TIER[tierOf(who[m])] * U.crisis * (scout ? CO.SCOUT_CRISIS : 1) * (j >= 0 && j === tg && keySure(Dx[j]) ? DEX.KEY_CRISIS : 1)); },
+            injP: (m, j) => { const p0 = CO.INJ_BASE + CO.INJ_K * F.risk; return Math.min(0.9, (j < 0 ? CO.DARK_MIN + p0 * CO.DARK_BACK : p0) * (j >= 0 && !S.lead && classBad(mons[j].bad, who[m].c, keys) ? (badSure(Dx[j]) === mons[j].bad ? CO.BAD_INJ_KNOWN : CO.BAD_INJ) : 1) * (S.pri ? SYN.PRI1_INJ : 1) * MM!.cr[m] * CO.INJ_TIER[tierOf(who[m])] * U.crisis * (scout ? CO.SCOUT_CRISIS : 1) * (j >= 0 && j === tg && keySure(Dx[j]) ? DEX.KEY_CRISIS : 1)); },
             hurt: m => { hurtOnce(m); if (!MM!.medic && CO.INJ_REST) hurtP[i].add(who[m].id); },
             // 포션: 성수부터 쓴다. 성수는 HOLY의 확률로 병을 비우지 않고 막는다 (모두 성수면 한 병이 1 + HOLY병 몫)
             usePot: () => {
@@ -1127,9 +1127,9 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
               if (win) { dexWin(D, conds, M.mats.map(x => x.n), new Set(lastGot.keys())); lastGot.forEach((n, m) => dexGot(D, m, n)); }
               if (ask && askRes && askRes.ans !== 'yes' && askRes.ans !== 'no' && M.name === ask.mon && up.some(m => who[m].lead)) {
                 const x = ask.m ? M.mats.find(y => y.n === ask.m) : null;
-                const yes = x ? !!(x.b || []).some(([k]) => k.split('+').includes(ask.k)) : ask.k === M.key;
+                const yes = x ? !!(x.b || []).some(([k]) => k.split('+').includes(ask.k)) : ask.b ? ask.k === M.bad : ask.k === M.key;
                 askRes.ans = yes ? 'yes' : 'no';
-                if (x) (D.mat[x.n] || (D.mat[x.n] = {}))[ask.k] = askRes.ans; else D.key[ask.k] = askRes.ans;
+                if (x) (D.mat[x.n] || (D.mat[x.n] = {}))[ask.k] = askRes.ans; else if (ask.b) (D.bad || (D.bad = {}))[ask.k] = askRes.ans; else D.key[ask.k] = askRes.ans;
               }
             },
           });

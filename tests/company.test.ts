@@ -26,7 +26,7 @@ import { bedsOf, classCap, dormCost, dormKeep, formTeams, recruitPrice, recruitW
 import { CLASSES } from '../src/core/data';
 import { needOf, tripOdds, potShock, profitOf, drillGain, weakShare, badShare, classBad, hireCap, synOf, synTags, teamSlots, SYN } from '../src/core/company';
 import { WEAK_KEYS } from '../src/core/data';
-import { DEX } from '../src/core/dex';
+import { DEX, askable, badSure } from '../src/core/dex';
 
 describe('용병단 장부', () => {
   it('매달 모든 용병단의 금고 변화가 판매 수입에서 지출을 뺀 값과 같다', () => {
@@ -143,7 +143,7 @@ describe('상단·교회와 포션 담합', () => {
       expect(M.potionC).toBe(Math.round(CO.POTION_C0 * CO.CARTEL_MARKUP));
     }
     expect(seen).toBeGreaterThan(3);
-  }, 20000);
+  });
   it('담합 중 교회 후원이 쌓이면 교회가 빠져나와 후원한 쪽에 예전 값으로 팔고, 후원한 쪽은 교회와 가까워지고 상단과 멀어진다', () => {
     let checked = 0;
     for (let g = 1; g <= 40 && checked < 3; g++) {
@@ -828,7 +828,7 @@ describe('성공 정도 · 부상 · 수입 어림', () => {
     }
     expect(a / f).toBeGreaterThan(0.85); expect(a / f).toBeLessThan(1.15);
     expect(inside / n).toBeGreaterThan(0.5);
-  }, 30000);
+  });
   it('출정에 이번 달 어림이, 정산에 어림과 실제가 나온다', () => {
     setSeed(73); const W = newWorld();
     runMonth(W, BOT.even(W)); runMonth(W, BOT.even(W));
@@ -1325,3 +1325,23 @@ describe('조 시너지 · 단장', () => {
     expect(teamUnd(c, 0, [P('도적'), P('전사')])).toBe(teamUnd(c, 0, [P('궁수'), P('전사')]) + SYN.ROG1_UND);
   });
 });
+
+describe('역효과 단장 조사', () => {
+  it('역효과를 물으면 맞으면 확정, 틀리면 아님. 확정하면 다시 묻지 않고 맨몸 역효과가 준다', () => {
+    setSeed(5); const W = newWorld(), c = us(W), M = MONSTERS[W.mons[0]], main = M.name;
+    W.dex = { [main]: { n: 30, w: 20, cr: 0, u: 50, at: 1, rec: {}, mats: {}, key: {}, mat: {} } };
+    const wrong = WEAK_KEYS.find(k => k !== M.bad && k !== M.key)!;
+    expect(askable(W.dex[main], { mon: main, k: wrong, b: true })).toBe(true);
+    const done: string[] = [];
+    for (let m = 0; m < 12 && done.length < 2; m++) {
+      const P = carryPlan(W, W.last ? W.last.plans[0] : defaultPlan(W)); P.ask = { mon: main, k: done.length ? M.bad : wrong, b: true };
+      const R = runMonth(W, P); closeBooks(W);
+      if (R.ask && (R.ask.ans === 'yes' || R.ask.ans === 'no')) { expect(R.ask.ans).toBe(R.ask.k === M.bad ? 'yes' : 'no'); done.push(R.ask.ans); }
+    }
+    expect(done).toEqual(['no', 'yes']);
+    expect(badSure(W.dex![main])).toBe(M.bad);
+    expect(askable(W.dex![main], { mon: main, k: wrong, b: true })).toBe(false);
+    expect(CO.BAD_INJ_KNOWN).toBeLessThan(CO.BAD_INJ);
+  });
+});
+

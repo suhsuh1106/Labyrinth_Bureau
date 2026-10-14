@@ -85,6 +85,6 @@ describe('밸런스', () => {
     for (let g = 1; g <= 60; g++) { const W = playGame(g, BOT.smart, FILER.smart); win[W.last!.rank[0]] = (win[W.last!.rank[0]] || 0) + 1; }
     expect(Math.max(...Object.values(win))).toBeLessThan(60 * 0.6);
     expect(win.us || 0).toBeGreaterThan(0);
-  }, 30000);
+  });
 });
 

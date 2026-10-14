@@ -1107,3 +1107,4 @@ table.tsum small.wk { background: none; border: 0; padding: 0; margin-top: 3px; 
 /* 조 시너지 이름표 (오토체스처럼) */
 table.tsum .syn { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 3px; }
 table.tsum .syn span { font-size: 10.5px; padding: 0 6px; border-radius: 9px; background: rgba(201, 154, 30, .18); border: 1px solid #c99a1e; color: var(--ink); cursor: help; }
+.dx-st.bad { color: #fff; background: #5b3a8a; }
