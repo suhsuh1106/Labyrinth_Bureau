@@ -2,7 +2,7 @@
 import './ui/co/base.css';
 import './ui/co/co.css';
 import { setSeed } from './core/rng';
-import { CO, FILE_KEYS, teamPots, teamTorch, type Plan, SRCS, type World, carryPlan, closeBooks, fileFix, fillTeams, formTeams, newWorld, probe, rankOf, roomOf, runMonth, sanitize, us } from './core/company';
+import { CO, FILE_KEYS, teamPots, teamTorch, teamMend, carryOf, foodDays, mendOf, FLOORS, type Plan, SRCS, type World, carryPlan, closeBooks, fileFix, fillTeams, formTeams, newWorld, probe, rankOf, roomOf, runMonth, sanitize, us } from './core/company';
 import { DESC_FIRST, packBar } from './ui/co/roster';
 import { CLASSES, GEARS } from './core/data';
 import { plaqueHtml } from './ui/co/view';
@@ -11,7 +11,7 @@ import { draftHtml } from './ui/co/draft';
 import { advanceArrival, arrivalOpen, closeArrival, playArrival } from './ui/co/arrival';
 
 const $ = (id: string): any => document.getElementById(id);
-const KEY = 'lb-co', VERSION = 18, MONTHS = 36;   // 18: 미궁 도감(몬스터별 기록 · 이해도) · 단장 · 지정 탐사 (이전 판은 새 게임으로)
+const KEY = 'lb-co', VERSION = 19, MONTHS = 36;   // 19: 식량 · 정비 도구 · 층별 기본 채비 · 해고 (이전 판은 새 게임으로)
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
 let W: World, plan: Plan, ui: DeskUi;
 // 도장을 막 찍은 결과 화면이면 귀환 장부를 한 줄씩 띄운다 (저장하지 않는 화면 상태)
@@ -140,6 +140,13 @@ function act(b: HTMLElement) {
   if (a === 'sellmap') { const f = +(b.dataset.f || 0); if (plan.sellMap === f) delete plan.sellMap; else plan.sellMap = f; render(); save(); return; }
   if (a === 'coach') { plan.coach = +(b.dataset.i || 0); render(); save(); return; }
   if (a === 'build') { const k = b.dataset.k || ''; if (plan.build === k) delete plan.build; else plan.build = k; render(); save(); return; }
+  if (a === 'fire') {
+    const id = +(b.dataset.id || 0), F = plan.fire ? [...plan.fire] : [], k = F.indexOf(id);
+    if (k >= 0) F.splice(k, 1); else F.push(id);
+    plan.fire = F;
+    if (plan.teams) plan.teams.forEach(T => { T.m = T.m.map(x => (x === id && k < 0 ? null : x)); });
+    render(); save(); return;
+  }
   if (a === 'pick') {
     const id = +(b.dataset.id || 0), P = plan.pick ? [...plan.pick] : [], k = P.indexOf(id);
     if (k >= 0) P.splice(k, 1); else if (P.length < roomOf(us(W))) P.push(id);
@@ -153,6 +160,8 @@ function act(b: HTMLElement) {
   if (a === 'refill' || a === 'fill-rest' || a === 'bench' || a === 'to-bench' || a === 'slot' || a === 'assign' || a === 'tfloor' || a === 'scout') return teamAct(a, b);
   if (a === 'auto-pot') { plan.buy = { ...(plan.buy || {}) }; delete plan.buy.pot; render(); save(); return; }
   if (a === 'auto-torch') { plan.buy = { ...(plan.buy || {}) }; delete plan.buy.torch; render(); save(); return; }
+  if (a === 'auto-food') { plan.buy = { ...(plan.buy || {}) }; delete plan.buy.food; render(); save(); return; }
+  if (a === 'auto-mend') { plan.buy = { ...(plan.buy || {}) }; delete plan.buy.mend; render(); save(); return; }
   if (a === 'kit-add') { const f = +(b.dataset.f || 0); plan.kits = plan.kits || []; plan.kits[f] = [...(plan.kits[f] || []), { n: 0, g: '' }]; render(); save(); return; }
   if (a === 'kit-del') { const f = +(b.dataset.f || 0), k = +(b.dataset.j || 0); if (plan.kits && plan.kits[f]) plan.kits[f].splice(k, 1); render(); save(); return; }
   if (a === 'go') return stamp();
@@ -243,6 +252,8 @@ function edit(k: string, i: number, fn: (v: number) => number, j = 0) {
   else if (k === 'buyPot') { const cur = +(document.querySelector('input[data-k="buyPot"]') as HTMLInputElement)?.value || 0; buy().pot = Math.max(0, fn(plan.buy && plan.buy.pot != null ? plan.buy.pot : cur)); }
   else if (k === 'buyHoly') buy().holy = Math.max(0, fn((plan.buy && plan.buy.holy) || 0));
   else if (k === 'buyTorch') { const cur = +(document.querySelector('input[data-k="buyTorch"]') as HTMLInputElement)?.value || 0; buy().torch = Math.max(0, fn(plan.buy && plan.buy.torch != null ? plan.buy.torch : cur)); }
+  else if (k === 'buyFood') { const cur = +(document.querySelector('input[data-k="buyFood"]') as HTMLInputElement)?.value || 0; buy().food = Math.max(0, fn(plan.buy && plan.buy.food != null ? plan.buy.food : cur)); }
+  else if (k === 'buyMend') { const cur = +(document.querySelector('input[data-k="buyMend"]') as HTMLInputElement)?.value || 0; buy().mend = Math.max(0, fn(plan.buy && plan.buy.mend != null ? plan.buy.mend : cur)); }
   else if (k === 'buyGear') {
     const g = GEAR_NAMES[i], cur = +(document.querySelector(`input[data-k="buyGear"][data-i="${i}"]`) as HTMLInputElement)?.value || 0;
     const B = buy(); B.gear = { ...(B.gear || {}) }; B.gear[g] = Math.max(0, fn(B.gear[g] != null ? B.gear[g] : cur));
@@ -257,9 +268,17 @@ function edit(k: string, i: number, fn: (v: number) => number, j = 0) {
   }
   else if (k === 'base') { const f = plan.base ? plan.base.f : Math.max(0, W.unlocked - 1); plan.base = { f, amt: Math.max(0, fn(plan.base ? plan.base.amt : 0)) }; }
   else if (k === 'pots') plan.pots[i] = Math.max(0, Math.min(8, fn(plan.pots[i])));
-  else if (k === 'tpots' || k === 'ttorch') {
+  else if (k === 'dtorch') { plan.torch = FLOORS.map((_, f) => carryOf(plan, f)); plan.torch[i] = Math.max(0, Math.min(CO.DAYS, fn(plan.torch[i]))); }
+  else if (k === 'dfood') { plan.food = FLOORS.map((_, f) => foodDays(plan, f)); plan.food[i] = Math.max(0, Math.min(CO.DAYS, fn(plan.food[i]))); }
+  else if (k === 'dmend') { plan.mend = FLOORS.map((_, f) => mendOf(plan, f)); plan.mend[i] = Math.max(0, Math.min(6, fn(plan.mend[i]))); }
+  else if (k === 'tpots' || k === 'ttorch' || k === 'tfood' || k === 'tmend') {
     const T = plan.teams && plan.teams[i];
-    if (T) { if (k === 'tpots') T.pots = Math.max(0, Math.min(8, fn(teamPots(plan, T)))); else T.torch = Math.max(0, Math.min(CO.DAYS, fn(teamTorch(plan, T)))); }
+    if (T) {
+      if (k === 'tpots') T.pots = Math.max(0, Math.min(8, fn(teamPots(plan, T))));
+      else if (k === 'ttorch') T.torch = Math.max(0, Math.min(CO.DAYS, fn(teamTorch(plan, T))));
+      else if (k === 'tfood') T.food = Math.max(0, Math.min(CO.DAYS, fn(T.food != null ? T.food : foodDays(plan, T.f))));
+      else T.mend = Math.max(0, Math.min(6, fn(teamMend(plan, T))));
+    }
   }
   else if ((plan as any)[k]) (plan as any)[k][i] = Math.max(0, fn((plan as any)[k][i]));
   render(); save();
@@ -303,11 +322,11 @@ function playTrips(box: HTMLElement) {
     steps.push(() => {
       cell.classList.remove('hid'); cell.classList.add('pop');
       const pw = li.querySelector('.packw') as HTMLElement | null;
-      if (pw) { const st = JSON.parse(pw.dataset.steps || '[]') as number[][], x = st[Math.min(j + 1, st.length - 1)]; pw.innerHTML = packBar(+(pw.dataset.slots || 0), x[1], x[2], x[0]); }
+      if (pw) { const st = JSON.parse(pw.dataset.steps || '[]') as number[][], x = st[Math.min(j + 1, st.length - 1)]; pw.innerHTML = packBar(+(pw.dataset.slots || 0), x[1], x[2], x[0], x[3], x[4]); }
       const s = cell.dataset.s || ''; SOUND[s.includes('die') ? 'die' : s.startsWith('ok') ? 'ok' : 'no']?.(j);
       // 그 조의 마지막 칸이면 결과를 띄운다
       const left = [...li.querySelectorAll('.days i.hid')].length;
-      if (!left) { li.querySelectorAll('.hid').forEach(e => e.classList.remove('hid')); const pw2 = li.querySelector('.packw') as HTMLElement | null; if (pw2) { const st = JSON.parse(pw2.dataset.steps || '[]') as number[][], x = st[st.length - 1]; pw2.innerHTML = packBar(+(pw2.dataset.slots || 0), x[1], x[2], x[0]); } }
+      if (!left) { li.querySelectorAll('.hid').forEach(e => e.classList.remove('hid')); const pw2 = li.querySelector('.packw') as HTMLElement | null; if (pw2) { const st = JSON.parse(pw2.dataset.steps || '[]') as number[][], x = st[st.length - 1]; pw2.innerHTML = packBar(+(pw2.dataset.slots || 0), x[1], x[2], x[0], x[3], x[4]); } }
       return s.includes('die') ? 700 : 190;
     });
   });
@@ -343,7 +362,7 @@ function finishRun() {
   if (box) {
     box.querySelectorAll('li.rv').forEach(li => li.classList.add('on'));
     box.querySelectorAll('.hid').forEach(e => e.classList.remove('hid'));
-    box.querySelectorAll('.packw').forEach(pw => { const p = pw as HTMLElement, st = JSON.parse(p.dataset.steps || '[]') as number[][], x = st[st.length - 1]; if (x) p.innerHTML = packBar(+(p.dataset.slots || 0), x[1], x[2], x[0]); });
+    box.querySelectorAll('.packw').forEach(pw => { const p = pw as HTMLElement, st = JSON.parse(p.dataset.steps || '[]') as number[][], x = st[st.length - 1]; if (x) p.innerHTML = packBar(+(p.dataset.slots || 0), x[1], x[2], x[0], x[3], x[4]); });
     const fin = +(box.dataset.net || 0), tv = box.querySelector('.tv') as HTMLElement | null;
     if (tv) { tv.textContent = sgnG(fin); tv.classList.toggle('neg', fin < 0); box.classList.add(fin >= 0 ? 'win' : 'lose'); }
     box.classList.remove('live');

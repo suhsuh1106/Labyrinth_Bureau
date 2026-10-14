@@ -25,6 +25,9 @@ if (process.env.INJ_BASE) CO.INJ_BASE = +process.env.INJ_BASE;
 if (process.env.INJ_REST) CO.INJ_REST = +process.env.INJ_REST;
 if (process.env.INJ_PEN) CO.INJ_PEN = +process.env.INJ_PEN;
 if (process.env.LOSE_LOOT) CO.LOSE_LOOT = +process.env.LOSE_LOOT;
+if (process.env.SLOT_PP) CO.SLOT_PP = +process.env.SLOT_PP;
+if (process.env.LOOT_SLOT) CO.LOOT_SLOT = +process.env.LOOT_SLOT;
+if (process.env.P0X) ITEMS[0].P0 *= +process.env.P0X;
 for (const k of ['TARGET_AT', 'TARGET_W', 'TARGET_SUCC', 'TARGET_MAT', 'KEY_SUCC', 'KEY_CRISIS', 'MAT_SURE', 'ASK_AT'] as const) if (process.env['DEX_' + k]) DEX[k] = +process.env['DEX_' + k]!;
 if (process.env.ENC_W0) { const a = +process.env.ENC_W0; CO.ENC_W = [a, (1 - a) / 2, (1 - a) / 2]; }
 if (process.env.MAT_ENC) CO.MAT_ENC = +process.env.MAT_ENC;

@@ -31,11 +31,12 @@ function teamLines(W: World, live = false) {
       if (j === D.length && back) { const z = dead.filter(y => y.day === 0); return `<i class="dk${z.length ? ' dead' : ''}${live ? ' hid' : ''}" data-s="${z.length ? 'die' : 'no'}" style="--j:${j}" title="${esc(`${END[T.end]} · 어둠 속 귀환${T.dark ? ` · 위기 ${T.dark}` : ''}${z.length ? ` · 사망 ${z.map(y => y.n).join(', ')}` : ''}`)}">${z.length ? '†' : T.dark ? '!' : ''}</i>`; }
       return `<i class="o" style="--j:${j}"></i>`;
     }).join('');
-    const potLeft = Math.max(0, T.rest - (T.torch - T.tu)), wins = D.filter(d => d.win).length;
-    // 짐 막대의 날마다 모습: [전리품 칸, 남은 횃불, 남은 포션] — 떠날 때, 날마다, 돌아왔을 때 (연출이 날마다 바꿔 그린다)
-    const steps = [[0, T.torch, x.potC ?? potLeft], ...D.map(d => [d.pk ?? 0, d.tl ?? 0, d.pl ?? 0]), [T.pack, T.torch - T.tu, potLeft]];
+    const fLeft = (T.food || 0) - (T.fu || 0), oLeft = (T.tools || 0) - (T.tk || 0);
+    const potLeft = Math.max(0, Math.round(T.rest - (T.torch - T.tu) - fLeft / CO.FOOD_SLOT - oLeft)), wins = D.filter(d => d.win).length;
+    // 짐 막대의 날마다 모습: [전리품 칸, 남은 횃불, 남은 포션, 남은 식량, 남은 정비 도구] — 떠날 때, 날마다, 돌아왔을 때 (연출이 날마다 바꿔 그린다)
+    const steps = [[0, T.torch, x.potC ?? potLeft, T.food || 0, T.tools || 0], ...D.map(d => [d.pk ?? 0, d.tl ?? 0, d.pl ?? 0, d.fl ?? 0, d.ol ?? 0]), [T.pack, T.torch - T.tu, potLeft, fLeft, oLeft]];
     const st0 = live ? steps[0] : steps[steps.length - 1];
-    const strip = `<span class="trip"><span class="days" role="img" aria-label="${D.length}일 다님 · ${wins}승 ${D.length - wins}패 · ${END[T.end]}">${days}</span><span class="packw" data-slots="${T.slots}" data-steps="${JSON.stringify(steps)}">${packBar(T.slots, st0[1], st0[2], st0[0])}</span><small class="${live ? 'hid' : ''}">${END[T.end]}</small></span>`;
+    const strip = `<span class="trip"><span class="days" role="img" aria-label="${D.length}일 다님 · ${wins}승 ${D.length - wins}패 · ${END[T.end]}">${days}</span><span class="packw" data-slots="${T.slots}" data-steps="${JSON.stringify(steps)}">${packBar(T.slots, st0[1], st0[2], st0[0], st0[3], st0[4])}</span><small class="${live ? 'hid' : ''}">${END[T.end]}</small></span>`;
     const deadTxt = dead.length ? `<b class="dead-n">† ${dead.map(z => `${esc(z.n)}${z.pot ? ' (포션 쓰고도)' : ''}`).join(', ')}</b>` : '';
     lines.push({ k: dead.length ? 'die' : x.ok ? 'ok' : 'no', v: 0, t: `${head}${strip}`,
       amt: [deadTxt, mats.length ? `${mats.slice(0, 3).join(', ')}${mats.length > 3 ? ` 외 ${mats.length - 3}` : ''}` : '', x.hurt ? `부상 ${x.hurt}` : ''].filter(Boolean).join(' · ') || '빈손' });
@@ -72,7 +73,7 @@ export function revealHtml(W: World, live: boolean, mute = false) {
   // 영주청: 탐사 선금과 보급 · 층 지원금 (의뢰 포상 · 지도 판매도 같은 줄에)
   const other = r.sales - loot0 - r.matSales;
   if (other) lines.push({ k: 'gain', v: other, t: `의뢰 · 영주청 지원금${r.adv ? ' · 탐사 선금' : ''}`, amt: sgn(other) });
-  const costs: [string, number][] = [['급여 · 신입 · 치료', s.wage + s.recruit + (s.heal || 0)], ['출정 · 계약', s.sortie + s.hire + s.tool], ['포션 · 장비 · 횃불', s.potion + s.gear + (s.torch || 0)], ['정보 · 조사', s.intel + s.probe], ['훈련 · 숙소 · 건물', s.train + s.base + s.proc + s.donate + s.root + (s.dorm || 0) + (s.hq || 0) + (s.job || 0)], ['영주세', s.tax || 0], ['추징금', s.fine || 0]];
+  const costs: [string, number][] = [['급여 · 신입 · 치료', s.wage + (s.fire || 0) + s.recruit + (s.heal || 0)], ['출정 · 계약', s.sortie + s.hire + s.tool], ['채비 (포션 · 횃불 · 식량 · 정비 · 장비)', s.potion + s.gear + (s.torch || 0) + (s.food || 0) + (s.mend || 0)], ['정보 · 조사', s.intel + s.probe], ['훈련 · 숙소 · 건물', s.train + s.base + s.proc + s.donate + s.root + (s.dorm || 0) + (s.hq || 0) + (s.job || 0)], ['영주세', s.tax || 0], ['추징금', s.fine || 0]];
   costs.filter(([, v]) => v > 0).forEach(([t, v]) => lines.push({ k: 'cost', v: -v, t, amt: sgn(-v) }));
   lines.push({ k: 'net', v: 0, t: '순이익', amt: sgn(r.net) });
   const ok = r.ok.reduce((a, b) => a + b, 0), sent = r.sent.reduce((a, b) => a + b, 0) + r.hired.reduce((a, b) => a + b, 0);
