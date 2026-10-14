@@ -30,7 +30,7 @@ export const CO = {
   // 다친 채 또 걸리면 죽는다. 진 날도 해낸 사람 몫의 LOSE_LOOT배는 싣는다. INJ_REST면 다친 사람은 다음 달 쉰다.
   // 조우 난이도: 우리 조의 하루 굴림에서 층마다 HARD_F, 주 몬스터면 HARD_MAIN을 더 뺀다 (얕은 층은 순해서 거의 다 이기던 것을 어렵게. 깊은 층은 원래 어렵다)
   // 숙련도: 실력 단계(신입 · 수련 · 숙련 · 노련 · 명인)마다 부상 주사위에 INJ_TIER를 곱한다 (명인은 실패해도 잘 안 다친다)
-  INJ_BASE: 0.02, INJ_K: 0.3, INJ_PEN: 0.15, INJ_REST: 1, LOSE_LOOT: 0.5, INJ_TIER: [1.2, 1.1, 1, 0.9, 0.8], HARD_F: [0.05, 0.16, 0.06, 0, 0], HARD_MAIN: 0.08,
+  INJ_BASE: 0.02, INJ_K: 0.3, INJ_PEN: 0.15, INJ_REST: 1, LOSE_LOOT: 0.5, INJ_TIER: [1.2, 1.1, 1, 0.9, 0.8], HARD_F: [0.07, 0.18, 0.08, 0.02, 0.02], HARD_MAIN: 0.08,
   ENC_W: [0.4, 0.3, 0.3], SLOT_PP: 4, LOOT_SLOT: 2.5, MAT_ENC: 0.6, FIND: 1.12,
   // 관리국 게시판의 공표된 경쟁 · 납품 의뢰 (지금은 닫아 둔다. 탐사 계획서는 따로 열려 있다)
   JOBS_OPEN: false,
@@ -48,7 +48,8 @@ export const CO = {
   // 편성 지침: 그 층 몬스터의 약점을 갖춘 파티는 성공률이 오르고, 역효과를 갖춘 파티는 떨어진다. 지침대로 갖추는 데 조당 돈이 든다
   // (우리 조는 직업 약점을 사람 수로 따진다: 그 직업 한 명이면 절반, 둘이면 다)
   GUIDE_COST: 20, KEY_BONUS: 0.20, BAD_PEN: 0.15,
-  WEAK_ONE: 0.25,   // 짝지은 직업 한 명이 약점을 찌르는 몫 (둘이면 다, 장비 한 벌이면 다. 0.5면 아무렇게나 짠 조도 약점을 거의 찔러 1위 73%)
+  WEAK_GEAR: 0.5,   // 맞는 장비만 들었을 때 약점을 찌르는 몫
+  WEAK_ONE: 0.25,   // 맡는 직업만 있을 때 (몇 명이든). 0.5면 아무렇게나 짠 조도 약점을 거의 찔러 숙련 봇 1위 73%였다
   // 포션 공급: 상단은 물량이 무제한이고 수요가 많을수록 비싸진다. 교회 성수 포션은 조금 비싸고 한 달 공급 한도가 있지만,
   // 사망을 더 줄인다 (모두 교회 포션이면 한 병이 1+HOLY병 몫)
   POTION_C0: 32, CHURCH_CAP: 360, HOLY: 0.25,
@@ -468,12 +469,14 @@ export const us = (W: World) => W.cos[0];
 // 금고 기준선(경쟁 용병단 · 봇이 "넉넉하다"고 보는 선)은 시작 금고에 비례한다 (8,000G일 때 맞춘 값 × CASH_K)
 export const cashK = () => CO.START_CASH / 8000;
 // 그 층 몬스터의 지금 약점 (적응하면 바뀐다)
-// 약점 k(장비 꼴)를 얼마나 갖췄나: 그 장비를 들었으면 1, 아니면 짝지은 직업 둘이면 1 · 한 명이면 WEAK_ONE
+// 약점 k(장비 꼴)를 얼마나 찌르나: 그 장비 + 맡는 직업이면 1, 장비만 WEAK_GEAR, 맡는 직업만 WEAK_ONE (장비가 자격, 직업이 극대화)
 export function weakShare(k: string, cls: string[], keys: string[]) {
   if (!k) return 0;
-  const w = weakKey(k); if (keys.includes(w)) return 1;
-  const c = PAIR_CLASS[w.slice(2)], n = c ? cls.filter(x => x === c).length : 0; return n >= 2 ? 1 : n ? CO.WEAK_ONE : 0;
+  const w = weakKey(k), g = keys.includes(w), c = cls.includes(PAIR_CLASS[w.slice(2)]);
+  return g && c ? 1 : g ? CO.WEAK_GEAR : c ? CO.WEAK_ONE : 0;
 }
+// 역효과는 그 장비를 들고 갔을 때만 걸린다 (사람을 탓하지 않는다)
+export const badShare = (k: string, keys: string[]) => (k && keys.includes(weakKey(k)) ? 1 : 0);
 export const keyOf = (W: World, f: number) => weakKey((W.keys && W.keys[f]) || MONSTERS[W.mons[f]].key);
 // 전리품 비율: 성공 한 번에 캐 오는 양에 곱하는 값
 export const expBonus = (n: number) => CO.EXP_MAX * n / (n + CO.EXP_K);
@@ -989,8 +992,8 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
         const rolled = who ? null : rollCrew(gk), cls = who ? who.map(x => x.c) : rolled!.cls;
         const keys = who ? [...new Set(cls.map(x => 'c:' + x)), ...(gearOut ? ['g:' + gearOut] : [])] : rolled!.keys;
         // 약점(장비 꼴 'g:둔기')은 짝지은 장비를 들고 갔으면 다, 아니면 짝지은 직업의 사람 수로: 한 명이면 절반, 둘이면 다 (역효과도 같다)
-        const share = (k: string) => weakShare(k, cls, keys);
-        const kw = share(key), bw = share(mon.bad), hasKey = kw >= 1, hasBad = bw > 0;
+        const share = (k: string) => weakShare(k, cls, keys), bshare = (k: string) => badShare(k, keys);
+        const kw = share(key), bw = bshare(mon.bad), hasKey = kw >= 1, hasBad = bw > 0;
         const rk = q < P.parties[f] && !who ? slots[i][f][q] : [], size = who ? who.length : CO.PARTY;
         const rooks = who ? who.filter(isRook).length : rk.length;
         // 성공 정도: 조원마다 그 조의 성공률로 굴린다. 해낸 사람 비율만큼 캐 오고, 둘 이상 해내면(고전 이상) 해낸 조로 친다
@@ -1053,7 +1056,7 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
           const others = CO.ENC_W.reduce((a, v, j) => a + (j === tg ? 0 : v), 0);
           const wts = CO.ENC_W.map((v, j) => (tg < 0 ? v : j === tg ? DEX.TARGET_W : (1 - DEX.TARGET_W) * v / others));
           const ppBase = pp - kw * CO.KEY_BONUS + bw * CO.BAD_PEN;   // 층 전체의 약점을 빼고 몬스터마다 다시 셈한다
-          const vs = mons.map((M, j) => share(M.key) * CO.KEY_BONUS - share(M.bad) * CO.BAD_PEN + (j === tg ? DEX.TARGET_SUCC + (keySure(Dx[j]) ? DEX.KEY_SUCC : 0) : 0));
+          const vs = mons.map((M, j) => share(M.key) * CO.KEY_BONUS - bshare(M.bad) * CO.BAD_PEN + (j === tg ? DEX.TARGET_SUCC + (keySure(Dx[j]) ? DEX.KEY_SUCC : 0) : 0));
           const ask = c.style === 'player' && P.ask && askable(dex[P.ask.mon], P.ask) ? P.ask : null;
           let lastGot = new Map<string, number>();
           const R = runTrip({

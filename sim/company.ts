@@ -7,7 +7,7 @@ import { setSeed } from '../src/core/rng';
 import { CO, TAX, FLOORS, potShock, cashK, aidAt, jobsExplore, churchPrice, ITEMS, type Filing, type Plan, type World, closeBooks, preview, defaultPlan, dormCost, jobsSign, partyMargin, roomOf, demandMul, potsOf, probe, floorMons, mapOf, maxParties, newWorld, torchRate, tripOdds, sanitize, canTarget, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
 import { demandSeen } from '../src/ui/co/book';
 import { ASK_KEYS, DEX, MAT_KEYS, type Dex, keySure } from '../src/core/dex';
-import { CLASSES, PAIR_CLASS, weakKey } from '../src/core/data';
+import { CLASSES, PAIR_CLASS, classWeaks } from '../src/core/data';
 
 // 영주청 숫자를 바꿔 보며 잴 때 (TAX_LOOT=0.15 TAX_SUSK=20 TAX_RELIEF=0.5 npm run sim)
 if (process.env.KEY_BONUS) CO.KEY_BONUS = +process.env.KEY_BONUS;
@@ -322,8 +322,8 @@ export function guessKeys(D: Dex, min = 0, n0 = 3) {
   MAT_KEYS.forEach(k => {
     const on = k.startsWith('c:') ? [r(k + ':1'), r(k + ':2')] : [r(k + ':1')], off = r(k + ':0');
     const n = on.reduce((a, x) => a + x.n, 0), hit = on.reduce((a, x) => a + (x.k || 0), 0), ppl = on.reduce((a, x) => a + (x.p || 0), 0);
-    const d = n >= n0 && off.n >= n0 && ppl && off.p ? hit / ppl - (off.k || 0) / off.p : -1, w = weakKey(k);
-    best[w] = Math.max(best[w] ?? -1, d);
+    const d = n >= n0 && off.n >= n0 && ppl && off.p ? hit / ppl - (off.k || 0) / off.p : -1;
+    classWeaks(k).forEach(w => { best[w] = Math.max(best[w] ?? -1, d); });
   });
   return ASK_KEYS.filter(k => D.key[k] !== 'no' && best[k] > min).sort((a, b) => best[b] - best[a]);
 }

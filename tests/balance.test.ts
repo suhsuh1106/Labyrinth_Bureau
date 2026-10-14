@@ -33,7 +33,7 @@ describe('몬스터와 편성 지침', () => {
     setSeed(2);
     for (let i = 0; i < 200; i++) {
       expect(rollParty('c:마법사')).toContain('c:마법사');
-      expect(rollParty('g:은')).toContain('g:은');
+      expect(rollParty('g:신성')).toContain('g:신성');
     }
   });
   it('현장 기록은 우리 직영 파티만 남기고, 처음 간 층에서는 겉모습 증언을 듣는다', () => {

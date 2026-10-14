@@ -24,7 +24,7 @@ import { floorMax, keyOf } from '../src/core/company';
 import { fcRank, forecast, gradeOf } from '../src/core/company';
 import { bedsOf, classCap, dormCost, dormKeep, formTeams, recruitPrice, recruitWants, rookCount, rookSlots, shareOut } from '../src/core/company';
 import { CLASSES } from '../src/core/data';
-import { needOf, tripOdds, potShock, profitOf, drillGain, weakShare, hireCap } from '../src/core/company';
+import { needOf, tripOdds, potShock, profitOf, drillGain, weakShare, badShare, hireCap } from '../src/core/company';
 import { WEAK_KEYS } from '../src/core/data';
 import { DEX } from '../src/core/dex';
 
@@ -481,9 +481,9 @@ describe('갈무리 소재와 미궁 도감', () => {
     expect(matChance(x, ['g:냉기'], 1)).toBeCloseTo(0.4);
     expect(matChance(x, ['c:전사'], 1)).toBeCloseTo(0.1);
     expect(matChance(x, ['g:냉기'], 0)).toBeCloseTo(0.2);
-    const y = { n: 'u', v: 10, p: 0.05, b: [['c:사제+g:은', 5]] as [string, number][] };
+    const y = { n: 'u', v: 10, p: 0.05, b: [['c:사제+g:신성', 5]] as [string, number][] };
     expect(matChance(y, ['c:사제'], 1)).toBeCloseTo(0.05);
-    expect(matChance(y, ['c:사제', 'g:은'], 1)).toBeCloseTo(0.3);
+    expect(matChance(y, ['c:사제', 'g:신성'], 1)).toBeCloseTo(0.3);
     // 실제 판에서도: 1층 주인 몬스터의 드문 소재를 부르는 조건을 챙기면 더 많이 얻는다
     let a = 0, b = 0;
     for (const on of [false, true]) for (let g = 1; g <= 16; g++) {
@@ -495,10 +495,10 @@ describe('갈무리 소재와 미궁 도감', () => {
   });
   it('편성은 직업 하나와 장비 하나까지만 받고, 파티는 둘 다 갖춘다', () => {
     setSeed(53); const W: World = newWorld();
-    const P = BOT.even(W); P.guide[0] = 'c:사제+g:은+c:전사+x:모름';
+    const P = BOT.even(W); P.guide[0] = 'c:사제+g:신성+c:전사+x:모름';
     const Q = sanitize(W, W.cos[0], P);
-    expect(guideParts(Q.guide[0])).toEqual(['c:사제', 'g:은']);
-    for (let i = 0; i < 30; i++) { const k = rollParty(Q.guide[0]); expect(k).toContain('c:사제'); expect(k).toContain('g:은'); }
+    expect(guideParts(Q.guide[0])).toEqual(['c:사제', 'g:신성']);
+    for (let i = 0; i < 30; i++) { const k = rollParty(Q.guide[0]); expect(k).toContain('c:사제'); expect(k).toContain('g:신성'); }
   });
   it('많이 팔리면 소재 시세가 내려가고, 찾는 곳이 있으면 오른다', () => {
     expect(matPrice(100, 1, 20, 10)).toBeLessThan(100);
@@ -585,9 +585,9 @@ describe('보급 창고 · 전리품 보관 기한 · 조사 의뢰 · 편성 �
     expect(full.every(T => T.m.every(x => x != null))).toBe(true);
     expect(new Set(full.flatMap(T => T.m)).size).toBe(16);
     // 없는 사람, 겹친 사람, 닫힌 층은 걸러지고 조 수는 짠 조에서 센다
-    const P = defaultPlan(W); P.teams = [{ f: 0, m: [0, 0, 999, null], g: 'g:은' }, { f: 3, m: [1, null, null, null], g: '' }, { f: 0, m: [null, null, null, null], g: '' }];
+    const P = defaultPlan(W); P.teams = [{ f: 0, m: [0, 0, 999, null], g: 'g:신성' }, { f: 3, m: [1, null, null, null], g: '' }, { f: 0, m: [null, null, null, null], g: '' }];
     const Q = sanitize(W, c, P);
-    expect(Q.teams).toEqual([{ f: 0, m: [0, null, null, null], g: 'g:은' }]);
+    expect(Q.teams).toEqual([{ f: 0, m: [0, null, null, null], g: 'g:신성' }]);
     expect(Q.parties).toEqual([1, 0, 0, 0, 0]);
     const html = expWeekHtml(W, P, { phase: 1, tab: 'report', pins: [] });
     expect(html).not.toMatch(/undefined|NaN|\[object/);
@@ -1169,7 +1169,7 @@ describe('미궁 도감 · 단장 · 지정 탐사', () => {
     setSeed(5); const W = newWorld(), c = us(W), main = MONSTERS[W.mons[0]].name;
     const P0 = defaultPlan(W); P0.ask = { mon: main, k: MONSTERS[W.mons[0]].key };
     expect(sanitize(W, c, P0).ask).toBeUndefined();   // 처음엔 이해도 0
-    const wrong = MONSTERS[W.mons[0]].key === 'g:은' ? 'g:둔기' : 'g:은';
+    const wrong = MONSTERS[W.mons[0]].key === 'g:신성' ? 'g:둔기' : 'g:신성';
     let tries = 0; const done: string[] = [];
     while (done.length < 2 && tries++ < 24) {
       const P = carryPlan(W, W.last ? W.last.plans[0] : defaultPlan(W));
@@ -1284,12 +1284,15 @@ describe('훈련 배치 · 채비 어림', () => {
 });
 
 describe('약점 짝 · 계약 조', () => {
-  it('약점은 다섯 가지(장비 꼴)이고, 짝지은 장비 한 벌이나 직업 둘이면 다, 직업 하나면 WEAK_ONE만큼 찌른다', () => {
+  it('약점은 여섯 가지(장비 꼴)이고, 장비 + 맡는 직업이면 다, 장비만 절반, 직업만 ¼. 역효과는 장비를 들었을 때만', () => {
     MONSTERS.forEach(m => { expect(WEAK_KEYS).toContain(m.key); expect(WEAK_KEYS).toContain(m.bad); expect(WEAK_KEYS).toContain(m.alt); expect(new Set([m.key, m.bad, m.alt]).size).toBe(3); });
-    expect(weakShare('g:둔기', ['전사', '전사', '궁수', '도적'], [])).toBe(1);
-    expect(weakShare('g:둔기', ['전사', '궁수', '도적', '마법사'], [])).toBe(CO.WEAK_ONE);
-    expect(weakShare('g:둔기', ['궁수', '도적', '마법사', '사제'], ['g:둔기'])).toBe(1);
+    expect(WEAK_KEYS.length).toBe(6);
+    expect(weakShare('g:둔기', ['전사', '궁수', '도적', '마법사'], ['g:둔기'])).toBe(1);
+    expect(weakShare('g:둔기', ['궁수', '도적', '마법사', '사제'], ['g:둔기'])).toBe(CO.WEAK_GEAR);
+    expect(weakShare('g:둔기', ['전사', '전사', '궁수', '도적'], [])).toBe(CO.WEAK_ONE);
+    expect(weakShare('g:냉기', ['마법사', '궁수', '도적', '전사'], [])).toBe(CO.WEAK_ONE);   // 마법사는 화염 · 냉기 둘
     expect(weakShare('g:독', ['전사', '궁수', '마법사', '사제'], [])).toBe(0);
+    expect(badShare('g:화염', ['c:마법사'])).toBe(0); expect(badShare('g:화염', ['c:마법사', 'g:화염'])).toBe(1);
   });
   it('계약 조가 다치거나 죽어도 우리 단원 · 치료비와 상관없다', () => {
     for (let s = 1; s <= 8; s++) {

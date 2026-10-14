@@ -134,10 +134,13 @@ export const MONSTERS: Monster[] = [
 ];
 
 // ---------- 약점의 짝 ----------
-// 약점은 다섯 가지(장비 이름으로 부른다)이고, 짝지은 직업으로도 장비로도 찌를 수 있다.
-// 위의 글에는 직업으로 적힌 약점 · 역효과가 있다: 모두 짝지은 장비 꼴로 바꿔 둔다 (key · bad · alt)
-export const PAIR: Record<string, string> = { 전사: '둔기', 궁수: '냉기', 마법사: '화염', 사제: '은', 도적: '독' };
-export const weakKey = (k: string) => (k.startsWith('c:') ? 'g:' + PAIR[k.slice(2)] : k);
-FAUNA.forEach(fl => fl.forEach(m => { m.key = weakKey(m.key); m.bad = weakKey(m.bad); }));
-MONSTERS.forEach(m => { m.key = weakKey(m.key); m.bad = weakKey(m.bad); m.alt = weakKey(m.alt); });
-
+// 약점 · 장비는 여섯 가지: 둔기 · 찌르기 · 화염 · 냉기 · 신성 · 독. 직업마다 맡는 속성이 있다 (마법사는 화염과 냉기 둘).
+// 장비만 들면 절반, 맡는 직업만 있으면 ¼, 둘 다면 다 찌른다. 역효과는 그 장비를 들고 갔을 때만 걸린다.
+// 위의 글에는 직업이나 옛 장비(은)로 적힌 약점 · 역효과 · 소재 조건이 있다: 모두 여섯 가지 장비 꼴로 바꿔 둔다
+export const PAIR: Record<string, string[]> = { 전사: ['둔기'], 궁수: ['찌르기'], 마법사: ['화염', '냉기'], 사제: ['신성'], 도적: ['독'] };
+const OLD: Record<string, string> = { 'c:전사': 'g:둔기', 'c:궁수': 'g:찌르기', 'c:마법사': 'g:화염', 'c:사제': 'g:신성', 'c:도적': 'g:독', 'g:은': 'g:신성' };
+export const weakKey = (k: string) => OLD[k] || k;
+const gearOnly = (k: string) => (k === 'g:은' ? 'g:신성' : k);
+const fixMats = (ms: Mat[]) => ms.forEach(x => { if (x.b) x.b = x.b.map(([k, v]) => [k.split('+').map(gearOnly).join('+'), v] as [string, number]); });
+FAUNA.forEach(fl => fl.forEach(m => { m.key = weakKey(m.key); m.bad = weakKey(m.bad); fixMats(m.mats); }));
+MONSTERS.forEach(m => { m.key = weakKey(m.key); m.bad = weakKey(m.bad); m.alt = weakKey(m.alt); fixMats(m.mats); });

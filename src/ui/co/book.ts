@@ -5,7 +5,7 @@ import { FLOORS, INTEL, type Plan, type World, allMats, floorMons, guideParts, c
 import { BUYERS, FAUNA, MONSTERS, SRC_NAME } from '../../core/data';
 import { ecoOf } from '../../core/monsters';
 import { ASK_KEYS, CLASS_KEYS, DEX, type Dex, GEAR_KEYS, MAT_KEYS, askable, keyName, keySure, weakName } from '../../core/dex';
-import { weakKey } from '../../core/data';
+import { classWeaks } from '../../core/data';
 
 const lvOf = (W: World, k: keyof typeof INTEL.BASE) => (W.intel ? W.intel.lv[k] : INTEL.BASE[k]);
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
@@ -42,7 +42,7 @@ const stamp = (a: string | undefined) => (a === 'yes' ? '<span class="dx-st yes"
 const cell = (r: { n: number; w: number; k?: number; p?: number } | undefined) => (r && r.n ? `<td class="n${r.n < 3 ? ' thin' : ''}" title="마주침 ${r.n} · 승 ${r.w}">${pctOf(r.k || 0, r.p || 0)}<small>${r.n}번</small></td>` : '<td class="n dim">·<small>&nbsp;</small></td>');
 
 function recTable(D: Dex, open: boolean) {
-  const cls = CLASS_KEYS.map(k => `<tr><th>${keyName(k)}${stamp(D.key[weakKey(k)])}</th>${[0, 1, 2].map(v => cell(open ? D.rec[`${k}:${v}`] : undefined)).join('')}</tr>`).join('');
+  const cls = CLASS_KEYS.map(k => `<tr><th>${keyName(k)}${stamp(classWeaks(k).map(w => D.key[w]).find(a => a === 'yes') || (classWeaks(k).every(w => D.key[w] === 'no') ? 'no' : undefined))}</th>${[0, 1, 2].map(v => cell(open ? D.rec[`${k}:${v}`] : undefined)).join('')}</tr>`).join('');
   const gear = GEAR_KEYS.map(k => `<tr><th>${keyName(k)}${stamp(D.key[k])}</th>${[0, 1].map(v => cell(open ? D.rec[`${k}:${v}`] : undefined)).join('')}<td class="n dim"></td></tr>`).join('');
   return `<div class="nb-rec${open ? '' : ' locked'}"><table class="grid slim dx-rec"><thead><tr><th>갖춘 것</th><th class="n">없음</th><th class="n">하나 · 있음</th><th class="n">둘 이상</th></tr></thead><tbody>${cls}${gear}</tbody></table>
     ${open ? '' : `<span class="nb-lock">이해도 ${DEX.REC_AT}에서</span>`}</div>`;
@@ -123,6 +123,6 @@ export function bookHtml(W: World, P?: Plan, sel?: string) {
     <div class="tw"><table class="grid bk-sold"><thead><tr><th>찾는 곳</th><th>소재</th><th class="n">값</th><th>기한</th><th>들은 곳</th></tr></thead>
       <tbody>${news || (hidden ? '' : '<tr><td colspan="5" class="dim">지금 들려오는 소식이 없어요</td></tr>')}${lock}</tbody></table></div>
     <h3>몬스터</h3>
-    <p class="note">약점은 다섯 가지 — ${ASK_KEYS.map(weakName).join(' · ')}. 짝지은 직업 둘이나 그 장비 한 벌로 찌른다. 만날수록 이해도가 찹니다. 이해도 ${DEX.REC_AT} 전적 · ${DEX.TARGET_AT} 지정 탐사(편성표) · 단장 조사는 출정에서 한 달에 하나${ask ? ` · 지난달 단장 조사: ${ask.mon} — ${ask.m ? `${ask.m}, ${keyName(ask.k)}` : weakName(ask.k)} ${ask.ans === 'yes' ? '확정' : ask.ans === 'no' ? '아님' : ask.ans === 'miss' ? '만나지 못함' : '단장이 나가지 않음'}` : ''}</p>
+    <p class="note">약점은 다섯 가지 — ${ASK_KEYS.map(weakName).join(' · ')}. 장비만 들면 절반, 맡는 직업만 있으면 ¼, 둘 다면 다 찌른다. 역효과는 그 장비를 들었을 때만. 만날수록 이해도가 찹니다. 이해도 ${DEX.REC_AT} 전적 · ${DEX.TARGET_AT} 지정 탐사(편성표) · 단장 조사는 출정에서 한 달에 하나${ask ? ` · 지난달 단장 조사: ${ask.mon} — ${ask.m ? `${ask.m}, ${keyName(ask.k)}` : weakName(ask.k)} ${ask.ans === 'yes' ? '확정' : ask.ans === 'no' ? '아님' : ask.ans === 'miss' ? '만나지 못함' : '단장이 나가지 않음'}` : ''}</p>
     ${floors}`;
 }

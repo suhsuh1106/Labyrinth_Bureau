@@ -16,15 +16,17 @@ export const CLASSES = ['전사', '궁수', '마법사', '사제', '도적'];
 
 export const CLASS_SHARE = [0.35, 0.2, 0.12, 0.13, 0.2];
 
-export const GEARS = ['일반', '화염', '냉기', '은', '둔기', '독'];
+export const GEARS = ['일반', '둔기', '찌르기', '화염', '냉기', '신성', '독'];
 
-export const GEAR_SHARE = [0.55, 0.09, 0.09, 0.09, 0.09, 0.09];
+export const GEAR_SHARE = [0.52, 0.08, 0.08, 0.08, 0.08, 0.08, 0.08];
 
 
 
 // 약점은 다섯 가지이고, 짝지은 직업으로도 장비로도 찌를 수 있다 (직업은 키워야 하고, 장비는 사면 되지만 닳는다)
-export const PAIR_CLASS: Record<string, string> = Object.fromEntries(Object.entries(PAIR).map(([c, g]) => [g, c]));
-export const WEAK_KEYS = Object.values(PAIR).map(g => 'g:' + g);
+export const PAIR_CLASS: Record<string, string> = Object.fromEntries(Object.entries(PAIR).flatMap(([c, gs]) => gs.map(g => [g, c])));
+export const WEAK_KEYS = GEARS.filter(g => g !== '일반').map(g => 'g:' + g);
+// 직업 키가 맡는 약점들: 'c:마법사' → ['g:화염', 'g:냉기']
+export const classWeaks = (k: string) => (k.startsWith('c:') ? (PAIR[k.slice(2)] || []).map(g => 'g:' + g) : [k]);
 export const KEYS = [...CLASSES.map(c => 'c:' + c), ...GEARS.filter(g => g !== '일반').map(g => 'g:' + g)];
 
 // ---------- 단원 ----------

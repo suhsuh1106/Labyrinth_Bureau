@@ -5,7 +5,7 @@
 //   소재: 이긴 조우마다 갖춘 것별로 몇 번 이겼고 그중 몇 번 그 소재를 얻었나 (얻은 소재만 화면에 보인다)
 //   단장 조사: 한 달에 한 번 몬스터 하나에 물을 것 하나(약점이 이것인가 · 이 소재가 이것을 갖추면 잘 나오나). 맞으면 확정, 틀리면 아님
 // 상태를 바꾸는 것은 엔진(runMonth)만 부른다. 화면은 읽기만 한다
-import { CLASSES, GEARS, PAIR, WEAK_KEYS } from './data';
+import { CLASSES, GEARS, PAIR_CLASS, WEAK_KEYS } from './data';
 
 export const DEX = {
   // 이해도: 한 번 만나면 이긴 날 U_WIN, 진 날 U_LOSS × (1 − 이해도/U_SLOW). 100이 끝
@@ -38,9 +38,8 @@ export function condKeys(cls: string[], gear: string) {
 }
 // 'c:마법사' → '마법사', 'g:냉기' → '냉기 장비'
 export const keyName = (k: string) => (k.startsWith('c:') ? k.slice(2) : `${k.slice(2)} 장비`);
-// 약점 이름: 'g:냉기' → '냉기 (궁수)'
-const PC: Record<string, string> = Object.fromEntries(Object.entries(PAIR).map(([c, g]) => [g, c]));
-export const weakName = (k: string) => `${k.slice(2)} (${PC[k.slice(2)] || ''})`;
+// 약점 이름: 'g:냉기' → '냉기 (마법사)'
+export const weakName = (k: string) => `${k.slice(2)} (${PAIR_CLASS[k.slice(2)] || ''})`;
 
 export function newDex(m: number): Dex { return { n: 0, w: 0, cr: 0, u: 0, at: m, rec: {}, mats: {}, key: {}, mat: {} }; }
 // 한 번 만난 것을 적는다 (갖춘 것 · 이겼나 · 그날 맞은 위기)
