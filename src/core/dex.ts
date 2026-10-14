@@ -5,7 +5,7 @@
 //   소재: 이긴 조우마다 갖춘 것별로 몇 번 이겼고 그중 몇 번 그 소재를 얻었나 (얻은 소재만 화면에 보인다)
 //   단장 조사: 한 달에 한 번 몬스터 하나에 물을 것 하나(약점이 이것인가 · 이 소재가 이것을 갖추면 잘 나오나). 맞으면 확정, 틀리면 아님
 // 상태를 바꾸는 것은 엔진(runMonth)만 부른다. 화면은 읽기만 한다
-import { CLASSES, GEARS } from './data';
+import { CLASSES, GEARS, PAIR, WEAK_KEYS } from './data';
 
 export const DEX = {
   // 이해도: 한 번 만나면 이긴 날 U_WIN, 진 날 U_LOSS × (1 − 이해도/U_SLOW). 100이 끝
@@ -30,12 +30,17 @@ export type AskRes = Ask & { ans: Ans | 'miss' | 'away' };
 // 전적의 칸: 직업마다 0 · 1 · 2(둘 이상), 장비마다 0 · 1
 export const CLASS_KEYS = CLASSES.map(c => 'c:' + c);
 export const GEAR_KEYS = GEARS.filter(g => g !== '일반').map(g => 'g:' + g);
-export const ASK_KEYS = [...CLASS_KEYS, ...GEAR_KEYS];
+// 소재 조건은 직업 · 장비 하나하나로 묻고(MAT_KEYS), 약점은 다섯 가지 중 하나로 묻는다(WEAK_KEYS, 장비 꼴)
+export const MAT_KEYS = [...CLASS_KEYS, ...GEAR_KEYS];
+export const ASK_KEYS = WEAK_KEYS;
 export function condKeys(cls: string[], gear: string) {
   return [...CLASSES.map(c => `c:${c}:${Math.min(2, cls.filter(x => x === c).length)}`), ...GEAR_KEYS.map(g => `${g}:${gear === g ? 1 : 0}`)];
 }
 // 'c:마법사' → '마법사', 'g:냉기' → '냉기 장비'
 export const keyName = (k: string) => (k.startsWith('c:') ? k.slice(2) : `${k.slice(2)} 장비`);
+// 약점 이름: 'g:냉기' → '냉기 (궁수)'
+const PC: Record<string, string> = Object.fromEntries(Object.entries(PAIR).map(([c, g]) => [g, c]));
+export const weakName = (k: string) => `${k.slice(2)} (${PC[k.slice(2)] || ''})`;
 
 export function newDex(m: number): Dex { return { n: 0, w: 0, cr: 0, u: 0, at: m, rec: {}, mats: {}, key: {}, mat: {} }; }
 // 한 번 만난 것을 적는다 (갖춘 것 · 이겼나 · 그날 맞은 위기)
@@ -57,7 +62,7 @@ export const keySure = (D: Dex | undefined) => !!D && Object.values(D.key).inclu
 export const matSure = (D: Dex | undefined, m: string) => !!D && !!D.mat[m] && Object.values(D.mat[m]).includes('yes');
 // 물을 수 있는가: 이해도 ASK_AT 이상, 아직 답을 받지 않은 것, 소재는 한 번은 얻은 것
 export function askable(D: Dex | undefined, A: Ask) {
-  if (!D || D.u < DEX.ASK_AT || !ASK_KEYS.includes(A.k)) return false;
+  if (!D || D.u < DEX.ASK_AT || !(A.m ? MAT_KEYS : WEAK_KEYS).includes(A.k)) return false;
   if (A.m) return !!D.mats[A.m] && D.mats[A.m].got > 0 && !(D.mat[A.m] && D.mat[A.m][A.k]);
   return !D.key[A.k] && !keySure(D);
 }

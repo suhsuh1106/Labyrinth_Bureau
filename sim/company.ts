@@ -6,13 +6,13 @@
 import { setSeed } from '../src/core/rng';
 import { CO, TAX, FLOORS, potShock, cashK, aidAt, jobsExplore, churchPrice, ITEMS, type Filing, type Plan, type World, closeBooks, preview, defaultPlan, dormCost, jobsSign, partyMargin, roomOf, demandMul, potsOf, probe, floorMons, mapOf, maxParties, newWorld, torchRate, tripOdds, sanitize, canTarget, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
 import { demandSeen } from '../src/ui/co/book';
-import { ASK_KEYS, DEX, type Dex, keySure } from '../src/core/dex';
-import { CLASSES } from '../src/core/data';
+import { ASK_KEYS, DEX, MAT_KEYS, type Dex, keySure } from '../src/core/dex';
+import { CLASSES, PAIR_CLASS, weakKey } from '../src/core/data';
 
 // 영주청 숫자를 바꿔 보며 잴 때 (TAX_LOOT=0.15 TAX_SUSK=20 TAX_RELIEF=0.5 npm run sim)
 if (process.env.KEY_BONUS) CO.KEY_BONUS = +process.env.KEY_BONUS;
 if (process.env.DEP) CO.DEP = +process.env.DEP;
-const DRILL = process.env.DRILL !== '0';
+if (process.env.WEAK_ONE) CO.WEAK_ONE = +process.env.WEAK_ONE;
 const ASK_ALL = process.env.ASK_ALL === '1';   // 단장 조사를 소거법으로 (짐작이 없으면 아직 묻지 않은 것부터). 켜면 숙련 봇 1위 86%라 밸런스를 정한 뒤 기본으로
 if (process.env.TAX_LOOT) TAX.LOOT = +process.env.TAX_LOOT;
 if (process.env.UND_F0) CO.UND_F[0] = +process.env.UND_F0;
@@ -155,8 +155,6 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
   // 횃불: 지도만큼 헤맬 것을 셈해, 돌아설 확률이 TORCH_RISK 밑이 되는 데까지 들고 간다
   P.torch = FLOORS.map((_, f) => { const r = torchRate(f, mapOf(c, f)); let t = 1; while (t < CO.DAYS && tripOdds(t, r).dark > TORCH_RISK) t++; return t; });
   grow(W, P, GROW_K, GROW_M);
-  // 조에 들지 못한 사람은 본부에서 훈련한다 (돈이 더 들지 않는다)
-  if (c.crew && DRILL) { const Q0 = sanitize(W, c, P), on = new Set(Q0.teams!.flatMap(T => T.m)); P.drill = c.crew.filter(x => !x.hurt && !on.has(x.id)).map(x => x.id); }
   if (!c.crew || !guide) return P;
   // 조를 짜 두고: 도감 이해도가 찬 주 몬스터는 노리고(지정 탐사), 단장이 가는 층의 몬스터 중 하나에 기록상 가장 그럴듯한 약점을 묻는다
   const Q = sanitize(W, c, P), dex = W.dex || {};
@@ -202,7 +200,9 @@ export function deduce(W: World) {
     if (f >= W.unlocked) return '';
     const D = (W.dex || {})[floorMons(W, f)[0].name]; if (!D) return '';
     // 약점은 그날 만난 몬스터에게만 먹혀서, 짐작만으로 조를 몰아 짜면 곁 몬스터와 싸우는 날 손해다 (확정한 약점만 편성에 쓴다)
-    return Object.keys(D.key).find(k => D.key[k] === 'yes') || '';
+    // 약점은 직업으로도 장비로도 찌를 수 있다: 명단이 있으면 짝지은 직업으로 (장비는 닳는다)
+    const k = Object.keys(D.key).find(x => D.key[x] === 'yes') || '';
+    return k ? 'c:' + PAIR_CLASS[k.slice(2)] : '';
   });
   return FLOORS.map((_, f) => {
     const all = W.obs[f]['*'];
@@ -317,10 +317,13 @@ function W0() { return newWorld(); }
 // 도감 전적에서 약점 후보: 갖춘 쪽과 안 갖춘 쪽의 해낸 사람 비율 차가 큰 순 (아니라고 들은 것은 뺀다). 직업은 하나 이상을 갖춘 쪽으로 본다
 export function guessKeys(D: Dex, min = 0, n0 = 3) {
   const r = (k: string) => D.rec[k] || { n: 0, w: 0, cr: 0, k: 0, p: 0 };
-  return ASK_KEYS.filter(k => D.key[k] !== 'no').map(k => {
+  // 직업 · 장비마다 갖춘 쪽 − 안 갖춘 쪽의 해낸 사람 비율을 보고, 짝지은 약점으로 모은다 (둘 중 큰 쪽)
+  const best: Record<string, number> = {};
+  MAT_KEYS.forEach(k => {
     const on = k.startsWith('c:') ? [r(k + ':1'), r(k + ':2')] : [r(k + ':1')], off = r(k + ':0');
     const n = on.reduce((a, x) => a + x.n, 0), hit = on.reduce((a, x) => a + (x.k || 0), 0), ppl = on.reduce((a, x) => a + (x.p || 0), 0);
-    // 그 몬스터를 만난 날 해낸 사람 비율: 갖춘 쪽 − 안 갖춘 쪽
-    return { k, d: n >= n0 && off.n >= n0 && ppl && off.p ? hit / ppl - (off.k || 0) / off.p : -1 };
-  }).filter(x => x.d > min).sort((a, b) => b.d - a.d).map(x => x.k);
+    const d = n >= n0 && off.n >= n0 && ppl && off.p ? hit / ppl - (off.k || 0) / off.p : -1, w = weakKey(k);
+    best[w] = Math.max(best[w] ?? -1, d);
+  });
+  return ASK_KEYS.filter(k => D.key[k] !== 'no' && best[k] > min).sort((a, b) => best[b] - best[a]);
 }

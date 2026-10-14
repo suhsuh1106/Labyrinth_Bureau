@@ -1099,3 +1099,7 @@ table.crewt tr.drill td { background: rgba(201, 154, 30, .08); }
 .stockbar i.use { background: #4a8fd1; } .stockbar i.back { background: #7fb98a; } .stockbar i.stay { background: #8d8f96; } .stockbar i.short { background: repeating-linear-gradient(45deg, #c0392b 0 3px, transparent 3px 6px); }
 .stockbar .sk-leg { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; font-size: 11.5px; color: var(--ink-soft); }
 .stockbar .sk.short .sk-n b { color: var(--bad, #c0392b); }
+/* 조사 결과 표는 좁은 화면에서 줄바꿈 (가로로 늘어나지 않게) */
+.pr table.grid, .co-sheet.doc table.grid.slim { min-width: 0; }
+@media (max-width: 640px) { .pr table.grid td, .pr table.grid th { white-space: normal; } }
+table.tsum small.wk { background: none; border: 0; padding: 0; margin-top: 3px; font-size: 11px; }

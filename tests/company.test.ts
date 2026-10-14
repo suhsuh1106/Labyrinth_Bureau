@@ -24,7 +24,8 @@ import { floorMax, keyOf } from '../src/core/company';
 import { fcRank, forecast, gradeOf } from '../src/core/company';
 import { bedsOf, classCap, dormCost, dormKeep, formTeams, recruitPrice, recruitWants, rookCount, rookSlots, shareOut } from '../src/core/company';
 import { CLASSES } from '../src/core/data';
-import { needOf, tripOdds, potShock, profitOf, drillGain } from '../src/core/company';
+import { needOf, tripOdds, potShock, profitOf, drillGain, weakShare, hireCap } from '../src/core/company';
+import { WEAK_KEYS } from '../src/core/data';
 import { DEX } from '../src/core/dex';
 
 describe('용병단 장부', () => {
@@ -1303,7 +1304,7 @@ describe('미궁 도감 · 단장 · 지정 탐사', () => {
     W.dex = { [fauna]: { n: 0, w: 0, cr: 0, u: DEX.TARGET_AT, at: 1, rec: {}, mats: {}, key: {}, mat: {} } };
     expect(sanitize(W, c, P).teams!.every(T => T.target === fauna)).toBe(true);
     let aim = 0, all = 0;
-    for (let m = 0; m < 4; m++) { const Q = carryPlan(W, P); const M = runMonth(W, Q); closeBooks(W); M.ours.forEach(o => o.days!.forEach(d => { all++; if (d.mon === fauna) aim++; })); }
+    for (let m = 0; m < 10; m++) { const Q = carryPlan(W, P); const M = runMonth(W, Q); closeBooks(W); M.ours.forEach(o => o.days!.forEach(d => { all++; if (d.mon === fauna) aim++; })); }
     expect(aim / all).toBeGreaterThan(0.4);   // 섞여 만나면 0.3
   });
 });
@@ -1375,18 +1376,16 @@ describe('#46 피드백: 조 번호 · 약초 흉년 · 건물 자산', () => {
 });
 
 describe('훈련 배치 · 채비 어림', () => {
-  it('훈련에 둔 사람은 조에 들지 않고, 그달 실력이 교관 단계만큼 오르며, 다음 달에도 훈련에 남는다', () => {
+  it('대기 = 본부 훈련: 조에 들지 않은 사람은 그달 실력이 교관 단계만큼 오른다', () => {
     setSeed(8); const W = newWorld(), c = us(W);
     const x = c.crew!.filter(p => !p.lead)[0], sk0 = x.sk ?? 40;
-    const P = defaultPlan(W); P.drill = [x.id]; P.train = CO.COACH_PAY[1];
-    const Q = sanitize(W, c, P);
-    expect(Q.teams!.some(T => T.m.includes(x.id))).toBe(false);
-    const gain = drillGain(c, Q, x);
+    const P = sanitize(W, c, defaultPlan(W)); P.train = CO.COACH_PAY[1];
+    P.teams!.forEach(T => { T.m = T.m.map(id => (id === x.id ? null : id)); });
+    const gain = drillGain(c, P, x);
     expect(gain).toBe(CO.DRILL_SK[1]);
     const M = runMonth(W, P); closeBooks(W);
-    expect(M.res[0].drilled).toBe(1);
+    expect(M.res[0].drilled).toBeGreaterThanOrEqual(1);
     expect(c.crew!.find(p => p.id === x.id)!.sk).toBeCloseTo(sk0 + gain, 5);
-    expect(carryPlan(W, P).drill).toEqual([x.id]);
   });
   it('산 채비는 이번 달 창고에 바로 들어와 이번 출정에 쓰이고, 쓰지 않은 것은 다음 달 창고에 남는다', () => {
     setSeed(4); const W = newWorld(), c = us(W);
@@ -1398,5 +1397,23 @@ describe('훈련 배치 · 채비 어림', () => {
     expect(supOf(c).food).toBe(need.food - ate);
     const fc = forecast(W, sanitize(W, c, defaultPlan(W)));
     expect(fc.food).toBeGreaterThan(0); expect(fc.food!).toBeLessThanOrEqual(needOf(sanitize(W, c, defaultPlan(W))).food);
+  });
+});
+
+describe('약점 짝 · 계약 조', () => {
+  it('약점은 다섯 가지(장비 꼴)이고, 짝지은 장비 한 벌이나 직업 둘이면 다, 직업 하나면 WEAK_ONE만큼 찌른다', () => {
+    MONSTERS.forEach(m => { expect(WEAK_KEYS).toContain(m.key); expect(WEAK_KEYS).toContain(m.bad); expect(WEAK_KEYS).toContain(m.alt); expect(new Set([m.key, m.bad, m.alt]).size).toBe(3); });
+    expect(weakShare('g:둔기', ['전사', '전사', '궁수', '도적'], [])).toBe(1);
+    expect(weakShare('g:둔기', ['전사', '궁수', '도적', '마법사'], [])).toBe(CO.WEAK_ONE);
+    expect(weakShare('g:둔기', ['궁수', '도적', '마법사', '사제'], ['g:둔기'])).toBe(1);
+    expect(weakShare('g:독', ['전사', '궁수', '마법사', '사제'], [])).toBe(0);
+  });
+  it('계약 조가 다치거나 죽어도 우리 단원 · 치료비와 상관없다', () => {
+    for (let s = 1; s <= 8; s++) {
+      setSeed(s); const W = newWorld(), c = us(W);
+      const P = sanitize(W, c, defaultPlan(W)); P.teams = []; P.parties = P.parties.map(() => 0); P.hire = [hireCap(W), 0, 0, 0, 0];
+      const n0 = c.crew!.length, M = runMonth(W, P);
+      expect(M.res[0].deaths).toBe(0); expect(M.res[0].hurt).toBe(0); expect(c.crew!.length).toBe(n0 + M.res[0].recruited);
+    }
   });
 });
