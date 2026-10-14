@@ -1038,9 +1038,6 @@ table.dx-mats td:first-child { width: 32%; } table.dx-mats td:nth-child(2) { wid
 .run .after { display: grid; gap: 6px; }
 
 /* 편성표 위 채비 재고 줄 */
-.stockbar { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: baseline; margin: 6px 0 8px; font-size: 13px; }
-.stockbar b { font-family: var(--f-num); }
-.stockbar .neg b, .stockbar .neg small { color: var(--bad, #c0392b); }
 
 /* 내정 맨 위 알림 줄: 새 의뢰 · 상단 소문 · 안내 */
 .notices { position: relative; display: grid; gap: 4px; margin: 0 0 10px; padding: 8px 64px 8px 12px; border: 1px solid #c99a1e; border-left: 4px solid #c99a1e; border-radius: 3px; background: rgba(60, 44, 14, .92); }
@@ -1088,3 +1085,17 @@ table.dx-mats td:nth-child(2) { width: 22%; }
 .nb-page table th, .nb-page table td { white-space: normal; padding: 3px 5px; }
 .nb-page table.dx-mats td small { display: block; }
 table.tsum td:first-child { min-width: 0; width: 1%; padding-right: 4px; }
+/* 훈련 배치 */
+.seg.asg button.dr[aria-pressed="true"] { background: #6b5a2e; border-color: #c99a1e; color: #fff3cf; }
+table.crewt tr.drill td { background: rgba(201, 154, 30, .08); }
+/* 편성표 위 채비 막대 */
+.stockbar { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px 18px; margin: 8px 0 10px; font-size: 12.5px; }
+.stockbar .sk { display: grid; gap: 3px; }
+.stockbar .sk-n small, .stockbar .sk-v { color: var(--ink-soft); font-size: 11.5px; }
+.stockbar .sk-v b { color: var(--ink); font-family: var(--f-num); }
+.sk-bar { display: flex; height: 10px; border-radius: 2px; overflow: hidden; background: rgba(127, 127, 127, .15); }
+.sk-bar i, .sk-leg i { display: block; height: 100%; }
+.sk-leg i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 4px; }
+.stockbar i.use { background: #4a8fd1; } .stockbar i.back { background: #7fb98a; } .stockbar i.stay { background: #8d8f96; } .stockbar i.short { background: repeating-linear-gradient(45deg, #c0392b 0 3px, transparent 3px 6px); }
+.stockbar .sk-leg { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; font-size: 11.5px; color: var(--ink-soft); }
+.stockbar .sk.short .sk-n b { color: var(--bad, #c0392b); }

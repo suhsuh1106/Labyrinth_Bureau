@@ -12,6 +12,7 @@ import { CLASSES } from '../src/core/data';
 // 영주청 숫자를 바꿔 보며 잴 때 (TAX_LOOT=0.15 TAX_SUSK=20 TAX_RELIEF=0.5 npm run sim)
 if (process.env.KEY_BONUS) CO.KEY_BONUS = +process.env.KEY_BONUS;
 if (process.env.DEP) CO.DEP = +process.env.DEP;
+const DRILL = process.env.DRILL !== '0';
 const ASK_ALL = process.env.ASK_ALL === '1';   // 단장 조사를 소거법으로 (짐작이 없으면 아직 묻지 않은 것부터). 켜면 숙련 봇 1위 86%라 밸런스를 정한 뒤 기본으로
 if (process.env.TAX_LOOT) TAX.LOOT = +process.env.TAX_LOOT;
 if (process.env.UND_F0) CO.UND_F[0] = +process.env.UND_F0;
@@ -61,6 +62,7 @@ export const BOT: Record<string, (W: World) => Plan> = {
   smart: W => smartPlan(W),
   // 숙련 봇에서 추리만 뺀 것 (편성 지침이 순위에 얼마나 보태는지 재는 기준)
   smartNoGuide: W => smartPlan(W, 'mine', true, false, false),
+  smartAsk: W => smartPlan(W, 'mine', true, false, true, true),   // 단장 조사를 소거법으로
   // 숙련 봇에서 도감으로 소재 챙기기만 뺀 것 (갈무리 편성이 순위에 얼마나 보태는지 재는 기준)
   smartNoKit: W => smartPlan(W, 'mine', false),
   // 숙련 봇에 조사 의뢰(큰 용병단 둘의 이번 달 계획 사 보기)로 붐빔을 읽어 나누기를 더한 것 (아직 숙련 봇보다 못하다)
@@ -87,7 +89,7 @@ export function fileSmart(W: World, risk = FILE_RISK): Partial<Filing> {
   return fileAt(D.truth, lo);
 }
 export const FILER: Record<string, (W: World) => Partial<Filing>> = {
-  smart: W => fileSmart(W), smartNoGuide: W => fileSmart(W), smartNoKit: W => fileSmart(W), smartScout: W => fileSmart(W), smartSeal: W => fileSmart(W), smartNoRoot: W => fileSmart(W), smartStay: W => fileSmart(W),
+  smart: W => fileSmart(W), smartNoGuide: W => fileSmart(W), smartAsk: W => fileSmart(W), smartNoKit: W => fileSmart(W), smartScout: W => fileSmart(W), smartSeal: W => fileSmart(W), smartNoRoot: W => fileSmart(W), smartStay: W => fileSmart(W),
   smartGreedy: W => (W.draft ? fileAt(W.draft.truth, 1) : {}),
 };
 
@@ -96,7 +98,7 @@ export const FILER: Record<string, (W: World) => Partial<Filing>> = {
 // 크게 남는 층에는 계약 파티를 쓴다.
 // 거점과 쌓아 두기는 지금 규모에서는 손해라 쓰지 않는다 (시뮬레이션으로 확인함)
 const GROW_K = +(process.env.GROW_K || 1.2), GROW_M = +(process.env.GROW_M || 80);
-export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine', kit = true, scout = false, guide = true): Plan {
+export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine', kit = true, scout = false, guide = true, askAll = ASK_ALL): Plan {
   const c = us(W), P = defaultPlan(W), L = W.last, pots = 3;
   // 조당 남는 돈: 성공해서 캐 올 값(모형과 지난달 실제 조당 벌이의 중간) − 출정·포션 − 사망의 값(신입 계약금과 빈자리)
   const real = L ? L.perParty : null;
@@ -153,6 +155,8 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
   // 횃불: 지도만큼 헤맬 것을 셈해, 돌아설 확률이 TORCH_RISK 밑이 되는 데까지 들고 간다
   P.torch = FLOORS.map((_, f) => { const r = torchRate(f, mapOf(c, f)); let t = 1; while (t < CO.DAYS && tripOdds(t, r).dark > TORCH_RISK) t++; return t; });
   grow(W, P, GROW_K, GROW_M);
+  // 조에 들지 못한 사람은 본부에서 훈련한다 (돈이 더 들지 않는다)
+  if (c.crew && DRILL) { const Q0 = sanitize(W, c, P), on = new Set(Q0.teams!.flatMap(T => T.m)); P.drill = c.crew.filter(x => !x.hurt && !on.has(x.id)).map(x => x.id); }
   if (!c.crew || !guide) return P;
   // 조를 짜 두고: 도감 이해도가 찬 주 몬스터는 노리고(지정 탐사), 단장이 가는 층의 몬스터 중 하나에 기록상 가장 그럴듯한 약점을 묻는다
   const Q = sanitize(W, c, P), dex = W.dex || {};
@@ -160,7 +164,7 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
   Q.teams!.forEach(T => { const M = floorMons(W, T.f)[0]; if (canTarget(W, T.f, M.name) && keySure(dex[M.name])) T.target = M.name; });
   const lead = (c.crew || []).find(x => x.lead), LT = lead ? Q.teams!.find(T => T.m.includes(lead.id)) : null;
   // (기록에서 짐작이 서면 그것부터, 서지 않으면 아직 묻지 않은 것을 하나씩 지워 간다. 묻는 데 돈이 들지 않는다)
-  if (LT && ASK_ALL) for (const M of floorMons(W, LT.f)) {
+  if (LT && askAll) for (const M of floorMons(W, LT.f)) {
     const D = dex[M.name]; if (!D || D.u < DEX.ASK_AT || keySure(D)) continue;
     const k = guessKeys(D).find(x => !D.key[x]) || ASK_KEYS.find(x => !D.key[x]); if (k) { Q.ask = { mon: M.name, k }; break; }
   }

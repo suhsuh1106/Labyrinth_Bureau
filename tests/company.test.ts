@@ -24,7 +24,7 @@ import { floorMax, keyOf } from '../src/core/company';
 import { fcRank, forecast, gradeOf } from '../src/core/company';
 import { bedsOf, classCap, dormCost, dormKeep, formTeams, recruitPrice, recruitWants, rookCount, rookSlots, shareOut } from '../src/core/company';
 import { CLASSES } from '../src/core/data';
-import { needOf, tripOdds, potShock, profitOf } from '../src/core/company';
+import { needOf, tripOdds, potShock, profitOf, drillGain } from '../src/core/company';
 import { DEX } from '../src/core/dex';
 
 describe('용병단 장부', () => {
@@ -343,7 +343,7 @@ describe('미궁의 압력과 근원', () => {
   it('근원은 도감에서 주 몬스터의 이해도가 다 차고 약점을 확정한 뒤에만 찾는다', () => {
     let smart = 0, even = 0;
     for (let g = 1; g <= 10; g++) {
-      const W = playGame(g, BOT.smart);
+      const W = playGame(g, BOT.smartAsk);   // 단장에게 소거법으로 묻는 숙련 봇
       smart += W.roots!.filter(r => r.found).length;
       even += playGame(g, BOT.even).roots!.filter(r => r.found).length;
       W.roots!.forEach((R, f) => { if (!R.found) return; const D = W.dex![MONSTERS[W.mons[f]].name]; expect(D.u).toBeGreaterThanOrEqual(DEX.ROOT_AT); expect(W.history[R.found - 1].res[0].sent[f]).toBeGreaterThan(0); });
@@ -1371,5 +1371,32 @@ describe('#46 피드백: 조 번호 · 약초 흉년 · 건물 자산', () => {
     const M2 = runMonth(W, carryPlan(W, P)); closeBooks(W);
     expect(M2.res[0].dep).toBe(Math.round(r.capex! * CO.DEP));
     expect(c.book).toBe(r.capex! - M2.res[0].dep! + (M2.res[0].capex || 0));
+  });
+});
+
+describe('훈련 배치 · 채비 어림', () => {
+  it('훈련에 둔 사람은 조에 들지 않고, 그달 실력이 교관 단계만큼 오르며, 다음 달에도 훈련에 남는다', () => {
+    setSeed(8); const W = newWorld(), c = us(W);
+    const x = c.crew!.filter(p => !p.lead)[0], sk0 = x.sk ?? 40;
+    const P = defaultPlan(W); P.drill = [x.id]; P.train = CO.COACH_PAY[1];
+    const Q = sanitize(W, c, P);
+    expect(Q.teams!.some(T => T.m.includes(x.id))).toBe(false);
+    const gain = drillGain(c, Q, x);
+    expect(gain).toBe(CO.DRILL_SK[1]);
+    const M = runMonth(W, P); closeBooks(W);
+    expect(M.res[0].drilled).toBe(1);
+    expect(c.crew!.find(p => p.id === x.id)!.sk).toBeCloseTo(sk0 + gain, 5);
+    expect(carryPlan(W, P).drill).toEqual([x.id]);
+  });
+  it('산 채비는 이번 달 창고에 바로 들어와 이번 출정에 쓰이고, 쓰지 않은 것은 다음 달 창고에 남는다', () => {
+    setSeed(4); const W = newWorld(), c = us(W);
+    const P = sanitize(W, c, defaultPlan(W)), need = needOf(P);
+    expect(supOf(c).torch || 0).toBe(0);
+    const M = runMonth(W, P); closeBooks(W);
+    const burned = M.ours.reduce((a, o) => a + o.trip!.tu, 0), ate = M.ours.reduce((a, o) => a + (o.trip!.fu || 0), 0);
+    expect(supOf(c).torch).toBe(need.torch - burned);
+    expect(supOf(c).food).toBe(need.food - ate);
+    const fc = forecast(W, sanitize(W, c, defaultPlan(W)));
+    expect(fc.food).toBeGreaterThan(0); expect(fc.food!).toBeLessThanOrEqual(needOf(sanitize(W, c, defaultPlan(W))).food);
   });
 });

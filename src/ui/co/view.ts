@@ -70,6 +70,7 @@ export function resultsHtml(W: World) {
       ${r.spend.torch ? `<tr><td>횃불 ${fmt(r.spend.torch / CO.TORCH_PRICE)}개${r.torchShort ? ` <span class="neg">· 횃불 없이 간 조 ${r.torchShort}</span>` : ''}</td><td class="n">−${fmt(r.spend.torch)}</td></tr>` : ''}
       ${r.spend.hq ? `<tr><td>본부 공사 · 유지비</td><td class="n">−${fmt(r.spend.hq)}</td></tr>` : ''}
       ${r.recruitWant ? `<tr><td>신입 ${r.recruited}명 × ${fmt(r.recruitPrice)}G${r.recruited < r.recruitWant ? ` <span class="dim">(찾은 ${r.recruitWant}명 · 지원자가 모자람)</span>` : ''}</td><td class="n">−${fmt(r.spend.recruit)}</td></tr>` : ''}
+      ${r.drilled ? `<tr><td class="dim">본부 훈련 ${r.drilled}명 (실력이 오름)</td><td class="n dim">-</td></tr>` : ''}
       ${r.rookDone || r.rookDead ? `<tr><td class="dim">수습${r.rookDone ? ` ${r.rookDone}명이 대원이 됨` : ''}${r.rookDead ? `${r.rookDone ? ',' : ''} ${r.rookDead}명 사망` : ''}</td><td class="n dim">-</td></tr>` : ''}
       ${r.spend.dorm ? `<tr><td>숙소 ${r.spend.dorm > dormKeep(bedsOf(us(W))) ? '유지비 · 증축' : '유지비'}</td><td class="n">−${fmt(r.spend.dorm)}</td></tr>` : ''}
       ${r.spend.tool ? `<tr><td>채집 장비</td><td class="n">−${fmt(r.spend.tool)}</td></tr>` : ''}
