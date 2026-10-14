@@ -50,11 +50,12 @@ export function candHtml(W: World, raw: Plan, sort?: string) {
     <p class="note">${picks.length ? `고른 ${picks.length}명 · 계약금 어림 ${fmt(total)}G` : raw.pick ? '아무도 뽑지 않아요' : `고르지 않으면 빈 침상만큼 기본 편성 직업 순으로 실력 좋은 사람부터 뽑아요`} · 빈 침상 ${room}개. 다른 용병단이 같은 사람을 찾으면 명성이 높은 곳이 먼저고, 찾는 사람이 많으면 계약금이 올라요.${raw.pick ? ' <button type="button" class="link" data-act="auto-recruit">자동으로 뽑기</button>' : ''}</p>`;
 }
 
-// 짐 칸: 한 사람 SLOT_PP칸. 횃불(주황) · 포션(빨강)이 먼저 차지하고 빈 칸에 전리품(갈색)을 싣는다. 돌아온 짐은 loot칸이 앞에 찬다
+// 짐 칸: 한 사람 SLOT_PP칸. 쓰는 것(횃불 주황 · 포션 빨강 · 식량 초록 · 정비 도구 회색)이 앞에서부터, 전리품(금빛)은 뒤에서부터 찬다
 export function packBar(slots: number, torch: number, pots: number, loot = 0, food = 0, mend = 0) {
   const l = Math.min(slots, Math.round(loot)), t = Math.min(torch, slots - l), p = Math.min(pots, slots - l - t), fd = Math.min(Math.ceil(food / CO.FOOD_SLOT - 1e-9), slots - l - t - p), o = Math.min(mend, slots - l - t - p - fd), free = slots - l - t - p - fd - o;
-  const cells = [...Array(l).fill('l'), ...Array(t).fill('t'), ...Array(p).fill('p'), ...Array(fd).fill('f'), ...Array(o).fill('o'), ...Array(free).fill('s')];
-  return `<span class="pack" role="img" aria-label="짐 ${slots}칸: ${l ? `전리품 ${l} · ` : ''}횃불 ${t} · 포션 ${p} · 식량 ${fd} · 정비 도구 ${o} · 빈 칸 ${free}">${cells.map(k => `<i class="${k}"></i>`).join('')}</span>`;
+  // 앞에서부터 쓰는 것(횃불 · 포션 · 식량 · 정비 도구), 빈 칸, 그리고 전리품은 뒤에서부터 찬다
+  const cells = [...Array(t).fill('t'), ...Array(p).fill('p'), ...Array(fd).fill('f'), ...Array(o).fill('o'), ...Array(free).fill('s'), ...Array(l).fill('l')];
+  return `<span class="pack" role="img" aria-label="짐 ${slots}칸: 횃불 ${t} · 포션 ${p} · 식량 ${fd} · 정비 도구 ${o} · 빈 칸 ${free}${l ? ` · 전리품 ${l}` : ''}">${cells.map(k => `<i class="${k}"></i>`).join('')}</span>`;
 }
 
 // ---------- 출정 편성표 ----------
@@ -100,7 +101,7 @@ export function assignHtml(W: World, P: Plan, others: (f: number) => number, sor
     return `<span class="seg asg" role="group" aria-label="${esc(nameOf(p))} 배치">${teams.map((_, k) => `<button type="button" class="k${k % 8}" data-act="assign" data-id="${p.id}" data-t="${k}" aria-pressed="${t === k}"${t !== k && whoOf(k).length >= CO.PARTY ? ' disabled' : ''}>${k + 1}조</button>`).join('')}<button type="button" data-act="assign" data-id="${p.id}" data-t="new" title="새 조를 만들어 넣기">+</button><button type="button" class="bn" data-act="assign" data-id="${p.id}" data-t="-1" aria-pressed="${t == null}">대기</button></span>`;
   };
   const bondTxt = (p: Person) => { const b = bondOf(p); return b < 0 ? '' : b === 0 && whoOf(teamOf.get(p.id)!).length > 1 ? '<span class="fresh">새 얼굴</span>' : `${b.toFixed(b % 1 ? 1 : 0)}달`; };
-  return `<div class="tw"><table class="grid tsum"><thead><tr><th>조</th><th>층</th><th class="n">인원</th><th>직업</th><th title="위: 이해도 (지도 완성도 + 고참 경험 + 길잡이) · 아래: 조직력 (함께 나간 달)">이해도 · 조직력</th><th class="n">성공률</th><th title="위기마다 한 병">포션</th><th title="탐사 최대 ${CO.DAYS}일 · 횃불이 떨어지면 돌아섬">횃불</th><th title="며칠치 · 모자라면 굶는 날 성공 −${Math.round(CO.HUNGER_PEN * 100)}%p">식량</th><th title="진 날 하나 써서 무기를 고친다 · 없으면 무뎌져 날마다 성공 −${Math.round(CO.MEND_PEN * 100)}%p씩 쌓임">정비</th><th title="한 사람 ${CO.SLOT_PP}칸 · 횃불(주황) · 포션(빨강) · 식량(초록, ${CO.FOOD_SLOT}개 한 칸) · 정비 도구(회색)가 먼저 차지 · 빈 칸에 전리품">짐</th><th title="위: 약점 장비 · 아래: 노릴 몬스터 (도감 이해도 ${DEX.TARGET_AT}부터 · 노린 몬스터를 더 자주 만나고 소재가 더 나온다)">장비 · 노릴 몬스터</th><th>살필 것</th></tr></thead>
+  return `<div class="tw"><table class="grid tsum"><thead><tr><th>조</th><th>층</th><th class="n">인원</th><th>직업</th><th title="위: 이해도 (지도 완성도 + 고참 경험 + 길잡이) · 아래: 조직력 (함께 나간 달)">이해도 · 조직력</th><th class="n">성공률</th><th title="위기마다 한 병">포션</th><th title="탐사 최대 ${CO.DAYS}일 · 횃불이 떨어지면 돌아섬">횃불</th><th title="며칠치 · 모자라면 굶는 날 성공 −${Math.round(CO.HUNGER_PEN * 100)}%p">식량</th><th title="진 날 하나 써서 무기를 고친다 · 없으면 무뎌져 날마다 성공 −${Math.round(CO.MEND_PEN * 100)}%p씩 쌓임">정비</th><th title="한 사람 ${CO.SLOT_PP}칸 · 횃불(주황) · 포션(빨강) · 식량(초록, ${CO.FOOD_SLOT}개 한 칸) · 정비 도구(회색)이 앞에서부터 · 전리품(금빛)은 뒤에서부터">짐</th><th title="위: 약점 장비 · 아래: 노릴 몬스터 (도감 이해도 ${DEX.TARGET_AT}부터 · 노린 몬스터를 더 자주 만나고 소재가 더 나온다)">장비 · 노릴 몬스터</th><th>살필 것</th></tr></thead>
       <tbody>${sum || `<tr><td colspan="13" class="dim">짠 조가 없어요. 아래 명단의 + 를 눌러 새 조를 만들어요</td></tr>`}<tr class="rest"><td><b>대기</b></td><td colspan="12" class="dim">${bench.filter(p => !p.hurt).length}명${bench.some(p => p.hurt) ? ` · 부상 ${bench.filter(p => p.hurt).length}명 (한 달 쉼)` : ''}</td></tr></tbody></table></div>
     <div class="tw"><table class="grid crewt asgn"><thead><tr>${th('name', '이름', cur, 'as')}${th('cls', '직업', cur, 'as')}${th('sk', '실력', cur, 'as')}${th('tr', '특성', cur, 'as')}${open.map(f => th('ex' + f, FLOORS[f].name, cur, 'as', 'n')).join('')}${th('bond', '함께한 달', cur, 'as')}${th('team', '배치', cur, 'as')}</tr></thead>
     <tbody>${rows.map(({ p }) => { const t = teamOf.get(p.id), f = t != null ? teams[t].f : -1;

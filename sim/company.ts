@@ -10,7 +10,9 @@ import { ASK_KEYS, DEX, type Dex, keySure } from '../src/core/dex';
 import { CLASSES } from '../src/core/data';
 
 // 영주청 숫자를 바꿔 보며 잴 때 (TAX_LOOT=0.15 TAX_SUSK=20 TAX_RELIEF=0.5 npm run sim)
+if (process.env.KEY_BONUS) CO.KEY_BONUS = +process.env.KEY_BONUS;
 if (process.env.DEP) CO.DEP = +process.env.DEP;
+const ASK_ALL = process.env.ASK_ALL === '1';   // 단장 조사를 소거법으로 (짐작이 없으면 아직 묻지 않은 것부터). 켜면 숙련 봇 1위 86%라 밸런스를 정한 뒤 기본으로
 if (process.env.TAX_LOOT) TAX.LOOT = +process.env.TAX_LOOT;
 if (process.env.UND_F0) CO.UND_F[0] = +process.env.UND_F0;
 if (process.env.PRESS_RUN) TAX.PRESS_RUN = +process.env.PRESS_RUN;
@@ -157,7 +159,12 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
   // (주 몬스터는 어려워서 약점을 확정한 뒤에만 노린다)
   Q.teams!.forEach(T => { const M = floorMons(W, T.f)[0]; if (canTarget(W, T.f, M.name) && keySure(dex[M.name])) T.target = M.name; });
   const lead = (c.crew || []).find(x => x.lead), LT = lead ? Q.teams!.find(T => T.m.includes(lead.id)) : null;
-  if (LT) for (const M of floorMons(W, LT.f)) {
+  // (기록에서 짐작이 서면 그것부터, 서지 않으면 아직 묻지 않은 것을 하나씩 지워 간다. 묻는 데 돈이 들지 않는다)
+  if (LT && ASK_ALL) for (const M of floorMons(W, LT.f)) {
+    const D = dex[M.name]; if (!D || D.u < DEX.ASK_AT || keySure(D)) continue;
+    const k = guessKeys(D).find(x => !D.key[x]) || ASK_KEYS.find(x => !D.key[x]); if (k) { Q.ask = { mon: M.name, k }; break; }
+  }
+  else if (LT) for (const M of floorMons(W, LT.f)) {
     const D = dex[M.name]; if (!D || D.u < DEX.ASK_AT || keySure(D)) continue;
     const k = guessKeys(D).find(x => !D.key[x]); if (k) { Q.ask = { mon: M.name, k }; break; }
   }
