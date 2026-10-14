@@ -23,7 +23,8 @@ export const CO = {
   // 부상 주사위: 해내지 못한 조원마다 INJ_BASE + INJ_K × 층 위험 (× 모르는 만큼 · 특성 · 조직력). 걸리면 포션으로 먼저 막고, 없으면 다치고(성공 −INJ_PEN),
   // 다친 채 또 걸리면 죽는다. 진 날도 해낸 사람 몫의 LOSE_LOOT배는 싣는다. INJ_REST면 다친 사람은 다음 달 쉰다.
   // 조우 난이도: 우리 조의 하루 굴림에서 층마다 HARD_F, 주 몬스터면 HARD_MAIN을 더 뺀다 (얕은 층은 순해서 거의 다 이기던 것을 어렵게. 깊은 층은 원래 어렵다)
-  INJ_BASE: 0.02, INJ_K: 0.3, INJ_PEN: 0.15, INJ_REST: 1, LOSE_LOOT: 0.5, HARD_F: [0.2, 0.15, 0.05, 0, 0], HARD_MAIN: 0.08,
+  // 숙련도: 실력 단계(신입 · 수련 · 숙련 · 노련 · 명인)마다 부상 주사위에 INJ_TIER를 곱한다 (명인은 실패해도 잘 안 다친다)
+  INJ_BASE: 0.02, INJ_K: 0.3, INJ_PEN: 0.15, INJ_REST: 1, LOSE_LOOT: 0.5, INJ_TIER: [1.2, 1.1, 1, 0.9, 0.8], HARD_F: [0.2, 0.15, 0.05, 0, 0], HARD_MAIN: 0.08,
   ENC_W: [0.4, 0.3, 0.3], SLOT_PP: 3, LOOT_SLOT: 1.5, MAT_ENC: 0.6, FIND: 1.12,
   // 관리국 게시판의 공표된 경쟁 · 납품 의뢰 (지금은 닫아 둔다. 탐사 계획서는 따로 열려 있다)
   JOBS_OPEN: false,
@@ -997,7 +998,7 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
             injPen: CO.INJ_PEN, loseLoot: CO.LOSE_LOOT, pots: () => potsIn,
             // 조우 난이도: 층마다 HARD_F, 주 몬스터는 HARD_MAIN만큼 더 해내기 어렵다
             pm: (m, j) => clamp(ppBase + vs[j] - CO.HARD_F[f] - (j ? 0 : CO.HARD_MAIN) + MM!.pp[m], 0.05, 0.97),
-            injP: (m, j) => { const p0 = CO.INJ_BASE + CO.INJ_K * F.risk; return Math.min(0.9, (j < 0 ? CO.DARK_MIN + p0 * CO.DARK_BACK : p0) * MM!.cr[m] * U.crisis * (scout ? CO.SCOUT_CRISIS : 1) * (j >= 0 && j === tg && keySure(Dx[j]) ? DEX.KEY_CRISIS : 1)); },
+            injP: (m, j) => { const p0 = CO.INJ_BASE + CO.INJ_K * F.risk; return Math.min(0.9, (j < 0 ? CO.DARK_MIN + p0 * CO.DARK_BACK : p0) * MM!.cr[m] * CO.INJ_TIER[tierOf(who[m])] * U.crisis * (scout ? CO.SCOUT_CRISIS : 1) * (j >= 0 && j === tg && keySure(Dx[j]) ? DEX.KEY_CRISIS : 1)); },
             hurt: m => { hurtOnce(m); if (!MM!.medic && CO.INJ_REST) hurtP[i].add(who[m].id); },
             // 포션: 성수부터 쓴다. 성수는 HOLY의 확률로 병을 비우지 않고 막는다 (모두 성수면 한 병이 1 + HOLY병 몫)
             usePot: () => {
@@ -1783,7 +1784,7 @@ export function forecast(W: World, P: Plan): Forecast {
       // 우리 조는 조원마다 실력 단계 · 특성 · 조직력을 더한 성공률의 평균으로 (조원끼리 다른 성공률을 하나로 어림)
       const MM = who && who.length ? memberMods(who, f, u) : null;
       const pt = MM ? MM.pp.reduce((a, d) => a + clamp(pt0 + d, 0.05, 0.97), 0) / who!.length : pt0;
-      const crM = (MM ? MM.cr.reduce((a, x) => a + x, 0) / who!.length : 1) * U.crisis * (scout ? CO.SCOUT_CRISIS : 1), loM = (MM ? MM.loot.reduce((a, x) => a + x, 0) / who!.length : 1) * U.loot * (scout ? CO.SCOUT_LOOT : 1);
+      const crM = (MM ? MM.cr.reduce((a, x, m) => a + x * CO.INJ_TIER[tierOf(who![m])], 0) / who!.length : 1) * U.crisis * (scout ? CO.SCOUT_CRISIS : 1), loM = (MM ? MM.loot.reduce((a, x) => a + x, 0) / who!.length : 1) * U.loot * (scout ? CO.SCOUT_LOOT : 1);
       const keys = who ? [...new Set(who.map(x => 'c:' + x.c)), ...(T!.g ? [T!.g] : [])] : [];
       // 우리 조의 탐사: 횃불로 다닐 날의 기대만큼 캐고 갈무리하고 위기를 맞는다. 횃불이 떨어질 확률만큼 어둠 속 위기를 더한다
       const pk = T ? teamPots(P, T) : P.pots[f], odds = who ? tripOdds(Math.min(T ? teamTorch(P, T) : carryOf(P, f), size * CO.SLOT_PP), torchRate(f, u)) : null, dk = odds ? odds.days : 1, lk = odds ? dk * CO.FIND : 1;
