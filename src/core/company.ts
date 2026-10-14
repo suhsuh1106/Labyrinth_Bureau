@@ -143,6 +143,9 @@ export const CO = {
   // 보급: 포션과 장비는 내정에서 사 두고 탐험에 꺼내 쓴다. 포션은 쓴 만큼 줄고, 장비는 한 벌을 조 하나가 들고 가서
   // 성공하면 GEAR_BREAK, 실패하면 GEAR_LOST로 망가지거나 잃어버린다. 직업을 꼭 넣는 데는 조당 GUIDE_COST가 든다
   GEAR_PRICE: 80, GEAR_BREAK: 0.1, GEAR_LOST: 0.35,
+  // 역효과: 그 속성 장비를 들고 그 몬스터를 만나면 성공 −BAD_PEN에 장비가 BAD_BREAK배 잘 망가지고,
+  // 장비 없이 그 속성을 맡는 직업이 맨몸으로 나서면 그 사람의 부상 주사위가 BAD_INJ배
+  BAD_BREAK: 2, BAD_INJ: 1.5,
   // 조사 의뢰: 정보 주차에 돈을 내면 이번 달 것을 바로 알려 준다. 한 달에 PROBE_MAX번까지
   PROBE_MKT: 150, PROBE_RIV: 200, PROBE_MAX: 3,
   // 편성 줄: 한 층의 우리 조를 줄마다 다르게 챙겨 보낸다 (층마다 KIT_MAX줄까지, 나머지는 섞인 대로)
@@ -477,6 +480,8 @@ export function weakShare(k: string, cls: string[], keys: string[]) {
 }
 // 역효과는 그 장비를 들고 갔을 때만 걸린다 (사람을 탓하지 않는다)
 export const badShare = (k: string, keys: string[]) => (k && keys.includes(weakKey(k)) ? 1 : 0);
+// 맨몸 역효과: 그 속성을 맡는 직업이 그 장비 없이 나서면 (그 사람의 부상 주사위가 BAD_INJ배)
+export const classBad = (k: string, cls: string, keys: string[]) => !!k && PAIR_CLASS[weakKey(k).slice(2)] === cls && !keys.includes(weakKey(k));
 export const keyOf = (W: World, f: number) => weakKey((W.keys && W.keys[f]) || MONSTERS[W.mons[f]].key);
 // 전리품 비율: 성공 한 번에 캐 오는 양에 곱하는 값
 export const expBonus = (n: number) => CO.EXP_MAX * n / (n + CO.EXP_K);
@@ -1066,7 +1071,7 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
             food: fc, foodSlot: CO.FOOD_SLOT, hungerPen: CO.HUNGER_PEN, tools: mc, toolPen: CO.MEND_PEN,
             // 조우 난이도: 층마다 HARD_F, 주 몬스터는 HARD_MAIN만큼 더 해내기 어렵다
             pm: (m, j) => clamp(ppBase + vs[j] - CO.HARD_F[f] - (j ? 0 : CO.HARD_MAIN) + MM!.pp[m], 0.05, 0.97),
-            injP: (m, j) => { const p0 = CO.INJ_BASE + CO.INJ_K * F.risk; return Math.min(0.9, (j < 0 ? CO.DARK_MIN + p0 * CO.DARK_BACK : p0) * MM!.cr[m] * CO.INJ_TIER[tierOf(who[m])] * U.crisis * (scout ? CO.SCOUT_CRISIS : 1) * (j >= 0 && j === tg && keySure(Dx[j]) ? DEX.KEY_CRISIS : 1)); },
+            injP: (m, j) => { const p0 = CO.INJ_BASE + CO.INJ_K * F.risk; return Math.min(0.9, (j < 0 ? CO.DARK_MIN + p0 * CO.DARK_BACK : p0) * (j >= 0 && classBad(mons[j].bad, who[m].c, keys) ? CO.BAD_INJ : 1) * MM!.cr[m] * CO.INJ_TIER[tierOf(who[m])] * U.crisis * (scout ? CO.SCOUT_CRISIS : 1) * (j >= 0 && j === tg && keySure(Dx[j]) ? DEX.KEY_CRISIS : 1)); },
             hurt: m => { hurtOnce(m); if (!MM!.medic && CO.INJ_REST) hurtP[i].add(who[m].id); },
             // 포션: 성수부터 쓴다. 성수는 HOLY의 확률로 병을 비우지 않고 막는다 (모두 성수면 한 병이 1 + HOLY병 몫)
             usePot: () => {
@@ -1138,7 +1143,9 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
         if (ok) okN++;
         if (gearOut) {
           const r = res[i]; r.gearUsed[gearOut] = (r.gearUsed[gearOut] || 0) + 1;
-          if (rnd() < (ok ? CO.GEAR_BREAK : CO.GEAR_LOST)) { r.gearLost[gearOut] = (r.gearLost[gearOut] || 0) + 1; sups[i].gear[gearOut]--; }
+          // 역효과 몬스터를 만난 날이 있으면 그 장비가 더 잘 망가진다
+          const badMet = dayLog ? dayLog.some(D => { const M = mons.find(x => x.name === D.mon); return !!M && badShare(M.bad, keys) > 0; }) : hasBad;
+          if (rnd() < (ok ? CO.GEAR_BREAK : CO.GEAR_LOST) * (badMet ? CO.BAD_BREAK : 1)) { r.gearLost[gearOut] = (r.gearLost[gearOut] || 0) + 1; sups[i].gear[gearOut]--; }
         }
         if (W.keyUse && (who ? hasKey : guideParts(gk).some(g => weakKey(g) === key))) W.keyUse[f]++;
         // 계약 파티의 사망 · 부상은 군소 용병대 몫이다 (우리 명단 · 치료비와 상관없다)
@@ -1869,8 +1876,11 @@ export function forecast(W: World, P: Plan): Forecast {
       // 우리 조는 조원마다 실력 단계 · 특성 · 조직력을 더한 성공률의 평균으로 (조원끼리 다른 성공률을 하나로 어림)
       const MM = who && who.length ? memberMods(who, f, u) : null;
       const pt = MM ? MM.pp.reduce((a, d) => a + clamp(pt0 + d, 0.05, 0.97), 0) / who!.length : pt0;
-      const crM = (MM ? MM.cr.reduce((a, x, m) => a + x * CO.INJ_TIER[tierOf(who![m])], 0) / who!.length : 1) * U.crisis * (scout ? CO.SCOUT_CRISIS : 1), loM = (MM ? MM.loot.reduce((a, x) => a + x, 0) / who!.length : 1) * U.loot * (scout ? CO.SCOUT_LOOT : 1);
       const keys = who ? [...new Set(who.map(x => 'c:' + x.c)), ...(T!.g ? [T!.g] : [])] : [];
+      // 맨몸 역효과: 만날 몬스터마다 그 속성을 맡는 조원의 부상 주사위가 BAD_INJ배 (조원 평균, 만날 무게로)
+      const badF = who && who.length ? mons.reduce((t, M, j) => t + CO.ENC_W[j] * (1 + (CO.BAD_INJ - 1) * who.filter(x => classBad(M.bad, x.c, keys)).length / who.length), 0) : 1;
+      const crM = (MM ? MM.cr.reduce((a, x, m) => a + x * CO.INJ_TIER[tierOf(who![m])], 0) / who!.length : 1) * badF * U.crisis * (scout ? CO.SCOUT_CRISIS : 1), loM = (MM ? MM.loot.reduce((a, x) => a + x, 0) / who!.length : 1) * U.loot * (scout ? CO.SCOUT_LOOT : 1);
+
       // 우리 조의 탐사: 횃불로 다닐 날의 기대만큼 캐고 갈무리하고 위기를 맞는다. 횃불이 떨어질 확률만큼 어둠 속 위기를 더한다
       const pk = T ? teamPots(P, T) : P.pots[f], odds = who ? tripOdds(Math.min(T ? teamTorch(P, T) : carryOf(P, f), size * CO.SLOT_PP), torchRate(f, u)) : null, dk = odds ? odds.days : 1, lk = odds ? dk * CO.FIND : 1;
       if (odds) burn += odds.burn;

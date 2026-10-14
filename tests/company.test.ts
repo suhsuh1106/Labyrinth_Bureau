@@ -24,7 +24,7 @@ import { floorMax, keyOf } from '../src/core/company';
 import { fcRank, forecast, gradeOf } from '../src/core/company';
 import { bedsOf, classCap, dormCost, dormKeep, formTeams, recruitPrice, recruitWants, rookCount, rookSlots, shareOut } from '../src/core/company';
 import { CLASSES } from '../src/core/data';
-import { needOf, tripOdds, potShock, profitOf, drillGain, weakShare, badShare, hireCap } from '../src/core/company';
+import { needOf, tripOdds, potShock, profitOf, drillGain, weakShare, badShare, classBad, hireCap } from '../src/core/company';
 import { WEAK_KEYS } from '../src/core/data';
 import { DEX } from '../src/core/dex';
 
@@ -1293,6 +1293,11 @@ describe('약점 짝 · 계약 조', () => {
     expect(weakShare('g:냉기', ['마법사', '궁수', '도적', '전사'], [])).toBe(CO.WEAK_ONE);   // 마법사는 화염 · 냉기 둘
     expect(weakShare('g:독', ['전사', '궁수', '마법사', '사제'], [])).toBe(0);
     expect(badShare('g:화염', ['c:마법사'])).toBe(0); expect(badShare('g:화염', ['c:마법사', 'g:화염'])).toBe(1);
+    // 맨몸 역효과: 그 속성을 맡는 직업이 장비 없이 나서면 그 사람만 (장비를 들었으면 장비 역효과로)
+    expect(classBad('g:화염', '마법사', ['c:마법사'])).toBe(true);
+    expect(classBad('g:냉기', '마법사', ['c:마법사'])).toBe(true);
+    expect(classBad('g:화염', '마법사', ['c:마법사', 'g:화염'])).toBe(false);
+    expect(classBad('g:화염', '전사', ['c:전사'])).toBe(false);
   });
   it('계약 조가 다치거나 죽어도 우리 단원 · 치료비와 상관없다', () => {
     for (let s = 1; s <= 8; s++) {
