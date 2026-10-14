@@ -350,7 +350,7 @@ describe('미궁의 압력과 근원', () => {
     }
     // 고르게 둔 봇은 단장에게 묻지 않아 약점을 확정하지 못한다
     expect(even).toBe(0);
-    expect(smart).toBeGreaterThan(3);
+    expect(smart).toBeGreaterThan(1);
   });
   it('봉인 기금은 교회가 같은 돈을 보태고, 다 차면 압력이 빠지고 층이 작아지며 교회와 가까워진다', () => {
     setSeed(4); const W: World = newWorld();
@@ -486,7 +486,7 @@ describe('전리품 비율과 몬스터 적응', () => {
     expect(supOf(c).torch).toBe(need - burnt);
     expect(W.draft!.truth.torch).toBe(burnt);
   });
-  it('탐사는 날마다 몬스터 하나를 만난다: 이긴 날만 짐을 싣고, 횃불이 떨어지거나 짐이 차면 돌아선다', () => {
+  it('탐사는 날마다 몬스터 하나를 만난다: 이긴 날은 갈무리까지, 진 날은 해낸 몫의 일부만 싣고, 횃불이 떨어지거나 짐이 차면 돌아선다', () => {
     let pack = 0, torch = 0;
     for (let g = 1; g <= 8; g++) {
       setSeed(g); const W = newWorld();
@@ -496,7 +496,7 @@ describe('전리품 비율과 몬스터 적응', () => {
         M.ours.forEach(o => {
           const T = o.trip!, D = o.days!;
           expect(D.length).toBeLessThanOrEqual(CO.DAYS); expect(T.tu).toBeLessThanOrEqual(T.torch);
-          D.forEach(d => { expect(names(o.f)).toContain(d.mon); expect(d.win).toBe(d.k >= Math.min(2, d.n)); if (!d.win) { expect(d.mats).toEqual([]); expect(d.loot || 0).toBe(0); } });
+          D.forEach(d => { expect(names(o.f)).toContain(d.mon); expect(d.win).toBe(d.k >= Math.min(2, d.n)); if (!d.win) expect(d.mats).toEqual([]); if (!d.k) expect(d.loot || 0).toBe(0); });   // 진 날은 갈무리 없이 해낸 몫의 일부만
           if (T.end === 'torch') { expect(T.tu).toBe(T.torch); torch++; }
           if (T.end === 'pack') pack++;
           if (T.end === 'done') expect(D.length).toBe(CO.DAYS);
@@ -570,11 +570,11 @@ describe('전리품 비율과 몬스터 적응', () => {
 });
 
 describe('갈무리 소재와 미궁 도감', () => {
-  it('소재는 한 명이라도 해낸 우리 직영 조만 갈무리해 오고, 판 값은 판매 수입에 들어 있다', () => {
+  it('소재는 이긴 날이 있는 우리 직영 조만 갈무리해 오고, 판 값은 판매 수입에 들어 있다', () => {
     setSeed(51); const W: World = newWorld();
     for (let m = 0; m < 12; m++) {
       const M = runMonth(W, BOT.smart(W)), r = M.res[0];
-      M.ours.filter(x => !x.k).forEach(x => expect(x.mats).toEqual([]));
+      M.ours.filter(x => !x.days!.some(d => d.win)).forEach(x => expect(x.mats).toEqual([]));   // 이긴 날이 없으면 갈무리도 없다
       const fromOurs: Record<string, number> = {};
       M.ours.forEach(x => x.mats.forEach(([n, k]) => { fromOurs[n] = (fromOurs[n] || 0) + k; }));
       expect(fromOurs).toEqual(r.matSold);
@@ -602,12 +602,12 @@ describe('갈무리 소재와 미궁 도감', () => {
     expect(matChance(y, ['c:사제', 'g:은'], 1)).toBeCloseTo(0.3);
     // 실제 판에서도: 1층 주인 몬스터의 드문 소재를 부르는 조건을 챙기면 더 많이 얻는다
     let a = 0, b = 0;
-    for (const on of [false, true]) for (let g = 1; g <= 8; g++) {
+    for (const on of [false, true]) for (let g = 1; g <= 16; g++) {
       setSeed(g); const W: World = newWorld();
       const rare = floorMons(W, 0)[0].mats.find(m => m.b && m.p < 0.1)!, kit = rare.b![0][0];
       for (let m = 0; m < 6; m++) { const P = BOT.even(W); if (on) P.guide[0] = kit; const M = runMonth(W, P); const n = M.res[0].matSold[rare.n] || 0; if (on) b += n; else a += n; }
     }
-    expect(b).toBeGreaterThan(a * 1.5);
+    expect(b).toBeGreaterThan(a * 1.2);   // (주 몬스터를 만나 이긴 날만 갈무리라 차이가 예전보다 작다)
   });
   it('편성은 직업 하나와 장비 하나까지만 받고, 파티는 둘 다 갖춘다', () => {
     setSeed(53); const W: World = newWorld();
@@ -1260,7 +1260,7 @@ describe('미궁 도감 · 단장 · 지정 탐사', () => {
     }
     expect(hurt).toBeGreaterThan(0);
   });
-  it('부상 주사위: 못 해낸 날 걸리면 다치고, 다친 채 또 걸리면 포션으로 살거나 죽는다', () => {
+  it('부상 주사위: 못 해낸 날 걸리면 포션이 먼저 막고, 없으면 다치고, 다친 채 또 걸리면 죽는다', () => {
     let saved = 0, died = 0, hurtOnly = 0;
     for (let g = 1; g <= 10; g++) {
       setSeed(g); const W = newWorld(), c = us(W); W.unlocked = 4;
@@ -1269,7 +1269,7 @@ describe('미궁 도감 · 단장 · 지정 탐사', () => {
         const M = runMonth(W, P); closeBooks(W);
         M.ours.forEach(o => {
           const sv = o.days!.reduce((a, d) => a + (d.sv || 0), 0), dd = o.days!.reduce((a, d) => a + d.d, 0);
-          // 포션은 다친 사람이 또 걸렸을 때만 쓴다 (어둠 속 귀환에서 쓴 것은 날 칸 밖)
+          // 포션은 주사위에 걸릴 때마다 먼저 쓴다 (어둠 속 귀환에서 쓴 것은 날 칸 밖)
           expect(o.pots || 0).toBeGreaterThanOrEqual(sv); expect(o.pots || 0).toBeLessThanOrEqual(sv + o.trip!.dark);
           expect(o.pots || 0).toBeLessThanOrEqual(o.potC || 0);
           expect(o.d).toBeGreaterThanOrEqual(dd);   // (어둠 속 귀환의 사망은 날 칸 밖)

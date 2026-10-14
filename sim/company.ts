@@ -24,6 +24,7 @@ if (process.env.INJ_K) CO.INJ_K = +process.env.INJ_K;
 if (process.env.INJ_BASE) CO.INJ_BASE = +process.env.INJ_BASE;
 if (process.env.INJ_REST) CO.INJ_REST = +process.env.INJ_REST;
 if (process.env.INJ_PEN) CO.INJ_PEN = +process.env.INJ_PEN;
+if (process.env.LOSE_LOOT) CO.LOSE_LOOT = +process.env.LOSE_LOOT;
 for (const k of ['TARGET_AT', 'TARGET_W', 'TARGET_SUCC', 'TARGET_MAT', 'KEY_SUCC', 'KEY_CRISIS', 'MAT_SURE', 'ASK_AT'] as const) if (process.env['DEX_' + k]) DEX[k] = +process.env['DEX_' + k]!;
 if (process.env.ENC_W0) { const a = +process.env.ENC_W0; CO.ENC_W = [a, (1 - a) / 2, (1 - a) / 2]; }
 if (process.env.MAT_ENC) CO.MAT_ENC = +process.env.MAT_ENC;
@@ -118,7 +119,8 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
   const key = deduce(W);
   P.guide = kit ? key.map((g, f) => addKit(W, f, g, P.parties[f])) : key;
   // 조 모양: 층마다 추리한 약점 직업은 두 자리에(소재용으로 더한 직업이 아니라), 기록상 손해 보는 직업은 빼고 전사로
-  P.tplF = FLOORS.map((_, f) => floorTpl(W, f, key[f], P.guide[f]));
+  // (명단이 있는 판은 도감이 기록을 모으므로 직업을 돌려 시험하지 않는다: 확정한 약점이 있는 층만 그 모양으로)
+  P.tplF = FLOORS.map((_, f) => (c.crew && !key[f] ? [...CO.TPL0] : floorTpl(W, f, key[f], P.guide[f])));
   if (!guide) { P.guide = P.guide.map(() => ''); P.tplF = undefined; }
   // 포션: 교회 값이 상단보다 싸면(후원해서 교회가 예전 값으로 내줄 때) 교회에서 사고, 담합이 터지면 여유가 있을 때 한 번 후원한다
   const need = P.parties.reduce((a, n, f) => a + (n + P.hire[f]) * P.pots[f], 0);
@@ -145,7 +147,8 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
   if (!c.crew || !guide) return P;
   // 조를 짜 두고: 도감 이해도가 찬 주 몬스터는 노리고(지정 탐사), 단장이 가는 층의 몬스터 중 하나에 기록상 가장 그럴듯한 약점을 묻는다
   const Q = sanitize(W, c, P), dex = W.dex || {};
-  Q.teams!.forEach(T => { const M = floorMons(W, T.f)[0]; if (canTarget(W, T.f, M.name)) T.target = M.name; });
+  // (주 몬스터는 어려워서 약점을 확정한 뒤에만 노린다)
+  Q.teams!.forEach(T => { const M = floorMons(W, T.f)[0]; if (canTarget(W, T.f, M.name) && keySure(dex[M.name])) T.target = M.name; });
   const lead = (c.crew || []).find(x => x.lead), LT = lead ? Q.teams!.find(T => T.m.includes(lead.id)) : null;
   if (LT) for (const M of floorMons(W, LT.f)) {
     const D = dex[M.name]; if (!D || D.u < DEX.ASK_AT || keySure(D)) continue;
@@ -180,8 +183,8 @@ export function deduce(W: World) {
   if (us(W).crew) return FLOORS.map((_, f) => {
     if (f >= W.unlocked) return '';
     const D = (W.dex || {})[floorMons(W, f)[0].name]; if (!D) return '';
-    const sure = Object.keys(D.key).find(k => D.key[k] === 'yes'); if (sure) return sure;
-    return guessKeys(D, 0.12, 6)[0] || '';
+    // 약점은 그날 만난 몬스터에게만 먹혀서, 짐작만으로 조를 몰아 짜면 곁 몬스터와 싸우는 날 손해다 (확정한 약점만 편성에 쓴다)
+    return Object.keys(D.key).find(k => D.key[k] === 'yes') || '';
   });
   return FLOORS.map((_, f) => {
     const all = W.obs[f]['*'];
