@@ -4,7 +4,7 @@
 import { CO, FLOORS, ITEMS, type World, gradeOf } from '../../core/company';
 import { packBar } from './roster';
 import { ASK_SAY, TRIP_END } from '../../core/events';
-import { DEX, keyName } from '../../core/dex';
+import { DEX, keyName, weakName } from '../../core/dex';
 import { fmtG } from './charts';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
@@ -90,7 +90,7 @@ export function revealHtml(W: World, live: boolean, mute = false) {
 function askLine(W: World) {
   const L = W.last!, A = L.ask, out: string[] = [];
   if (A) {
-    const k = keyName(A.k);
+    const k = A.m ? keyName(A.k) : weakName(A.k);
     const t = A.ans === 'away' ? ASK_SAY.away : A.ans === 'miss' ? ASK_SAY.miss(A.mon) : A.m ? ASK_SAY.mat[A.ans](A.mon, k, A.m) : ASK_SAY.key[A.ans](A.mon, k);
     out.push(`<p class="ask ${A.ans}"><small>단장 조사</small> ${esc(t)}${A.ans === 'yes' ? ' <b class="st">확정</b>' : A.ans === 'no' ? ' <b class="st no">아님</b>' : ''}</p>`);
   }

@@ -2,7 +2,7 @@
 import './ui/co/base.css';
 import './ui/co/co.css';
 import { setSeed } from './core/rng';
-import { CO, FILE_KEYS, teamPots, teamTorch, teamMend, carryOf, foodDays, mendOf, FLOORS, type Plan, SRCS, type World, carryPlan, closeBooks, fileFix, fillTeams, formTeams, newWorld, probe, rankOf, roomOf, runMonth, sanitize, us } from './core/company';
+import { CO, FILE_KEYS, hireCap, teamPots, teamTorch, teamMend, carryOf, foodDays, mendOf, FLOORS, type Plan, SRCS, type World, carryPlan, closeBooks, fileFix, fillTeams, formTeams, newWorld, probe, rankOf, roomOf, runMonth, sanitize, us } from './core/company';
 import { DESC_FIRST, packBar } from './ui/co/roster';
 import { CLASSES, GEARS } from './core/data';
 import { plaqueHtml } from './ui/co/view';
@@ -11,7 +11,7 @@ import { draftHtml } from './ui/co/draft';
 import { advanceArrival, arrivalOpen, closeArrival, playArrival } from './ui/co/arrival';
 
 const $ = (id: string): any => document.getElementById(id);
-const KEY = 'lb-co', VERSION = 20, MONTHS = 36;   // 20: 건물 자산(장부가) · 조 번호 · 도감 탭 (이전 판은 새 게임으로)
+const KEY = 'lb-co', VERSION = 22, MONTHS = 36;   // 22: 약점 짝(직업 ↔ 장비) · 대기 = 훈련 (이전 판은 새 게임으로)
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
 let W: World, plan: Plan, ui: DeskUi;
 // 도장을 막 찍은 결과 화면이면 귀환 장부를 한 줄씩 띄운다 (저장하지 않는 화면 상태)
@@ -282,6 +282,7 @@ function edit(k: string, i: number, fn: (v: number) => number, j = 0) {
       else T.mend = Math.max(0, Math.min(6, fn(teamMend(plan, T))));
     }
   }
+  else if (k === 'hire') { const other = plan.hire.reduce((a, v, f) => a + (f === i ? 0 : v), 0); plan.hire[i] = Math.max(0, Math.min(hireCap(W) - other, fn(plan.hire[i]))); }
   else if ((plan as any)[k]) (plan as any)[k][i] = Math.max(0, fn((plan as any)[k][i]));
   render(); save();
   const el = document.querySelector(`input[data-k="${k}"][data-i="${i}"]`) as HTMLElement | null; if (el && document.activeElement === document.body) el.focus({ preventScroll: true });

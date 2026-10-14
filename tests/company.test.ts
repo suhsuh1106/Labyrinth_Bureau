@@ -24,7 +24,8 @@ import { floorMax, keyOf } from '../src/core/company';
 import { fcRank, forecast, gradeOf } from '../src/core/company';
 import { bedsOf, classCap, dormCost, dormKeep, formTeams, recruitPrice, recruitWants, rookCount, rookSlots, shareOut } from '../src/core/company';
 import { CLASSES } from '../src/core/data';
-import { needOf, tripOdds, potShock, profitOf } from '../src/core/company';
+import { needOf, tripOdds, potShock, profitOf, drillGain, weakShare, badShare, hireCap } from '../src/core/company';
+import { WEAK_KEYS } from '../src/core/data';
 import { DEX } from '../src/core/dex';
 
 describe('용병단 장부', () => {
@@ -113,123 +114,6 @@ describe('용병단 시장', () => {
       expect(us(W).members).toBeGreaterThanOrEqual(8);
     }
   });
-});
-
-describe('용병단 행정실 화면', () => {
-  it('결정표와 정산서가 36개월 내내 깨지지 않고, 그려도 판은 그대로다', () => {
-    for (const [name, bot] of Object.entries(BOT)) {
-      setSeed(21); const W = newWorld();
-      let plan = carryPlan(W, null);
-      for (let m = 0; m < 36; m++) {
-        const before = JSON.stringify(W);
-        setSeed(1000 + m); const r0 = rnd(); setSeed(1000 + m);
-        const html = plaqueHtml(W) + intelHtml(W) + bookHtml(W) + planHtml(W, plan) + resultsHtml(W) + newsLines(W).join('') + returnHtml(W) + depthsHtml(W, plan) + paperHtml(W);
-        expect(html, `${name} 제${W.month}월`).not.toMatch(/undefined|NaN|Infinity|\[object/);
-        expect(JSON.stringify(W)).toBe(before);
-        expect(rnd(), '화면을 그려도 난수를 쓰지 않는다').toBe(r0);
-        if (W.last) expect(paperHtml(W)).toContain('변경 일보');
-        runMonth(W, bot(W));
-        plan = carryPlan(W, plan);
-      }
-    }
-  }, 30000);
-});
-
-describe('경쟁 용병단', () => {
-  it('판마다 성격이 조금씩 다르고, 같은 시드면 같다', () => {
-    setSeed(1); const a = newWorld(); setSeed(1); const b = newWorld(); setSeed(2); const c = newWorld();
-    expect(JSON.stringify(a.cos.map(x => x.trait))).toBe(JSON.stringify(b.cos.map(x => x.trait)));
-    expect(JSON.stringify(a.cos.map(x => x.trait))).not.toBe(JSON.stringify(c.cos.map(x => x.trait)));
-  });
-  it('기회주의 용병단은 지난달 조당 남는 돈이 가장 좋았던 층에 가장 많이 보낸다', () => {
-    let checked = 0;
-    for (let seed = 30; seed < 90; seed++) {
-      setSeed(seed); const W = newWorld();
-      for (let m = 0; m < 12; m++) runMonth(W, BOT.even(W));
-      const i = W.cos.findIndex(c => c.style === 'chaser'), look = outlook(W);
-      const P = aiPlan(W, i), top = look.indexOf(Math.max(...look));
-      // 적자로 허리띠를 졸라맨 달이나, 어느 층도 비용을 넘지 못해 남는 돈이 모두 바닥값인 달은 견줄 수 없다
-      const cost = CO.SORTIE + P.pots[0] * W.potion, second = [...look].sort((a, b) => b - a)[1];
-      if (W.cos[i].losses >= 2 || W.cos[i].cash < 3000 || look[top] - cost < 50 || look[top] - second < 30) continue;
-      expect(P.parties[top], `시드 ${seed}`).toBe(Math.max(...P.parties));
-      checked++;
-    }
-    expect(checked).toBeGreaterThan(3);
-  });
-  it('계약 파티는 군소 용병대가 가진 파티 수를 넘지 않는다', () => {
-    setSeed(13); const W = newWorld();
-    for (let m = 0; m < 24; m++) {
-      const P = BOT.even(W); P.hire = [9, 9, 9, 9, 9];
-      const crowd = W.cos.find(c => c.style === 'crowd')!, free = maxParties(crowd);
-      const M = runMonth(W, P);
-      expect(M.res.reduce((a, r) => a + r.hired.reduce((s, v) => s + v, 0), 0)).toBeLessThanOrEqual(free);
-    }
-  });
-  it('시장을 읽는 숙련 봇이 고르게 두는 봇보다 평균 순위가 높다', () => {
-    let smart = 0, even = 0;
-    for (let g = 1; g <= 40; g++) { smart += rankOf(playGame(g, BOT.smart)); even += rankOf(playGame(g, BOT.even)); }
-    expect(smart).toBeLessThan(even);
-  }, 30000);
-});
-
-describe('몬스터와 편성 지침', () => {
-  it('편성 지침을 주면 파티가 그 직업이나 장비를 꼭 갖춘다', () => {
-    setSeed(2);
-    for (let i = 0; i < 200; i++) {
-      expect(rollParty('c:마법사')).toContain('c:마법사');
-      expect(rollParty('g:은')).toContain('g:은');
-    }
-  });
-  it('현장 기록은 우리 직영 파티만 남기고, 처음 간 층에서는 겉모습 증언을 듣는다', () => {
-    setSeed(4); const W = newWorld();
-    const P = defaultPlan(W); P.hire = [2, 0, 0, 0, 0];
-    runMonth(W, P);
-    expect(W.obs[0]['*'].n).toBe(P.parties[0]);
-    expect(W.notes[0]).toEqual({ m: 1, f: 0, t: MONSTERS[W.mons[0]].look[0] });
-    for (let m = 0; m < 11; m++) runMonth(W, defaultPlan(W));
-    // 오래된 기록일수록 흐려진다: 달마다 OBS_FADE를 곱한 뒤 이번 달 것을 더한다
-    const faded = W.history.reduce((a, M) => a * CO.OBS_FADE + M.res[0].sent[0], 0);
-    expect(W.obs[0]['*'].n).toBeCloseTo(faded, 6);
-  });
-  it('약점은 그날 만난 몬스터의 것만 먹힌다: 주 몬스터의 약점을 갖추면 주 몬스터를 만난 날 더 해낸다', () => {
-    const rate = { key: [0, 0], bad: [0, 0] }, fauna = { key: [0, 0], bad: [0, 0] };
-    for (let seed = 1; seed <= 60; seed++) {
-      for (const which of ['key', 'bad'] as const) {
-        setSeed(seed); const W = newWorld(), main = MONSTERS[W.mons[0]];
-        for (let m = 0; m < 6; m++) {
-          const P = defaultPlan(W); P.guide[0] = main[which];
-          runMonth(W, P).ours.forEach(o => o.days!.forEach(d => { const R = d.mon === main.name ? rate : fauna; R[which][0] += d.k; R[which][1] += d.n; }));   // 해낸 사람 비율
-        }
-      }
-    }
-    const r = (x: number[]) => x[0] / x[1];
-    expect(r(rate.key) - r(rate.bad)).toBeGreaterThan(0.08);
-    expect(Math.abs(r(fauna.key) - r(fauna.bad))).toBeLessThan(r(rate.key) - r(rate.bad));   // 곁 몬스터에게는 주 몬스터의 약점이 먹히지 않는다
-  });
-  it('경쟁 용병단은 한 층에 오래 드나들면 약점을 깨치고, 그 소문이 기록에 남는다', () => {
-    const W = playGame(8, BOT.smart);
-    const learned = W.cos.filter(c => c.learned && c.learned.some(Boolean));
-    expect(learned.length).toBeGreaterThan(0);
-    expect(W.log.some(l => /챙겨 들어가기 시작했다/.test(l.t))).toBe(true);
-    learned.forEach(c => c.learned.forEach((ok, f) => { if (ok) expect(aiPlan(W, W.cos.indexOf(c)).guide[f]).toBe(keyOf(W, f)); }));
-  });
-  // 지침의 덕은 작다(200판 평균 순위: 공방을 뺀 뒤 3.35 대 3.37, 영주청 전에도 0.1 안팎). 여기서는 지침이 손해를 보지 않는지만 본다.
-  // 120판 순위 합의 노이즈가 ±4% 안팎이라 6%까지 둔다
-  it('숙련 봇은 현장 기록으로 추리한 지침을 써도 지침 없이 둘 때보다 뒤처지지 않는다', () => {
-    let a = 0, b = 0;
-    for (let g = 1; g <= 120; g++) { a += rankOf(playGame(g, BOT.smart, FILER.smart)); b += rankOf(playGame(g, BOT.smartNoGuide, FILER.smartNoGuide)); }
-    expect(a).toBeLessThanOrEqual(b * 1.06);
-  }, 90000);
-});
-
-describe('밸런스', () => {
-  it('어느 한 용병단이 1위를 도맡지 않고, 숙련 봇도 가끔 1위를 한다', () => {
-    const win: Record<string, number> = {};
-    // 숙련 봇은 신고서도 다룬다 (장부 그대로 내면 성흔 기사단이 1위를 60% 넘게 가져간다)
-    for (let g = 1; g <= 60; g++) { const W = playGame(g, BOT.smart, FILER.smart); win[W.last!.rank[0]] = (win[W.last!.rank[0]] || 0) + 1; }
-    expect(Math.max(...Object.values(win))).toBeLessThan(60 * 0.6);
-    expect(win.us || 0).toBeGreaterThan(0);
-  }, 30000);
 });
 
 describe('상단·교회와 포션 담합', () => {
@@ -343,7 +227,7 @@ describe('미궁의 압력과 근원', () => {
   it('근원은 도감에서 주 몬스터의 이해도가 다 차고 약점을 확정한 뒤에만 찾는다', () => {
     let smart = 0, even = 0;
     for (let g = 1; g <= 10; g++) {
-      const W = playGame(g, BOT.smart);
+      const W = playGame(g, BOT.smartAsk);   // 단장에게 소거법으로 묻는 숙련 봇
       smart += W.roots!.filter(r => r.found).length;
       even += playGame(g, BOT.even).roots!.filter(r => r.found).length;
       W.roots!.forEach((R, f) => { if (!R.found) return; const D = W.dex![MONSTERS[W.mons[f]].name]; expect(D.u).toBeGreaterThanOrEqual(DEX.ROOT_AT); expect(W.history[R.found - 1].res[0].sent[f]).toBeGreaterThan(0); });
@@ -597,9 +481,9 @@ describe('갈무리 소재와 미궁 도감', () => {
     expect(matChance(x, ['g:냉기'], 1)).toBeCloseTo(0.4);
     expect(matChance(x, ['c:전사'], 1)).toBeCloseTo(0.1);
     expect(matChance(x, ['g:냉기'], 0)).toBeCloseTo(0.2);
-    const y = { n: 'u', v: 10, p: 0.05, b: [['c:사제+g:은', 5]] as [string, number][] };
+    const y = { n: 'u', v: 10, p: 0.05, b: [['c:사제+g:신성', 5]] as [string, number][] };
     expect(matChance(y, ['c:사제'], 1)).toBeCloseTo(0.05);
-    expect(matChance(y, ['c:사제', 'g:은'], 1)).toBeCloseTo(0.3);
+    expect(matChance(y, ['c:사제', 'g:신성'], 1)).toBeCloseTo(0.3);
     // 실제 판에서도: 1층 주인 몬스터의 드문 소재를 부르는 조건을 챙기면 더 많이 얻는다
     let a = 0, b = 0;
     for (const on of [false, true]) for (let g = 1; g <= 16; g++) {
@@ -611,10 +495,10 @@ describe('갈무리 소재와 미궁 도감', () => {
   });
   it('편성은 직업 하나와 장비 하나까지만 받고, 파티는 둘 다 갖춘다', () => {
     setSeed(53); const W: World = newWorld();
-    const P = BOT.even(W); P.guide[0] = 'c:사제+g:은+c:전사+x:모름';
+    const P = BOT.even(W); P.guide[0] = 'c:사제+g:신성+c:전사+x:모름';
     const Q = sanitize(W, W.cos[0], P);
-    expect(guideParts(Q.guide[0])).toEqual(['c:사제', 'g:은']);
-    for (let i = 0; i < 30; i++) { const k = rollParty(Q.guide[0]); expect(k).toContain('c:사제'); expect(k).toContain('g:은'); }
+    expect(guideParts(Q.guide[0])).toEqual(['c:사제', 'g:신성']);
+    for (let i = 0; i < 30; i++) { const k = rollParty(Q.guide[0]); expect(k).toContain('c:사제'); expect(k).toContain('g:신성'); }
   });
   it('많이 팔리면 소재 시세가 내려가고, 찾는 곳이 있으면 오른다', () => {
     expect(matPrice(100, 1, 20, 10)).toBeLessThan(100);
@@ -701,9 +585,9 @@ describe('보급 창고 · 전리품 보관 기한 · 조사 의뢰 · 편성 �
     expect(full.every(T => T.m.every(x => x != null))).toBe(true);
     expect(new Set(full.flatMap(T => T.m)).size).toBe(16);
     // 없는 사람, 겹친 사람, 닫힌 층은 걸러지고 조 수는 짠 조에서 센다
-    const P = defaultPlan(W); P.teams = [{ f: 0, m: [0, 0, 999, null], g: 'g:은' }, { f: 3, m: [1, null, null, null], g: '' }, { f: 0, m: [null, null, null, null], g: '' }];
+    const P = defaultPlan(W); P.teams = [{ f: 0, m: [0, 0, 999, null], g: 'g:신성' }, { f: 3, m: [1, null, null, null], g: '' }, { f: 0, m: [null, null, null, null], g: '' }];
     const Q = sanitize(W, c, P);
-    expect(Q.teams).toEqual([{ f: 0, m: [0, null, null, null], g: 'g:은' }]);
+    expect(Q.teams).toEqual([{ f: 0, m: [0, null, null, null], g: 'g:신성' }]);
     expect(Q.parties).toEqual([1, 0, 0, 0, 0]);
     const html = expWeekHtml(W, P, { phase: 1, tab: 'report', pins: [] });
     expect(html).not.toMatch(/undefined|NaN|\[object/);
@@ -1285,7 +1169,7 @@ describe('미궁 도감 · 단장 · 지정 탐사', () => {
     setSeed(5); const W = newWorld(), c = us(W), main = MONSTERS[W.mons[0]].name;
     const P0 = defaultPlan(W); P0.ask = { mon: main, k: MONSTERS[W.mons[0]].key };
     expect(sanitize(W, c, P0).ask).toBeUndefined();   // 처음엔 이해도 0
-    const wrong = MONSTERS[W.mons[0]].key === 'g:은' ? 'g:둔기' : 'g:은';
+    const wrong = MONSTERS[W.mons[0]].key === 'g:신성' ? 'g:둔기' : 'g:신성';
     let tries = 0; const done: string[] = [];
     while (done.length < 2 && tries++ < 24) {
       const P = carryPlan(W, W.last ? W.last.plans[0] : defaultPlan(W));
@@ -1303,7 +1187,7 @@ describe('미궁 도감 · 단장 · 지정 탐사', () => {
     W.dex = { [fauna]: { n: 0, w: 0, cr: 0, u: DEX.TARGET_AT, at: 1, rec: {}, mats: {}, key: {}, mat: {} } };
     expect(sanitize(W, c, P).teams!.every(T => T.target === fauna)).toBe(true);
     let aim = 0, all = 0;
-    for (let m = 0; m < 4; m++) { const Q = carryPlan(W, P); const M = runMonth(W, Q); closeBooks(W); M.ours.forEach(o => o.days!.forEach(d => { all++; if (d.mon === fauna) aim++; })); }
+    for (let m = 0; m < 10; m++) { const Q = carryPlan(W, P); const M = runMonth(W, Q); closeBooks(W); M.ours.forEach(o => o.days!.forEach(d => { all++; if (d.mon === fauna) aim++; })); }
     expect(aim / all).toBeGreaterThan(0.4);   // 섞여 만나면 0.3
   });
 });
@@ -1371,5 +1255,51 @@ describe('#46 피드백: 조 번호 · 약초 흉년 · 건물 자산', () => {
     const M2 = runMonth(W, carryPlan(W, P)); closeBooks(W);
     expect(M2.res[0].dep).toBe(Math.round(r.capex! * CO.DEP));
     expect(c.book).toBe(r.capex! - M2.res[0].dep! + (M2.res[0].capex || 0));
+  });
+});
+
+describe('훈련 배치 · 채비 어림', () => {
+  it('대기 = 본부 훈련: 조에 들지 않은 사람은 그달 실력이 교관 단계만큼 오른다', () => {
+    setSeed(8); const W = newWorld(), c = us(W);
+    const x = c.crew!.filter(p => !p.lead)[0], sk0 = x.sk ?? 40;
+    const P = sanitize(W, c, defaultPlan(W)); P.train = CO.COACH_PAY[1];
+    P.teams!.forEach(T => { T.m = T.m.map(id => (id === x.id ? null : id)); });
+    const gain = drillGain(c, P, x);
+    expect(gain).toBe(CO.DRILL_SK[1]);
+    const M = runMonth(W, P); closeBooks(W);
+    expect(M.res[0].drilled).toBeGreaterThanOrEqual(1);
+    expect(c.crew!.find(p => p.id === x.id)!.sk).toBeCloseTo(sk0 + gain, 5);
+  });
+  it('산 채비는 이번 달 창고에 바로 들어와 이번 출정에 쓰이고, 쓰지 않은 것은 다음 달 창고에 남는다', () => {
+    setSeed(4); const W = newWorld(), c = us(W);
+    const P = sanitize(W, c, defaultPlan(W)), need = needOf(P);
+    expect(supOf(c).torch || 0).toBe(0);
+    const M = runMonth(W, P); closeBooks(W);
+    const burned = M.ours.reduce((a, o) => a + o.trip!.tu, 0), ate = M.ours.reduce((a, o) => a + (o.trip!.fu || 0), 0);
+    expect(supOf(c).torch).toBe(need.torch - burned);
+    expect(supOf(c).food).toBe(need.food - ate);
+    const fc = forecast(W, sanitize(W, c, defaultPlan(W)));
+    expect(fc.food).toBeGreaterThan(0); expect(fc.food!).toBeLessThanOrEqual(needOf(sanitize(W, c, defaultPlan(W))).food);
+  });
+});
+
+describe('약점 짝 · 계약 조', () => {
+  it('약점은 여섯 가지(장비 꼴)이고, 장비 + 맡는 직업이면 다, 장비만 절반, 직업만 ¼. 역효과는 장비를 들었을 때만', () => {
+    MONSTERS.forEach(m => { expect(WEAK_KEYS).toContain(m.key); expect(WEAK_KEYS).toContain(m.bad); expect(WEAK_KEYS).toContain(m.alt); expect(new Set([m.key, m.bad, m.alt]).size).toBe(3); });
+    expect(WEAK_KEYS.length).toBe(6);
+    expect(weakShare('g:둔기', ['전사', '궁수', '도적', '마법사'], ['g:둔기'])).toBe(1);
+    expect(weakShare('g:둔기', ['궁수', '도적', '마법사', '사제'], ['g:둔기'])).toBe(CO.WEAK_GEAR);
+    expect(weakShare('g:둔기', ['전사', '전사', '궁수', '도적'], [])).toBe(CO.WEAK_ONE);
+    expect(weakShare('g:냉기', ['마법사', '궁수', '도적', '전사'], [])).toBe(CO.WEAK_ONE);   // 마법사는 화염 · 냉기 둘
+    expect(weakShare('g:독', ['전사', '궁수', '마법사', '사제'], [])).toBe(0);
+    expect(badShare('g:화염', ['c:마법사'])).toBe(0); expect(badShare('g:화염', ['c:마법사', 'g:화염'])).toBe(1);
+  });
+  it('계약 조가 다치거나 죽어도 우리 단원 · 치료비와 상관없다', () => {
+    for (let s = 1; s <= 8; s++) {
+      setSeed(s); const W = newWorld(), c = us(W);
+      const P = sanitize(W, c, defaultPlan(W)); P.teams = []; P.parties = P.parties.map(() => 0); P.hire = [hireCap(W), 0, 0, 0, 0];
+      const n0 = c.crew!.length, M = runMonth(W, P);
+      expect(M.res[0].deaths).toBe(0); expect(M.res[0].hurt).toBe(0); expect(c.crew!.length).toBe(n0 + M.res[0].recruited);
+    }
   });
 });

@@ -4,7 +4,8 @@
 import { FLOORS, INTEL, type Plan, type World, allMats, floorMons, guideParts, condsOf, us } from '../../core/company';
 import { BUYERS, FAUNA, MONSTERS, SRC_NAME } from '../../core/data';
 import { ecoOf } from '../../core/monsters';
-import { ASK_KEYS, CLASS_KEYS, DEX, type Dex, GEAR_KEYS, askable, keyName, keySure } from '../../core/dex';
+import { ASK_KEYS, CLASS_KEYS, DEX, type Dex, GEAR_KEYS, MAT_KEYS, askable, keyName, keySure, weakName } from '../../core/dex';
+import { classWeaks } from '../../core/data';
 
 const lvOf = (W: World, k: keyof typeof INTEL.BASE) => (W.intel ? W.intel.lv[k] : INTEL.BASE[k]);
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
@@ -41,7 +42,7 @@ const stamp = (a: string | undefined) => (a === 'yes' ? '<span class="dx-st yes"
 const cell = (r: { n: number; w: number; k?: number; p?: number } | undefined) => (r && r.n ? `<td class="n${r.n < 3 ? ' thin' : ''}" title="마주침 ${r.n} · 승 ${r.w}">${pctOf(r.k || 0, r.p || 0)}<small>${r.n}번</small></td>` : '<td class="n dim">·<small>&nbsp;</small></td>');
 
 function recTable(D: Dex, open: boolean) {
-  const cls = CLASS_KEYS.map(k => `<tr><th>${keyName(k)}${stamp(D.key[k])}</th>${[0, 1, 2].map(v => cell(open ? D.rec[`${k}:${v}`] : undefined)).join('')}</tr>`).join('');
+  const cls = CLASS_KEYS.map(k => `<tr><th>${keyName(k)}${stamp(classWeaks(k).map(w => D.key[w]).find(a => a === 'yes') || (classWeaks(k).every(w => D.key[w] === 'no') ? 'no' : undefined))}</th>${[0, 1, 2].map(v => cell(open ? D.rec[`${k}:${v}`] : undefined)).join('')}</tr>`).join('');
   const gear = GEAR_KEYS.map(k => `<tr><th>${keyName(k)}${stamp(D.key[k])}</th>${[0, 1].map(v => cell(open ? D.rec[`${k}:${v}`] : undefined)).join('')}<td class="n dim"></td></tr>`).join('');
   return `<div class="nb-rec${open ? '' : ' locked'}"><table class="grid slim dx-rec"><thead><tr><th>갖춘 것</th><th class="n">없음</th><th class="n">하나 · 있음</th><th class="n">둘 이상</th></tr></thead><tbody>${cls}${gear}</tbody></table>
     ${open ? '' : `<span class="nb-lock">이해도 ${DEX.REC_AT}에서</span>`}</div>`;
@@ -54,7 +55,7 @@ function matsHtml(W: World, D: Dex, mats: { n: string; val: number }[]) {
     if (!X || !X.got) return `<tr class="unk"><td><b>???</b><small>아직 얻지 못함</small></td><td class="n dim">-</td><td></td><td></td></tr>`;
     const r = (k: string) => X.rec[k] || { n: 0, g: 0 };
     const all = [0, 1, 2].reduce((a, v) => ({ n: a.n + r(`c:전사:${v}`).n, g: a.g + r(`c:전사:${v}`).g }), { n: 0, g: 0 });
-    const by = ASK_KEYS.map(k => { const on = k.startsWith('c:') ? [r(`${k}:1`), r(`${k}:2`)] : [r(`${k}:1`)]; const n = on.reduce((a, y) => a + y.n, 0), g = on.reduce((a, y) => a + y.g, 0); return { k, n, g }; })
+    const by = MAT_KEYS.map(k => { const on = k.startsWith('c:') ? [r(`${k}:1`), r(`${k}:2`)] : [r(`${k}:1`)]; const n = on.reduce((a, y) => a + y.n, 0), g = on.reduce((a, y) => a + y.g, 0); return { k, n, g }; })
       .filter(y => y.n >= 3 && y.g > 0).sort((a, b) => b.g / b.n - a.g / a.n).slice(0, 2);
     const asked = Object.entries(D.mat[x.n] || {}).map(([k, a]) => `<span class="nb-chip">${keyName(k)}${stamp(a)}</span>`).join('');
     const pc = all.n ? Math.round(all.g / all.n * 100) : 0;
@@ -71,8 +72,8 @@ export function askPanel(W: World, P: Plan) {
   const groups = FLOORS.slice(0, W.unlocked).flatMap((F, f) => floorMons(W, f).map(M => {
     const D = dex[M.name]; if (!D || D.u < DEX.ASK_AT) return '';
     const opt = (A: { mon: string; k: string; m?: string }, t: string) => `<option value="${esc(JSON.stringify(A))}"${cur && cur.mon === A.mon && cur.k === A.k && (cur.m || '') === (A.m || '') ? ' selected' : ''}>${t}</option>`;
-    const keys = keySure(D) ? [] : ASK_KEYS.filter(k => askable(D, { mon: M.name, k })).map(k => opt({ mon: M.name, k }, `약점이 ${keyName(k)}인가`));
-    const mats = M.mats.filter(x => D.mats[x.n] && D.mats[x.n].got > 0).flatMap(x => ASK_KEYS.filter(k => askable(D, { mon: M.name, k, m: x.n })).map(k => opt({ mon: M.name, k, m: x.n }, `${x.n}: ${keyName(k)}을 갖추면 잘 나오나`)));
+    const keys = keySure(D) ? [] : ASK_KEYS.filter(k => askable(D, { mon: M.name, k })).map(k => opt({ mon: M.name, k }, `약점이 ${weakName(k)}인가`));
+    const mats = M.mats.filter(x => D.mats[x.n] && D.mats[x.n].got > 0).flatMap(x => MAT_KEYS.filter(k => askable(D, { mon: M.name, k, m: x.n })).map(k => opt({ mon: M.name, k, m: x.n }, `${x.n}: ${keyName(k)}을 갖추면 잘 나오나`)));
     return keys.length || mats.length ? `<optgroup label="${esc(`${F.name} ${M.name}`)}">${[...keys, ...mats].join('')}</optgroup>` : '';
   })).join('');
   const c = us(W), lead = (c.crew || []).find(x => x.lead), LT = lead && P.teams ? P.teams.find(T => T.m.includes(lead.id)) : null;
@@ -91,7 +92,7 @@ function monPage(W: World, P: Plan | undefined, f: number, j: number) {
   const marks = [DEX.REC_AT, DEX.TARGET_AT, ...(j ? [] : [DEX.ROOT_AT])].map(v => `<i style="left:${v}%" title="${v}"></i>`).join('');
   const target = D.u >= DEX.TARGET_AT ? '<span class="pos">지정 탐사 가능</span>' : `지정 탐사: 이해도 ${DEX.TARGET_AT}부터`;
   const root = j ? '' : ` · 근원: ${(W.roots && W.roots[f] && W.roots[f].found) ? '<span class="pos">찾음</span>' : `이해도 ${DEX.ROOT_AT} + 약점 확정`}`;
-  const asking = P && P.ask && P.ask.mon === M.name ? `<p class="note"><b>이번 달 단장 조사</b> · ${P.ask.m ? `${P.ask.m}: ` : '약점: '}${keyName(P.ask.k)}</p>` : '';
+  const asking = P && P.ask && P.ask.mon === M.name ? `<p class="note"><b>이번 달 단장 조사</b> · ${P.ask.m ? `${P.ask.m}: ${keyName(P.ask.k)}` : `약점: ${weakName(P.ask.k)}`}</p>` : '';
   return `<div class="nb-pages"><section class="nb-page">
       <div class="nb-img" aria-hidden="true">그림</div>
       <h4>${M.name}</h4>${tag}
@@ -122,6 +123,6 @@ export function bookHtml(W: World, P?: Plan, sel?: string) {
     <div class="tw"><table class="grid bk-sold"><thead><tr><th>찾는 곳</th><th>소재</th><th class="n">값</th><th>기한</th><th>들은 곳</th></tr></thead>
       <tbody>${news || (hidden ? '' : '<tr><td colspan="5" class="dim">지금 들려오는 소식이 없어요</td></tr>')}${lock}</tbody></table></div>
     <h3>몬스터</h3>
-    <p class="note">만날수록 이해도가 찹니다. 이해도 ${DEX.REC_AT} 전적 · ${DEX.TARGET_AT} 지정 탐사(편성표) · 단장 조사는 출정에서 한 달에 하나${ask ? ` · 지난달 단장 조사: ${ask.mon} — ${ask.m ? `${ask.m}, ` : ''}${keyName(ask.k)} ${ask.ans === 'yes' ? '확정' : ask.ans === 'no' ? '아님' : ask.ans === 'miss' ? '만나지 못함' : '단장이 나가지 않음'}` : ''}</p>
+    <p class="note">약점은 다섯 가지 — ${ASK_KEYS.map(weakName).join(' · ')}. 장비만 들면 절반, 맡는 직업만 있으면 ¼, 둘 다면 다 찌른다. 역효과는 그 장비를 들었을 때만. 만날수록 이해도가 찹니다. 이해도 ${DEX.REC_AT} 전적 · ${DEX.TARGET_AT} 지정 탐사(편성표) · 단장 조사는 출정에서 한 달에 하나${ask ? ` · 지난달 단장 조사: ${ask.mon} — ${ask.m ? `${ask.m}, ${keyName(ask.k)}` : weakName(ask.k)} ${ask.ans === 'yes' ? '확정' : ask.ans === 'no' ? '아님' : ask.ans === 'miss' ? '만나지 못함' : '단장이 나가지 않음'}` : ''}</p>
     ${floors}`;
 }
