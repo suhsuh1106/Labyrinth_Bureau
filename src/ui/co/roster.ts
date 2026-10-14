@@ -71,7 +71,7 @@ export function assignHtml(W: World, P: Plan, others: (f: number) => number, sor
     const bonded = cohesion(who) > 0, fresh = bonded ? who.filter(p => who.every(x => x.id === p.id || !((p.mt && p.mt[x.id]) || 0))).length : 0;
     const scoutOk = hqLv(c, 'rec') >= 2 && who.length <= 3;
     const warn = [...(who.length < CO.PARTY && !T.scout ? [`빈자리 ${CO.PARTY - who.length}`] : []), ...(fresh ? [`새 얼굴 ${fresh}`] : []),
-      ...(o.U.crisis >= 1.5 ? [`위기 ×${o.U.crisis.toFixed(1)}`] : []), ...(T.f > 0 && o.u < 50 && who.some(p => p.tr === '새가슴') ? ['새가슴'] : [])];
+      ...(T.f > 0 && o.u < 50 && who.some(p => p.tr === '새가슴') ? ['새가슴'] : [])];
     const best = Math.max(0, ...who.map(p => (p.ex && p.ex[T.f]) || 0)), m = Math.round(mapOf(c, T.f)), guide = who.some(p => p.tr === '길잡이');
     const uTip = `지도 ${m}${best ? ` + 고참 경험 ${Math.round(Math.min(CO.UND_EX, best / 4))}` : ''}${guide ? ` + 길잡이 ${CO.UND_GUIDE}` : ''} · 성공 ${o.U.succ >= 0 ? '+' : '−'}${Math.round(Math.abs(o.U.succ) * 100)}%p · 위기 ×${o.U.crisis.toFixed(2)} · 캐 오는 양 ×${o.U.loot.toFixed(2)}`;
     return `<tr class="t${t % 8}"><td><b>${t + 1}조</b></td>
@@ -86,7 +86,7 @@ export function assignHtml(W: World, P: Plan, others: (f: number) => number, sor
       <td>${stepper('tmend', t, md, `${t + 1}조 정비 도구`)}</td>
       <td>${packBar(who.length * CO.SLOT_PP, tk, pk, 0, fd, md)}</td>
       <td class="stk"><select data-k="teamG" data-i="${t}" aria-label="${t + 1}조 장비"><option value="">섞인 대로</option>${GEAR_NAMES.map(g => `<option value="g:${g}"${T.g === 'g:' + g ? ' selected' : ''}>${g}</option>`).join('')}</select>
-      <select data-k="target" data-i="${t}" aria-label="${t + 1}조 노릴 몬스터"><option value="">섞여 만남</option>${floorMons(W, T.f).map(M => { const u = Math.round(((W.dex || {})[M.name]?.u) || 0), ok = u >= DEX.TARGET_AT; return `<option value="${esc(M.name)}"${T.target === M.name ? ' selected' : ''}${ok ? '' : ' disabled'}>${esc(M.name)}${ok ? '' : ` (이해도 ${u}/${DEX.TARGET_AT})`}</option>`; }).join('')}</select></td>
+      <select data-k="target" data-i="${t}" aria-label="${t + 1}조 노릴 몬스터"><option value="">섞여 만남</option>${floorMons(W, T.f).filter(M => ((W.dex || {})[M.name]?.n || 0) > 0).map(M => { const u = Math.round(((W.dex || {})[M.name]?.u) || 0), ok = u >= DEX.TARGET_AT; return `<option value="${esc(M.name)}"${T.target === M.name ? ' selected' : ''}${ok ? '' : ' disabled'}>${esc(M.name)}${ok ? '' : ` (이해도 ${u}/${DEX.TARGET_AT})`}</option>`; }).join('')}</select></td>
       <td><span class="warn-s">${warn.length ? warn.map(w => `<span>${w}</span>`).join('') : '<span class="ok">없음</span>'}</span></td></tr>`;
   }).join('');
   const bench = crew.filter(p => !teamOf.has(p.id));

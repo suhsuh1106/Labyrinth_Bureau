@@ -24,7 +24,7 @@ import { floorMax, keyOf } from '../src/core/company';
 import { fcRank, forecast, gradeOf } from '../src/core/company';
 import { bedsOf, classCap, dormCost, dormKeep, formTeams, recruitPrice, recruitWants, rookCount, rookSlots, shareOut } from '../src/core/company';
 import { CLASSES } from '../src/core/data';
-import { needOf, tripOdds } from '../src/core/company';
+import { needOf, tripOdds, potShock, profitOf } from '../src/core/company';
 import { DEX } from '../src/core/dex';
 
 describe('용병단 장부', () => {
@@ -1338,5 +1338,38 @@ describe('채비: 식량 · 정비 도구 · 해고', () => {
     expect(M.res[0].spend.fire).toBe(Math.round(out.reduce((a, p) => a + (CO.TIER_WAGE[tierOf(p)] - (p.tr === '새가슴' ? CO.CHICKEN_WAGE : 0)), 0) * CO.FIRE_PAY));
     expect(c.crew!.length).toBeLessThanOrEqual(n0 - 2 + M.res[0].recruited);
     expect(carryPlan(W, P).fire).toBeUndefined();
+  });
+});
+
+describe('#46 피드백: 조 번호 · 약초 흉년 · 건물 자산', () => {
+  it('귀환 기록의 조 번호는 편성표의 조 번호다 (뒤 조가 앞 층에 가도 그대로)', () => {
+    setSeed(6); const W = newWorld(), c = us(W);
+    W.unlocked = 2;
+    const P = sanitize(W, c, defaultPlan(W));
+    expect(P.teams!.length).toBe(4);
+    P.teams![0].f = 1; P.teams![1].f = 1; P.teams![2].f = 0; P.teams![3].f = 0;
+    const M = runMonth(W, P);
+    M.ours.forEach(x => expect(x.f).toBe(x.t! < 2 ? 1 : 0));
+    expect(returnHtml(W) + resultsHtml(W)).not.toMatch(/undefined|NaN/);
+  });
+  it('약초 흉년: 판마다 같은 달에 상단 포션 값이 오르고, 한 달 앞서 알림이 뜬다', () => {
+    expect(potShock(CO.POT_SHOCK_AT - 1)).toBe(1); expect(potShock(CO.POT_SHOCK_AT)).toBe(CO.POT_SHOCK);
+    const price = (m: number) => { setSeed(1); const W = newWorld(); let p = 0; for (let k = 1; k <= m; k++) { const P = defaultPlan(W); P.pots = P.pots.map(() => 1); runMonth(W, P); closeBooks(W); p = W.potion; } return p; };
+    expect(price(CO.POT_SHOCK_AT)).toBeGreaterThan(price(CO.POT_SHOCK_AT - 1));
+    setSeed(1); const W = newWorld(); runMonth(W, defaultPlan(W)); closeBooks(W);
+    while (W.month < CO.POT_SHOCK_AT - 1) { runMonth(W, defaultPlan(W)); closeBooks(W); }
+    expect(infoWeekHtml(W, defaultPlan(W), { phase: 0, tab: 'report' })).toContain('약초 흉년');
+  });
+  it('본부 · 숙소 공사비는 건물 자산이 되어 평가액에 남고, 달마다 감가상각만큼 준다', () => {
+    setSeed(2); const W = newWorld(), c = us(W);
+    const P = defaultPlan(W); P.dorm = true;
+    const M = runMonth(W, P); closeBooks(W);
+    const r = M.res[0];
+    expect(r.capex).toBeGreaterThan(0); expect(c.book).toBe(r.capex);
+    expect(worth(W, c)).toBe(c.cash + c.book!);
+    expect(profitOf(r)).toBe(r.net + r.capex!);
+    const M2 = runMonth(W, carryPlan(W, P)); closeBooks(W);
+    expect(M2.res[0].dep).toBe(Math.round(r.capex! * CO.DEP));
+    expect(c.book).toBe(r.capex! - M2.res[0].dep! + (M2.res[0].capex || 0));
   });
 });

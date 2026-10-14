@@ -1,5 +1,5 @@
 // 용병단 행정실 화면: 결정표(위)와 지난달 정산(아래). HTML 문자열을 만들기만 하고 상태는 건드리지 않는다
-import { CO, FLOORS, INTEL, ITEMS, type Plan, SRCS, type World, bedsOf, fcRank, gradeOf, churchPrice, dormKeep, guideParts, hireCost, intelBlock, intelCost, lootMul, toolCost, trainBonus, maxParties, mapOf, potsExpiring, potsOf, priceOf, rankOf, sanitize, sortieCost, succRate, us, worth } from '../../core/company';
+import { CO, FLOORS, INTEL, ITEMS, type Plan, SRCS, type World, bedsOf, fcRank, gradeOf, churchPrice, dormKeep, guideParts, hireCost, intelBlock, intelCost, lootMul, toolCost, trainBonus, maxParties, mapOf, potsExpiring, potsOf, priceOf, rankOf, sanitize, sortieCost, succRate, us, worth, profitOf } from '../../core/company';
 import { CLASSES, GEARS, MONSTERS } from '../../core/data';
 import { keyLabel } from '../../core/util';
 import { cashChart, fcChart, flowChart, fmtG, incomeMix, moneySeries, perHeadChart, perPartyChart, priceBoard, shareChart, spendMix } from './charts';
@@ -22,7 +22,7 @@ export function plaqueHtml(W: World) {
   const c = us(W), r = rankOf(W);
   return `<div class="stat"><span>현재</span><b>제${W.month}월</b></div>
     <div class="stat"><span>금고</span><b class="${c.cash < 0 ? 'neg' : ''}">${fmt(c.cash)}G</b></div>
-    <div class="stat"><span>평가액</span><b>${fmt(worth(W, c))}G</b></div>
+    <div class="stat"><span>평가액</span><b>${fmt(worth(W, c))}G</b>${c.book ? `<small>건물 ${fmt(c.book)}</small>` : ''}</div>
     <div class="stat"><span>순위</span><b>${r ? `${r}위` : '-'}</b></div>
     <div class="stat"><span>단원</span><b>${c.members}명</b></div>
     <div class="stat"><span>열린 층</span><b>${W.unlocked}층</b></div>`;
@@ -81,14 +81,17 @@ export function resultsHtml(W: World) {
       ${r.spend.tax ? `<tr><td>영주세${r.file && r.file.bill.refund ? ' · 선금 반납' : ''}</td><td class="n">−${fmt(r.spend.tax)}</td></tr>` : ''}
       ${r.spend.fine ? `<tr><td class="neg">추징금 (영주청 감사)</td><td class="n">−${fmt(r.spend.fine)}</td></tr>` : ''}
       ${r.potSpoil ? `<tr><td class="neg">보급 창고에서 상해 버린 포션 ${r.potSpoil}병</td><td class="n dim">-</td></tr>` : ''}
-      <tr class="tot"><td>순이익</td><td class="n ${r.net < 0 ? 'neg' : 'pos'}">${sgn(r.net)}</td></tr></tbody></table></div>`;
+      ${r.capex || r.dep ? `<tr class="sub"><td>금고 변화</td><td class="n ${r.net < 0 ? 'neg' : ''}">${sgn(r.net)}</td></tr>
+      ${r.capex ? `<tr><td class="dim">공사비는 건물 자산으로 (장부가 +${fmt(r.capex)})</td><td class="n">+${fmt(r.capex)}</td></tr>` : ''}
+      ${r.dep ? `<tr><td class="dim">건물 감가상각 (월 ${Math.round(CO.DEP * 100)}%)</td><td class="n">−${fmt(r.dep)}</td></tr>` : ''}` : ''}
+      <tr class="tot"><td>순이익</td><td class="n ${profitOf(r) < 0 ? 'neg' : 'pos'}">${sgn(profitOf(r))}</td></tr></tbody></table></div>`;
   const r0 = L.res[0], S = moneySeries(W), k = S.months.length - 1;
   const perParty = S.parties[k] ? r0.sales / S.parties[k] : 0, perHead = r0.net / S.heads[k];
   const prevNet = k > 0 ? S.net[k - 1] : null;
   return `<div class="kind">제${L.month}월 정산</div>
     <div class="kpi">
       <div><span>금고</span><b>${fmt(us(W).cash)}G</b><small>시작 ${fmt(S.start)}G</small></div>
-      <div><span>순이익</span><b class="${r0.net < 0 ? 'neg' : 'pos'}">${sgn(r0.net)}</b><small>${prevNet == null ? '첫 달' : `지난달 ${sgn(prevNet)}`}</small></div>
+      <div><span>순이익</span><b class="${profitOf(r0) < 0 ? 'neg' : 'pos'}">${sgn(profitOf(r0))}</b><small>${prevNet == null ? '첫 달' : `지난달 ${sgn(prevNet)}`}</small></div>
       <div><span>수입</span><b>${fmt(r0.sales)}G</b><small>지출 ${fmt(r0.sales - r0.net)}</small></div>
       <div><span>순위</span><b>${rk0}위</b><small class="${pr0 && pr0 > rk0 ? 'pos' : pr0 && pr0 < rk0 ? 'neg' : ''}">${pr0 && pr0 !== rk0 ? (pr0 > rk0 ? '▲' : '▼') + Math.abs(pr0 - rk0) : '그대로'}</small></div>
       <div><span>조당 수입</span><b>${fmt(perParty)}G</b><small>${S.parties[k]}조 보냄</small></div>
@@ -159,7 +162,7 @@ function mapHtml(W: World) {
 function supplyHtml(W: World) {
   const L = W.last; if (!L || !L.ours || !L.ours.length) return '';
   // 조마다 한 줄: 들고 간 포션 · 쓴 포션, 들고 간 횃불 · 태운 횃불, 위기 · 포션 없이 맞은 위기
-  const rows = L.ours.map((x, t) => {
+  const rows = L.ours.map((x, j) => ({ x, t: x.t ?? j })).sort((a, b) => a.t - b.t).map(({ x, t }) => {
     const carry = x.potC ?? 0, used = x.pots || 0, cr = x.crisis || 0, bare = Math.max(0, cr - used), T = x.trip;
     return `<tr><td><b>${t + 1}조</b> <span class="dim">${FLOORS[x.f].name}</span></td><td class="n">${used} / ${carry}병</td><td class="n">${T ? `${T.tu} / ${T.torch}개` : '-'}</td><td class="n">${cr}</td><td class="n${bare ? ' neg' : ' dim'}">${bare}</td></tr>`;
   }).join('');
@@ -214,9 +217,9 @@ const CLS_SHORT = (k: string) => (k.startsWith('c:') ? k.slice(2) : '');
 export function returnHtml(W: World) {
   const L = W.last; if (!L || !L.ours || !L.ours.length) return '<p class="note">이번 달 우리 직영 파티는 미궁에 들어가지 않았어요.</p>';
   const r = L.res[0], P = L.plans[0];
-  let no = 0;
+  const noOf = new Map(L.ours.map((x, j) => [x, (x.t ?? j) + 1]));
   const blocks = FLOORS.map((F, f) => {
-    const ps = L.ours.filter(x => x.f === f); if (!ps.length) return '';
+    const ps = L.ours.filter(x => x.f === f).sort((a, b) => noOf.get(a)! - noOf.get(b)!); if (!ps.length) return '';
     const ok = ps.filter(x => x.ok).length, d = ps.reduce((a, x) => a + x.d, 0);
     const rows = ps.map(x => {
       const cls = (x.cls || x.keys.map(CLS_SHORT).filter(Boolean)).join('·'), gear = x.keys.find(k => k.startsWith('g:'));
@@ -224,7 +227,7 @@ export function returnHtml(W: World) {
       const grade = x.k != null ? `<span class="grade g${Math.min(4, Math.max(1, x.k))}">${gradeOf(x.k)} ${x.k}/${x.n || 4}</span> ` : '';
       const trip = x.trip && x.days ? `<span class="dim">${x.days.filter(d => d.win).length}승 ${x.days.filter(d => !d.win).length}패${x.trip.end === 'torch' ? ' · 횃불 다 씀' : x.trip.end === 'pack' ? ' · 짐 다 참' : x.trip.end === 'flee' ? ' · 물러남' : ''}</span> ` : '';
       const what = grade + trip + (x.k ? (got || '<span class="dim">갈무리한 것 없음</span>') : x.k == null && !x.ok ? `<span class="dim">실패</span>` : '') + (x.crisis ? ` <span class="dim">· 위기 ${x.crisis}${x.pots ? ` · 포션 ${x.pots}` : ''}</span>` : '');
-      return `<div class="ld${(x.first || []).length ? ' first' : ''}"><span class="ld-w">${x.kit >= 0 ? `<span class="ktag">${KTAG[x.kit]}</span>` : ''}${++no}조 · ${cls || '혼성'}${gear ? ` · ${gear.slice(2)}` : ''}</span><span>${what}${x.hurt ? ` · <b class="hurt">${x.hurt}명 부상</b>` : ''}${x.d ? ` · <b class="neg">${x.d}명 사망</b>` : ''}</span></div>`;
+      return `<div class="ld${(x.first || []).length ? ' first' : ''}"><span class="ld-w">${x.kit >= 0 ? `<span class="ktag">${KTAG[x.kit]}</span>` : ''}${noOf.get(x)}조 · ${cls || '혼성'}${gear ? ` · ${gear.slice(2)}` : ''}</span><span>${what}${x.hurt ? ` · <b class="hurt">${x.hurt}명 부상</b>` : ''}${x.d ? ` · <b class="neg">${x.d}명 사망</b>` : ''}</span></div>`;
     }).join('');
     // 같은 층의 편성 줄끼리 견주기: 줄마다 조 · 성공 · 사망 · 조당 소재 값, 그리고 줄 사이에 차이가 난 소재 둘
     const lines = [...new Set(ps.map(x => x.kit))].sort((a, b) => (a < 0 ? 99 : a) - (b < 0 ? 99 : b));

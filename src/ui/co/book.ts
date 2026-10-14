@@ -37,30 +37,32 @@ export function kitHint(W: World, f: number, guide: string) {
 
 const pctOf = (w: number, n: number) => (n ? `${Math.round(w / n * 100)}%` : '-');
 const stamp = (a: string | undefined) => (a === 'yes' ? '<span class="dx-st yes">확정</span>' : a === 'no' ? '<span class="dx-st no">아님</span>' : '');
-// 전적표 한 칸: 승률(마주침). 마주침이 적으면 흐리게
-// 전적표 한 칸: 그 조우에서 해낸 사람 비율 (작은 글씨는 마주친 수 · 승). 마주침이 적으면 흐리게
-const cell = (r: { n: number; w: number; k?: number; p?: number } | undefined) => (r && r.n ? `<td class="n${r.n < 3 ? ' thin' : ''}" title="마주침 ${r.n} · 승 ${r.w}">${pctOf(r.k || 0, r.p || 0)}<small>${r.n}번</small></td>` : '<td class="n dim">-</td>');
+// 전적표 한 칸: 그 조우에서 해낸 사람 비율 (작은 글씨는 마주친 수). 마주침이 적으면 흐리게. 기록이 없어도 칸은 그대로 둔다
+const cell = (r: { n: number; w: number; k?: number; p?: number } | undefined) => (r && r.n ? `<td class="n${r.n < 3 ? ' thin' : ''}" title="마주침 ${r.n} · 승 ${r.w}">${pctOf(r.k || 0, r.p || 0)}<small>${r.n}번</small></td>` : '<td class="n dim">·<small>&nbsp;</small></td>');
 
-function recTable(D: Dex) {
-  const cls = CLASS_KEYS.map(k => `<tr><th>${keyName(k)}${stamp(D.key[k])}</th>${[0, 1, 2].map(v => cell(D.rec[`${k}:${v}`])).join('')}</tr>`).join('');
-  const gear = GEAR_KEYS.map(k => `<tr><th>${keyName(k)}${stamp(D.key[k])}</th>${[0, 1].map(v => cell(D.rec[`${k}:${v}`])).join('')}<td></td></tr>`).join('');
-  return `<table class="grid slim dx-rec"><thead><tr><th>갖춘 것</th><th class="n">없음</th><th class="n">하나 · 있음</th><th class="n">둘 이상</th></tr></thead><tbody>${cls}${gear}</tbody></table>
-    <p class="note">칸: 그 몬스터를 만난 날 해낸 사람 비율 · 아래는 마주친 수(칸에 올리면 이긴 수). 그날 나선 사람의 직업과 들고 간 장비로 센다</p>`;
+function recTable(D: Dex, open: boolean) {
+  const cls = CLASS_KEYS.map(k => `<tr><th>${keyName(k)}${stamp(D.key[k])}</th>${[0, 1, 2].map(v => cell(open ? D.rec[`${k}:${v}`] : undefined)).join('')}</tr>`).join('');
+  const gear = GEAR_KEYS.map(k => `<tr><th>${keyName(k)}${stamp(D.key[k])}</th>${[0, 1].map(v => cell(open ? D.rec[`${k}:${v}`] : undefined)).join('')}<td class="n dim"></td></tr>`).join('');
+  return `<div class="nb-rec${open ? '' : ' locked'}"><table class="grid slim dx-rec"><thead><tr><th>갖춘 것</th><th class="n">없음</th><th class="n">하나 · 있음</th><th class="n">둘 이상</th></tr></thead><tbody>${cls}${gear}</tbody></table>
+    ${open ? '' : `<span class="nb-lock">이해도 ${DEX.REC_AT}에서</span>`}</div>`;
 }
-// 소재: 얻은 것만. 이긴 조우 중 그 소재가 나온 비율을 갖춘 것별로 (기록이 셋 이상인 것 중 높은 셋과 전체)
+// 소재: 그 몬스터의 소재 칸을 모두 두고(얻지 못한 것은 ???), 얻은 것은 이긴 날 중 나온 비율 막대 · 잘 나온 갖춤 둘 · 단장 답
 function matsHtml(W: World, D: Dex, mats: { n: string; val: number }[]) {
   const ref = (n: string, v: number) => (W.mat && W.mat.ref[n]) || v;
-  const known = mats.filter(x => D.mats[x.n] && D.mats[x.n].got > 0), unknown = mats.length - known.length;
-  const rows = known.map(x => {
-    const X = D.mats[x.n], r = (k: string) => X.rec[k] || { n: 0, g: 0 };
+  const rows = mats.map(x => {
+    const X = D.mats[x.n];
+    if (!X || !X.got) return `<tr class="unk"><td><b>???</b><small>아직 얻지 못함</small></td><td class="n dim">-</td><td></td><td></td></tr>`;
+    const r = (k: string) => X.rec[k] || { n: 0, g: 0 };
     const all = [0, 1, 2].reduce((a, v) => ({ n: a.n + r(`c:전사:${v}`).n, g: a.g + r(`c:전사:${v}`).g }), { n: 0, g: 0 });
     const by = ASK_KEYS.map(k => { const on = k.startsWith('c:') ? [r(`${k}:1`), r(`${k}:2`)] : [r(`${k}:1`)]; const n = on.reduce((a, y) => a + y.n, 0), g = on.reduce((a, y) => a + y.g, 0); return { k, n, g }; })
-      .filter(y => y.n >= 3 && y.g > 0).sort((a, b) => b.g / b.n - a.g / a.n).slice(0, 3);
-    const asked = Object.entries(D.mat[x.n] || {}).map(([k, a]) => `${keyName(k)}${stamp(a)}`).join(' ');
-    return `<tr><td><b>${x.n}</b><small>${ref(x.n, x.val)}G 안팎</small></td><td class="n">${X.got}개</td>
-      <td class="dx-got">이긴 날 ${all.n}번 중 ${all.g}번${by.map(y => ` · ${keyName(y.k)} 갖춘 날 ${y.n}번 중 ${y.g}번`).join('')}${asked ? `<div>${asked}</div>` : ''}</td></tr>`;
+      .filter(y => y.n >= 3 && y.g > 0).sort((a, b) => b.g / b.n - a.g / a.n).slice(0, 2);
+    const asked = Object.entries(D.mat[x.n] || {}).map(([k, a]) => `<span class="nb-chip">${keyName(k)}${stamp(a)}</span>`).join('');
+    const pc = all.n ? Math.round(all.g / all.n * 100) : 0;
+    return `<tr><td><b>${x.n}</b><small>${ref(x.n, x.val)}G 안팎 · ${X.got}개 얻음</small></td>
+      <td class="n"><span class="nb-rate" title="이긴 날 ${all.n}번 중 ${all.g}번"><i style="width:${pc}%"></i></span><small>${all.g}/${all.n}</small></td>
+      <td>${by.map(y => `<span class="nb-chip" title="${keyName(y.k)} 갖춘 날 ${y.n}번 중 ${y.g}번">${keyName(y.k)} ${y.g}/${y.n}</span>`).join('') || '<span class="dim">-</span>'}</td><td>${asked}</td></tr>`;
   }).join('');
-  return `<table class="grid slim dx-mats"><tbody>${rows || '<tr><td class="dim">아직 얻은 소재가 없어요</td></tr>'}</tbody></table>${unknown ? `<p class="note">알려지지 않은 소재 ${unknown}</p>` : ''}`;
+  return `<table class="grid slim dx-mats"><thead><tr><th>소재</th><th class="n">이긴 날 나옴</th><th>잘 나온 갖춤</th><th>단장 답</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 // 단장 조사 고르기: 약점(확정 전까지) · 얻은 소재의 조건. 이미 답을 받은 것은 뺀다
 // 단장 조사 고르기 (출정 화면): 열린 층의 몬스터 중 이해도 ASK_AT 이상인 것에 물을 것 하나. 이미 답을 받은 것은 뺀다
@@ -80,24 +82,30 @@ export function askPanel(W: World, P: Plan) {
     ${groups ? `<select data-k="ask" aria-label="단장 조사"><option value="">이번 달엔 묻지 않음</option>${groups}</select>${cur && !ok ? '<p class="note neg">단장이 그 몬스터가 사는 층의 조에 있어야 해요</p>' : ''}` : `<p class="note">물을 몬스터 없음 · 도감 이해도 ${DEX.ASK_AT}부터</p>`}</div>`;
 }
 
-function monCard(W: World, P: Plan | undefined, f: number, j: number) {
+// 몬스터 한 장 (노트 두 쪽): 왼쪽은 그림 · 이해도 · 생태, 오른쪽은 전적 · 소재. 기록이 없어도 칸 자리는 그대로 둔다
+function monPage(W: World, P: Plan | undefined, f: number, j: number) {
   const M = floorMons(W, f)[j], raw = j ? FAUNA[f][j - 1] : MONSTERS[W.mons[f]], D = (W.dex || {})[M.name];
-  const head = `<header><h4>${M.name}</h4><span class="dx-tag">${j ? '곁 몬스터' : '주 몬스터'}</span>${D ? `<span class="dim">마주침 ${D.n} · 승 ${D.w} · 패 ${D.n - D.w}</span>` : ''}</header>`;
-  if (!D) return `<article class="dx-card unk">${head}<p class="note">아직 만나지 못했어요</p></article>`;
+  const tag = `<span class="dx-tag">${FLOORS[f].name} · ${j ? '곁 몬스터' : '주 몬스터'}</span>`;
+  if (!D) return `<div class="nb-pages unk"><section class="nb-page"><div class="nb-img" aria-hidden="true">?</div><h4>???</h4>${tag}<p class="note">아직 만나지 못했어요</p></section><section class="nb-page"></section></div>`;
   const eco = ecoOf(raw).map((t, k) => (D.u >= DEX.ECO_AT[k] ? `<li>${t}</li>` : `<li class="lock">이해도 ${DEX.ECO_AT[k]}에서</li>`)).join('');
   const marks = [DEX.REC_AT, DEX.TARGET_AT, ...(j ? [] : [DEX.ROOT_AT])].map(v => `<i style="left:${v}%" title="${v}"></i>`).join('');
   const target = D.u >= DEX.TARGET_AT ? '<span class="pos">지정 탐사 가능</span>' : `지정 탐사: 이해도 ${DEX.TARGET_AT}부터`;
   const root = j ? '' : ` · 근원: ${(W.roots && W.roots[f] && W.roots[f].found) ? '<span class="pos">찾음</span>' : `이해도 ${DEX.ROOT_AT} + 약점 확정`}`;
-  return `<article class="dx-card">${head}
-    <div class="dx-u"><span class="dx-bar" role="img" aria-label="이해도 ${Math.round(D.u)}"><b style="width:${Math.min(100, D.u)}%"></b>${marks}</span><span>이해도 <b>${Math.round(D.u)}</b></span></div>
-    <div class="dx-body"><div class="dx-img" aria-hidden="true">그림</div><ul class="dx-eco">${eco}</ul></div>
-    <h5>전적</h5>${D.u >= DEX.REC_AT ? recTable(D) : `<p class="note">이해도 ${DEX.REC_AT}에서</p>`}
-    <h5>소재</h5>${matsHtml(W, D, M.mats)}
-    ${P && P.ask && P.ask.mon === M.name ? `<p class="note"><b>이번 달 단장 조사</b> · ${P.ask.m ? `${P.ask.m}: ` : '약점: '}${keyName(P.ask.k)}</p>` : D.u < DEX.ASK_AT ? `<p class="note">단장 조사: 이해도 ${DEX.ASK_AT}부터</p>` : ''}
-    <p class="note">${target}${root}</p></article>`;
+  const asking = P && P.ask && P.ask.mon === M.name ? `<p class="note"><b>이번 달 단장 조사</b> · ${P.ask.m ? `${P.ask.m}: ` : '약점: '}${keyName(P.ask.k)}</p>` : '';
+  return `<div class="nb-pages"><section class="nb-page">
+      <div class="nb-img" aria-hidden="true">그림</div>
+      <h4>${M.name}</h4>${tag}
+      <p class="nb-tally">마주침 <b>${D.n}</b> · 승 <b>${D.w}</b> · 패 <b>${D.n - D.w}</b> · 처음 만난 달 제${D.at}월</p>
+      <div class="dx-u"><span class="dx-bar" role="img" aria-label="이해도 ${Math.round(D.u)}"><b style="width:${Math.min(100, D.u)}%"></b>${marks}</span><span>이해도 <b>${Math.round(D.u)}</b></span></div>
+      <h5>생태</h5><ul class="dx-eco">${eco}</ul>
+      <p class="note">${target}${root}${D.u < DEX.ASK_AT ? ` · 단장 조사: 이해도 ${DEX.ASK_AT}부터` : ''}</p>${asking}
+    </section><section class="nb-page">
+      <h5>전적 <small class="dim">그 몬스터를 만난 날 해낸 사람 비율 · 아래는 마주친 수</small></h5>${recTable(D, D.u >= DEX.REC_AT)}
+      <h5>소재</h5>${matsHtml(W, D, M.mats)}
+    </section></div>`;
 }
 
-export function bookHtml(W: World, P?: Plan) {
+export function bookHtml(W: World, P?: Plan, sel?: string) {
   const { seen, hidden } = demandsNow(W), mats = allMats(W), byName = Object.fromEntries(mats.map(x => [x.n, x]));
   const news = seen.map(d => {
     const x = byName[d.m], B = BUYERS[d.who];
@@ -105,7 +113,11 @@ export function bookHtml(W: World, P?: Plan) {
   }).join('');
   const lock = hidden ? `<tr class="bk-lock"><td colspan="5">${hidden}곳이 더 찾는다는 말이 있어요 · 상단 장부나 교회 기록 단계를 올리면 보여요</td></tr>` : '';
   const ask = W.last && W.last.ask;
-  const floors = FLOORS.slice(0, W.unlocked).map((F, f) => `<section class="dx-floor"><h4>${F.name}</h4><div class="dx-cards">${[0, 1, 2].map(j => monCard(W, P, f, j)).join('')}</div></section>`).join('');
+  // 몬스터 탭: 열린 층의 몬스터마다 하나 (만나지 못한 것은 ???). 고른 탭이 없으면 첫 몬스터
+  const tabs = FLOORS.slice(0, W.unlocked).flatMap((F, f) => floorMons(W, f).map((M, j) => ({ f, j, name: M.name, met: !!(W.dex || {})[M.name] })));
+  const cur = tabs.find(t => t.name === sel) || tabs[0];
+  const tabBar = `<div class="nb-tabs" role="tablist" aria-label="도감 몬스터">${tabs.map(t => `<button type="button" role="tab" class="nb-tab${t.j ? '' : ' main'}${t.met ? '' : ' unk'}" data-act="dex-tab" data-mon="${esc(t.name)}" aria-selected="${t === cur}"><small>${FLOORS[t.f].name}</small>${t.met ? esc(t.name) : '???'}</button>`).join('')}</div>`;
+  const floors = `<div class="nb">${tabBar}${cur ? monPage(W, P, cur.f, cur.j) : ''}</div>`;
   return `<h3>어디서 무엇을 찾나</h3>
     <div class="tw"><table class="grid bk-sold"><thead><tr><th>찾는 곳</th><th>소재</th><th class="n">값</th><th>기한</th><th>들은 곳</th></tr></thead>
       <tbody>${news || (hidden ? '' : '<tr><td colspan="5" class="dim">지금 들려오는 소식이 없어요</td></tr>')}${lock}</tbody></table></div>

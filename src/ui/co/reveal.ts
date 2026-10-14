@@ -16,12 +16,13 @@ const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/"/g, '&quot;').repl
 // 날마다의 자세한 것(몬스터 · 갈무리 · 위기)은 칸에 마우스를 올리면 보인다
 function teamLines(W: World, live = false) {
   const L = W.last!, lines: { k: string; v: number; t: string; amt?: string }[] = [];
-  let no = 0;
-  FLOORS.forEach((F, f) => L.ours.filter(x => x.f === f).forEach(x => {
+  // 편성표의 조 번호 순서대로 (조 번호가 없는 옛 기록은 나간 순서)
+  L.ours.map((x, j) => ({ x, no: (x.t ?? j) + 1 })).sort((a, b) => a.no - b.no).forEach(({ x, no }) => {
+    const F = FLOORS[x.f];
     const cls = (x.cls || x.keys.filter(k => k.startsWith('c:')).map(k => k.slice(2))).join('·'), gear = x.keys.find(k => k.startsWith('g:'));
     const n = x.n || 4, k = x.k != null ? x.k : x.ok ? n : 0, T = x.trip, D = x.days, dead = x.dead || [];
     const mats = (x.mats || []).map(([m, c]) => `${m} ×${c}`);
-    const head = `<b>${++no}조</b> ${F.name} <span class="grade g${Math.min(4, Math.max(1, k))}">${gradeOf(k)}</span> <span class="dim">${cls || '혼성'}${gear ? ` · ${gear.slice(2)}` : ''}${n < 4 ? ` · ${n}명` : ''}</span>`;
+    const head = `<b>${no}조</b> ${F.name} <span class="grade g${Math.min(4, Math.max(1, k))}">${gradeOf(k)}</span> <span class="dim">${cls || '혼성'}${gear ? ` · ${gear.slice(2)}` : ''}${n < 4 ? ` · ${n}명` : ''}</span>`;
     if (!D || !T) { lines.push({ k: x.d ? 'die' : x.ok ? 'ok' : 'no', v: 0, t: head, amt: `${mats.join(', ') || (k ? '' : '빈손')}${x.d ? ` · ${x.d}명 사망` : ''}` }); return; }
     // 날 칸: 승(초록) · 패(빨강) · 위기(!) · 사망(†). 못 간 날은 빈 칸, 돌아선 날은 어둠
     const back = T.end === 'torch' || T.end === 'flee';
@@ -40,7 +41,7 @@ function teamLines(W: World, live = false) {
     const deadTxt = dead.length ? `<b class="dead-n">† ${dead.map(z => `${esc(z.n)}${z.pot ? ' (포션 쓰고도)' : ''}`).join(', ')}</b>` : '';
     lines.push({ k: dead.length ? 'die' : x.ok ? 'ok' : 'no', v: 0, t: `${head}${strip}`,
       amt: [deadTxt, mats.length ? `${mats.slice(0, 3).join(', ')}${mats.length > 3 ? ` 외 ${mats.length - 3}` : ''}` : '', x.hurt ? `부상 ${x.hurt}` : ''].filter(Boolean).join(' · ') || '빈손' });
-  }));
+  });
   return lines;
 }
 // 가정산 위에 붙이는 귀환 결과: 조마다 한 줄 (돈은 신고서를 낸 뒤 정산에서)
@@ -48,10 +49,10 @@ export function returnsHtml(W: World, live = false) {
   const L = W.last; if (!L) return '';
   const r = L.res[0], ok = r.ok.reduce((a, b) => a + b, 0), sent = r.sent.reduce((a, b) => a + b, 0) + r.hired.reduce((a, b) => a + b, 0);
   // 잃은 사람: 이름과 어디서 (크게 따로 적는다)
-  let no = 0; const fallen: string[] = [];
-  FLOORS.forEach((F, f) => L.ours.filter(x => x.f === f).forEach(x => { no++; (x.dead || []).forEach(z => fallen.push(`<b>${esc(z.n)}</b> <span>${no}조 · ${F.name} · ${z.day ? `${z.day}일` : '어둠 속 귀환'}${z.pot ? ' · 포션 쓰고도' : ' · 포션 없이'}</span>`)); }));
+  const fallen: string[] = [];
+  L.ours.map((x, j) => ({ x, no: (x.t ?? j) + 1 })).sort((a, b) => a.no - b.no).forEach(({ x, no }) => (x.dead || []).forEach(z => fallen.push(`<b>${esc(z.n)}</b> <span>${no}조 · ${FLOORS[x.f].name} · ${z.day ? `${z.day}일` : '어둠 속 귀환'}${z.pot ? ' · 포션 쓰고도' : ' · 포션 없이'}</span>`)));
   return `<section class="run trips${live ? ' live' : ''}" aria-label="제${L.month}월 귀환"><header><h3>제${L.month}월 귀환</h3><span class="dim">${ok}/${sent}조 해냄${r.hurt ? ` · 부상 ${r.hurt}` : ''}${r.deaths ? ` · <b class="neg">사망 ${r.deaths}</b>` : ''}</span>
-      <span class="legend-d"><i class="w"></i>승 <i class="x"></i>패 <i class="o"></i>못 감 · ! 부상 · † 사망 · 칸 하나가 하루 (최대 ${CO.DAYS}일) · 짐 <i class="l"></i>전리품 <i class="t"></i>횃불 <i class="p"></i>포션</span></header>
+      <span class="legend-d"><i class="w"></i>승 <i class="x"></i>패 <i class="o"></i>못 감 · ! 부상 · † 사망 · 칸 하나가 하루 (최대 ${CO.DAYS}일) · 짐 <i class="l"></i>전리품 <i class="t"></i>횃불 <i class="p"></i>포션 <i class="lf"></i>식량 <i class="lo"></i>정비 도구</span></header>
     <div class="after${live ? ' hid' : ''}">${askLine(W)}</div>
     ${fallen.length ? `<div class="fallen after${live ? ' hid' : ''}"><span class="fx">†</span><div><small>잃은 사람</small>${fallen.map(t => `<p>${t}</p>`).join('')}</div></div>` : ''}
     <ol>${teamLines(W, live).map(l => `<li class="rv ${l.k} on" data-k="${l.k}"><span class="mk${live ? ' hid' : ''}" aria-hidden="true">${l.k === 'ok' ? '✓' : l.k === 'no' ? '✗' : '†'}</span><span class="tx">${l.t}</span><span class="am${live ? ' hid' : ''}">${l.amt || ''}</span></li>`).join('')}</ol></section>`;
@@ -75,7 +76,7 @@ export function revealHtml(W: World, live: boolean, mute = false) {
   if (other) lines.push({ k: 'gain', v: other, t: `의뢰 · 영주청 지원금${r.adv ? ' · 탐사 선금' : ''}`, amt: sgn(other) });
   const costs: [string, number][] = [['급여 · 신입 · 치료', s.wage + (s.fire || 0) + s.recruit + (s.heal || 0)], ['출정 · 계약', s.sortie + s.hire + s.tool], ['채비 (포션 · 횃불 · 식량 · 정비 · 장비)', s.potion + s.gear + (s.torch || 0) + (s.food || 0) + (s.mend || 0)], ['정보 · 조사', s.intel + s.probe], ['훈련 · 숙소 · 건물', s.train + s.base + s.proc + s.donate + s.root + (s.dorm || 0) + (s.hq || 0) + (s.job || 0)], ['영주세', s.tax || 0], ['추징금', s.fine || 0]];
   costs.filter(([, v]) => v > 0).forEach(([t, v]) => lines.push({ k: 'cost', v: -v, t, amt: sgn(-v) }));
-  lines.push({ k: 'net', v: 0, t: '순이익', amt: sgn(r.net) });
+  lines.push({ k: 'net', v: 0, t: r.capex ? `금고 변화 <small>(공사비 ${fmt(r.capex)}는 건물 자산)</small>` : '순이익', amt: sgn(r.net) });
   const ok = r.ok.reduce((a, b) => a + b, 0), sent = r.sent.reduce((a, b) => a + b, 0) + r.hired.reduce((a, b) => a + b, 0);
   return `<section class="run${live ? ' live' : ''}" aria-label="제${L.month}월 귀환 장부" data-net="${r.net}">
     <header><h3>제${L.month}월 귀환</h3><span class="dim">${ok}/${sent}조 해냄${r.hurt ? ` · ${r.hurt}명 부상` : ''}${r.deaths ? ` · <b class="neg">${r.deaths}명 사망</b>` : ''}</span>

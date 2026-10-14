@@ -37,6 +37,10 @@ export const CO = {
   // 거점 2단계면 성공 한 번에 BASE_TAKE개를 더 캔다
   BASE_STEP: 3000, BASE_MAX: 2, BASE_TAKE: 10, REGEN: 0.5,
   HIRE_FEE: 120, HIRE_CUT: 0.4,
+  // 건물 감가상각: 달마다 장부가의 이만큼 (5%면 한 해 뒤 절반쯤. 2%면 숙련 봇 1위 71%로 건물이 너무 남는 장사였다)
+  DEP: 0.05,
+  // 약초 흉년: 판마다 같은 달(POT_SHOCK_AT부터 POT_SHOCK_LEN달) 상단 포션 값 ×POT_SHOCK. 한 달 앞서 소문이 돈다 (미리 사 둘지가 고민거리)
+  POT_SHOCK_AT: 3, POT_SHOCK_LEN: 2, POT_SHOCK: 1.3,
   // 시작 금고: START_SIZE명인 용병단이 START_CASH를 들고 온다 (규모^CASH_EXP에 비례)
   START_CASH: 3000, START_SIZE: 16,
   // 가장 깊은 열린 층에서 이만큼 성공이 쌓이면 다음 층이 열린다 (모든 용병단이 함께 뚫는다)
@@ -278,12 +282,17 @@ const zeros = () => FLOORS.map(() => 0);
 // 값은 0.1G 단위까지 (싼 전리품은 개수가 많고 한 개 값이 몇 G라서, 정수로 자르면 출렁임이 뚝뚝 끊긴다)
 export const priceOf = (it: Item, Q: number) => Math.round(it.P0 * (Q ? marketMul(it.D, Q, it.el, it.lo, it.hi) : it.hi) * 10) / 10;
 // 포션은 모든 용병단이 많이 살수록 비싸진다
+// 이번 달이 약초 흉년인가 · 다음 달부터인가
+export const potShock = (m: number) => (m >= CO.POT_SHOCK_AT && m < CO.POT_SHOCK_AT + CO.POT_SHOCK_LEN ? CO.POT_SHOCK : 1);
+// 이번 달 상단 포션 값 어림 (지난달 값에서 흉년 배율만 고친다)
+export const potionNow = (W: World) => Math.round(W.potion / potShock(W.month - 1) * potShock(W.month));
 export const potionPrice = (Q: number) => Math.round(CO.POTION0 * clamp(Math.sqrt(Q / CO.POTION_Q0), 0.8, 1.6));
 
 // ---------- 용병단 ----------
 export type Style = 'player' | 'volume' | 'steady' | 'deep' | 'chaser' | 'hoarder' | 'shallow' | 'second' | 'crowd';
 export type Company = {
   id: string; name: string; style: Style; size: number;
+  book?: number;   // 건물(본부 · 숙소 증축) 장부가: 공사비만큼 늘고 달마다 CO.DEP씩 준다. 평가액에 들어간다
   members: number; cash: number; skill: number; bases: number[]; pendingBase: { f: number; amt: number } | null;
   losses: number;
   know: number[]; learned: boolean[];   // 층마다 드나든 달 수와 약점을 깨쳤는지 (경쟁 용병단)
@@ -354,6 +363,8 @@ export const ROSTER: { id: string; name: string; style: Style; size: number }[] 
 export type CoResult = {
   // ok: 해낸 조(둘 이상 해냄) 수, win: 해낸 사람을 4명 기준 조로 센 값(숙련 · 길 뚫기 · 명성에 쓴다), hurt: 다친 사람
   sent: number[]; hired: number[]; ok: number[]; win: number[]; got: number[]; deaths: number; hurt: number; sold: number[]; sales: number;
+  // capex: 이번 달 공사비(본부 · 숙소, 지출에 들어 있지만 자산이 된다), dep: 이번 달 감가상각(건물 장부가가 준 만큼, 금고는 그대로)
+  capex?: number; dep?: number;
   spend: { food?: number; mend?: number; fire?: number; sortie: number; potion: number; wage: number; train: number; base: number; hire: number; recruit: number; donate: number; root: number; tool: number; proc: number; intel: number; gear: number; probe: number; dorm: number; heal: number; hq: number; job: number; torch: number; tax: number; fine: number }; net: number; recruited: number;
   // 영주청: 판매 중 전리품 몫, 탐사 선금(판매 수입에 들어 있다), 가정산을 마친 신고(참값 · 신고 · 고지서 · 감사). tax는 영주세와 선금 반납, fine은 추징금
   lootSales?: number; adv?: number; file?: { truth: Filing; filed: Filing; bill: Bill; gain: number; audit?: Audit };
@@ -371,7 +382,7 @@ export type MonthResult = {
   month: number; res: CoResult[]; plans: Plan[]; Q: number[]; price: number[]; potion: number; potQ: number; potionC: number; cartel: boolean;
   floors: { before: number; taken: number; crowd: number; cut?: number }[]; perParty: number[]; opened: number | null; rank: string[];
   // 우리 직영 파티 하나하나: 간 층, 갖춘 직업·장비, 성공, 사망 (귀환 보고에 쓴다)
-  ours: { f: number; keys: string[]; ok: boolean; d: number; mats: [string, number][]; first: string[]; kit: number; g: string; crisis?: number; pots?: number; n?: number; k?: number; hurt?: number; days?: Day[]; trip?: Trip; dead?: { n: string; day: number; pot: boolean }[]; cls?: string[]; potC?: number }[];   // cls: 간 사람들의 직업, potC: 들고 간 포션   // dead: 죽은 단원 (이름, 몇째 날(0이면 어둠 속 귀환), 포션을 쓰고도)   // n: 간 사람, k: 해낸 사람, hurt: 다친 사람   // kit: 편성 줄 번호(-1이면 섞인 대로), g: 챙겨 간 것
+  ours: { f: number; keys: string[]; ok: boolean; d: number; mats: [string, number][]; first: string[]; kit: number; g: string; crisis?: number; pots?: number; n?: number; k?: number; hurt?: number; days?: Day[]; trip?: Trip; dead?: { n: string; day: number; pot: boolean }[]; cls?: string[]; potC?: number; t?: number }[];   // t: 편성표의 조 번호(0부터), cls: 간 사람들의 직업, potC: 들고 간 포션   // dead: 죽은 단원 (이름, 몇째 날(0이면 어둠 속 귀환), 포션을 쓰고도)   // n: 간 사람, k: 해낸 사람, hurt: 다친 사람   // kit: 편성 줄 번호(-1이면 섞인 대로), g: 챙겨 간 것
   matPrice: Record<string, number>; matRef: Record<string, number>;   // 소재 시세와, 그달 전까지의 평균 시세
   pressure: number; overflow: boolean;
   apps: number;   // 그달 마을 지원자
@@ -616,7 +627,10 @@ export function rookSlots(c: Company, P: Plan) {
   return out;
 }
 // 평가액: 금고. 순위의 기준이다 (전리품은 캐 온 달에 모두 팔고, 보급은 쓰는 물건이라 셈하지 않는다)
-export const worth = (_W: World, c: Company) => c.cash;
+// 평가액: 금고 + 건물 장부가
+export const worth = (_W: World, c: Company) => c.cash + (c.book || 0);
+// 장부상 순이익: 금고 변화에서 공사비(자산이 됨)를 되돌리고 감가상각을 비용으로 (세금 전)
+export const profitOf = (r: CoResult) => r.net + (r.capex || 0) - (r.dep || 0);
 export const supOf = (c: Company): Supply => c.sup || (c.sup = { pot: [], holy: [], gear: {} });
 const sumOf = (a: number[]) => a.reduce((x, y) => x + (y || 0), 0);
 // 창고에 있는 포션 (상단 · 성수)
@@ -890,7 +904,7 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
   const potQ = buyM.reduce((a, b) => a + b, 0) + gotC.reduce((a, b) => a + b, 0);
   // 포션 값: 상단은 수요를 따라, 교회는 정해진 값. 담합 중이면 둘 다 오르고, 교회가 빠졌으면 교회 값은 돌아온다
   const K = W.cartel;
-  const potion = Math.round(potionPrice(potQ) * (K ? CO.CARTEL_MARKUP : 1));
+  const potion = Math.round(potionPrice(potQ) * (K ? CO.CARTEL_MARKUP : 1) * potShock(W.month));
   const potionC = Math.round(CO.POTION_C0 * (K ? CO.CARTEL_MARKUP : 1)), pc = W.cos.map((_, i) => churchPrice(W, i));
   // (교회 포션 나누기: 한도보다 많이 찾으면 교회와 사이가 좋은 용병단부터 더 받는다)
   // 산 것은 창고로 들어오고, 탐험에는 창고에서 꺼낸다. 모자라면 층마다 조당 포션을 같은 비율로 줄인다. 성수부터 쓴다
@@ -1108,7 +1122,7 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
         if (c.style === 'player' && q < P.parties[f]) {
           ['*', ...keys].forEach(kk => { const o = W.obs[f][kk] || (W.obs[f][kk] = { n: 0, w: 0 }); o.n++; o.w += k / size; });   // '*'는 그 층 전체
           const first = got.filter(([m]) => bookOld && !bookOld[f].has(m) && !ours.some(o => o.mats.some(g => g[0] === m))).map(([m]) => m);
-          ours.push({ f, keys, ok, d: dq, mats: got, first, kit: kit.k, g: gk, crisis, pots: pu, n: size, k, hurt: hq, ...(dayLog ? { days: dayLog, trip } : {}), ...(dead.length ? { dead } : {}), cls, potC: potCarry });
+          ours.push({ f, keys, ok, d: dq, mats: got, first, kit: kit.k, g: gk, crisis, pots: pu, n: size, k, hurt: hq, ...(dayLog ? { days: dayLog, trip } : {}), ...(dead.length ? { dead } : {}), cls, potC: potCarry, ...(TT && P.teams ? { t: P.teams.indexOf(TT) } : {}) });
           if (ok && B) {
             const cs = ['*', ...condsOf(keys)];
             cs.forEach(kk => { B.n[kk] = (B.n[kk] || 0) + 1; });
@@ -1237,6 +1251,8 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
       dorm: c.style === 'crowd' ? 0 : dormKeep(bedsOf(c)) + build + (P.build === 'dorm' ? hqB : 0), heal: Math.round(r.hurt * CO.HEAL_COST * (hqLv(c, 'med') >= 1 ? 0.5 : 1)),
       hq: hqKeep(c) + (P.build !== 'dorm' ? hqB : 0), job: jobPen, torch: torchB[i] * CO.TORCH_PRICE, food: foodB[i] * CO.FOOD_PRICE, mend: mendB[i] * CO.MEND_PRICE, fire: fireCost(fired[i]), tax: 0, fine: 0 };
     if (fired[i].length) r.fired = fired[i].map(p => p.n || `${p.c} ${p.id}`);
+    // 건물은 자산: 지난달까지의 장부가가 CO.DEP만큼 줄고(감가상각), 이번 달 공사비가 더해진다. 금고는 공사비를 낸 그대로
+    r.dep = Math.round((c.book || 0) * CO.DEP); r.capex = build + hqB; c.book = (c.book || 0) - r.dep + r.capex;
     if (build) { c.pendingBeds = CO.DORM_ADD; c.dorms = (c.dorms || 0) + 1; }
     if (hqB) c.pendingHq = P.build;
     // 지도 사본: 다 그린 층의 지도를 관리국에 판다 (한 층에 한 번). 산 쪽(다른 용병단)의 지도도 MAP_GIVE만큼 오른다
