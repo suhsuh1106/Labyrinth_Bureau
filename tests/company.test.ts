@@ -24,9 +24,9 @@ import { floorMax, keyOf } from '../src/core/company';
 import { fcRank, forecast, gradeOf } from '../src/core/company';
 import { bedsOf, classCap, dormCost, dormKeep, formTeams, recruitPrice, recruitWants, rookCount, rookSlots, shareOut } from '../src/core/company';
 import { CLASSES } from '../src/core/data';
-import { needOf, tripOdds, potShock, profitOf, drillGain, weakShare, badShare, hireCap } from '../src/core/company';
+import { needOf, tripOdds, potShock, profitOf, drillGain, weakShare, badShare, classBad, hireCap, synOf, synTags, teamSlots, SYN } from '../src/core/company';
 import { WEAK_KEYS } from '../src/core/data';
-import { DEX } from '../src/core/dex';
+import { DEX, askable, badSure } from '../src/core/dex';
 
 describe('용병단 장부', () => {
   it('매달 모든 용병단의 금고 변화가 판매 수입에서 지출을 뺀 값과 같다', () => {
@@ -143,7 +143,7 @@ describe('상단·교회와 포션 담합', () => {
       expect(M.potionC).toBe(Math.round(CO.POTION_C0 * CO.CARTEL_MARKUP));
     }
     expect(seen).toBeGreaterThan(3);
-  }, 20000);
+  });
   it('담합 중 교회 후원이 쌓이면 교회가 빠져나와 후원한 쪽에 예전 값으로 팔고, 후원한 쪽은 교회와 가까워지고 상단과 멀어진다', () => {
     let checked = 0;
     for (let g = 1; g <= 40 && checked < 3; g++) {
@@ -828,7 +828,7 @@ describe('성공 정도 · 부상 · 수입 어림', () => {
     }
     expect(a / f).toBeGreaterThan(0.85); expect(a / f).toBeLessThan(1.15);
     expect(inside / n).toBeGreaterThan(0.5);
-  }, 30000);
+  });
   it('출정에 이번 달 어림이, 정산에 어림과 실제가 나온다', () => {
     setSeed(73); const W = newWorld();
     runMonth(W, BOT.even(W)); runMonth(W, BOT.even(W));
@@ -1293,6 +1293,11 @@ describe('약점 짝 · 계약 조', () => {
     expect(weakShare('g:냉기', ['마법사', '궁수', '도적', '전사'], [])).toBe(CO.WEAK_ONE);   // 마법사는 화염 · 냉기 둘
     expect(weakShare('g:독', ['전사', '궁수', '마법사', '사제'], [])).toBe(0);
     expect(badShare('g:화염', ['c:마법사'])).toBe(0); expect(badShare('g:화염', ['c:마법사', 'g:화염'])).toBe(1);
+    // 맨몸 역효과: 그 속성을 맡는 직업이 장비 없이 나서면 그 사람만 (장비를 들었으면 장비 역효과로)
+    expect(classBad('g:화염', '마법사', ['c:마법사'])).toBe(true);
+    expect(classBad('g:냉기', '마법사', ['c:마법사'])).toBe(true);
+    expect(classBad('g:화염', '마법사', ['c:마법사', 'g:화염'])).toBe(false);
+    expect(classBad('g:화염', '전사', ['c:전사'])).toBe(false);
   });
   it('계약 조가 다치거나 죽어도 우리 단원 · 치료비와 상관없다', () => {
     for (let s = 1; s <= 8; s++) {
@@ -1303,3 +1308,40 @@ describe('약점 짝 · 계약 조', () => {
     }
   });
 });
+
+describe('조 시너지 · 단장', () => {
+  const P = (c: string, lead = false) => ({ id: 0, c, sk: 40, ...(lead ? { lead: true } : {}) }) as any;
+  it('직업 수로 시너지가 켜진다: 전사 둘이면 짐 한 칸 더, 단장이 있으면 역효과 없음', () => {
+    expect(synOf([P('전사'), P('궁수')]).war).toBe(false);
+    expect(synOf([P('전사'), P('전사')]).war).toBe(true);
+    expect(teamSlots([P('전사'), P('전사'), P('궁수'), P('도적')])).toBe(4 * CO.SLOT_PP + SYN.WAR2_SLOT);
+    expect(synOf([P('사제'), P('사제')]).pri2).toBe(true);
+    expect(synOf([P('마법사'), P('마법사')]).mag2).toBe(true);
+    expect(synOf([P('전사', true)]).lead).toBe(true);
+    expect(synTags([P('도적'), P('궁수'), P('궁수')]).map(t => t[0])).toEqual(['도적', '궁수 2']);
+  });
+  it('도적이 끼면 그 조의 층 이해도가 오른다', () => {
+    setSeed(2); const W = newWorld(), c = us(W);
+    expect(teamUnd(c, 0, [P('도적'), P('전사')])).toBe(teamUnd(c, 0, [P('궁수'), P('전사')]) + SYN.ROG1_UND);
+  });
+});
+
+describe('역효과 단장 조사', () => {
+  it('역효과를 물으면 맞으면 확정, 틀리면 아님. 확정하면 다시 묻지 않고 맨몸 역효과가 준다', () => {
+    setSeed(5); const W = newWorld(), c = us(W), M = MONSTERS[W.mons[0]], main = M.name;
+    W.dex = { [main]: { n: 30, w: 20, cr: 0, u: 50, at: 1, rec: {}, mats: {}, key: {}, mat: {} } };
+    const wrong = WEAK_KEYS.find(k => k !== M.bad && k !== M.key)!;
+    expect(askable(W.dex[main], { mon: main, k: wrong, b: true })).toBe(true);
+    const done: string[] = [];
+    for (let m = 0; m < 12 && done.length < 2; m++) {
+      const P = carryPlan(W, W.last ? W.last.plans[0] : defaultPlan(W)); P.ask = { mon: main, k: done.length ? M.bad : wrong, b: true };
+      const R = runMonth(W, P); closeBooks(W);
+      if (R.ask && (R.ask.ans === 'yes' || R.ask.ans === 'no')) { expect(R.ask.ans).toBe(R.ask.k === M.bad ? 'yes' : 'no'); done.push(R.ask.ans); }
+    }
+    expect(done).toEqual(['no', 'yes']);
+    expect(badSure(W.dex![main])).toBe(M.bad);
+    expect(askable(W.dex![main], { mon: main, k: wrong, b: true })).toBe(false);
+    expect(CO.BAD_INJ_KNOWN).toBeLessThan(CO.BAD_INJ);
+  });
+});
+

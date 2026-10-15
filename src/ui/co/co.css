@@ -1103,3 +1103,8 @@ table.crewt tr.drill td { background: rgba(201, 154, 30, .08); }
 .pr table.grid, .co-sheet.doc table.grid.slim { min-width: 0; }
 @media (max-width: 640px) { .pr table.grid td, .pr table.grid th { white-space: normal; } }
 table.tsum small.wk { background: none; border: 0; padding: 0; margin-top: 3px; font-size: 11px; }
+.step input[readonly] { cursor: default; caret-color: transparent; user-select: none; }
+/* 조 시너지 이름표 (오토체스처럼) */
+table.tsum .syn { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 3px; }
+table.tsum .syn span { font-size: 10.5px; padding: 0 6px; border-radius: 9px; background: rgba(201, 154, 30, .18); border: 1px solid #c99a1e; color: var(--ink); cursor: help; }
+.dx-st.bad { color: #fff; background: #5b3a8a; }

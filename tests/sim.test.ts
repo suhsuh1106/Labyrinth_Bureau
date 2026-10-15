@@ -45,7 +45,7 @@ describe('용병단 행정실 화면', () => {
         plan = carryPlan(W, plan);
       }
     }
-  }, 30000);
+  });
 });
 
 describe('경쟁 용병단', () => {
@@ -82,6 +82,6 @@ describe('경쟁 용병단', () => {
     let smart = 0, even = 0;
     for (let g = 1; g <= 40; g++) { smart += rankOf(playGame(g, BOT.smart)); even += rankOf(playGame(g, BOT.even)); }
     expect(smart).toBeLessThan(even);
-  }, 30000);
+  });
 });
 

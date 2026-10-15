@@ -194,9 +194,21 @@ function file() {
   say(`제${m}월 결재 · 순이익 ${r.net >= 0 ? '+' : '−'}${Math.abs(Math.round(r.net)).toLocaleString('ko-KR')}G · ${rankOf(W)}위${F && F.audit ? (F.audit.fine ? ` · 감사로 추징금 ${F.audit.fine.toLocaleString('ko-KR')}G` : ' · 감사가 다녀갔어요') : ''}${W.log.some(l => l.m === m && /근원 발견/.test(l.t)) ? ' · 근원을 찾았어요' : ''}`);
 }
 
+// − + 단추를 길게 누르면 되풀이한다 (처음엔 한 칸씩, 오래 누를수록 다섯 칸씩). 손을 떼면 멈추고, 그때의 click은 넘긴다
+let hold: { tm: number; n: number } | null = null, held = false;
+const stopHold = () => { if (hold) { clearTimeout(hold.tm); hold = null; } };
+$('desk').addEventListener('pointerdown', (e: any) => {
+  const b = e.target.closest('.step button[data-k]'); if (!b || b.disabled) return;
+  const k = b.dataset.k, i = +b.dataset.i, d = +b.dataset.d, j = +(b.dataset.j || 0);
+  held = false; stopHold();
+  const tick = () => { held = true; hold!.n++; edit(k, i, (v: number) => v + d * (hold!.n > 10 ? 5 : 1), j); hold!.tm = window.setTimeout(tick, hold!.n > 4 ? 70 : 140); };
+  hold = { tm: window.setTimeout(tick, 420), n: 0 };
+});
+['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => $('desk').addEventListener(ev, stopHold));
 $('desk').addEventListener('click', (e: any) => {
   // 버튼과, 지도 · 책상 위 물건(SVG의 data-act)을 누른다
   const t = e.target.closest('button, .spot[data-act], th[data-act]'); if (!t || t.disabled) return;
+  if (held && t.dataset.d) { held = false; return; }   // 길게 눌러 되풀이한 뒤의 click은 넘긴다
   if (t.dataset.act) return act(t);
   if (t.dataset.tab) { ui.tab = t.dataset.tab; render(); save(); return; }
   if (t.dataset.k) edit(t.dataset.k, +t.dataset.i, (v: number) => v + +t.dataset.d, +(t.dataset.j || 0));

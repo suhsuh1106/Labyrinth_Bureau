@@ -31,6 +31,10 @@ export const ASK_SAY = {
     yes: (mon: string, k: string, m: string) => `${mon}의 ${m}, ${k} 쪽을 갖추면 더 잘 나옵니다.`,
     no: (mon: string, k: string, m: string) => `${mon}의 ${m}, ${k} 쪽과는 상관이 없습니다.`,
   },
+  bad: {
+    yes: (mon: string, k: string) => `${mon} 앞에서 ${k} 쪽은 화를 부릅니다. 확인했습니다.`,
+    no: (mon: string, k: string) => `${mon} 앞에서 ${k} 쪽이 탈을 내지는 않습니다.`,
+  },
   miss: (mon: string) => `이번 달엔 ${mon} 쪽을 만나지 못했습니다. 다음에 다시 살피겠습니다.`,
   away: '단장이 출정하지 않아 조사를 하지 못했습니다.',
 };

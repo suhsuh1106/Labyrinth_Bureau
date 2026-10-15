@@ -28,8 +28,9 @@ export function plaqueHtml(W: World) {
     <div class="stat"><span>열린 층</span><b>${W.unlocked}층</b></div>`;
 }
 
+// 숫자 칸은 읽기만 (모바일에서 자판이 올라오지 않게). 바꾸는 것은 − + 단추로, 길게 누르면 빨라진다
 export function stepper(k: string, i: number, v: number, label: string, step = 1, disabled = false) {
-  return `<span class="step"><button type="button" data-k="${k}" data-i="${i}" data-d="${-step}" aria-label="${label} 줄이기"${disabled ? ' disabled' : ''}>−</button><input type="number" inputmode="numeric" data-k="${k}" data-i="${i}" value="${v}" min="0" aria-label="${label}"${disabled ? ' disabled' : ''}><button type="button" data-k="${k}" data-i="${i}" data-d="${step}" aria-label="${label} 늘리기"${disabled ? ' disabled' : ''}>+</button></span>`;
+  return `<span class="step"><button type="button" data-k="${k}" data-i="${i}" data-d="${-step}" aria-label="${label} 줄이기"${disabled ? ' disabled' : ''}>−</button><input type="text" readonly tabindex="-1" inputmode="none" data-k="${k}" data-i="${i}" value="${v}" aria-label="${label}"${disabled ? ' disabled' : ''}><button type="button" data-k="${k}" data-i="${i}" data-d="${step}" aria-label="${label} 늘리기"${disabled ? ' disabled' : ''}>+</button></span>`;
 }
 
 // 지난달 정산: 숫자 넷, 금고와 수입·순이익 그래프, 순위, 시세 흐름, 탐사 결과, 우리 정산 (자세한 것은 접어 둔다)

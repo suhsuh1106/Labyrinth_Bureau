@@ -53,7 +53,7 @@ body {
   font-size: 14px;
   line-height: 1.55;
 }
-.num, output, input[type=number] { font-family: var(--f-num); font-variant-numeric: tabular-nums; }
+.num, output, input[type=number], .step input { font-family: var(--f-num); font-variant-numeric: tabular-nums; }
 .neg { color: var(--bad); }
 .pos { color: var(--good); }
 
