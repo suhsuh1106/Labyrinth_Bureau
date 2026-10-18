@@ -410,6 +410,27 @@ describe('전리품 비율과 몬스터 적응', () => {
     }
     expect(dead).toBe(d);
   });
+  it('탐사 재생 장면의 조원별 기록이 그날의 해낸 수 · 위기 · 사망과 맞는다', () => {
+    let days = 0;
+    for (let g = 1; g <= 6; g++) {
+      setSeed(g); const V = newWorld();
+      for (let m = 0; m < 6; m++) {
+        const N = runMonth(V, BOT.smart(V)); closeBooks(V);
+        N.ours.forEach(o => {
+          expect(o.nm!.length).toBe(o.cls!.length);
+          const cnt = (s: string, re: RegExp) => [...s].filter(ch => re.test(ch)).length;
+          o.days!.forEach(d => {
+            days++;
+            expect(d.ms!.length).toBe(o.cls!.length);
+            expect(cnt(d.ms!, /o/)).toBe(d.k); expect(cnt(d.ms!, /[^-]/)).toBe(d.n);
+            expect(cnt(d.ms!, /[phds]/)).toBe(d.cr); expect(cnt(d.ms!, /d/)).toBe(d.d); expect(cnt(d.ms!, /p/)).toBe(d.sv || 0);
+          });
+          if (o.trip!.dm) expect(cnt(o.trip!.dm, /[phds]/)).toBe(o.trip!.dark);
+        });
+      }
+    }
+    expect(days).toBeGreaterThan(50);
+  });
   it('횃불 없이 간 조는 들어가지 못하고 어둠 속에서 위기를 맞고 지도를 덜 그린다', () => {
     let darkC = 0, litC = 0, darkMap = 0, litMap = 0;
     for (const dark of [true, false]) for (let g = 1; g <= 12; g++) {

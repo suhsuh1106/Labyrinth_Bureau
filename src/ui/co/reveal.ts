@@ -17,7 +17,7 @@ const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/"/g, '&quot;').repl
 function teamLines(W: World, live = false) {
   const L = W.last!, lines: { k: string; v: number; t: string; amt?: string }[] = [];
   // 편성표의 조 번호 순서대로 (조 번호가 없는 옛 기록은 나간 순서)
-  L.ours.map((x, j) => ({ x, no: (x.t ?? j) + 1 })).sort((a, b) => a.no - b.no).forEach(({ x, no }) => {
+  L.ours.map((x, j) => ({ x, j, no: (x.t ?? j) + 1 })).sort((a, b) => a.no - b.no).forEach(({ x, j: oi, no }) => {
     const F = FLOORS[x.f];
     const cls = (x.cls || x.keys.filter(k => k.startsWith('c:')).map(k => k.slice(2))).join('·'), gear = x.keys.find(k => k.startsWith('g:'));
     const n = x.n || 4, k = x.k != null ? x.k : x.ok ? n : 0, T = x.trip, D = x.days, dead = x.dead || [];
@@ -39,7 +39,9 @@ function teamLines(W: World, live = false) {
     const st0 = live ? steps[0] : steps[steps.length - 1];
     const strip = `<span class="trip"><span class="days" role="img" aria-label="${D.length}일 다님 · ${wins}승 ${D.length - wins}패 · ${END[T.end]}">${days}</span><span class="packw" data-slots="${T.slots}" data-steps="${JSON.stringify(steps)}">${packBar(T.slots, st0[1], st0[2], st0[0], st0[3], st0[4])}</span><small class="${live ? 'hid' : ''}">${END[T.end]}</small></span>`;
     const deadTxt = dead.length ? `<b class="dead-n">† ${dead.map(z => `${esc(z.n)}${z.pot ? ' (포션 쓰고도)' : ''}`).join(', ')}</b>` : '';
-    lines.push({ k: dead.length ? 'die' : x.ok ? 'ok' : 'no', v: 0, t: `${head}${strip}`,
+    // 재생 장면: 이 조의 하루하루를 조원 카드와 몬스터로 다시 본다 (scene.ts)
+    const play = `<button type="button" class="sc-open" data-act="scene" data-i="${oi}" aria-label="${no}조 탐사 재생">▶ 보기</button>`;
+    lines.push({ k: dead.length ? 'die' : x.ok ? 'ok' : 'no', v: 0, t: `${head}${play}${strip}`,
       amt: [deadTxt, mats.length ? `${mats.slice(0, 3).join(', ')}${mats.length > 3 ? ` 외 ${mats.length - 3}` : ''}` : '', x.hurt ? `부상 ${x.hurt}` : ''].filter(Boolean).join(' · ') || '빈손' });
   });
   return lines;

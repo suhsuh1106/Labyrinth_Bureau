@@ -8,10 +8,11 @@ import { CLASSES, GEARS } from './core/data';
 import { plaqueHtml } from './ui/co/view';
 import { type DeskUi, DOC_KEYS, PLACE_KEYS, expWeekHtml, infoWeekHtml, resultWeekHtml, weeksHtml } from './ui/co/desk';
 import { draftHtml } from './ui/co/draft';
+import { closeScene, openScene } from './ui/co/scene';
 import { advanceArrival, arrivalOpen, closeArrival, playArrival } from './ui/co/arrival';
 
 const $ = (id: string): any => document.getElementById(id);
-const KEY = 'lb-co', VERSION = 22, MONTHS = 36;   // 22: 약점 짝(직업 ↔ 장비) · 대기 = 훈련 (이전 판은 새 게임으로)
+const KEY = 'lb-co', VERSION = 23, MONTHS = 36;   // 23: 탐사 재생 장면용 조원별 하루 기록 (이전 판은 새 게임으로)
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
 let W: World, plan: Plan, ui: DeskUi;
 // 도장을 막 찍은 결과 화면이면 귀환 장부를 한 줄씩 띄운다 (저장하지 않는 화면 상태)
@@ -39,7 +40,7 @@ function draw() {
   $('desk').innerHTML = ui.phase === 0 ? infoWeekHtml(W, plan, ui) : ui.phase === 1 ? expWeekHtml(W, plan, ui) : ui.phase === 2 ? draftHtml(W, ui.file || {}, live) : resultWeekHtml(W, live, !!ui.mute);
   if (over) { const b = document.querySelector('#desk .resultwrap .btn-next') as HTMLButtonElement | null; if (b) { b.disabled = true; b.textContent = `임기가 끝났어요. 최종 ${rankOf(W)}위`; } }
 }
-function setPhase(p: number) { stopRun(); ui.phase = p; ui.open = false; ui.place = undefined; render(); save(); window.scrollTo({ top: 0 }); }
+function setPhase(p: number) { stopRun(); closeScene(); ui.phase = p; ui.open = false; ui.place = undefined; render(); save(); window.scrollTo({ top: 0 }); }
 
 function start(fresh = false) {
   const d = fresh ? null : load();
@@ -170,6 +171,7 @@ function act(b: HTMLElement) {
   if (a === 'file') return file();
   if (a === 'file-reset') { ui.file = W.draft ? { ...W.draft.truth } : {}; render(); save(); return; }
   if (a === 'skip-run') return finishRun();
+  if (a === 'scene') return openScene(W, +(b.dataset.i || 0), k => SOUND[k]?.(0));
   if (a === 'mute') { ui.mute = !ui.mute; save(); b.textContent = ui.mute ? '소리 켜기' : '소리 끄기'; return; }
 }
 
