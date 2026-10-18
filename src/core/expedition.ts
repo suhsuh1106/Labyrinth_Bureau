@@ -1,7 +1,8 @@
 // 탐사 엔진: 우리 조 하나가 미궁에 들어가 돌아오기까지 (다키스트 던전처럼).
 //   최대 days일. 첫날 횃불 하나를 켜고, 그 뒤로는 날마다 rate의 확률로 하나를 더 태운다. 태울 횃불이 없으면 그날 돌아서고,
 //   남은 사람마다 어둠 속 위기를 맞을 수 있다(darkMin + 진 날 위기 × darkBack).
-//   하루는 enc번의 마주침이다. 마주침마다 그 층 몬스터 하나를 무게(w)대로 만나 조원마다 굴린다. 둘 이상 해내면 이긴다(혼자 남았으면 혼자 해내면).
+//   하루는 enc번의 구간이다. 구간마다 사건 하나를 무게(evs)대로 뽑는다. 지금 사건은 조우뿐이다(채집 지점 · 흔적은 docs/missions.md의 다음 단계).
+//   조우: 그 층 몬스터 하나를 만나 조원마다 굴린다. 둘 이상 해내면 이긴다(혼자 남았으면 혼자 해내면).
 //   해낸 몫만큼 전리품을 짐에 싣고(하루 한 조 다 해내면 lootSlot칸, 진 날은 loseLoot배) 이긴 날은 그 몬스터를 갈무리한다.
 //   부상 주사위: 해내지 못한 사람은 주사위를 굴린다. 걸리면 포션이 있으면 한 병 써서 막고, 없으면 다치고(그 탐사 동안 성공 −injPen, 다음 달 쉰다),
 //   다친 채 또 걸리면 죽는다.
@@ -22,8 +23,9 @@ export type Day = { dd?: number; mon: string; win: boolean; k: number; n: number
 export type Trip = { fd?: number; torch: number; tu: number; slots: number; pack: number; rest: number; end: 'done' | 'torch' | 'pack' | 'flee'; dark: number; food?: number; fu?: number; tools?: number; tk?: number; blunt?: number; dm?: string };
 
 export type TripCfg = {
-  size: number; days: number; enc?: number; slots: number; torch: number; rate: number;   // enc: 하루에 마주치는 몬스터 수
-  names: string[]; w: number[];   // 그 층 몬스터와 만날 무게
+  size: number; days: number; enc?: number; slots: number; torch: number; rate: number;   // enc: 하루의 구간 수 (구간마다 사건 하나)
+  names: string[];   // 그 층 몬스터 이름
+  evs: Ev[];   // 구간마다 뽑을 사건과 무게
   lootSlot: number; darkMin: number; darkBack: number; party: number;
   injPen: number;   // 다친 사람의 성공 굴림에서 빼는 값
   loseLoot: number;   // 진 날에도 해낸 사람 몫의 이만큼은 싣는다
@@ -39,6 +41,9 @@ export type TripCfg = {
   win: (j: number, kd: number) => [string, number][];   // 이긴 날의 갈무리
   meet?: (j: number, up: number[], win: boolean, cr: number, k: number) => void;   // 만난 것을 적는다 (도감 · 단장 조사)
 };
+
+// 사건: 한 구간에 하나. fight는 그 층 몬스터 j와의 조우 (채집 지점 · 흔적은 다음 단계에서 더한다)
+export type Ev = { k: 'fight'; j: number; w: number };
 
 const pickW = (ws: number[]) => { let x = rnd() * ws.reduce((a, b) => a + b, 0); for (let i = 0; i < ws.length; i++) { x -= ws[i]; if (x <= 0) return i; } return ws.length - 1; };
 
@@ -58,23 +63,9 @@ function dice(C: TripCfg, S: TripState, m: number, j: number, day: number, D: { 
   if (C.kill(m, day)) { D.d++; S.gone.push(m); return 'd'; }
   return 's';
 }
-// 마주침 하나를 굴린다 (끝났으면 S.done). 하루는 enc번의 마주침이다: 그날 첫 마주침에 횃불을 켜고(그 뒤로는 확률로 하나 더) 식량을 먹고,
-// 마주침마다 그 층 몬스터 하나를 만나 조원마다 굴리고 짐을 싣고 갈무리하고 부상 주사위를 굴린다. 그날 진 마주침이 있으면 그날 끝에 정비 도구 하나
-export function stepTrip(C: TripCfg, S: TripState) {
-  if (S.done) return;
-  if (S.day >= C.days) { S.done = true; return; }
-  const enc = C.enc || 1, e = S.e || 0, day = S.day, gone = new Set(S.gone), hurt = new Set(S.hurt);
-  // 짐 칸: 남은 횃불 · 포션 · 정비 도구가 한 칸씩, 식량은 foodSlot개가 한 칸
-  const held = () => (C.torch - S.tu) + C.pots() + S.food / C.foodSlot + S.tools;
-  const up = Array.from({ length: C.size }, (_, m) => m).filter(m => !gone.has(m));
-  if (!up.length || gone.size >= 2) { S.end = 'flee'; S.done = true; return; }
-  if (e === 0) {
-    if (day === 0 || rnd() < C.rate) { if (S.tu < C.torch) S.tu++; else { S.end = 'torch'; S.done = true; return; } }
-    // 식량: 하루 한 사람에 하나. 모자라면 뒷사람부터 굶는다 (굶은 사람은 그날 성공 −hungerPen)
-    const eat = Math.min(S.food, up.length); S.food -= eat; S.fu += eat; S.hg = up.length - eat; S.lost = false;
-  }
-  const hungry = new Set(up.slice(up.length - (S.hg || 0)));
-  const j = pickW(C.w);
+// 조우: 그 층 몬스터 j를 만나 조원마다 굴리고 짐을 싣고 갈무리하고 부상 주사위를 굴린다
+function fight(C: TripCfg, S: TripState, j: number, up: number[], hungry: Set<number>, held: () => number): Day {
+  const day = S.day, hurt = new Set(S.hurt);
   const dd = up.map(m => rnd() < Math.max(0.03, C.pm(m, j) - (hurt.has(m) ? C.injPen : 0) - (hungry.has(m) ? C.hungerPen : 0) - S.blunt * C.toolPen)), kd = dd.filter(Boolean).length, win = kd >= Math.min(2, up.length);
   up.forEach((m, x) => { S.seen[m]++; if (dd[x]) S.wins[m]++; });
   const D: Day = { dd: day + 1, mon: C.names[j], win, k: kd, n: up.length, mats: [], cr: 0, d: 0, ...(hungry.size ? { hg: hungry.size } : {}) };
@@ -90,10 +81,30 @@ export function stepTrip(C: TripCfg, S: TripState) {
   up.forEach((m, x) => { ms[m] = dd[x] ? 'o' : dice(C, S, m, j, day + 1, D) || 'x'; });
   D.ms = ms.join('');
   if (!win) S.lost = true;
+  if (C.meet) C.meet(j, up, win, D.cr, kd);
+  return D;
+}
+// 구간 하나를 굴린다 (끝났으면 S.done). 하루는 enc번의 구간이다: 그날 첫 구간에 횃불을 켜고(그 뒤로는 확률로 하나 더) 식량을 먹고,
+// 구간마다 사건 하나를 뽑아 굴린다. 그날 진 조우가 있으면 그날 끝에 정비 도구 하나
+export function stepTrip(C: TripCfg, S: TripState) {
+  if (S.done) return;
+  if (S.day >= C.days) { S.done = true; return; }
+  const enc = C.enc || 1, e = S.e || 0, day = S.day, gone = new Set(S.gone);
+  // 짐 칸: 남은 횃불 · 포션 · 정비 도구가 한 칸씩, 식량은 foodSlot개가 한 칸
+  const held = () => (C.torch - S.tu) + C.pots() + S.food / C.foodSlot + S.tools;
+  const up = Array.from({ length: C.size }, (_, m) => m).filter(m => !gone.has(m));
+  if (!up.length || gone.size >= 2) { S.end = 'flee'; S.done = true; return; }
+  if (e === 0) {
+    if (day === 0 || rnd() < C.rate) { if (S.tu < C.torch) S.tu++; else { S.end = 'torch'; S.done = true; return; } }
+    // 식량: 하루 한 사람에 하나. 모자라면 뒷사람부터 굶는다 (굶은 사람은 그날 성공 −hungerPen)
+    const eat = Math.min(S.food, up.length); S.food -= eat; S.fu += eat; S.hg = up.length - eat; S.lost = false;
+  }
+  const hungry = new Set(up.slice(up.length - (S.hg || 0)));
+  const E = C.evs[pickW(C.evs.map(x => x.w))];
+  const D = fight(C, S, E.j, up, hungry, held);
   const last = e + 1 >= enc || S.end === 'pack';
   // 정비 도구: 진 마주침이 있었던 날은 그날 끝에 무기가 상한다. 도구가 있으면 하나 써서 고치고, 없으면 무뎌진 채로 다닌다 (그 뒤로 성공 −toolPen씩 쌓임)
   if (last && S.lost) { if (S.tools > 0) { S.tools--; S.tk++; D.fx = 1; } else { S.blunt++; D.bl = S.blunt; } }
-  if (C.meet) C.meet(j, up, win, D.cr, kd);
   const g2 = new Set(S.gone);
   D.pk = Math.round(S.pack * 10) / 10; D.tl = C.torch - S.tu; D.pl = C.pots(); D.fl = S.food; D.ol = S.tools; D.hu = S.hurt.filter(m => !g2.has(m)).length;
   S.days.push(D);

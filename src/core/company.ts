@@ -1120,7 +1120,7 @@ function tripCtx(W: World, s: Sortie) {
   // 단장 조사: 단장이 낀 조가 물을 몬스터를 만났으면 답을 받는다 (이번 달 다른 조가 먼저 답을 받았으면 묻지 않는다)
   const q = s.q && !co.ans && !(W.askNow && (W.askNow.ans === 'yes' || W.askNow.ans === 'no')) ? s.q : null;
   const C: TripCfg = {
-    size, days: CO.TRIP_DAYS[f], enc: CO.ENC_DAY, slots, torch: kit.torch, rate: torchRate(f, u) * (S.arc ? SYN.ARC1_TORCH : 1), names: mons.map(M => M.name), w: wts,
+    size, days: CO.TRIP_DAYS[f], enc: CO.ENC_DAY, slots, torch: kit.torch, rate: torchRate(f, u) * (S.arc ? SYN.ARC1_TORCH : 1), names: mons.map(M => M.name), evs: wts.map((w, j) => ({ k: 'fight', j, w })),
     lootSlot: CO.LOOT_SLOT[f], darkMin: CO.DARK_MIN, darkBack: CO.DARK_BACK, party: CO.PARTY,
     injPen: CO.INJ_PEN, loseLoot: CO.LOSE_LOOT, pots: () => co.pots,
     food: kit.food, foodSlot: CO.FOOD_SLOT, hungerPen: CO.HUNGER_PEN, tools: kit.mend, toolPen: CO.MEND_PEN,
