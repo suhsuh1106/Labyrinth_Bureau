@@ -29,7 +29,7 @@ const SPOTS: Record<string, Spot> = {
   train: { box: [950, 455, 1075, 575], act: 'place', attrs: 'data-place="train"', label: '훈련장 · 본부', sub: '숙소 · 훈련장 · 기록실 · 의무실 · 교관', aria: '훈련장과 본부' },
   staff: { box: [1090, 460, 1378, 670], act: 'place', attrs: 'data-place="staff"', label: '회색늑대 숙소', sub: '인원 · 신입 · 부상자', aria: '회색늑대 숙소: 인원' },
   alley: { box: [25, 555, 265, 735], act: 'place', attrs: 'data-place="alley"', label: '정보상', sub: '정보망 · 조사 의뢰', aria: '정보상: 정보망과 조사 의뢰', tag: 'top' },
-  gate: { box: [1140, 60, 1378, 228], act: 'phase', attrs: 'data-phase="1"', label: '미궁 입구', sub: '출정 편성으로 →', aria: '미궁 입구: 출정 편성으로' },
+  gate: { box: [1140, 60, 1378, 228], act: 'exp', attrs: '', label: '미궁 입구', sub: '출정 편성 →', aria: '미궁 입구: 출정 편성' },
 };
 // 책상 띠의 윗변과, 책상 위 물건의 봉인 자리 (책상 띠 안의 좌표)
 const DESK_Y = Math.round(MAP.y + MH + 14);

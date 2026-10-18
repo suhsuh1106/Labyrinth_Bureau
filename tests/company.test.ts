@@ -30,8 +30,9 @@ import { DEX, askable, badSure } from '../src/core/dex';
 import { dayAbs, nextDay, openMonth, sellStock, sendReady, stateOf, stockValue } from '../src/core/company';
 
 describe('용병단 장부', () => {
-  it('매달 모든 용병단의 금고 변화가 판매 수입에서 지출을 뺀 값과 같다', () => {
+  it('매달 모든 용병단의 금고 변화가 판매 수입에서 지출을 뺀 값과 같다', async () => {
     for (let seed = 1; seed <= 20; seed++) {
+      await new Promise(r => setTimeout(r, 0));
       setSeed(seed); const W = newWorld();
       const bot = Object.values(BOT)[seed % 4];
       for (let m = 0; m < 36; m++) {
@@ -123,9 +124,10 @@ describe('상단·교회와 포션 담합', () => {
       }
     }
   });
-  it('담합 전에는 소문이 먼저 돌고, 담합 중에는 상단·교회 포션 값이 함께 오른다', () => {
+  it('담합 전에는 소문이 먼저 돌고, 담합 중에는 상단·교회 포션 값이 함께 오른다', async () => {
     let seen = 0;
     for (let g = 1; g <= 40; g++) {
+      await new Promise(r => setTimeout(r, 0));
       const W = playGame(g, BOT.even);
       const start = W.log.find(l => /함께 올린다고/.test(l.t));
       if (!start) continue;
@@ -368,7 +370,7 @@ describe('전리품 비율과 몬스터 적응', () => {
     expect(supOf(c).torch! + out).toBe(bought - burnt - nx);
     expect(W.draft!.truth.torch).toBe(burnt);
   });
-  it('탐사는 날마다 몬스터 하나를 만난다: 이긴 날은 갈무리까지, 진 날은 해낸 몫의 일부만 싣고, 횃불이 떨어지거나 짐이 차면 돌아선다', () => {
+  it('탐사는 하루에 ENC_DAY번 몬스터를 만난다: 이긴 날은 갈무리까지, 진 날은 해낸 몫의 일부만 싣고, 횃불이 떨어지거나 짐이 차면 돌아선다', () => {
     let pack = 0, torch = 0;
     for (let g = 1; g <= 8; g++) {
       setSeed(g); const W = newWorld(); W.unlocked = 3;
@@ -377,11 +379,11 @@ describe('전리품 비율과 몬스터 적응', () => {
         const M = runMonth(W, P), names = (f: number) => floorMons(W, f).map(x => x.name);
         M.ours.forEach(o => {
           const T = o.trip!, D = o.days!;
-          expect(D.length).toBeLessThanOrEqual(CO.TRIP_DAYS[o.f]); expect(T.tu).toBeLessThanOrEqual(T.torch);
+          expect(T.fd!).toBeLessThanOrEqual(CO.TRIP_DAYS[o.f]); expect(D.length).toBeLessThanOrEqual(T.fd! * CO.ENC_DAY); D.forEach(d => expect(d.dd!).toBeLessThanOrEqual(T.fd!)); expect(T.tu).toBeLessThanOrEqual(T.torch);
           D.forEach(d => { expect(names(o.f)).toContain(d.mon); expect(d.win).toBe(d.k >= Math.min(2, d.n)); if (!d.win) expect(d.mats).toEqual([]); if (!d.k) expect(d.loot || 0).toBe(0); });   // 진 날은 갈무리 없이 해낸 몫의 일부만
           if (T.end === 'torch') { expect(T.tu).toBe(T.torch); torch++; }
           if (T.end === 'pack') pack++;
-          if (T.end === 'done') expect(D.length).toBe(CO.TRIP_DAYS[o.f]);   // 층마다 정해진 날을 다 다니고 돌아온다
+          if (T.end === 'done') { expect(T.fd).toBe(CO.TRIP_DAYS[o.f]); expect(D.length).toBe(CO.TRIP_DAYS[o.f] * CO.ENC_DAY); }   // 층마다 정해진 날을 다 다니고 돌아온다
           expect(T.pack).toBeLessThanOrEqual(T.slots + 1e-9);
           // 그 조가 갈무리한 것 = 날마다 갈무리한 것의 합
           const sum: Record<string, number> = {}; D.forEach(d => d.mats.forEach(([n, k]) => { sum[n] = (sum[n] || 0) + k; }));
@@ -1103,9 +1105,10 @@ describe('영주청: 영주세 · 법령 · 가정산 · 감사', () => {
     expect(R).toContain('영주청'); expect(R).toContain('영주세');
     expect(draftHtml(W, {})).toContain('낼 신고서가 없어요');
   });
-  it('궁지에 몰린 경쟁 용병단은 장부를 고치고, 크게 걸리면 스캔들이 나고 영주청이 그 칸을 모두에게 더 꼼꼼히 본다', () => {
+  it('궁지에 몰린 경쟁 용병단은 장부를 고치고, 크게 걸리면 스캔들이 나고 영주청이 그 칸을 모두에게 더 꼼꼼히 본다', async () => {
     let scandals = 0, rivals = 0;
     for (let g = 1; g <= 30; g++) {
+      await new Promise(r => setTimeout(r, 0));
       const W = playGame(g, BOT.smart, FILER.smart);
       W.cos.forEach(c => { scandals += c.scandals || 0; if (c.style !== 'player') rivals += c.scandals || 0; });
       const sl = W.log.filter(l => /^스캔들: /.test(l.t));
@@ -1233,7 +1236,7 @@ describe('채비: 식량 · 정비 도구 · 해고', () => {
     const out = (W.away || []).reduce((a, s) => [a[0] + s.kit.food, a[1] + s.kit.mend], [0, 0]), nx = (W.back || []).reduce((a, s) => [a[0] + s.out.fu, a[1] + s.out.tk], [0, 0]);
     expect(supOf(c).food! + out[0]).toBe(food - ate - nx[0]); expect(supOf(c).mend! + out[1]).toBe(mend - used - nx[1]);
     // 사흘치만 들고 가면 나흘째부터 굶는다
-    M.ours.forEach(o => o.days!.forEach((d, j) => { if (j >= 3) expect(d.hg || 0).toBeGreaterThan(0); else expect(d.hg || 0).toBe(0); }));
+    M.ours.forEach(o => o.days!.forEach(d => { if (d.dd! > 3) expect(d.hg || 0).toBeGreaterThan(0); else expect(d.hg || 0).toBe(0); }));
   });
   it('식량 없이 보내면 굶은 날 성공이 떨어져 지는 날이 는다', () => {
     const lose = (food: number) => { let l = 0, n = 0; for (let s = 1; s <= 12; s++) { setSeed(s); const W = newWorld(); const P = sanitize(W, us(W), defaultPlan(W)); P.food = FLOORS.map(() => food); const M = runMonth(W, P); M.ours.forEach(o => o.days!.forEach(d => { n++; if (!d.win) l++; })); } return l / n; };

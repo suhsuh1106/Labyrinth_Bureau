@@ -45,7 +45,7 @@ export function openScene(W: World, i: number, sfx: (k: string) => void = () => 
     </div>
     ${tags.length ? `<p class="sc-tags">${tags.map(([a, b]) => `<span title="${esc(b)}">${esc(a)}</span>`).join('')}</p>` : ''}
     <p class="sc-log" aria-live="polite">횃불을 켜고 들어간다</p>
-    <footer><span class="sc-days">${D.map((_, j) => `<i data-j="${j}"></i>`).join('')}${T.end === 'torch' ? '<i class="dk" data-j="dark"></i>' : ''}</span>
+    <footer><span class="sc-days">${D.map((d, j) => `<i data-j="${j}"${j && d.dd !== D[j - 1].dd ? ' class="nd"' : ''}></i>`).join('')}${T.end === 'torch' ? '<i class="dk" data-j="dark"></i>' : ''}</span>
       <span class="sc-sup"></span><span class="sc-pack"></span></footer>
   </div>`;
   document.body.appendChild(el);
@@ -73,9 +73,9 @@ export function openScene(W: World, i: number, sfx: (k: string) => void = () => 
     } });
   });
   D.forEach((d, j) => {
-    const M = mons.find(y => y.name === d.mon), ms = d.ms || '';
-    steps.push({ ms: 750, fn: () => {
-      $('.sc-day').textContent = `${j + 1}일째`;
+    const M = mons.find(y => y.name === d.mon), ms = d.ms || '', dd = d.dd ?? j + 1, e = D.slice(0, j).filter(y => (y.dd ?? 0) === dd).length + 1;
+    steps.push({ ms: 500, fn: () => {
+      $('.sc-day').textContent = d.dd ? `${dd}일째 · ${e}번째 마주침` : `${dd}일째`;
       el.classList.remove('dark');
       el.querySelectorAll('.sc-m').forEach(c => c.classList.remove('ok', 'no'));
       el.querySelectorAll('.sc-m .mk').forEach(k => { k.textContent = ''; });
@@ -85,13 +85,13 @@ export function openScene(W: World, i: number, sfx: (k: string) => void = () => 
       (mb.querySelector('b') as HTMLElement).textContent = d.mon;
       (mb.querySelector('small') as HTMLElement).textContent = M && M.main ? '주 몬스터' : '곁 몬스터';
       $('.sc-verdict').textContent = 'VS'; $('.sc-verdict').className = 'sc-verdict';
-      log(`${j + 1}일 · <b>${esc(d.mon)}</b> 조우${d.hg ? ` · <b class="hurt">굶은 사람 ${d.hg}</b>` : ''}${badGear(d.mon) ? ' · <b class="hurt">역효과 장비</b>' : ''}`);
+      log(`${dd}일 · <b>${esc(d.mon)}</b> 조우${d.hg ? ` · <b class="hurt">굶은 사람 ${d.hg}</b>` : ''}${badGear(d.mon) ? ' · <b class="hurt">역효과 장비</b>' : ''}`);
       sup(d.tl ?? 0, j ? D[j - 1].pl ?? 0 : x.potC ?? 0, d.fl ?? 0, j ? D[j - 1].ol ?? 0 : T.tools || 0, j ? D[j - 1].pk ?? 0 : 0);
     } });
     // 조원마다 해냈나 (기록이 없는 옛 판은 해낸 수만)
     if (ms) [...ms].forEach((ch, m) => {
       if (ch === '-') return;
-      steps.push({ ms: 330, fn: () => {
+      steps.push({ ms: 180, fn: () => {
         const c = card(m), ok = ch === 'o';
         c.classList.add(ok ? 'ok' : 'no');
         (c.querySelector('.mk') as HTMLElement).textContent = ok ? '✓' : '✗';
@@ -99,7 +99,7 @@ export function openScene(W: World, i: number, sfx: (k: string) => void = () => 
         sfx(ok ? 'ok' : 'no');
       } });
     });
-    steps.push({ ms: 900, fn: () => {
+    steps.push({ ms: 650, fn: () => {
       const v = $('.sc-verdict'); v.textContent = d.win ? '승' : '패'; v.className = `sc-verdict ${d.win ? 'w' : 'x'}`;
       $('.sc-mon').classList.add(d.win ? 'beaten' : 'won');
       const mats = d.mats.map(([a, c]) => `${esc(a)} ×${c}`).join(', ');
@@ -109,7 +109,7 @@ export function openScene(W: World, i: number, sfx: (k: string) => void = () => 
       sfx(d.win ? 'gain' : 'cost');
     } });
     if (ms) dice(ms, d.mon);
-    steps.push({ ms: 250, fn: () => { const c = $(`.sc-days i[data-j="${j}"]`); c.className = `${d.win ? 'w' : 'x'}${d.d ? ' dead' : ''}`; c.textContent = d.d ? '†' : d.cr ? '!' : ''; } });
+    steps.push({ ms: 250, fn: () => { const c = $(`.sc-days i[data-j="${j}"]`); c.className = `${d.win ? 'w' : 'x'}${d.d ? ' dead' : ''}${j && d.dd !== D[j - 1].dd ? ' nd' : ''}`; c.textContent = d.d ? '†' : d.cr ? '!' : ''; } });
   });
   // 어둠 속 귀환: 횃불이 떨어진 채 돌아오는 길
   if (T.end === 'torch') {
@@ -124,7 +124,7 @@ export function openScene(W: World, i: number, sfx: (k: string) => void = () => 
   steps.push({ ms: 0, fn: () => {
     const w = D.filter(d => d.win).length, dead = x.dead || [];
     $('.sc-day').textContent = TRIP_END[T.end];
-    log(`<b>${TRIP_END[T.end]}</b> · ${D.length}일 · ${w}승 ${D.length - w}패 · 짐 ${T.pack}/${T.slots}칸${dead.length ? ` · <b class="dead">† ${dead.map(z => esc(z.n)).join(', ')}</b>` : ''}`);
+    log(`<b>${TRIP_END[T.end]}</b> · ${T.fd ?? D.length}일 · ${w}승 ${D.length - w}패 · 짐 ${T.pack}/${T.slots}칸${dead.length ? ` · <b class="dead">† ${dead.map(z => esc(z.n)).join(', ')}</b>` : ''}`);
     sfx(dead.length ? 'lose' : w * 2 >= D.length ? 'win' : 'lose');
     el.classList.add('fin'); ($('[data-sc="pause"]')).hidden = true; ($('[data-sc="end"]')).hidden = true;
   } });
