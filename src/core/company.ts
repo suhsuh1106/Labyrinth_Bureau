@@ -394,7 +394,7 @@ export type CoResult = {
   potNeed: number; potC: number;   // 이번 달 산 포션과 그중 교회 포션
 };
 // 우리 조 하나의 귀환 보고. d0 · d1: 나간 날 · 돌아온 날 (그달의 며칠째)
-export type Ours = { f: number; keys: string[]; ok: boolean; d: number; mats: [string, number][]; first: string[]; kit: number; g: string; crisis?: number; pots?: number; n?: number; k?: number; hurt?: number; days?: Day[]; trip?: Trip; dead?: { n: string; day: number; pot: boolean }[]; cls?: string[]; potC?: number; t?: number; nm?: string[]; ld?: number; d0?: number; d1?: number };
+export type Ours = { f: number; keys: string[]; ok: boolean; d: number; mats: [string, number][]; first: string[]; kit: number; g: string; crisis?: number; pots?: number; n?: number; k?: number; hurt?: number; days?: Day[]; trip?: Trip; dead?: { n: string; day: number; pot: boolean; tk?: number; ex?: number; mt?: number }[]; cls?: string[]; potC?: number; t?: number; nm?: string[]; ld?: number; d0?: number; d1?: number; tk?: number[] };   // tk: 간 사람들의 실력 단계 (보낼 때). 죽은 사람의 tk · ex · mt: 실력 단계 · 층 경험 합 · 조직력 짝 수 (잃은 자산)
 export type MonthResult = {
   month: number; res: CoResult[]; plans: Plan[]; Q: number[]; price: number[]; potion: number; potQ: number; potionC: number; cartel: boolean;
   floors: { before: number; taken: number; crowd: number; cut?: number }[]; perParty: number[]; opened: number | null; rank: string[];
@@ -1157,6 +1157,8 @@ function stepSortie(W: World, s: Sortie) {
 function takeBack(W: World, s: Sortie) {
   const c = us(W), o = s.out, S = supOf(c), byId = new Map((c.crew || []).map(p => [p.id, p])), dead = new Set(o.dead.map(x => x.id));
   const g = o.fd / CO.DAYS, tl = hqLv(c, 'train');
+  // 잃은 자산: 죽은 사람의 실력 단계 · 층 경험 합 · 함께 나간 달이 한 달 넘는 짝 수 (기록만, 시뮬레이션 지표가 읽는다)
+  const lost = new Map(o.dead.map(d => { const x = byId.get(d.id); return [d.id, x ? { tk: tierOf(x), ex: Math.round((x.ex || []).reduce((a, b) => a + b, 0)), mt: Object.values(x.mt || {}).filter(v => v >= 1).length } : {}] as const; }));
   c.crew = (c.crew || []).filter(p => !dead.has(p.id)); c.members = c.crew.length;
   const alive = new Set(c.crew.map(p => p.id));
   s.m.forEach((id, m) => {
@@ -1198,7 +1200,7 @@ function takeBack(W: World, s: Sortie) {
   const B0 = W.mat ? W.mat.book[s.f] : null, before = new Set([...(B0 ? Object.keys(B0.got).filter(m => B0.got[m]['*'] > 0) : []), ...(W.back || []).flatMap(x => (x.rep ? x.rep.mats.map(g => g[0]) : []))]);
   const ld = s.who.findIndex(x => x.lead);
   s.rep = { f: s.f, keys: o.keys, ok: o.ok, d: o.dq, mats: o.mats, first: o.mats.filter(([m]) => !before.has(m)).map(([m]) => m), kit: -1, g: s.kit.gear ? 'g:' + s.kit.gear : '', crisis: o.crisis, pots: o.pu, n: s.m.length, k: o.k, hurt: o.hq,
-    days: o.days, trip: o.trip, ...(o.dead.length ? { dead: o.dead.map(x => ({ n: x.n, day: x.day, pot: x.pot })) } : {}), cls: o.cls, potC: s.kit.pots, nm: s.who.map(x => x.n || x.c), ld, t: s.t, d0: dayOf(s.d0), d1: dayOf(s.d1) };
+    days: o.days, trip: o.trip, ...(o.dead.length ? { dead: o.dead.map(x => ({ n: x.n, day: x.day, pot: x.pot, ...lost.get(x.id) })) } : {}), cls: o.cls, potC: s.kit.pots, nm: s.who.map(x => x.n || x.c), tk: s.who.map(tierOf), ld, t: s.t, d0: dayOf(s.d0), d1: dayOf(s.d1) };
   (W.back || (W.back = [])).push(s);
   W.away = (W.away || []).filter(x => x !== s);
 }

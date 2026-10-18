@@ -59,6 +59,8 @@ export const BOT: Record<string, (W: World) => Plan> = {
   hire: W => { const P = defaultPlan(W), d = W.unlocked - 1; if (W.last && W.last.perParty[d] > 400) P.hire[d] = 2; return grow(W, P); },
   // 몸집을 불리지 않는 숙련 봇 (숙소·모집이 순위에 얼마나 보태는지 재는 기준)
   smartStay: W => { const P = smartPlan(W); P.dorm = false; return P; },
+  // 숙련 봇에서 계약 조만 뺀 것 (숙련 봇은 이미 계약 조를 판단해 쓴다: 그 판단이 이득인지 재는 기준)
+  smartNoHire: W => { const P = smartPlan(W); P.hire = P.hire.map(() => 0); return P; },
   smart: W => smartPlan(W),
   // 숙련 봇에서 추리만 뺀 것 (편성 지침이 순위에 얼마나 보태는지 재는 기준)
   smartNoGuide: W => smartPlan(W, 'mine', true, false, false),
@@ -89,7 +91,7 @@ export function fileSmart(W: World, risk = FILE_RISK): Partial<Filing> {
   return fileAt(D.truth, lo);
 }
 export const FILER: Record<string, (W: World) => Partial<Filing>> = {
-  smart: W => fileSmart(W), smartNoGuide: W => fileSmart(W), smartAsk: W => fileSmart(W), smartNoKit: W => fileSmart(W), smartScout: W => fileSmart(W), smartSeal: W => fileSmart(W), smartNoRoot: W => fileSmart(W), smartStay: W => fileSmart(W),
+  smart: W => fileSmart(W), smartNoGuide: W => fileSmart(W), smartAsk: W => fileSmart(W), smartNoKit: W => fileSmart(W), smartScout: W => fileSmart(W), smartSeal: W => fileSmart(W), smartNoRoot: W => fileSmart(W), smartStay: W => fileSmart(W), smartNoHire: W => fileSmart(W),
   smartGreedy: W => (W.draft ? fileAt(W.draft.truth, 1) : {}),
 };
 
@@ -281,14 +283,22 @@ export function addKit(W: World, f: number, g: string, n: number) {
   return best ? [g, best].filter(Boolean).sort().join('+') : g;
 }
 
-export function playGame(seed: number, bot: (W: World) => Plan, file: (W: World) => Partial<Filing> = () => ({})) {
+// onMonth: 달마다 봇이 낸 결정표와 결재 결과를 본다 (지표가 쓴다)
+export function playGame(seed: number, bot: (W: World) => Plan, file: (W: World) => Partial<Filing> = () => ({}), onMonth?: (W: World, P: Plan, M: ReturnType<typeof runMonth>, before: { unlocked: number; explore: number }) => void) {
   setSeed(seed);
   const W = newWorld();
-  for (let m = 0; m < MONTHS; m++) { runMonth(W, bot(W)); closeBooks(W, file(W)); }
+  for (let m = 0; m < MONTHS; m++) {
+    const P = bot(W), before = { unlocked: W.unlocked, explore: jobsExplore(W).length };
+    const M = runMonth(W, P); closeBooks(W, file(W));
+    if (onMonth) onMonth(W, P, M, before);
+  }
   return W;
 }
 
-if (process.argv[1] && process.argv[1].endsWith('company.ts')) {
+if (process.argv[1] && process.argv[1].endsWith('company.ts') && process.argv.includes('--metrics')) {
+  // npm run sim -- --metrics --games 100 [--style smart]: 인력 손실 · 관리 부담 · 계약 조 지표
+  for (const name of only ? [only] : ['smart', 'smartNoHire']) metrics(name, games);
+} else if (process.argv[1] && process.argv[1].endsWith('company.ts')) {
   for (const name of Object.keys(BOT).filter(k => !only || k === only)) {
     let rankSum = 0, worthSum = 0, firsts = 0, broke = 0, overs = 0, taxSum = 0, gainSum = 0, fineSum = 0, audits = 0;
     const auditsBy: Record<string, number> = {}, scanBy: Record<string, number> = {}; let scans = 0, checks = 0;
@@ -331,4 +341,65 @@ export function guessKeys(D: Dex, min = 0, n0 = 3) {
     classWeaks(k).forEach(w => { best[w] = Math.max(best[w] ?? -1, d); });
   });
   return ASK_KEYS.filter(k => D.key[k] !== 'no' && best[k] > min).sort((a, b) => best[b] - best[a]);
+}
+
+// ---------- 지표: 인력 손실 · 관리 부담 · 계약 조 ----------
+// 결정표의 잎 칸을 "경로 = 값"으로 펴서 지난달과 다른 칸을 센다 (클릭 수의 대리 지표)
+function leaves(x: unknown, pre = '', out: Record<string, string> = {}) {
+  if (x && typeof x === 'object') Object.entries(x as Record<string, unknown>).forEach(([k, v]) => leaves(v, pre ? `${pre}.${k}` : k, out));
+  else if (x !== undefined) out[pre] = JSON.stringify(x);
+  return out;
+}
+function pc(a: number, b: number) { return `${b ? Math.round(a / b * 100) : 0}%`; }
+function metrics(name: string, games: number) {
+  const T = ['신입', '수련', '숙련', '노련', '명인'], dTier = [0, 0, 0, 0, 0];
+  let dUnknown = 0, pairs = 0, exLost = 0, rank = 0, firsts = 0;
+  const shaken = [0, 0, 0], monthsN = [0, 0, 0], whyS = [0, 0, 0], whyD = [0, 0, 0];
+  const diff: Record<string, { n: number; d: number; teams: number }> = {};
+  let hireM = 0, allM = 0; const cond: Record<string, [number, number]> = { 새층: [0, 0], 탐사계획서: [0, 0], 사고다음달: [0, 0], 붐빔: [0, 0], 그밖: [0, 0] };
+  const members: number[] = [];
+  for (let g = 0; g < games; g++) {
+    let prevPlan: Record<string, string> | null = null, prevTier: Record<number, number> = {}, prevDeaths = 0, prevLoss = 0;
+    const W = playGame(seed0 + g, BOT[name], FILER[name], (W, P, M, before) => {
+      const m = M.month - 1, third = Math.min(2, Math.floor(m / 12));
+      // 1. 인력 손실: 실력 단계별 사망, 잃은 짝 · 경험, 편성이 흔들린 달 (빈자리로 나간 탐사가 있거나, 조의 평균 실력 단계가 지난달보다 반 단계 넘게 낮아짐)
+      let known = 0;
+      M.ours.forEach(o => (o.dead || []).forEach(d => { known++; if (d.tk != null) dTier[d.tk]++; pairs += d.mt || 0; exLost += d.ex || 0; }));
+      dUnknown += M.res[0].deaths - known;
+      const tier: Record<number, number> = {};
+      M.ours.forEach(o => { if (o.t == null || !o.tk) return; const a = o.tk.reduce((x, y) => x + y, 0) / o.tk.length; tier[o.t] = Math.max(tier[o.t] ?? -1, a); });
+      // 줄어든 조: 같은 조가 그달 안에서 처음보다 적은 사람으로 나감 (부상 · 사망). 자투리로 처음부터 적은 조는 세지 않는다
+      const first: Record<number, number> = {}, short = M.ours.some(o => { if (o.t == null) return false; const n = o.n || CO.PARTY; if (first[o.t] == null) { first[o.t] = n; return false; } return n < first[o.t]; });
+      // 실력 낮아짐: 지난달 잃은 · 다친 사람이 있었고, 조의 평균 실력 단계가 반 단계 넘게 낮아짐 (몸집을 불려 신입이 끼는 것은 세지 않는다)
+      const drop = prevLoss > 0 && Object.entries(tier).some(([t, a]) => prevTier[+t] != null && a < prevTier[+t] - 0.5);
+      monthsN[third]++; if (short || drop) shaken[third]++; if (short) whyS[third]++; if (drop) whyD[third]++;
+      prevTier = tier;
+      // 2. 관리 부담: 지난달과 달라진 결정 칸 수 (조 수 대비)
+      const L = leaves(P), nT = (P.teams || []).length || P.parties.reduce((a, b) => a + b, 0);
+      if (prevPlan) {
+        const keys = new Set([...Object.keys(L), ...Object.keys(prevPlan)]); let d = 0; keys.forEach(k => { if (L[k] !== prevPlan![k]) d++; });
+        const b = nT <= 4 ? '조 4 이하' : nT <= 7 ? '조 5~7' : '조 8 이상'; const x = diff[b] || (diff[b] = { n: 0, d: 0, teams: 0 }); x.n++; x.d += d; x.teams += nT;
+      }
+      prevPlan = L;
+      // 3. 계약 조: 쓴 달이 어떤 달에 몰리나
+      const hired = M.res[0].hired.reduce((a, b) => a + b, 0) > 0, deep = W.unlocked - 1;
+      const others = M.plans.reduce((a, Q, i) => a + (i ? Q.parties[Math.max(0, before.unlocked - 1)] : 0), 0);
+      const cs = { 새층: W.unlocked > before.unlocked || (W.history.length >= 2 && W.history[W.history.length - 2].opened != null), 탐사계획서: before.explore > 0, 사고다음달: prevDeaths >= 2, 붐빔: others > FLOORS[Math.max(0, before.unlocked - 1)].cap };
+      void deep;
+      allM++; if (hired) hireM++;
+      let any = false; Object.entries(cs).forEach(([k, v]) => { if (v) { any = true; cond[k][1]++; if (hired) cond[k][0]++; } });
+      if (!any) { cond['그밖'][1]++; if (hired) cond['그밖'][0]++; }
+      prevDeaths = M.res[0].deaths; prevLoss = M.res[0].deaths + M.res[0].hurt;
+    });
+    const r = rankOf(W); rank += r; if (r === 1) firsts++;
+    members.push(us(W).members);
+  }
+  const deaths = dTier.reduce((a, b) => a + b, 0) + dUnknown;
+  console.log(`지표 '${name}' · ${games}판 · 평균 순위 ${(rank / games).toFixed(2)} · 1위 ${pc(firsts, games)}`);
+  console.log(`  [인력 손실] 판당 사망 ${(deaths / games).toFixed(1)}명: ${T.map((n, t) => `${n} ${(dTier[t] / games).toFixed(1)}`).join(' · ')} · 범람 등 ${(dUnknown / games).toFixed(1)} → 노련 · 명인 ${((dTier[3] + dTier[4]) / games).toFixed(1)}명`);
+  console.log(`  [인력 손실] 판당 잃은 조직력 짝 ${(pairs / games).toFixed(1)} · 층 경험 ${Math.round(exLost / games)} · 편성이 흔들린 달 ${[0, 1, 2].map(k => `${['1~12', '13~24', '25~36'][k]}월 ${pc(shaken[k], monthsN[k])} (줄어든 조 ${pc(whyS[k], monthsN[k])} · 실력 낮아짐 ${pc(whyD[k], monthsN[k])})`).join(' · ')}`);
+  console.log(`  [관리 부담] 달마다 바뀐 결정 칸 ${Object.entries(diff).sort().map(([b, x]) => `${b}: ${(x.d / x.n).toFixed(1)}칸 (조당 ${(x.d / x.teams).toFixed(1)}, ${x.n}달)`).join(' · ')}`);
+  console.log(`  [계약 조] 쓴 달 ${pc(hireM, allM)} · 조건별 쓴 비율 ${Object.entries(cond).map(([k, [h, n]]) => `${k} ${pc(h, n)} (${n}달)`).join(' · ')}`);
+  const at50 = members.filter(x => x >= 50).length, mid = members.filter(x => x >= 30 && x <= 40).length;
+  console.log(`  [인원] 36개월 뒤 평균 ${(members.reduce((a, b) => a + b, 0) / games).toFixed(1)}명 · 50명(상한) ${pc(at50, games)} · 30~40명 ${pc(mid, games)}`);
 }
