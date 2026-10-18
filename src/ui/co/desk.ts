@@ -2,7 +2,7 @@
 // 정보 주차 — 자료함(보고서·신문·도감·조사 결과)을 열어 읽고, 조사 의뢰를 걸고, 정보망과 내정(건물·보급·창고·세력)을 정한다.
 // 탐험 주차 — 이번 달 조사를 옆에 두고 층마다 몇 조를 무엇을 챙겨 보낼지 정하고 도장을 찍는다. 결과는 다음 달 보고서가 된다.
 // 화면은 HTML 문자열만 만든다. 상태를 쓰지 않고 난수도 쓰지 않는다
-import { floorMons, CO, FLOORS, INTEL, ITEMS, TAX, type Filing, type Job, type Person, clamp, jobsExplore, mapOf, torchOf, undMods, jobsOpen, jobsSign, taxGuess, torchBuy, fireCost, potShock, potionNow, hireCap, foodBuy, mendBuy, carryOf, foodDays, mendOf, torchRate, tripOdds, wageCo, candPrice, candWants, hqCost, hqKeep, hqLv, fcRank, forecast, townOf, type Plan, SRCS, type World, bedsOf, isRook, rookCount, churchPrice, dormCost, dormKeep, roomOf, wageOf, gearBuy, hireCost, intelBlock, intelCost, lootMul, maxParties, needOf, potsExpiring, potsOf, probeCost, probesLeft, sanitize, sortieCost, succRate, supOf, toolCost, trainBonus, us } from '../../core/company';
+import { adminFee, adminOf, setClerks, awayIds, boughtOf, holyRoom, teamReady, forecastTrips, type Team, floorMons, CO, FLOORS, INTEL, ITEMS, TAX, type Filing, type Job, type Person, clamp, jobsExplore, mapOf, torchOf, undMods, jobsOpen, jobsSign, taxGuess, torchBuy, fireCost, potShock, potionNow, foodBuy, mendBuy, carryOf, foodDays, mendOf, torchRate, tripOdds, wageCo, candPrice, candWants, hqCost, hqKeep, hqLv, fcRank, forecast, townOf, type Plan, SRCS, type World, bedsOf, isRook, rookCount, churchPrice, dormCost, dormKeep, roomOf, wageOf, gearBuy, intelBlock, intelCost, lootMul, maxParties, needOf, potsExpiring, potsOf, probeCost, probesLeft, sanitize, sortieCost, succRate, supOf, toolCost, trainBonus, us } from '../../core/company';
 import { CLASSES, GEARS, BUYERS, PAIR_CLASS } from '../../core/data';
 import { askPanel, bookHtml, condLabel, demandsNow, kitHint } from './book';
 import { SRC_INFO, intelHtml, rumorsHtml } from './intel';
@@ -11,6 +11,7 @@ import { revealHtml } from './reveal';
 import { fcChart, fmtG } from './charts';
 import { PLACES, townSceneHtml } from './town';
 import { lawsHtml } from './books';
+import { dayStrip, hallHtml, nextDayBtn } from './hall';
 import { assignHtml, candHtml, packBar, rosterHtml } from './roster';
 import { KTAG, depthsHtml, fmt, newsLines, pct, resultsHtml, sgn, stepper } from './view';
 
@@ -19,7 +20,7 @@ export type DeskUi = { phase: number; tab: string; seen?: number; dexMon?: strin
   file?: Partial<Filing>;   // 가정산에서 고치는 신고서
   pick?: { t?: number; s?: number; id?: number } | null;
   sort?: Record<string, string>;   // 명단 정렬 (rs 인원 명단 · cd 지원자 · as 편성표): "열:방향"
-  place?: string };   // 내정에서 열어 둔 장소 창 (인원 · 건물 · 상단 거리 · 교회 · 정보망)   // 편성판에서 집어 든 사람 (조의 자리, 또는 대기 인원)
+  place?: string; town?: boolean };   // town: 길드 홀 대신 마을 지도와 결재안을 펼쳐 둔다   // 내정에서 열어 둔 장소 창 (인원 · 건물 · 상단 거리 · 교회 · 정보망)   // 편성판에서 집어 든 사람 (조의 자리, 또는 대기 인원)
 const lvOf = (W: World, k: keyof typeof INTEL.BASE) => (W.intel ? W.intel.lv[k] : INTEL.BASE[k]);
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
@@ -136,7 +137,7 @@ export const HQ_NAME: Record<string, string> = { dorm: '숙소', train: '훈련�
 const HQ_DO: Record<string, string[]> = {
   dorm: CO.HQ_BEDS.map(n => `침상 ${n}`).map((t, i) => (i === CO.HQ_BEDS.length - 1 ? t + ' (끝)' : t)),
   train: ['', `실력 오르는 속도 ×${CO.TRAIN_GROW}`, '신입이 수련까지 두 배 빠르게', '명인 단계가 열림'],
-  rec: ['', '지도에 보태는 몫 +25%', '정찰 조 (둘 · 셋만 보내 지도를 크게)', '다 그린 지도의 사본을 관리국에 팔 수 있음'],
+  rec: ['', '지도에 보태는 몫 +25% · 행정 역량 +12', '정찰 조 (둘 · 셋만 보내 지도를 크게) · 행정 역량 +12', '다 그린 지도의 사본을 관리국에 팔 수 있음 · 행정 역량 +12'],
   med: ['', '치료비 절반', `죽을 사람 넷에 하나는 다치고 버팀 (한 달 쉼)`, '죽을 사람 절반 가까이 다치고 버팀'],
 };
 const HQ_WHY: Record<string, string> = { dorm: '사람 수 상한', train: '사람의 실력', rec: '지도 완성도', med: '잃는 사람' };
@@ -155,7 +156,7 @@ function hqPanel(W: World, raw: Plan) {
   return `<div class="panel"><header><h2>회색늑대 본부</h2><span class="sub">한 달에 공사 하나 · 다음 달 정산 때 완공${pend ? ` · 지금 ${HQ_NAME[pend]} 공사 중` : ''} · 본부 유지비 월 ${fmt(hqKeep(c))}G · 건물 장부가 ${fmt(c.book || 0)}G (공사비는 자산, 월 ${Math.round(CO.DEP * 100)}% 감가)</span></header>
     <div class="hq">${['dorm', 'train', 'rec', 'med'].map(br).join('')}</div>
     ${sell ? `<div class="sellmap">${sell}<small>사 간 관리국이 다른 용병단에도 지도를 돌려, 그들의 지도도 ${CO.MAP_GIVE}만큼 오른다</small></div>` : ''}
-    <p class="note">사람이 늘수록 관리비가 가파르게 붙어요: 급여 × (1 + ${CO.OH_K} × 인원²). 16명이면 ×${(1 + CO.OH_K * 256).toFixed(2)}, 32명 ×${(1 + CO.OH_K * 1024).toFixed(2)}, 40명 ×${(1 + CO.OH_K * 1600).toFixed(2)}, 50명 ×${(1 + CO.OH_K * 2500).toFixed(2)}.</p></div>`;
+    ${adminBar(W, sanitize(W, us(W), raw))}<p class="note">관리비는 행정 여력에서: 단원 · 탐사 · 보낸 층 · 창고 · 건물 · 정보망이 부하, 행정관 · 서기 · 기록실이 역량. ${Math.round(CO.A_FREE * 100)}%를 넘으면 관리비가 가파르게 붙고, 100%를 넘으면 창고 포션을 챙기지 못해 더 상해요.</p></div>`;
 }
 // 교관: 월 급료 네 칸. 효과는 훈련도가 차오르는 만큼
 export const COACH_N = ['없음', '조교 한 명', '교관 둘', '검술 사범'];
@@ -165,9 +166,18 @@ function trainPanel(W: World, raw: Plan) {
   return `${hqPanel(W, raw)}<div class="panel"><header><h2>교관</h2><span class="sub">성공 지금 +${(trainBonus(c.skill) * 100).toFixed(1)}%p · 이대로면 +${(trainBonus(CO.COACH_PAY[ci] / 10 * CO.SIZE_REF / Math.max(CO.SIZE_REF / 2, c.members)) * 100).toFixed(1)}%p까지 (석 달쯤)</span></header>
     <div class="coach"><span class="seg sm" role="group" aria-label="교관">${COACH_N.map((n, i) => `<button type="button" data-act="coach" data-i="${i}" aria-pressed="${ci === i}" title="월 ${CO.COACH_PAY[i]}G">${n} <small>${CO.COACH_PAY[i]}G</small></button>`).join('')}</span></div></div>`;
 }
+// 본부에 있는 조만 (나가 있는 조는 채비를 이미 들고 갔다). 보급 창의 "필요"는 이 조들이 한 번씩 나갈 채비다
+export const homePlan = (W: World, P: Plan): Plan => { const out = awayIds(W); if (!P.teams) return P; const teams = P.teams.filter((T: Team) => !T.m.some(x => x != null && out.has(x))); return { ...P, teams, parties: FLOORS.map((_, f) => teams.filter(T => T.f === f).length) }; };
 // 이번 달 살 포션 (비워 두면 편성에 모자란 만큼)
-const potBuy = (W: World, raw: Plan, P: Plan) => { const H = potsOf(us(W)), need = needOf(P); return raw.buy && raw.buy.pot != null ? raw.buy.pot : Math.max(0, need.pot - H.pot - H.holy - ((raw.buy && raw.buy.holy) || 0)); };
-const gearOf = (W: World, raw: Plan, P: Plan, g: string) => (raw.buy && raw.buy.gear && raw.buy.gear[g] != null ? raw.buy.gear[g] : gearBuy(us(W), P)[g] || 0);
+const potBuy = (W: World, raw: Plan, P: Plan) => { const H = potsOf(us(W)), need = needOf(homePlan(W, P)); return raw.buy && raw.buy.pot != null ? raw.buy.pot : Math.max(0, need.pot - H.pot - H.holy - ((raw.buy && raw.buy.holy) || 0)); };
+// 보급 창의 주문: 칸마다 적은 수 (비워 둔 칸은 본부의 조가 한 번씩 나갈 만큼에서 창고를 뺀 것). "지금 사기"가 이대로 산다
+export function orderOf(W: World, raw: Plan) {
+  const c = us(W), P = homePlan(W, sanitize(W, c, raw)), gear: Record<string, number> = {};
+  GEAR_NAMES.forEach(g => { const n = gearOf(W, raw, P, g); if (n > 0) gear[g] = n; });
+  return { pot: potBuy(W, raw, P), holy: Math.min(holyRoom(W), (raw.buy && raw.buy.holy) || 0), torch: torchBuy(c, P), food: foodBuy(c, P), mend: mendBuy(c, P), gear };
+}
+const orderCost = (W: World, o: ReturnType<typeof orderOf>) => o.pot * potionNow(W) + o.holy * churchPrice(W, 0) + o.torch * CO.TORCH_PRICE + o.food * CO.FOOD_PRICE + o.mend * CO.MEND_PRICE + Object.values(o.gear).reduce((a, b) => a + b, 0) * CO.GEAR_PRICE;
+const gearOf = (W: World, raw: Plan, P: Plan, g: string) => (raw.buy && raw.buy.gear && raw.buy.gear[g] != null ? raw.buy.gear[g] : gearBuy(us(W), homePlan(W, P))[g] || 0);
 // 창고: 품목마다 보유 · 이번 달 구매 · 쓸 어림 · 상할 것 · 다음 달 남음. 막대는 (보유 + 구매)를 쓸 것 · 남을 것 · 상할 것으로 나눈다.
 // 포션은 위기에 쓴 만큼만 빠지고(성수부터, 오래된 것부터), 쓸 어림은 수입 어림의 위기 기대값이다
 export function storeHtml(W: World, raw: Plan, P: Plan) {
@@ -198,21 +208,24 @@ export function storeHtml(W: World, raw: Plan, P: Plan) {
 }
 // 보급 구매: 상단 포션 · 교회 성수 · 횃불 · 장비를 한 표에서. 비워 둔 칸은 편성에 모자란 만큼
 function buyPanel(W: World, raw: Plan, P: Plan) {
-  const c = us(W), S = supOf(c), H = potsOf(c), need = needOf(P);
-  const potN = potBuy(W, raw, P), holyN = (raw.buy && raw.buy.holy) || 0, auto = !(raw.buy && raw.buy.pot != null), tN = torchBuy(c, P), tAuto = !(raw.buy && raw.buy.torch != null);
-  const fN = foodBuy(c, P), fAuto = !(raw.buy && raw.buy.food != null), mN = mendBuy(c, P), mAuto = !(raw.buy && raw.buy.mend != null);
+  const c = us(W), S = supOf(c), H = potsOf(c), need = needOf(homePlan(W, P));
+  const HP = homePlan(W, P), potN = potBuy(W, raw, P), holyN = (raw.buy && raw.buy.holy) || 0, auto = !(raw.buy && raw.buy.pot != null), tN = torchBuy(c, HP), tAuto = !(raw.buy && raw.buy.torch != null);
+  const fN = foodBuy(c, HP), fAuto = !(raw.buy && raw.buy.food != null), mN = mendBuy(c, HP), mAuto = !(raw.buy && raw.buy.mend != null);
   const autoBtn = (on: boolean, act: string) => (on ? '<small>자동</small>' : `<button type="button" class="link" data-act="${act}">자동</button>`);
   const rows = [
     `<tr><td><b>상단 포션</b>${potShock(W.month) > 1 ? `<small class="neg">약초 흉년 · 값 ×${CO.POT_SHOCK}</small>` : potShock(W.month + 1) > 1 ? `<small class="neg">다음 달부터 ${CO.POT_SHOCK_LEN}달 값 ×${CO.POT_SHOCK} 소문 · 보관 ${CO.POT_KEEP}달</small>` : ''}</td><td class="n">${potionNow(W)}G</td><td class="n">${H.pot}</td><td class="n">${need.pot}</td><td>${stepper('buyPot', 0, potN, '상단 포션 구매', 5)}${autoBtn(auto, 'auto-pot')}</td><td class="n">${fmt(potN * potionNow(W))}G</td></tr>`,
-    `<tr><td><b>교회 성수</b><small>사망 −${Math.round(CO.HOLY * 100)}% · 보관 ${CO.HOLY_KEEP}달</small></td><td class="n">${churchPrice(W, 0)}G</td><td class="n">${H.holy}</td><td class="n dim">-</td><td>${stepper('buyHoly', 0, holyN, '교회 성수 구매', 5)}</td><td class="n">${fmt(holyN * churchPrice(W, 0))}G</td></tr>`,
+    `<tr><td><b>교회 성수</b><small>${Math.round(CO.HOLY * 100)}% 확률로 병을 비우지 않고 막음 · 보관 ${CO.HOLY_KEEP}달 · 한 달 ${holyRoom(W) + boughtOf(W).holy}병까지</small></td><td class="n">${churchPrice(W, 0)}G</td><td class="n">${H.holy}</td><td class="n dim">-</td><td>${stepper('buyHoly', 0, holyN, '교회 성수 구매', 5)}</td><td class="n">${fmt(holyN * churchPrice(W, 0))}G</td></tr>`,
     `<tr><td><b>횃불</b><small>조당 개수는 출정 표에서 · 남으면 창고로</small></td><td class="n">${CO.TORCH_PRICE}G</td><td class="n">${S.torch || 0}</td><td class="n">${need.torch}</td><td>${stepper('buyTorch', 0, tN, '횃불 구매', 5)}${autoBtn(tAuto, 'auto-torch')}</td><td class="n">${fmt(tN * CO.TORCH_PRICE)}G</td></tr>`,
     `<tr><td><b>식량</b><small>한 사람 하루 하나 · 짐 한 칸에 ${CO.FOOD_SLOT}개 · 남으면 창고로</small></td><td class="n">${CO.FOOD_PRICE}G</td><td class="n">${S.food || 0}</td><td class="n">${need.food}</td><td>${stepper('buyFood', 0, fN, '식량 구매', 10)}${autoBtn(fAuto, 'auto-food')}</td><td class="n">${fmt(fN * CO.FOOD_PRICE)}G</td></tr>`,
     `<tr><td><b>정비 도구</b><small>진 날 하나 써서 무기를 고침 · 남으면 창고로</small></td><td class="n">${CO.MEND_PRICE}G</td><td class="n">${S.mend || 0}</td><td class="n">${need.mend}</td><td>${stepper('buyMend', 0, mN, '정비 도구 구매', 5)}${autoBtn(mAuto, 'auto-mend')}</td><td class="n">${fmt(mN * CO.MEND_PRICE)}G</td></tr>`,
     ...GEAR_NAMES.map((g, i) => { const b = gearOf(W, raw, P, g); return `<tr><td><b>${g} 장비</b><small>약점 ${g} · ${PAIR_CLASS[g]} 둘 몫 · 쓰면 닳음</small></td><td class="n">${CO.GEAR_PRICE}G</td><td class="n">${S.gear[g] || 0}</td><td class="n">${need.gear[g] || '-'}</td><td>${stepper('buyGear', i, b, `${g} 장비 구매`)}</td><td class="n">${fmt(b * CO.GEAR_PRICE)}G</td></tr>`; }),
   ];
-  return `<div class="panel"><header><h2>보급 구매</h2><span class="sub">산 것은 바로 창고로 · 이번 출정에 쓰고 남은 것은 다음 달로 · 포션 보관 ${CO.POT_KEEP}달</span></header>
+  const o = orderOf(W, raw), oc = orderCost(W, o), B = boughtOf(W), spent = B.cost.potion + B.cost.torch + B.cost.food + B.cost.mend + B.cost.gear;
+  return `<div class="panel"><header><h2>보급 구매</h2><span class="sub">사면 바로 창고로 · 금고에서 바로 나감 · 남은 것은 다음 달로 · 포션 보관 ${CO.POT_KEEP}달</span>${spent ? `<span class="right">이번 달 산 것 <b>${fmt(spent)}G</b></span>` : ''}</header>
     ${stockBar(W, raw, P, false)}
-    <div class="tw"><table class="grid buy"><thead><tr><th>품목</th><th class="n">단가</th><th class="n">창고</th><th class="n">필요</th><th>구매</th><th class="n">금액</th></tr></thead><tbody>${rows.join('')}</tbody></table></div></div>
+    <div class="tw"><table class="grid buy"><thead><tr><th>품목</th><th class="n">단가</th><th class="n">창고</th><th class="n">필요</th><th>구매</th><th class="n">금액</th></tr></thead><tbody>${rows.join('')}</tbody></table></div>
+    <div class="buybar"><button type="button" class="tog" data-act="auto-buy" aria-pressed="${raw.autoBuy !== false}" title="조를 보낼 때 창고에 모자란 포션 · 횃불 · 식량 · 정비 도구 · 장비를 상단에서 바로 산다">보낼 때 모자란 채비 자동 구매</button>
+      <span class="sp"></span><span class="dim">교회 성수 이번 달 ${holyRoom(W)}병 더</span><button type="button" class="seal sm" data-act="buy-now"${oc > 0 ? '' : ' disabled'}>지금 사기 −${fmt(oc)}G</button></div></div>
     ${kitPanel(W, P)}`;
 }
 // 조당 기본 채비: 층마다 한 조가 들고 갈 포션 · 횃불 · 식량(며칠치) · 정비 도구. 편성표에서 조마다 바꿀 수 있다
@@ -220,14 +233,14 @@ function kitPanel(W: World, P: Plan) {
   const c = us(W), rows = FLOORS.slice(0, W.unlocked).map((F, f) => {
     const n = (P.teams || []).filter(T => T.f === f).length, room = CO.PARTY * CO.SLOT_PP;
     const used = (P.pots[f] || 0) + carryOf(P, f) + Math.ceil(foodDays(P, f) * CO.PARTY / CO.FOOD_SLOT) + mendOf(P, f);
-    const u = Math.round(mapOf(c, f)), dark = tripOdds(carryOf(P, f), torchRate(f, u)).dark;
+    const u = Math.round(mapOf(c, f)), dark = tripOdds(carryOf(P, f), torchRate(f, u), CO.TRIP_DAYS[f]).dark;
     return `<tr><td><b>${F.name}</b>${n ? `<small>이번 달 ${n}조</small>` : ''}</td><td>${stepper('pots', f, P.pots[f] || 0, `${F.name} 포션`)}</td>
       <td>${stepper('dtorch', f, carryOf(P, f), `${F.name} 횃불`)}<small class="${dark >= 0.25 ? 'neg' : 'dim'}">돌아섬 ${Math.round(dark * 100)}%</small></td>
       <td>${stepper('dfood', f, foodDays(P, f), `${F.name} 식량 (며칠치)`)}</td><td>${stepper('dmend', f, mendOf(P, f), `${F.name} 정비 도구`)}</td>
       <td>${packBar(room, carryOf(P, f), P.pots[f] || 0, 0, foodDays(P, f) * CO.PARTY, mendOf(P, f))}<small class="dim">빈 칸 ${Math.max(0, room - used)}</small></td></tr>`;
   });
   return `<div class="panel"><header><h2>조당 기본 채비</h2><span class="sub">${CO.PARTY}명 조 기준 · 편성표에서 조마다 바꿈 · 구매 자동은 이것을 따름</span></header>
-    <div class="tw"><table class="grid kitd"><thead><tr><th>층</th><th>포션</th><th>횃불</th><th title="최대 ${CO.DAYS}일 · 굶은 날 성공 −${Math.round(CO.HUNGER_PEN * 100)}%p">식량 (일)</th><th title="진 날 하나 · 없으면 무뎌져 날마다 성공 −${Math.round(CO.MEND_PEN * 100)}%p씩">정비 도구</th><th>짐 (${CO.PARTY * CO.SLOT_PP}칸)</th></tr></thead><tbody>${rows.join('')}</tbody></table></div></div>`;
+    <div class="tw"><table class="grid kitd"><thead><tr><th>층</th><th>포션</th><th>횃불</th><th title="며칠치 (층마다 ${CO.TRIP_DAYS.join(' · ')}일 탐사) · 굶은 날 성공 −${Math.round(CO.HUNGER_PEN * 100)}%p">식량 (일)</th><th title="진 날 하나 · 없으면 무뎌져 날마다 성공 −${Math.round(CO.MEND_PEN * 100)}%p씩">정비 도구</th><th>짐 (${CO.PARTY * CO.SLOT_PP}칸)</th></tr></thead><tbody>${rows.join('')}</tbody></table></div></div>`;
 }
 
 // ---------- 관리국 게시판: 의뢰 ----------
@@ -311,15 +324,16 @@ function staffPanel(W: World, raw: Plan, ui: DeskUi) {
   return `<div class="panel staff"><header><h2>인원</h2><span class="sub">명성 ${Math.round(c.fame || 0)}${L ? ` · 변경 ${fr}위` : ''}</span></header>
     <div class="st-kpi">
       <div><small>인원</small><b>${c.members}</b><i>${rook ? `수습 ${rook}명` : c.crew ? `숙련 이상 ${c.crew.filter(x => (x.sk ?? 40) >= 2 * CO.TIER_STEP).length}명` : '모두 대원'}${hurtN ? ` · 부상 ${hurtN}명` : ''}</i></div>
-      <div><small>침상</small><b>${beds}</b><i>${pend ? `공사 중 +${pend}` : `빈 침상 ${beds - c.members}`}</i></div>
+      <div><small>침상</small><b>${beds}</b><i>${pend ? `공사 중 +${pend}` : `빈 침상 ${roomOf(c)}${c.clerks ? ` · 서기 ${c.clerks}` : ''}`}</i></div>
       <div><small>보낼 수 있는 조</small><b>${maxParties(c)}</b><i>${hurtN ? '부상자 빼고 · ' : ''}4명이 한 조</i></div>
-      <div><small>월 급여</small><b>${fmt(wage(W, raw))}G</b><i>${c.crew ? '실력 단계대로 + 관리비' : want ? `신입 들면 ${fmt(wageOf(c.members + want))}G` : '1인 30G + 관리비'}</i></div>
+      <div><small>월 급여</small><b>${fmt(wage(W, raw))}G</b><i>${c.crew ? `실력 단계대로${c.clerks ? ` · 서기 ${c.clerks}명` : ''}` : want ? `신입 들면 ${fmt(wageOf(c.members + want))}G` : '1인 30G + 관리비'}</i></div>
     </div>
     <div class="beds" role="img" aria-label="침상 ${beds}개 중 대원 ${c.members - rook}, 수습 ${rook}, 이번 달 뽑을 신입 ${want}">${cells.map((k, i) => `<i class="bed ${k}${i && i % 4 === 0 ? ' gap' : ''}"></i>`).join('')}</div>
     <div class="legend"><span><i class="bed vet"></i>대원</span><span><i class="bed rook"></i>수습</span><span><i class="bed new"></i>이번 달 신입</span><span><i class="bed"></i>빈 침상</span><span><i class="bed build"></i>공사 중</span></div>
     <div class="blds">
       ${c.hq ? bldCard('house', '숙소', `${hqLv(c, 'dorm') + 1}단계 · 침상 ${beds}`, c.pendingHq === 'dorm' ? '증축 공사 중 · 다음 달 정산 때 완공' : hqCost(c, 'dorm') ? `다음 단계 침상 ${CO.HQ_BEDS[hqLv(c, 'dorm') + 1]} · 공사비 ${fmt(hqCost(c, 'dorm'))}G · 본부(건물 창)에서 올려요` : '끝까지 올렸어요 (50명)', '<button type="button" class="link" data-act="place" data-place="train">본부 보기</button>') : bldCard('house', '숙소', `침상 ${beds}${pend ? ` → ${beds + pend}` : ''}`, pend ? `증축 공사 중 · 다음 달 정산 때 침상 +${pend}` : `증축하면 다음 달 침상 +${CO.DORM_ADD} · 공사비 ${fmt(dormCost(c))}G · 침상마다 유지비 월 ${CO.DORM_KEEP}G`,
         pend ? '<span class="lvl dim">공사 중</span>' : `<button type="button" class="tog" data-act="dorm" aria-pressed="${build}">${build ? '증축 취소' : '증축하기'}</button>`)}
+      ${c.crew ? bldCard('scroll', '서기', `${c.clerks || 0}명 · 1인 ${CO.CLERK_WAGE}G`, `미궁에 가지 않고 장부 · 창고 · 편성을 챙긴다 · 행정 역량 +${CO.A_CLERK} · 침상 하나`, `<span class="ctl2">${stepper('clerks', 0, c.clerks || 0, '서기 수')}</span>`) : ''}
       ${c.crew ? '' : bldCard('recruit', '신입 모집', `1인 ${CO.RECRUIT}G부터`, `빈 침상 ${roomOf(c)}개까지 · 다음 달부터 수습으로 조에 끼고, 낀 조가 ${CO.ROOK_WINS}번 성공하면 대원`,
         `<span class="ctl2">${stepper('recruit', 0, want, '뽑을 신입 수')}${raw.recruit == null ? '<small>빈 침상만큼</small>' : '<button type="button" class="link" data-act="auto-recruit">빈 침상만큼</button>'}</span>`)}
     </div>
@@ -331,36 +345,62 @@ function staffPanel(W: World, raw: Plan, ui: DeskUi) {
 // 결재안 줄: 이번 달 나갈 돈을 항목마다 (정보 주차에 정한 것 + 탐험 주차에 정한 것). place는 그 줄을 정하는 곳
 export type CostLine = { k: string; name: string; place: string; now: number; last: number };
 export function costLines(W: World, raw: Plan): CostLine[] {
-  const c = us(W), P = sanitize(W, c, raw), s = W.last ? W.last.res[0].spend : null;
-  const potN = potBuy(W, raw, P), holyN = (P.buy && P.buy.holy) || 0, gear = Object.values(gearBuy(c, P)).reduce((a, b) => a + b, 0);
+  const c = us(W), P = sanitize(W, c, raw), s = W.last ? W.last.res[0].spend : null, B = boughtOf(W);
+  // 보급은 이번 달 이미 산 것(금고에서 나감)에 보급 창에 적어 둔 주문을 더한다
+  const o = orderOf(W, raw), potN = B.pot + o.pot, holyN = B.holy + o.holy, gear = Object.values(B.gear).reduce((a, b) => a + b, 0) + Object.values(o.gear).reduce((a, b) => a + b, 0);
   const rn = recruitOf(W, raw);
   const L = (k: string, name: string, place: string, now: number, last: number) => ({ k, name, place, now: Math.round(now), last: Math.round(last) });
   return [
     L('wage', '급여', 'staff', wage(W, raw), s ? s.wage : 0),
-    L('fire', `해고 위로금 ${firedOf(W, raw).length}명`, 'staff', fireCost(firedOf(W, raw)), s ? s.fire || 0 : 0),
+    L('admin', `관리비 (행정 여력 ${Math.round(adminProj(W, P).r * 100)}%)`, 'staff', Math.round(wage(W, raw) * adminFee(adminProj(W, P).r)), s ? s.admin || 0 : 0),
+    L('fire', `해고 위로금 ${firedOf(W, raw).length + B.fired.length}명`, 'staff', fireCost(firedOf(W, raw)) + B.cost.fire, s ? s.fire || 0 : 0),
     L('recruit', `신입 ${rn}명`, 'staff', recruitCost(W, raw), s ? s.recruit : 0),
     L('dorm', P.dorm || P.build === 'dorm' ? '숙소 유지비 · 증축' : '숙소 유지비', 'staff', dormKeep(bedsOf(c) + (c.pendingBeds || 0)) + (P.dorm || P.build === 'dorm' ? dormCost(c) : 0), s ? s.dorm || 0 : 0),
     L('hq', P.build && P.build !== 'dorm' ? `본부 공사 (${HQ_NAME[P.build]}) · 유지비` : '본부 유지비', 'train', hqKeep(c) + (P.build && P.build !== 'dorm' ? hqCost(c, P.build) : 0), s ? s.hq || 0 : 0),
     L('heal', '치료비', 'staff', 0, s ? s.heal || 0 : 0),
     L('train', `교관 (${COACH_N[P.coach ?? coachOf(P.train)]})`, 'train', P.train, s ? s.train : 0),
-    L('potion', `포션 ${potN} · 성수 ${holyN}병`, 'market', potN * potionNow(W) + holyN * churchPrice(W, 0), s ? s.potion : 0),
-    L('torch', `횃불 ${torchBuy(c, P)}개`, 'market', torchBuy(c, P) * CO.TORCH_PRICE, s ? s.torch || 0 : 0),
-    L('food', `식량 ${foodBuy(c, P)}개`, 'market', foodBuy(c, P) * CO.FOOD_PRICE, s ? s.food || 0 : 0),
-    L('mend', `정비 도구 ${mendBuy(c, P)}개`, 'market', mendBuy(c, P) * CO.MEND_PRICE, s ? s.mend || 0 : 0),
-    L('gear', `장비 ${gear}벌`, 'market', gear * CO.GEAR_PRICE, s ? s.gear : 0),
+    L('potion', `포션 ${potN} · 성수 ${holyN}병`, 'market', B.cost.potion + o.pot * potionNow(W) + o.holy * churchPrice(W, 0), s ? s.potion : 0),
+    L('torch', `횃불 ${B.torch + o.torch}개`, 'market', B.cost.torch + o.torch * CO.TORCH_PRICE, s ? s.torch || 0 : 0),
+    L('food', `식량 ${B.food + o.food}개`, 'market', B.cost.food + o.food * CO.FOOD_PRICE, s ? s.food || 0 : 0),
+    L('mend', `정비 도구 ${B.mend + o.mend}개`, 'market', B.cost.mend + o.mend * CO.MEND_PRICE, s ? s.mend || 0 : 0),
+    L('gear', `장비 ${gear}벌`, 'market', B.cost.gear + Object.values(o.gear).reduce((a, b) => a + b, 0) * CO.GEAR_PRICE, s ? s.gear : 0),
     L('root', '근원 기금 · 후원', 'church', (P.root ? P.root.seal + P.root.mine : 0) + (P.donate || 0), s ? s.root + s.donate : 0),
     L('intel', '정보망', 'alley', intelCost(P), s ? s.intel : 0),
     L('probe', `조사 의뢰 ${(W.probes || []).filter(x => x.m === W.month).length}건`, 'alley', probeCost(W), s ? s.probe : 0),
-    L('sortie', '계약 파티', 'gate', sortieCost(P).reduce((a, b) => a + b, 0) + hireCost(P), s ? s.sortie + s.hire : 0),
-    L('tax', '영주세 (정직하게 낼 때)', 'board', taxGuess(W, P, forecast(W, P)).tax, s ? s.tax + s.fine : 0),
+    L('tax', '영주세 (정직하게 낼 때)', 'board', taxGuess(W, P, monthFc(W, P)).tax, s ? s.tax + s.fine : 0),
   ];
+}
+// 이번 달 수입 어림: 이번 달 돌아온 조 · 그믐 전에 돌아올 조 (짐은 그믐 정산 때 판다)와, 지금 본부에 있는 조가 남은 날 동안 나갈 어림
+export function monthFc(W: World, P: Plan) {
+  const end = W.month * CO.MONTH_DAYS, trips = [...(W.back || []), ...(W.away || []).filter(s => s.d0 + CO.TRIP_DAYS[s.f] <= end)];
+  const home = homePlan(W, P), left = CO.MONTH_DAYS - (W.day || 1) + 1;
+  // 본부의 조는 남은 날 동안 (탐사 + 쉬는 날)마다 한 번씩 나간다고 본다
+  const reps = (home.teams || []).flatMap(T => Array.from({ length: Math.floor(left / (CO.TRIP_DAYS[T.f] + CO.REST_DAYS) + (left >= CO.TRIP_DAYS[T.f] ? 0.5 : 0)) }, () => T));
+  const sorties = trips.map(s => ({ ...s }));
+  const c = us(W), byId = new Map((c.crew || []).map(p => [p.id, p]));
+  reps.forEach((T, k) => sorties.push({ id: -1 - k, t: 0, f: T.f, m: T.m.filter((x): x is number => x != null), who: T.m.filter((x): x is number => x != null).map(id => byId.get(id)!).filter(Boolean), d0: 0, d1: 0, m0: W.month, g: T.g,
+    kit: { pots: T.pots ?? P.pots[T.f] ?? 0, holy: 0, age: 0, torch: T.torch ?? carryOf(P, T.f), food: (T.food ?? foodDays(P, T.f)) * T.m.filter(x => x != null).length, mend: T.mend ?? mendOf(P, T.f), gear: (T.g || '').slice(2) }, out: null as any }));
+  return forecastTrips(W, { ...P, hire: P.hire }, sorties);
+}
+// 행정력 어림 (그믐에 셀 것): 이번 달 돌아온 조 · 나가 있는 조에, 본부의 조가 남은 날 동안 나갈 탐사를 더한다
+export function adminProj(W: World, P: Plan) {
+  const home = homePlan(W, P), left = CO.MONTH_DAYS - (W.day || 1) + 1, T = [...(W.back || []), ...(W.away || [])];
+  const more = (home.teams || []).map(Tm => ({ f: Tm.f, n: Math.floor(left / (CO.TRIP_DAYS[Tm.f] + CO.REST_DAYS) + (left >= CO.TRIP_DAYS[Tm.f] ? 0.5 : 0)) }));
+  return adminOf(W, us(W), T.length + more.reduce((a, x) => a + x.n, 0), new Set([...T.map(s => s.f), ...more.filter(x => x.n).map(x => x.f)]).size);
+}
+// 행정 여력 막대: 부하 ÷ 역량 (항목별), 70%까지 여유 · 넘으면 관리비 · 100%를 넘으면 창고 포션이 더 상한다
+export function adminBar(W: World, P: Plan) {
+  const A = adminProj(W, P), pc = Math.round(A.r * 100), cls = A.r > 1 ? 'over' : A.r > CO.A_FREE ? 'warn' : 'ok';
+  return `<div class="adm ${cls}" title="${A.load.filter(([, v]) => v).map(([n, v]) => `${n} ${Math.round(v * 10) / 10}`).join(' · ')} / 역량 ${A.cap} (행정관 ${CO.A_BASE} · 서기 ${(us(W).clerks || 0) * CO.A_CLERK} · 기록실 ${hqLv(us(W), 'rec') * CO.A_REC})">
+    <span class="adm-n"><b>행정 여력</b> ${pc}% <small>${A.sum} / ${A.cap}</small></span><span class="adm-bar"><i style="width:${Math.min(100, pc)}%"></i><em style="left:${CO.A_FREE * 100}%"></em></span>
+    <small class="adm-t">${A.r > 1 ? '넘침 · 관리비와 포션이 상함' : A.r > CO.A_FREE ? `관리비 급여의 ${Math.round(adminFee(A.r) * 100)}%` : '여유'}</small></div>`;
 }
 // 이번 달 결재에 드는 돈 (위 줄을 정보 · 내정 · 출정 · 급여로 묶은 것)
 export function monthCost(W: World, raw: Plan) {
   const ls = costLines(W, raw), sum = (ks: string[]) => ls.filter(l => ks.includes(l.k)).reduce((a, l) => a + l.now, 0);
   const all = ls.reduce((a, l) => a + l.now, 0);
   // 묶음: 출정 · 급여 · 신입 · 본부(숙소 · 본부 · 교관 · 치료) · 보급(포션 · 횃불 · 장비) · 세금(어림) · 정보 · 그 밖(근원 기금 · 후원)
-  const parts: [string, number][] = [['계약', sum(['sortie', 'tool'])], ['급여', sum(['wage', 'fire'])], ['신입', sum(['recruit'])], ['본부', sum(['dorm', 'hq', 'train', 'heal'])],
+  const parts: [string, number][] = [['급여', sum(['wage', 'admin', 'fire'])], ['신입', sum(['recruit'])], ['본부', sum(['dorm', 'hq', 'train', 'heal'])],
     ['보급', sum(['potion', 'torch', 'food', 'mend', 'gear'])], ['세금', sum(['tax'])], ['정보', sum(['intel', 'probe'])], ['기금', sum(['root'])]];
   return { all, exp: parts[0][1], parts: parts.filter(([, v]) => v > 0) };
 }
@@ -411,7 +451,7 @@ export function placeHtml(W: World, raw: Plan, ui: DeskUi) {
 }
 // 결재안: 들어올 돈(수입 어림)과 나갈 돈 줄마다 이번 달 · 지난달. 줄 이름을 누르면 그 장소 창이 열린다
 function ledgerHtml(W: World, raw: Plan) {
-  const c = us(W), P = sanitize(W, c, raw), fc = forecast(W, P), L = W.last, ls = costLines(W, raw), G = taxGuess(W, P, fc), gov = G.sub + G.aid + G.adv;
+  const c = us(W), P = sanitize(W, c, raw), fc = monthFc(W, P), L = W.last, ls = costLines(W, raw), G = taxGuess(W, P, fc), gov = G.sub + G.aid + G.adv;
   const govL = L ? L.res[0].sales - (L.res[0].lootSales ?? 0) - L.res[0].matSales - (L.res[0].jobPay || 0) - (L.res[0].mapSale || 0) : 0;
   const out = ls.reduce((a, l) => a + l.now, 0), outL = ls.reduce((a, l) => a + l.last, 0);
   const go = (l: { place: string; name: string }) => (l.place === 'gate' ? `<button type="button" class="lg" data-act="phase" data-phase="1">${l.name}</button>` : `<button type="button" class="lg" data-act="place" data-place="${l.place}">${l.name}</button>`);
@@ -427,7 +467,8 @@ function ledgerHtml(W: World, raw: Plan) {
       ${ls.filter(l => l.now || l.last).map(row).join('')}
       <tr class="tot"><td>나갈 돈 합계</td><td class="n">−${fmt(out)}</td><td class="n last">${L ? '−' + fmt(outL) : ''}</td></tr>
       <tr class="tot"><td>순이익 (어림)</td><td class="n ${net < 0 ? 'neg' : 'pos'}">${sgn(net)}</td><td class="n last">${L ? sgn(netL) : ''}</td></tr>
-      <tr><td>결재 뒤 금고 (어림)</td><td class="n">${fmt(c.cash + net)}</td><td></td></tr></tbody></table>
+      <tr><td>그믐 뒤 금고 (어림)</td><td class="n">${fmt(c.cash + net + (Object.values(boughtOf(W).cost).reduce((a, b) => a + b, 0)))}</td><td></td></tr></tbody></table>
+    <p class="note">들어올 돈: 이번 달 돌아온 조 · 그믐 전에 돌아올 조 · 본부의 조가 남은 ${CO.MONTH_DAYS - (W.day || 1) + 1}일 동안 나갈 어림</p>
     <button type="button" class="gate" data-act="phase" data-phase="1">출정 편성으로 →</button>
   </aside>`;
 }
@@ -439,22 +480,24 @@ function placeBar(seals: Record<string, string>) {
     ${PLACE_KEYS.map((k, i) => `<button type="button" class="pb" data-act="place" data-place="${k}" title="${PLACES[k].where}${seals[k] ? ' · ' + seals[k] : ''}">${PLACES[k].name}<kbd>${i + 1}</kbd>${mark(k)}</button>`).join('')}
     <span class="sep" aria-hidden="true"></span>
     ${DOC_TABS.map(([k, n], i) => `<button type="button" class="pb doc" data-act="open-doc" data-tab="${k}">${n}<kbd>${(PLACE_KEYS.length + i + 1) % 10}</kbd>${mark(k === 'report' ? '' : k)}</button>`).join('')}
+    <span class="sep" aria-hidden="true"></span><button type="button" class="pb doc" data-act="town" aria-pressed="${!!seals.__town}">${seals.__town ? '길드 홀' : '마을 지도 · 결재안'}</button>
     <span class="sp"></span><button type="button" class="pb go" data-act="phase" data-phase="1">출정 편성으로 →</button></div>`;
 }
-// 알림 줄: 이번 달 새로 걸린 의뢰 · 상단 소문 · 처음 몇 달의 계약 조 안내. 장소를 열면(또는 닫기) 그달은 접힌다
+// 알림 줄: 이번 달 새로 걸린 의뢰 · 상단 소문. 장소를 열면(또는 닫기) 그달은 접힌다
 function noticeHtml(W: World, ui: DeskUi) {
   const c = us(W), ns: [string, string, string][] = [];
   (W.jobs || []).filter(J => J.from === W.month).forEach(J => ns.push(['board', `${J.by} 새 의뢰`, `${J.title}${J.kind === 'explore' ? ' · 적어 낸 조마다 선금' : J.kind === 'race' ? ' · 순위 포상' : ` · ${FLOORS[J.f].name} ${fmt(J.qty)}개`}`]));
   if (potShock(W.month + 1) > potShock(W.month)) ns.push(['market', '상단 거리 소문', `약초 흉년 · 다음 달부터 ${CO.POT_SHOCK_LEN}달 포션 값 ×${CO.POT_SHOCK} · 포션 보관 ${CO.POT_KEEP}달`]);
   else if (potShock(W.month) > 1 && potShock(W.month - 1) === 1) ns.push(['market', '약초 흉년', `상단 포션 값 ×${CO.POT_SHOCK} (${CO.POT_SHOCK_LEN}달)`]);
-  const hiredEver = W.history.some(H => H.res[0].hired.some(x => x > 0));
-  if (W.month >= 2 && W.month <= 4 && !hiredEver && c.crew) ns.push(['gate', '군소 용병대 일감 구함', `계약 조 · 조당 ${CO.HIRE_FEE}G + 출정비 ${CO.SORTIE}G, 캐 온 것의 ${Math.round(CO.HIRE_CUT * 10)}할은 그쪽 몫 · 우리 사람 없이 층에 조를 더함 (출정 층 표)`]);
   if (!ns.length || ui.seen === W.month) return '';
   return `<div class="notices" role="status">${ns.map(([k, h, t]) => `<div class="nt"><b>${esc(h)}</b><span>${esc(t)}</span>${k === 'gate' ? '' : `<button type="button" class="link" data-act="place" data-place="${k}">보기</button>`}</div>`).join('')}<button type="button" class="link close-n" data-act="seen" aria-label="알림 접기">접기</button></div>`;
 }
+// 길드 (본 화면): 위에 알림 줄과 장소 단추 줄, 가운데 길드 홀(대기 중인 단원 · 나가 있는 조 · 오늘 돌아온 조), 아래 창고.
+// 마을 지도 · 결재안은 단추 줄에서 펼친다
 export function infoWeekHtml(W: World, raw: Plan, ui: DeskUi) {
   const seals = sealsOf(W, raw);
-  return `${noticeHtml(W, ui)}${placeBar(seals)}<div class="town">${townSceneHtml(fmt(townOf(W)), seals)}${ledgerHtml(W, raw)}</div>
+  const main = ui.town ? `<div class="town">${townSceneHtml(fmt(townOf(W)), seals)}${ledgerHtml(W, raw)}</div>` : hallHtml(W, raw);
+  return `${noticeHtml(W, ui)}${placeBar({ ...seals, ...(ui.town ? { __town: '1' } : {}) })}${main}
     ${storeHtml(W, raw, sanitize(W, us(W), raw))}
     ${readerHtml(W, ui, raw)}${placeHtml(W, raw, ui)}`;
 }
@@ -496,17 +539,15 @@ function tplBar(W: World, P: Plan) {
     <div class="roster">${counts.map(([k, n, r]) => `<span>${pip({ id: -1, c: k })}${k} <b>${n}</b>${r ? ` <small>(수습 ${r})</small>` : ''}</span>`).join('')}</div>`;
 }
 export function expWeekHtml(W: World, raw: Plan, ui: DeskUi) {
-  const c = us(W), P = sanitize(W, c, raw), L = W.last, S = supOf(c), need = needOf(P), gb = gearBuy(c, P), cost = monthCost(W, raw);
+  const c = us(W), P = sanitize(W, c, raw), L = W.last, S = supOf(c), need = needOf(homePlan(W, P)), gb = gearBuy(c, homePlan(W, P)), cost = monthCost(W, raw);
+  const readyN = (P.teams || []).filter(T => teamReady(W, T)).length;
   const others = (f: number) => (L ? L.plans.reduce((a, Q, i) => a + (i ? Q.parties[f] + Q.hire[f] : 0), 0) : f === 0 ? 75 : 0);
   const sc = sortieCost(P);
   const H = potsOf(c), holyB = (P.buy && P.buy.holy) || 0, potB = P.buy && P.buy.pot != null ? P.buy.pot : Math.max(0, need.pot - H.pot - H.holy - holyB);
   const potHave = H.pot + H.holy + potB + holyB;
-  // 계약 조 한 조를 더 빌리면 이번 달 순이익 어림이 얼마나 바뀌나 (수입 어림의 차 − 수수료 − 출정비. 층이 붐벼 우리 몫이 주는 것까지 든다). 상한이면 null
-  const fc0 = forecast(W, P).mean, room = hireCap(W) - P.hire.reduce((a, b) => a + b, 0);
-  const hireGain = (f: number) => (room <= 0 ? null : Math.round(forecast(W, { ...P, hire: P.hire.map((h, g) => (g === f ? h + 1 : h)) }).mean - fc0 - CO.HIRE_FEE - CO.SORTIE));
-  // 층 선택: 층마다 한 줄. 시세 · 위험 · 지도 · 지난달 남들 · 성공 · 조당 어림, 그리고 우리 조 · 계약 조 · 포션 상한
+  // 층 선택: 층마다 한 줄. 시세 · 위험 · 지도 · 지난달 남들 · 성공 · 조당 어림, 그리고 우리 조
   const rows = FLOORS.map((F, f) => {
-    if (f >= W.unlocked) return f === W.unlocked ? `<tr class="closed"><td><b>${F.name}</b><small>${ITEMS[f].name}</small></td><td colspan="9">닫힘 · 길 뚫기 ${Math.min(99, Math.round(W.prog / CO.OPEN_WINS[W.unlocked - 1] * 100))}%</td></tr>` : '';
+    if (f >= W.unlocked) return f === W.unlocked ? `<tr class="closed"><td><b>${F.name}</b><small>${ITEMS[f].name}</small></td><td colspan="7">닫힘 · 길 뚫기 ${Math.min(99, Math.round(W.prog / CO.OPEN_WINS[W.unlocked - 1] * 100))}%</td></tr>` : '';
     // 지도(이해도)가 낮으면 성공도 캐 오는 양도 준다 (조원 경험 · 길잡이는 빼고 지도만으로)
     const n = P.parties[f] + P.hire[f], crowd = n + others(f), U = undMods(mapOf(c, f), mapOf(c, f), f), p = clamp(succRate(c, f, P.pots[f], crowd) + U.succ, 0.05, 0.97);
     const cut = L && L.floors[f] && L.floors[f].cut ? Math.min(1, L.floors[f].cut!) : 1, per = p * F.take * lootMul(c, f) * U.loot * cut * 0.925 * W.price[f];
@@ -516,11 +557,10 @@ export function expWeekHtml(W: World, raw: Plan, ui: DeskUi) {
       <td class="n">${pct(F.risk)}</td><td class="n">${Math.round(mapOf(c, f))}%</td><td class="n">${others(f)}조</td>
       <td class="n"><b>${pct(p)}</b></td><td class="n"><b>${fmt(per)}G</b></td>
       <td class="n"><b>${P.parties[f]}</b>조</td>
-      <td>${stepper('hire', f, raw.hire[f], `${F.name} 계약 조`)}${(() => { const g = hireGain(f); return g == null ? '<small class="dim">상한</small>' : `<small class="${g >= 0 ? 'pos' : 'neg'}" title="한 조 더 빌리면 이번 달 순이익 어림이 이만큼 바뀐다: 그 조가 캐 올 것의 ${Math.round((1 - CO.HIRE_CUT) * 100)}% − 수수료 ${CO.HIRE_FEE}G − 출정비 ${CO.SORTIE}G − 층이 붐벼 줄어드는 우리 조 몫">+1조 ${sgn(g)}</small>`; })()}</td>
-      <td class="n">${fmt(sc[f] + P.hire[f] * CO.HIRE_FEE)}G</td></tr>`;
+      </tr>`;
   }).join('');
   const gearShort = GEAR_NAMES.filter(g => (need.gear[g] || 0) > (S.gear[g] || 0) + (gb[g] || 0));
-  const sent = P.parties.reduce((a, b) => a + b, 0), hired = P.hire.reduce((a, b) => a + b, 0);
+  const sent = P.parties.reduce((a, b) => a + b, 0);
   const warn: string[] = [];
   const hurtN = (c.crew || []).filter(x => x.hurt).length, empty = (P.teams || []).reduce((a, T) => a + T.m.filter(x => x == null).length, 0), resting = (c.crew || []).filter(x => !x.hurt).length - (P.teams || []).reduce((a, T) => a + T.m.filter(x => x != null).length, 0);
   if (empty) warn.push(`빈자리 ${empty}`);
@@ -531,14 +571,13 @@ export function expWeekHtml(W: World, raw: Plan, ui: DeskUi) {
   else if (P.ask && lead) { const LT = P.teams!.find(T => T.m.includes(lead.id))!; if (!floorMons(W, LT.f).some(M => M.name === P.ask!.mon)) warn.push(`단장 조사(${P.ask.mon}): 단장 조가 다른 층에 감`); }
   if (need.pot > potHave) warn.push(`포션 부족 ${need.pot - potHave}병`);
   if (gearShort.length) warn.push(`장비 부족: ${gearShort.map(g => `${g} ${(need.gear[g] || 0) - (S.gear[g] || 0) - (gb[g] || 0)}벌`).join(', ')}`);
-  if (c.cash - cost.all < 0) warn.push('금고 마이너스');
+  if (c.cash - cost.all + Object.values(boughtOf(W).cost).reduce((a, b) => a + b, 0) < 0) warn.push('금고 마이너스 (그믐 어림)');
   const memo = memoHtml(W);
-  return `<div class="panel floors-pick"><header><h2>층 선택</h2><span class="sub">조당 = 성공 × 캐 오는 양 × 시세 · 지도 낮으면 둘 다 줄고 위기는 늘어남 · 우리 조는 아래 편성표에서</span><span class="right">우리 <b>${sent}</b>/${maxParties(c)}조${hired ? ` · 계약 ${hired}조` : ''}</span></header>
-      <div class="tw"><table class="grid pick"><thead><tr><th>층</th><th class="n">시세</th><th class="n">위험</th><th class="n">지도</th><th class="n">남들</th><th class="n">성공</th><th class="n">조당</th><th class="n">우리 조</th><th>계약 조</th><th class="n">계약비</th></tr></thead><tbody>${rows}</tbody></table></div>
-      <p class="note">계약 조: 군소 용병대 사람으로 조를 더한다 (이번 달 ${Math.max(0, room)}조 더 빌릴 수 있음). 우리 사람 · 채비 없이 가고, 다치거나 죽어도 우리 손해는 없다. 한 조 ${CO.HIRE_FEE}G + 출정비 ${CO.SORTIE}G, 캐 온 것의 ${pct(CO.HIRE_CUT)}는 그쪽 몫. 칸 아래 "+1조"는 한 조 더 빌릴 때 이번 달 순이익 어림의 변화 (층이 붐벼 우리 조 몫이 주는 것까지).</p></div>
+  return `<div class="panel floors-pick"><header><h2>층 선택</h2><span class="sub">조당 = 성공 × 캐 오는 양 × 시세 · 지도 낮으면 둘 다 줄고 위기는 늘어남 · 우리 조는 아래 편성표에서</span><span class="right">우리 <b>${sent}</b>/${maxParties(c)}조</span></header>
+      <div class="tw"><table class="grid pick"><thead><tr><th>층</th><th class="n">시세</th><th class="n">위험</th><th class="n">지도</th><th class="n">남들</th><th class="n">성공</th><th class="n">조당</th><th class="n">우리 조</th></tr></thead><tbody>${rows}</tbody></table></div></div>
     ${fcPanel(W, P, cost.all)}
     ${warn.length ? `<div class="warn">${warn.join(' · ')}</div>` : ''}
-    <div class="foot"><button type="button" class="ghost" data-act="phase" data-phase="0">← 내정으로</button><span class="tot">나갈 돈 <b>${fmt(cost.all)}G</b> <span class="dim">(${cost.parts.map(([n, v]) => `${n} ${fmt(v)}`).join(' · ')})</span></span><button type="button" class="seal" id="go" data-act="go">결재 도장 찍기</button></div>
+    <div class="foot"><button type="button" class="ghost" data-act="phase" data-phase="0">← 길드로</button><span class="tot">이번 달 나갈 돈 <b>${fmt(cost.all)}G</b> <span class="dim">(${cost.parts.map(([n, v]) => `${n} ${fmt(v)}`).join(' · ')})</span></span>${readyN ? `<button type="button" class="seal" id="go" data-act="send-all">나갈 수 있는 ${readyN}조 보내기</button>` : ''}${nextDayBtn(W)}</div>
     <div class="main">
       <div class="col">${jobsTrack(W, P)}${memo ? `<div class="panel"><header><h2>이번 달 조사</h2></header><div class="memo">${memo}</div></div>` : ''}</div>
     </div>
@@ -549,7 +588,7 @@ export function expWeekHtml(W: World, raw: Plan, ui: DeskUi) {
 
 // 이번 달 어림: 한 줄 (수입 · 지출 · 순이익 · 범위 · 적자 확률 · 사망). 그래프와 지난달 비교는 접어 둔다
 function fcPanel(W: World, P: Plan, cost: number) {
-  const fc = forecast(W, P), L = W.last, f0 = L && L.fc;
+  const fc = monthFc(W, P), L = W.last, f0 = L && L.fc;
   if (!fc.mean) return '<div class="panel fc"><p class="note">보낼 조 없음</p></div>';
   const net = fc.mean - cost, loss = fcRank(fc, cost);
   const last = f0 ? `<p class="note">지난달 어림 ${fmt(f0.mean)}G → 실제 ${fmt(L!.res[0].sales)}G</p>` : '';
@@ -559,6 +598,7 @@ function fcPanel(W: World, P: Plan, cost: number) {
       <div><dt>범위</dt><dd>${sgn(fc.p10 - cost)} ~ ${sgn(fc.p90 - cost)}</dd></div>
       <div><dt>적자 확률</dt><dd class="${loss > 0.3 ? 'neg' : ''}">${Math.round(loss * 100)}%</dd></div>
       <div><dt>사망 어림</dt><dd>${fc.dead.toFixed(1)}명</dd></div></dl>
+    <p class="note">이번 달 돌아온 조 · 그믐 전에 돌아올 조 · 본부의 조가 남은 날 동안 나갈 어림 (지출은 그믐까지 이번 달 전부)</p>
     <details class="fold"><summary>수입 분포 그래프</summary>${fcChart(fc, cost, null, `수입 어림 ${fmt(fc.mean)}G, 지출 ${fmt(cost)}G`)}${last}<p class="note">가로: 이번 달 수입(G) · 막대: 그 수입이 나올 확률 · 빨간 점선: 지출. 약점 · 역효과는 모르는 채로 셈.</p></details></div>`;
 }
 
@@ -566,9 +606,10 @@ function fcPanel(W: World, P: Plan, cost: number) {
 // ---------- 결과 ----------
 export function resultWeekHtml(W: World, live = false, mute = false) {
   return `<div class="resultwrap${live ? '' : ' done'}">${revealHtml(W, live, mute)}<article class="co-sheet doc${live ? ' after-run' : ''}" id="results"><span class="stampmark">결재</span>${resultsHtml(W)}</article>
-    <div class="foot"><button type="button" class="btn-next" data-act="phase" data-phase="0">제${W.month}월 내정으로 →</button></div></div>`;
+    <div class="foot"><button type="button" class="btn-next" data-act="phase" data-phase="0">제${W.month}월 ${W.day || 1}일 · 길드로 →</button></div></div>`;
 }
 
 // 이번 달 진행 표시: 보여 주기만 한다 (주차를 옮기는 것은 각 화면 아래의 단추로)
-export const weeksHtml = (W: World, phase: number) => [['내정', 0], ['출정', 1], ['가정산', 2], ['정산', 3]].map(([n, p], i) =>
+// 길드 · 출정은 날마다 오가고, 그믐이 지나면 가정산 · 정산. 길드 · 출정에서는 이번 달 날 띠를 함께 보인다
+export const weeksHtml = (W: World, phase: number) => (phase <= 1 ? dayStrip(W) : '') + [['길드', 0], ['출정', 1], ['가정산', 2], ['정산', 3]].map(([n, p], i) =>
   `<span class="wk${(p as number) < phase ? ' done' : ''}"${p === phase ? ' aria-current="step"' : ''}><i>${i + 1}</i>${n}</span>`).join('');

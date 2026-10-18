@@ -1,10 +1,10 @@
 // 용병단 시뮬레이터: 플레이어 봇 성향마다 여러 판을 돌려 평균 순위와 1위 분포를 본다.
 //   npm run sim                         기본 200판, 모든 성향
 //   npm run sim -- --games 500 --style smart
-// 성향: even(고르게) · deep(깊은 층 위주) · hire(계약 파티를 씀) · smart(시장을 읽는 숙련자, 근원에는 채굴장)
+// 성향: even(고르게) · deep(깊은 층 위주) · smart(시장을 읽는 숙련자, 근원에는 채굴장)
 //       smartNoGuide · smartSeal · smartNoRoot: 숙련 봇에서 지침을 빼거나 근원을 달리 다룬 것
 import { setSeed } from '../src/core/rng';
-import { CO, TAX, FLOORS, potShock, cashK, aidAt, jobsExplore, churchPrice, ITEMS, type Filing, type Plan, type World, closeBooks, preview, defaultPlan, dormCost, jobsSign, partyMargin, roomOf, demandMul, potsOf, probe, floorMons, mapOf, maxParties, newWorld, torchRate, tripOdds, sanitize, canTarget, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
+import { CO, TAX, FLOORS, potShock, cashK, aidAt, jobsExplore, churchPrice, ITEMS, type Filing, type Plan, type World, closeBooks, preview, setClerks, defaultPlan, dormCost, jobsSign, partyMargin, roomOf, demandMul, potsOf, probe, floorMons, mapOf, maxParties, newWorld, torchRate, tripOdds, sanitize, canTarget, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
 import { demandSeen } from '../src/ui/co/book';
 import { ASK_KEYS, DEX, MAT_KEYS, type Dex, askable, badSure, keySure } from '../src/core/dex';
 import { CLASSES, PAIR_CLASS, classWeaks } from '../src/core/data';
@@ -35,6 +35,7 @@ if (process.env.P0X) ITEMS[0].P0 *= +process.env.P0X;
 for (const k of ['TARGET_AT', 'TARGET_W', 'TARGET_SUCC', 'TARGET_MAT', 'KEY_SUCC', 'KEY_CRISIS', 'MAT_SURE', 'ASK_AT'] as const) if (process.env['DEX_' + k]) DEX[k] = +process.env['DEX_' + k]!;
 if (process.env.ENC_W0) { const a = +process.env.ENC_W0; CO.ENC_W = [a, (1 - a) / 2, (1 - a) / 2]; }
 if (process.env.MAT_ENC) CO.MAT_ENC = +process.env.MAT_ENC;
+for (const k of ['A_K', 'A_CLERK', 'CLERK_WAGE', 'A_TRIP', 'A_BASE', 'A_MEMBER', 'A_FLOOR', 'A_FREE'] as const) if (process.env[k]) (CO as any)[k] = +process.env[k]!;
 const arg = (k: string, d: string) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
 const games = +arg('games', '200'), seed0 = +arg('seed', '1'), only = arg('style', '');
 const MONTHS = 36;
@@ -56,10 +57,11 @@ export const BOT: Record<string, (W: World) => Plan> = {
     if (W.month % 6 === 0 && us(W).cash > 10000 * cashK()) P.base = { f: d, amt: CO.BASE_STEP };
     return grow(W, P);
   },
-  hire: W => { const P = defaultPlan(W), d = W.unlocked - 1; if (W.last && W.last.perParty[d] > 400) P.hire[d] = 2; return grow(W, P); },
   // 몸집을 불리지 않는 숙련 봇 (숙소·모집이 순위에 얼마나 보태는지 재는 기준)
   smartStay: W => { const P = smartPlan(W); P.dorm = false; return P; },
   smart: W => smartPlan(W),
+  // 숙련 봇이 전리품을 창고에 두고 지정가(기준 값의 SELL_AT배)를 넘으면 파는 것 (창고 보관이 이득인지 재는 기준)
+  smartHold: W => { const P = smartPlan(W); P.autoSell = false; P.sellAt = +(process.env.SELL_AT || 1); return P; },
   // 숙련 봇에서 추리만 뺀 것 (편성 지침이 순위에 얼마나 보태는지 재는 기준)
   smartNoGuide: W => smartPlan(W, 'mine', true, false, false),
   smartAsk: W => smartPlan(W, 'mine', true, false, true, true),   // 단장 조사를 소거법으로
@@ -89,7 +91,7 @@ export function fileSmart(W: World, risk = FILE_RISK): Partial<Filing> {
   return fileAt(D.truth, lo);
 }
 export const FILER: Record<string, (W: World) => Partial<Filing>> = {
-  smart: W => fileSmart(W), smartNoGuide: W => fileSmart(W), smartAsk: W => fileSmart(W), smartNoKit: W => fileSmart(W), smartScout: W => fileSmart(W), smartSeal: W => fileSmart(W), smartNoRoot: W => fileSmart(W), smartStay: W => fileSmart(W),
+  smart: W => fileSmart(W), smartNoGuide: W => fileSmart(W), smartAsk: W => fileSmart(W), smartNoKit: W => fileSmart(W), smartScout: W => fileSmart(W), smartSeal: W => fileSmart(W), smartNoRoot: W => fileSmart(W), smartStay: W => fileSmart(W), smartHold: W => fileSmart(W),
   smartGreedy: W => (W.draft ? fileAt(W.draft.truth, 1) : {}),
 };
 
@@ -98,6 +100,8 @@ export const FILER: Record<string, (W: World) => Partial<Filing>> = {
 // 크게 남는 층에는 계약 파티를 쓴다.
 // 거점과 쌓아 두기는 지금 규모에서는 손해라 쓰지 않는다 (시뮬레이션으로 확인함)
 const GROW_K = +(process.env.GROW_K || 1.2), GROW_M = +(process.env.GROW_M || 80);
+const CLERK_HI = +(process.env.CLERK_HI || 0.8), CLERK_LO = +(process.env.CLERK_LO || 0.5)// 지정 탐사로 주 몬스터를 노리는 것도 지금은 조금 손해다 (주 몬스터가 더 어렵다). AIM=1이면 노린다
+, AIM = process.env.AIM === '1', KEY_TPL = process.env.KEY_TPL === '1';
 export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine', kit = true, scout = false, guide = true, askAll = ASK_ALL): Plan {
   const c = us(W), P = defaultPlan(W), L = W.last, pots = 3;
   // 조당 남는 돈: 성공해서 캐 올 값(모형과 지난달 실제 조당 벌이의 중간) − 출정·포션 − 사망의 값(신입 계약금과 빈자리)
@@ -124,12 +128,13 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
   P.pots = FLOORS.map((_, f) => Math.min(pots, 1 + f));
   P.tool = 0;   // 단원마다 급여가 붙은 뒤로는 채집 장비 · 갈무리장이 본전이 안 된다 (시뮬레이션으로 확인함)
   const best = value.indexOf(Math.max(...value));
-  if (c.cash > 6000 * cashK() && value[best] * (1 - CO.HIRE_CUT) - CO.HIRE_FEE > 150) P.hire[best] = 2;
   const key = deduce(W);
   P.guide = kit ? key.map((g, f) => addKit(W, f, g, P.parties[f])) : key;
   // 조 모양: 층마다 추리한 약점 직업은 두 자리에(소재용으로 더한 직업이 아니라), 기록상 손해 보는 직업은 빼고 전사로
   // (명단이 있는 판은 도감이 기록을 모으므로 직업을 돌려 시험하지 않는다: 확정한 약점이 있는 층만 그 모양으로)
   P.tplF = FLOORS.map((_, f) => (c.crew && !key[f] ? [...CO.TPL0] : floorTpl(W, f, key[f], P.guide[f])));
+  // 확정한 약점 직업을 둘씩 넣는 조 모양은 지금 손해다 (탐사 날의 60%는 곁 몬스터를 만난다. 60판: 쓰면 1.92위, 안 쓰면 1.73위). KEY_TPL=1이면 쓴다
+  if (!KEY_TPL) { P.tplF = undefined; P.guide = P.guide.map(() => ''); }
   if (!guide) { P.guide = P.guide.map(() => ''); P.tplF = undefined; }
   // 포션: 교회 값이 상단보다 싸면(후원해서 교회가 예전 값으로 내줄 때) 교회에서 사고, 담합이 터지면 여유가 있을 때 한 번 후원한다
   const need = P.parties.reduce((a, n, f) => a + (n + P.hire[f]) * P.pots[f], 0);
@@ -148,18 +153,20 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
   }));
   // 탐사 계획서: 그 층에 보낼 조를 그대로 적어 내고 선금을 받는다
   jobsExplore(W).forEach(J => { if (P.parties[J.f]) P.take![J.id] = P.parties[J.f]; });
+  // 서기: 지난달 행정 여력이 CLERK_HI를 넘었으면 한 명 더 (빈 침상을 신입보다 먼저), CLERK_LO 밑이면 한 명 줄인다
+  const A = L && L.res[0].admin; if (c.crew && A) { const r = A.load / A.cap; if (r > CLERK_HI && roomOf(c) > 0) setClerks(W, (c.clerks || 0) + 1); else if (r < CLERK_LO && c.clerks) setClerks(W, c.clerks - 1); }
   // 신입: 지원자 명단에서 실력 좋은 사람부터 빈 침상만큼
   if (c.crew && W.cand) P.pick = [...W.cand].sort((a, b) => (b.sk || 0) - (a.sk || 0)).slice(0, roomOf(c)).map(x => x.id);
   // 몸집: 조당 남는 돈이 급여보다 넉넉하면 숙소를 늘린다. 본부의 질(훈련장 · 의무실)은 올리지 않는다:
   // 공사가 숙소 증축을 한 달씩 미루는 값이 커서 이 봇의 운영에선 손해였다 (의무실 1단계만 본전 근처)
   // 횃불: 지도만큼 헤맬 것을 셈해, 돌아설 확률이 TORCH_RISK 밑이 되는 데까지 들고 간다
-  P.torch = FLOORS.map((_, f) => { const r = torchRate(f, mapOf(c, f)); let t = 1; while (t < CO.DAYS && tripOdds(t, r).dark > TORCH_RISK) t++; return t; });
+  P.torch = FLOORS.map((_, f) => { const r = torchRate(f, mapOf(c, f)); let t = 1; while (t < CO.DAYS && tripOdds(t, r, CO.TRIP_DAYS[f]).dark > TORCH_RISK) t++; return t; });
   grow(W, P, GROW_K, GROW_M);
   if (!c.crew || !guide) return P;
   // 조를 짜 두고: 도감 이해도가 찬 주 몬스터는 노리고(지정 탐사), 단장이 가는 층의 몬스터 중 하나에 기록상 가장 그럴듯한 약점을 묻는다
   const Q = sanitize(W, c, P), dex = W.dex || {};
   // (주 몬스터는 어려워서 약점을 확정한 뒤에만 노린다)
-  Q.teams!.forEach(T => { const M = floorMons(W, T.f)[0]; if (canTarget(W, T.f, M.name) && keySure(dex[M.name])) T.target = M.name; });
+  if (AIM) Q.teams!.forEach(T => { const M = floorMons(W, T.f)[0]; if (canTarget(W, T.f, M.name) && keySure(dex[M.name])) T.target = M.name; });
   const lead = (c.crew || []).find(x => x.lead), LT = lead ? Q.teams!.find(T => T.m.includes(lead.id)) : null;
   // (기록에서 짐작이 서면 그것부터, 서지 않으면 아직 묻지 않은 것을 하나씩 지워 간다. 묻는 데 돈이 들지 않는다)
   if (LT && askAll) for (const M of floorMons(W, LT.f)) {
@@ -281,14 +288,22 @@ export function addKit(W: World, f: number, g: string, n: number) {
   return best ? [g, best].filter(Boolean).sort().join('+') : g;
 }
 
-export function playGame(seed: number, bot: (W: World) => Plan, file: (W: World) => Partial<Filing> = () => ({})) {
+// onMonth: 달마다 봇이 낸 결정표와 결재 결과를 본다 (지표가 쓴다)
+export function playGame(seed: number, bot: (W: World) => Plan, file: (W: World) => Partial<Filing> = () => ({}), onMonth?: (W: World, P: Plan, M: ReturnType<typeof runMonth>, before: { unlocked: number; explore: number }) => void) {
   setSeed(seed);
   const W = newWorld();
-  for (let m = 0; m < MONTHS; m++) { runMonth(W, bot(W)); closeBooks(W, file(W)); }
+  for (let m = 0; m < MONTHS; m++) {
+    const P = bot(W), before = { unlocked: W.unlocked, explore: jobsExplore(W).length };
+    const M = runMonth(W, P); closeBooks(W, file(W));
+    if (onMonth) onMonth(W, P, M, before);
+  }
   return W;
 }
 
-if (process.argv[1] && process.argv[1].endsWith('company.ts')) {
+if (process.argv[1] && process.argv[1].endsWith('company.ts') && process.argv.includes('--metrics')) {
+  // npm run sim -- --metrics --games 100 [--style smart]: 인력 손실 · 관리 부담 · 인원 지표
+  for (const name of only ? [only] : ['smart', 'even']) metrics(name, games);
+} else if (process.argv[1] && process.argv[1].endsWith('company.ts')) {
   for (const name of Object.keys(BOT).filter(k => !only || k === only)) {
     let rankSum = 0, worthSum = 0, firsts = 0, broke = 0, overs = 0, taxSum = 0, gainSum = 0, fineSum = 0, audits = 0;
     const auditsBy: Record<string, number> = {}, scanBy: Record<string, number> = {}; let scans = 0, checks = 0;
@@ -331,4 +346,56 @@ export function guessKeys(D: Dex, min = 0, n0 = 3) {
     classWeaks(k).forEach(w => { best[w] = Math.max(best[w] ?? -1, d); });
   });
   return ASK_KEYS.filter(k => D.key[k] !== 'no' && best[k] > min).sort((a, b) => best[b] - best[a]);
+}
+
+// ---------- 지표: 인력 손실 · 관리 부담 · 인원 ----------
+// 결정표의 잎 칸을 "경로 = 값"으로 펴서 지난달과 다른 칸을 센다 (클릭 수의 대리 지표)
+function leaves(x: unknown, pre = '', out: Record<string, string> = {}) {
+  if (x && typeof x === 'object') Object.entries(x as Record<string, unknown>).forEach(([k, v]) => leaves(v, pre ? `${pre}.${k}` : k, out));
+  else if (x !== undefined) out[pre] = JSON.stringify(x);
+  return out;
+}
+function pc(a: number, b: number) { return `${b ? Math.round(a / b * 100) : 0}%`; }
+function metrics(name: string, games: number) {
+  const T = ['신입', '수련', '숙련', '노련', '명인'], dTier = [0, 0, 0, 0, 0];
+  let dUnknown = 0, pairs = 0, exLost = 0, rank = 0, firsts = 0;
+  const shaken = [0, 0, 0], monthsN = [0, 0, 0], whyS = [0, 0, 0], whyD = [0, 0, 0];
+  const diff: Record<string, { n: number; d: number; teams: number }> = {};
+  const members: number[] = [], clerks: number[] = [], adm: number[] = [];
+  for (let g = 0; g < games; g++) {
+    let prevPlan: Record<string, string> | null = null, prevTier: Record<number, number> = {}, prevDeaths = 0, prevLoss = 0;
+    const W = playGame(seed0 + g, BOT[name], FILER[name], (W, P, M, before) => {
+      const m = M.month - 1, third = Math.min(2, Math.floor(m / 12));
+      // 1. 인력 손실: 실력 단계별 사망, 잃은 짝 · 경험, 편성이 흔들린 달 (빈자리로 나간 탐사가 있거나, 조의 평균 실력 단계가 지난달보다 반 단계 넘게 낮아짐)
+      let known = 0;
+      M.ours.forEach(o => (o.dead || []).forEach(d => { known++; if (d.tk != null) dTier[d.tk]++; pairs += d.mt || 0; exLost += d.ex || 0; }));
+      dUnknown += M.res[0].deaths - known;
+      const tier: Record<number, number> = {};
+      M.ours.forEach(o => { if (o.t == null || !o.tk) return; const a = o.tk.reduce((x, y) => x + y, 0) / o.tk.length; tier[o.t] = Math.max(tier[o.t] ?? -1, a); });
+      // 줄어든 조: 같은 조가 그달 안에서 처음보다 적은 사람으로 나감 (부상 · 사망). 자투리로 처음부터 적은 조는 세지 않는다
+      const first: Record<number, number> = {}, short = M.ours.some(o => { if (o.t == null) return false; const n = o.n || CO.PARTY; if (first[o.t] == null) { first[o.t] = n; return false; } return n < first[o.t]; });
+      // 실력 낮아짐: 지난달 잃은 · 다친 사람이 있었고, 조의 평균 실력 단계가 반 단계 넘게 낮아짐 (몸집을 불려 신입이 끼는 것은 세지 않는다)
+      const drop = prevLoss > 0 && Object.entries(tier).some(([t, a]) => prevTier[+t] != null && a < prevTier[+t] - 0.5);
+      monthsN[third]++; if (short || drop) shaken[third]++; if (short) whyS[third]++; if (drop) whyD[third]++;
+      prevTier = tier;
+      // 2. 관리 부담: 지난달과 달라진 결정 칸 수 (조 수 대비)
+      const L = leaves(P), nT = (P.teams || []).length || P.parties.reduce((a, b) => a + b, 0);
+      if (prevPlan) {
+        const keys = new Set([...Object.keys(L), ...Object.keys(prevPlan)]); let d = 0; keys.forEach(k => { if (L[k] !== prevPlan![k]) d++; });
+        const b = nT <= 4 ? '조 4 이하' : nT <= 7 ? '조 5~7' : '조 8 이상'; const x = diff[b] || (diff[b] = { n: 0, d: 0, teams: 0 }); x.n++; x.d += d; x.teams += nT;
+      }
+      prevPlan = L;
+      prevDeaths = M.res[0].deaths; prevLoss = M.res[0].deaths + M.res[0].hurt;
+    });
+    const r = rankOf(W); rank += r; if (r === 1) firsts++;
+    members.push(us(W).members); clerks.push(us(W).clerks || 0); adm.push(...W.history.map(M => (M.res[0].admin ? M.res[0].admin.load / M.res[0].admin.cap : 0)));
+  }
+  const deaths = dTier.reduce((a, b) => a + b, 0) + dUnknown;
+  console.log(`지표 '${name}' · ${games}판 · 평균 순위 ${(rank / games).toFixed(2)} · 1위 ${pc(firsts, games)}`);
+  console.log(`  [인력 손실] 판당 사망 ${(deaths / games).toFixed(1)}명: ${T.map((n, t) => `${n} ${(dTier[t] / games).toFixed(1)}`).join(' · ')} · 범람 등 ${(dUnknown / games).toFixed(1)} → 노련 · 명인 ${((dTier[3] + dTier[4]) / games).toFixed(1)}명`);
+  console.log(`  [인력 손실] 판당 잃은 조직력 짝 ${(pairs / games).toFixed(1)} · 층 경험 ${Math.round(exLost / games)} · 편성이 흔들린 달 ${[0, 1, 2].map(k => `${['1~12', '13~24', '25~36'][k]}월 ${pc(shaken[k], monthsN[k])} (줄어든 조 ${pc(whyS[k], monthsN[k])} · 실력 낮아짐 ${pc(whyD[k], monthsN[k])})`).join(' · ')}`);
+  console.log(`  [관리 부담] 달마다 바뀐 결정 칸 ${Object.entries(diff).sort().map(([b, x]) => `${b}: ${(x.d / x.n).toFixed(1)}칸 (조당 ${(x.d / x.teams).toFixed(1)}, ${x.n}달)`).join(' · ')}`);
+  const at50 = members.filter(x => x >= 50).length, mid = members.filter(x => x >= 30 && x <= 40).length;
+  const avg = (a: number[]) => a.reduce((x, y) => x + y, 0) / Math.max(1, a.length);
+  console.log(`  [인원] 36개월 뒤 단원 평균 ${avg(members).toFixed(1)}명 · 50명(상한) ${pc(at50, games)} · 30~40명 ${pc(mid, games)} · 서기 ${avg(clerks).toFixed(1)}명 · 행정 여력 평균 ${Math.round(avg(adm) * 100)}% (넘친 달 ${pc(adm.filter(x => x > 1).length, adm.length)}, 70% 넘은 달 ${pc(adm.filter(x => x > CO.A_FREE).length, adm.length)})`);
 }

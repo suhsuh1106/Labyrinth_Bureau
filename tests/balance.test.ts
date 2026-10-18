@@ -24,7 +24,7 @@ import { floorMax, keyOf } from '../src/core/company';
 import { fcRank, forecast, gradeOf } from '../src/core/company';
 import { bedsOf, classCap, dormCost, dormKeep, formTeams, recruitPrice, recruitWants, rookCount, rookSlots, shareOut } from '../src/core/company';
 import { CLASSES } from '../src/core/data';
-import { needOf, tripOdds, potShock, profitOf, drillGain, weakShare, hireCap } from '../src/core/company';
+import { needOf, tripOdds, potShock, profitOf, drillGain, weakShare } from '../src/core/company';
 import { WEAK_KEYS } from '../src/core/data';
 import { DEX } from '../src/core/dex';
 
@@ -38,13 +38,13 @@ describe('몬스터와 편성 지침', () => {
   });
   it('현장 기록은 우리 직영 파티만 남기고, 처음 간 층에서는 겉모습 증언을 듣는다', () => {
     setSeed(4); const W = newWorld();
-    const P = defaultPlan(W); P.hire = [2, 0, 0, 0, 0];
-    runMonth(W, P);
-    expect(W.obs[0]['*'].n).toBe(P.parties[0]);
+    const P = defaultPlan(W);
+    const M0 = runMonth(W, P);
+    expect(W.obs[0]['*'].n).toBe(M0.ours.filter(o => o.f === 0).length);   // 다녀온 탐사마다 하나
     expect(W.notes[0]).toEqual({ m: 1, f: 0, t: MONSTERS[W.mons[0]].look[0] });
     for (let m = 0; m < 11; m++) runMonth(W, defaultPlan(W));
     // 오래된 기록일수록 흐려진다: 달마다 OBS_FADE를 곱한 뒤 이번 달 것을 더한다
-    const faded = W.history.reduce((a, M) => a * CO.OBS_FADE + M.res[0].sent[0], 0);
+    const faded = W.history.reduce((a, M) => a * CO.OBS_FADE + M.ours.filter(o => o.f === 0).length, 0);
     expect(W.obs[0]['*'].n).toBeCloseTo(faded, 6);
   });
   it('약점은 그날 만난 몬스터의 것만 먹힌다: 주 몬스터의 약점을 갖추면 주 몬스터를 만난 날 더 해낸다', () => {
@@ -71,11 +71,12 @@ describe('몬스터와 편성 지침', () => {
   });
   // 지침의 덕은 작다(200판 평균 순위: 공방을 뺀 뒤 3.35 대 3.37, 영주청 전에도 0.1 안팎). 여기서는 지침이 손해를 보지 않는지만 본다.
   // 120판 순위 합의 노이즈가 ±4% 안팎이라 6%까지 둔다
-  it('숙련 봇은 현장 기록으로 추리한 지침을 써도 지침 없이 둘 때보다 뒤처지지 않는다', () => {
+  // (판이 날 단위로 돌아 오래 걸린다: 열 판마다 한 번 쉬어 vitest 워커가 시간 초과를 내지 않게 한다)
+  it('숙련 봇은 현장 기록으로 추리한 지침을 써도 지침 없이 둘 때보다 뒤처지지 않는다', async () => {
     let a = 0, b = 0;
-    for (let g = 1; g <= 120; g++) { a += rankOf(playGame(g, BOT.smart, FILER.smart)); b += rankOf(playGame(g, BOT.smartNoGuide, FILER.smartNoGuide)); }
+    for (let g = 1; g <= 120; g++) { a += rankOf(playGame(g, BOT.smart, FILER.smart)); b += rankOf(playGame(g, BOT.smartNoGuide, FILER.smartNoGuide)); if (g % 10 === 0) await new Promise(r => setTimeout(r, 0)); }
     expect(a).toBeLessThanOrEqual(b * 1.06);
-  }, 90000);
+  }, 300000);
 });
 
 describe('밸런스', () => {

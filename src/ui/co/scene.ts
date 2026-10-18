@@ -18,9 +18,9 @@ let cur: { el: HTMLElement; stop: () => void } | null = null;
 
 export function closeScene() { if (cur) cur.stop(); }
 
-// i: W.last.ours의 자리. sfx: 소리 (coMain의 SOUND)
-export function openScene(W: World, i: number, sfx: (k: string) => void = () => {}) {
-  const L = W.last, x = L && L.ours[i];
+// i: W.last.ours의 자리 (src가 'back'이면 이번 달 돌아온 조 W.back의 자리). sfx: 소리 (coMain의 SOUND)
+export function openScene(W: World, i: number, sfx: (k: string) => void = () => {}, src = 'last') {
+  const L = W.last, x = src === 'back' ? (W.back || [])[i]?.rep : L && L.ours[i];
   if (!x || !x.days || !x.trip) return;
   closeScene();
   const D = x.days, T = x.trip, F = FLOORS[x.f], cls = x.cls || [], nm = x.nm || cls, n = cls.length, ld = x.ld ?? -1;

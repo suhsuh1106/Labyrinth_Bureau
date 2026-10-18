@@ -1,18 +1,19 @@
-// 용병단 행정실 진입점: 한 달을 정보 주차와 탐험 주차로 나눠 결정하고, 도장을 찍으면 한 달을 돌린다. 판을 이 브라우저에 저장한다
+// 용병단 행정실 진입점: 날마다 길드 홀에서 조를 보내고 보급을 사고, 다음 날로 넘기면 돌아올 조가 돌아온다. 그믐이 지나면 가정산 · 정산. 판을 이 브라우저에 저장한다
 import './ui/co/base.css';
 import './ui/co/co.css';
 import { setSeed } from './core/rng';
-import { CO, FILE_KEYS, hireCap, teamPots, teamTorch, teamMend, carryOf, foodDays, mendOf, FLOORS, type Plan, SRCS, type World, carryPlan, closeBooks, fileFix, fillTeams, formTeams, newWorld, probe, rankOf, roomOf, runMonth, sanitize, us } from './core/company';
+import { sellStock, setClerks, buyNow, fireNow, nextDay, sendReady, sendTeam, CO, FILE_KEYS, teamPots, teamTorch, teamMend, carryOf, foodDays, mendOf, FLOORS, type Plan, SRCS, type World, carryPlan, closeBooks, fileFix, fillTeams, formTeams, newWorld, probe, rankOf, roomOf, sanitize, awayIds, us } from './core/company';
 import { DESC_FIRST, packBar } from './ui/co/roster';
 import { CLASSES, GEARS } from './core/data';
 import { plaqueHtml } from './ui/co/view';
-import { type DeskUi, DOC_KEYS, PLACE_KEYS, expWeekHtml, infoWeekHtml, resultWeekHtml, weeksHtml } from './ui/co/desk';
+import { type DeskUi, DOC_KEYS, PLACE_KEYS, expWeekHtml, infoWeekHtml, orderOf, resultWeekHtml, weeksHtml } from './ui/co/desk';
+import { todayBack } from './ui/co/hall';
 import { draftHtml } from './ui/co/draft';
 import { closeScene, openScene } from './ui/co/scene';
 import { advanceArrival, arrivalOpen, closeArrival, playArrival } from './ui/co/arrival';
 
 const $ = (id: string): any => document.getElementById(id);
-const KEY = 'lb-co', VERSION = 23, MONTHS = 36;   // 23: 탐사 재생 장면용 조원별 하루 기록 (이전 판은 새 게임으로)
+const KEY = 'lb-co', VERSION = 27, MONTHS = 36;   // 27: 날 단위 시장 · 창고의 전리품 (이전 판은 새 게임으로)
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
 let W: World, plan: Plan, ui: DeskUi;
 // 도장을 막 찍은 결과 화면이면 귀환 장부를 한 줄씩 띄운다 (저장하지 않는 화면 상태)
@@ -46,7 +47,7 @@ function start(fresh = false) {
   const d = fresh ? null : load();
   if (d) { W = d.W; plan = d.plan; ui = d.ui || { phase: 0, tab: 'report', pins: [] }; }
   // 첫 결정표: 포션 상한 0병(처음 받은 포션은 창고에), 신입 없음, 교관 없음. 돈 드는 것은 모두 고르는 것
-  else { setSeed((Date.now() ^ 0x5bd1e995) >>> 0); W = newWorld(); plan = carryPlan(W, null); plan.pots = plan.pots.map(() => 0); plan.pick = []; plan.train = 0; plan.coach = 0; ui = { phase: 0, tab: 'report', pins: [] }; }
+  else { setSeed((Date.now() ^ 0x5bd1e995) >>> 0); W = newWorld(); plan = carryPlan(W, null); plan.pots = plan.pots.map(() => 0); plan.pick = []; plan.train = 0; plan.coach = 0; plan.autoSell = false; ui = { phase: 0, tab: 'report', pins: [] }; }
   plan.intelUp = plan.intelUp || {};   // 정보망은 유지비를 저절로 내고, 넓히는 돈만 따로 정한다
   tidyTeams();
   render(); save();
@@ -65,6 +66,8 @@ document.addEventListener('keydown', e => {
     else return;
     e.preventDefault(); render(); save(); return;
   }
+  // n: 다음 날 (길드 · 출정에서, 입력 칸이 아닐 때)
+  if ((e.key === 'n' || e.key === 'N') && ui && ui.phase <= 1 && !arrivalOpen() && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement || e.target instanceof HTMLTextAreaElement) && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); advance(); return; }
   if (e.key !== 'Escape') return;
   if (arrivalOpen()) closeArrival();
   else if (ui && ui.open) { ui.open = false; render(); save(); }
@@ -78,7 +81,11 @@ function tidyTeams() {
   plan.teams = Q.teams; plan.tpl = Q.tpl; plan.parties = Q.parties;
 }
 function teamAct(a: string, b: HTMLElement) {
-  const c = us(W), T = plan.teams || [], tpl = plan.tpl || CO.TPL0, pick = ui.pick;
+  const c = us(W), T = plan.teams || [], tpl = plan.tpl || CO.TPL0, pick = ui.pick, out = awayIds(W);
+  // 미궁에 나가 있는 사람은 돌아올 때까지 다른 자리로 옮기지 않는다
+  const outAt = (t: number, s: number) => T[t] && T[t].m[s] != null && out.has(T[t].m[s]!);
+  if ((a === 'assign' || a === 'bench') && out.has(+(b.dataset.id || -1))) return;
+  if (a === 'slot' && (outAt(+(b.dataset.t || 0), +(b.dataset.s || 0)) || (pick && pick.t != null && outAt(pick.t, pick.s!)))) return;
   if (a === 'refill') { plan.teams = formTeams(c, plan.parties, tpl, false).filter(x => x.m.some(y => y != null)); ui.pick = null; }
   else if (a === 'fill-rest') { fillTeams(c, T, tpl); ui.pick = null; }
   else if (a === 'bench') { const id = +(b.dataset.id || 0); ui.pick = pick && pick.id === id ? null : { id }; }
@@ -167,23 +174,56 @@ function act(b: HTMLElement) {
   if (a === 'auto-mend') { plan.buy = { ...(plan.buy || {}) }; delete plan.buy.mend; render(); save(); return; }
   if (a === 'kit-add') { const f = +(b.dataset.f || 0); plan.kits = plan.kits || []; plan.kits[f] = [...(plan.kits[f] || []), { n: 0, g: '' }]; render(); save(); return; }
   if (a === 'kit-del') { const f = +(b.dataset.f || 0), k = +(b.dataset.j || 0); if (plan.kits && plan.kits[f]) plan.kits[f].splice(k, 1); render(); save(); return; }
-  if (a === 'go') return stamp();
+  if (a === 'go' || a === 'send-all') {
+    const S = sendReady(W, plan); tidyTeams(); render(); save();
+    say(S.length ? `${S.map(x => `${x.t + 1}조`).join(' · ')} 출발 · ${[...new Set(S.map(x => FLOORS[x.f].name))].join(' · ')}` : '지금 나갈 수 있는 조가 없어요'); return;
+  }
+  if (a === 'send') {
+    const t = +(b.dataset.t || 0), x = sendTeam(W, plan, t); tidyTeams(); render(); save();
+    say(x ? `${t + 1}조가 ${FLOORS[x.f].name}로 떠났어요 · ${CO.TRIP_DAYS[x.f]}일 길` : '그 조는 지금 나갈 수 없어요'); return;
+  }
+  if (a === 'next-day') return advance();
+  if (a === 'buy-now') {
+    const o = orderOf(W, plan); let v = 0;
+    (['pot', 'holy', 'torch', 'food', 'mend'] as const).forEach(k => { v += buyNow(W, k, o[k]); });
+    Object.entries(o.gear).forEach(([g, n]) => { v += buyNow(W, 'gear', n, g); });
+    plan.buy = {}; render(); save(); say(v ? `보급 ${Math.round(v).toLocaleString('ko-KR')}G어치가 창고에 들어왔어요` : '살 것이 없어요'); return;
+  }
+  if (a === 'sell' || a === 'sell-all') {
+    const js = a === 'sell-all' ? FLOORS.map((_, j) => j) : [+(b.dataset.j || 0)];
+    let v = 0; js.forEach(j => { const n = Math.floor(((W.stock || [])[j] || 0) + 1e-9); v += sellStock(W, j, b.dataset.n === 'half' ? Math.ceil(n / 2) : n); });
+    render(); save(); say(v ? `전리품 ${Math.round(v).toLocaleString('ko-KR')}G어치를 팔았어요` : '팔 것이 없어요'); return;
+  }
+  if (a === 'auto-sell') { if (plan.autoSell === false) delete plan.autoSell; else plan.autoSell = false; render(); save(); return; }
+  if (a === 'auto-buy') { if (plan.autoBuy === false) delete plan.autoBuy; else plan.autoBuy = false; render(); save(); return; }
+  if (a === 'town') { ui.town = !ui.town; ui.place = undefined; ui.open = false; render(); save(); return; }
   if (a === 'file') return file();
   if (a === 'file-reset') { ui.file = W.draft ? { ...W.draft.truth } : {}; render(); save(); return; }
   if (a === 'skip-run') return finishRun();
-  if (a === 'scene') return openScene(W, +(b.dataset.i || 0), k => SOUND[k]?.(0));
+  if (a === 'scene') return openScene(W, +(b.dataset.i || 0), k => SOUND[k]?.(0), b.dataset.src || 'last');
   if (a === 'mute') { ui.mute = !ui.mute; save(); b.textContent = ui.mute ? '소리 켜기' : '소리 끄기'; return; }
 }
 
-// 결재 도장: 한 달을 돌리고 가정산(신고서)으로 간다. 신고서를 내야 정산이 끝난다
-function stamp() {
-  if (W.month > MONTHS) return;
-  const M = runMonth(W, plan);
-  plan = carryPlan(W, plan); ui.pick = null; tidyTeams();
-  ui.file = W.draft ? { ...W.draft.truth } : {};
-  ui.phase = 2; live = true; render(); save(); window.scrollTo({ top: 0 });
-  playRun();
-  say(`제${M.month}월 귀환${M.opened != null ? ` · ${M.opened + 1}층이 열렸어요` : ''}${M.overflow ? ' · 미궁이 넘쳤어요' : ''} · 영주청에 낼 신고서를 꾸며요`);
+// 다음 날: 내보낼 사람이 떠나고, 날이 넘어가고, 돌아올 조가 돌아온다. 그믐이 지나면 그달을 정산하고 가정산(신고서)으로 간다. 신고서를 내야 정산이 끝난다
+function advance() {
+  if (W.month > MONTHS || W.draft) return;
+  stopRun(); closeScene();
+  if (plan.fire && plan.fire.length) { fireNow(W, plan.fire); delete plan.fire; }
+  const M = nextDay(W, plan);
+  tidyTeams();
+  if (M) {
+    plan = carryPlan(W, plan); ui.pick = null; tidyTeams();
+    ui.file = W.draft ? { ...W.draft.truth } : {};
+    ui.phase = 2; live = true; render(); save(); window.scrollTo({ top: 0 });
+    playRun();
+    say(`제${M.month}월 그믐 정산${M.opened != null ? ` · ${M.opened + 1}층이 열렸어요` : ''}${M.overflow ? ' · 미궁이 넘쳤어요' : ''} · 영주청에 낼 신고서를 꾸며요`);
+    return;
+  }
+  render(); save();
+  // 오늘 아침 돌아온 조: 몇 조가 해냈고, 누가 다치고 누구를 잃었나
+  const back = todayBack(W).map(x => x.rep!).filter(Boolean), dead = back.reduce((a, r) => a + (r.dead || []).length, 0);
+  if (back.length) { SOUND[dead ? 'die' : back.some(r => r.ok) ? 'win' : 'lose']?.(0); say(`${W.day}일 아침 · ${back.map(r => `${(r.t ?? 0) + 1}조`).join(' · ')} 귀환 · ${back.filter(r => r.ok).length}조 해냄${dead ? ` · ${dead}명을 잃었어요` : ''}`); }
+  else say(`제${W.month}월 ${W.day}일${(W.away || []).length ? ` · ${(W.away || []).length}조가 미궁에 있어요` : ''}`);
 }
 // 신고서를 내면 정산이 끝나고 귀환 장부가 한 줄씩 뜬다
 function file() {
@@ -253,6 +293,7 @@ function edit(k: string, i: number, fn: (v: number) => number, j = 0) {
     const el = document.querySelector(`input[data-k="file"][data-i="${i}"]`) as HTMLElement | null; if (el && document.activeElement === document.body) el.focus({ preventScroll: true });
     return;
   }
+  if (k === 'clerks') { setClerks(W, fn(us(W).clerks || 0)); render(); save(); return; }
   if (k === 'train') plan.train = Math.max(0, fn(plan.train));
   else if (k === 'donate') plan.donate = Math.max(0, fn(plan.donate || 0));
   else if (k === 'tool') plan.tool = Math.max(0, Math.min(2, fn(plan.tool || 0)));
@@ -296,7 +337,6 @@ function edit(k: string, i: number, fn: (v: number) => number, j = 0) {
       else T.mend = Math.max(0, Math.min(6, fn(teamMend(plan, T))));
     }
   }
-  else if (k === 'hire') { const other = plan.hire.reduce((a, v, f) => a + (f === i ? 0 : v), 0); plan.hire[i] = Math.max(0, Math.min(hireCap(W) - other, fn(plan.hire[i]))); }
   else if ((plan as any)[k]) (plan as any)[k][i] = Math.max(0, fn((plan as any)[k][i]));
   render(); save();
   const el = document.querySelector(`input[data-k="${k}"][data-i="${i}"]`) as HTMLElement | null; if (el && document.activeElement === document.body) el.focus({ preventScroll: true });
