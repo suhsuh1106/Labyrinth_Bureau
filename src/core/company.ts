@@ -390,7 +390,7 @@ export type MonthResult = {
   month: number; res: CoResult[]; plans: Plan[]; Q: number[]; price: number[]; potion: number; potQ: number; potionC: number; cartel: boolean;
   floors: { before: number; taken: number; crowd: number; cut?: number }[]; perParty: number[]; opened: number | null; rank: string[];
   // 우리 직영 파티 하나하나: 간 층, 갖춘 직업·장비, 성공, 사망 (귀환 보고에 쓴다)
-  ours: { f: number; keys: string[]; ok: boolean; d: number; mats: [string, number][]; first: string[]; kit: number; g: string; crisis?: number; pots?: number; n?: number; k?: number; hurt?: number; days?: Day[]; trip?: Trip; dead?: { n: string; day: number; pot: boolean }[]; cls?: string[]; potC?: number; t?: number }[];   // t: 편성표의 조 번호(0부터), cls: 간 사람들의 직업, potC: 들고 간 포션   // dead: 죽은 단원 (이름, 몇째 날(0이면 어둠 속 귀환), 포션을 쓰고도)   // n: 간 사람, k: 해낸 사람, hurt: 다친 사람   // kit: 편성 줄 번호(-1이면 섞인 대로), g: 챙겨 간 것
+  ours: { f: number; keys: string[]; ok: boolean; d: number; mats: [string, number][]; first: string[]; kit: number; g: string; crisis?: number; pots?: number; n?: number; k?: number; hurt?: number; days?: Day[]; trip?: Trip; dead?: { n: string; day: number; pot: boolean }[]; cls?: string[]; potC?: number; t?: number; nm?: string[]; ld?: number }[];   // nm · ld: 간 사람들의 이름(조원 순서, Day.ms와 같은 순서) · 단장의 자리(-1이면 없음)   // t: 편성표의 조 번호(0부터), cls: 간 사람들의 직업, potC: 들고 간 포션   // dead: 죽은 단원 (이름, 몇째 날(0이면 어둠 속 귀환), 포션을 쓰고도)   // n: 간 사람, k: 해낸 사람, hurt: 다친 사람   // kit: 편성 줄 번호(-1이면 섞인 대로), g: 챙겨 간 것
   matPrice: Record<string, number>; matRef: Record<string, number>;   // 소재 시세와, 그달 전까지의 평균 시세
   pressure: number; overflow: boolean;
   apps: number;   // 그달 마을 지원자
@@ -1177,7 +1177,7 @@ export function runMonth(W: World, playerPlan: Plan): MonthResult {
         if (c.style === 'player' && q < P.parties[f]) {
           ['*', ...keys].forEach(kk => { const o = W.obs[f][kk] || (W.obs[f][kk] = { n: 0, w: 0 }); o.n++; o.w += k / size; });   // '*'는 그 층 전체
           const first = got.filter(([m]) => bookOld && !bookOld[f].has(m) && !ours.some(o => o.mats.some(g => g[0] === m))).map(([m]) => m);
-          ours.push({ f, keys, ok, d: dq, mats: got, first, kit: kit.k, g: gk, crisis, pots: pu, n: size, k, hurt: hq, ...(dayLog ? { days: dayLog, trip } : {}), ...(dead.length ? { dead } : {}), cls, potC: potCarry, ...(TT && P.teams ? { t: P.teams.indexOf(TT) } : {}) });
+          ours.push({ f, keys, ok, d: dq, mats: got, first, kit: kit.k, g: gk, crisis, pots: pu, n: size, k, hurt: hq, ...(dayLog ? { days: dayLog, trip } : {}), ...(dead.length ? { dead } : {}), cls, potC: potCarry, ...(who ? { nm: who.map(x => x.n || x.c), ld: who.findIndex(x => x.lead) } : {}), ...(TT && P.teams ? { t: P.teams.indexOf(TT) } : {}) });
           if (ok && B) {
             const cs = ['*', ...condsOf(keys)];
             cs.forEach(kk => { B.n[kk] = (B.n[kk] || 0) + 1; });

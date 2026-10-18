@@ -14,10 +14,12 @@ import { rnd } from './rng';
 // pk · tl · pl: 그날이 끝났을 때 전리품으로 찬 짐 칸, 남은 횃불, 남은 포션 (귀환 연출이 짐 막대를 날마다 그린다)
 // cr: 부상 주사위에 걸린 수, sv: 포션으로 살린 수, d: 죽은 수, hu: 그날 끝에 다쳐 있는 사람, hg: 굶은 사람, fx: 정비 도구로 고침, bl: 무뎌진 정도
 // fl · ol: 그날 끝에 남은 식량 · 정비 도구
-export type Day = { mon: string; win: boolean; k: number; n: number; loot?: number; mats: [string, number][]; cr: number; d: number; sv?: number; hu?: number; pk?: number; tl?: number; pl?: number; hg?: number; fx?: number; bl?: number; fl?: number; ol?: number };
+// ms: 조원마다 한 글자 (조원 순서대로). - 없음(앞서 죽음) · o 해냄 · x 못 해냄 · p 주사위에 걸려 포션으로 막음 · h 다침 · d 죽음 · s 죽을 뻔하고 버팀 (탐사 재생 장면이 읽는다)
+export type Day = { mon: string; win: boolean; k: number; n: number; loot?: number; mats: [string, number][]; cr: number; d: number; sv?: number; hu?: number; pk?: number; tl?: number; pl?: number; hg?: number; fx?: number; bl?: number; fl?: number; ol?: number; ms?: string };
 // 탐사 한 번: 들고 간 횃불 · 태운 횃불, 짐 칸 · 전리품을 채운 칸 · 남은 횃불과 포션이 차지한 칸, 돌아선 까닭, 어둠 속 위기
 // food · fu: 들고 간 식량(사람×날) · 먹은 것, tools · tk: 들고 간 정비 도구 · 쓴 것, blunt: 고치지 못하고 끝난 진 날 (무뎌짐)
-export type Trip = { torch: number; tu: number; slots: number; pack: number; rest: number; end: 'done' | 'torch' | 'pack' | 'flee'; dark: number; food?: number; fu?: number; tools?: number; tk?: number; blunt?: number };
+// dm: 어둠 속 귀환에서 조원마다 한 글자 (Day.ms와 같은 글자, 주사위에 안 걸렸으면 o)
+export type Trip = { torch: number; tu: number; slots: number; pack: number; rest: number; end: 'done' | 'torch' | 'pack' | 'flee'; dark: number; food?: number; fu?: number; tools?: number; tk?: number; blunt?: number; dm?: string };
 
 export type TripCfg = {
   size: number; days: number; slots: number; torch: number; rate: number;
@@ -47,12 +49,14 @@ export function runTrip(C: TripCfg) {
   const held = () => (C.torch - tu) + C.pots() + food / C.foodSlot + tools;
   // 부상 주사위: 처음 걸리면 다치고(그 탐사 동안 성공 −injPen), 다친 채 또 걸리면 포션으로 살리거나 죽는다
   // 포션이 1차 방어다: 걸리면 먼저 포션을 한 병 써서 막는다(성수면 그 탐사 동안의 부상도 낫는다). 포션이 없으면 다치고, 다친 채 또 걸리면 죽는다
+  // 돌려주는 글자: '' 안 걸림 · p 포션으로 막음 · h 다침 · d 죽음 · s 죽을 뻔하고 버팀
   const dice = (m: number, j: number, day: number, D: { cr: number; d: number; sv?: number }) => {
-    if (rnd() >= C.injP(m, j)) return;
+    if (rnd() >= C.injP(m, j)) return '';
     D.cr++;
-    const pot = C.usePot(); if (pot) { D.sv = (D.sv || 0) + 1; if (pot === 'holy') hurt.delete(m); return; }
-    if (!hurt.has(m)) { hurt.add(m); C.hurt(m, day); return; }
-    if (C.kill(m, day)) { D.d++; gone.add(m); }
+    const pot = C.usePot(); if (pot) { D.sv = (D.sv || 0) + 1; if (pot === 'holy') hurt.delete(m); return 'p'; }
+    if (!hurt.has(m)) { hurt.add(m); C.hurt(m, day); return 'h'; }
+    if (C.kill(m, day)) { D.d++; gone.add(m); return 'd'; }
+    return 's';
   };
   for (let day = 0; day < C.days; day++) {
     const up = Array.from({ length: C.size }, (_, m) => m).filter(m => !gone.has(m));
@@ -73,7 +77,9 @@ export function runTrip(C: TripCfg) {
       if (take < need) end = 'pack';
       if (win) D.mats = C.win(j, kd);
     }
-    up.forEach((m, x) => { if (!dd[x]) dice(m, j, day + 1, D); });
+    const ms = Array(C.size).fill('-');
+    up.forEach((m, x) => { ms[m] = dd[x] ? 'o' : dice(m, j, day + 1, D) || 'x'; });
+    D.ms = ms.join('');
     // 정비 도구: 진 날은 무기가 상한다. 도구가 있으면 하나 써서 고치고, 없으면 무뎌진 채로 다닌다 (그 뒤로 날마다 성공 −toolPen씩 쌓임)
     if (!win) { if (tools > 0) { tools--; tk++; D.fx = 1; } else { blunt++; D.bl = blunt; } }
     if (C.meet) C.meet(j, up, win, D.cr, kd);
@@ -82,8 +88,8 @@ export function runTrip(C: TripCfg) {
     if (end === 'pack') break;
   }
   // 어둠 속 귀환: 횃불이 떨어지면 남은 사람마다 부상 주사위를 한 번 더 (darkMin + 그 층 주사위 × darkBack)
-  const DK = { cr: 0, d: 0 };
-  if (end === 'torch') Array.from({ length: C.size }, (_, m) => m).filter(m => !gone.has(m)).forEach(m => dice(m, -1, 0, DK));
-  const trip: Trip = { torch: C.torch, tu, slots: C.slots, pack: Math.round(pack * 10) / 10, rest: Math.round(held() * 10) / 10, end, dark: DK.cr, food: C.food, fu, tools: C.tools, tk, blunt };
+  const DK = { cr: 0, d: 0 }, dm = Array(C.size).fill('-');
+  if (end === 'torch') Array.from({ length: C.size }, (_, m) => m).filter(m => !gone.has(m)).forEach(m => { dm[m] = dice(m, -1, 0, DK) || 'o'; });
+  const trip: Trip = { torch: C.torch, tu, slots: C.slots, pack: Math.round(pack * 10) / 10, rest: Math.round(held() * 10) / 10, end, dark: DK.cr, food: C.food, fu, tools: C.tools, tk, blunt, ...(end === 'torch' ? { dm: dm.join('') } : {}) };
   return { days, trip, wins, seen, lootSum, tu, fu, tk, foodLeft: food, toolsLeft: tools };
 }
