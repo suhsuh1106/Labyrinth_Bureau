@@ -1402,7 +1402,7 @@ describe('날 단위 턴 · 길드 홀', () => {
   });
   it('한 달은 날마다 정산하지 않고 그믐이 지나야 정산하며, 금고 변화는 판매에서 이번 달 지출(바로 산 것 포함)을 뺀 값이다', () => {
     setSeed(9); const W = newWorld(), P = sanitize(W, us(W), defaultPlan(W)), cash0 = us(W).cash;
-    let M = null;
+    let M = null as ReturnType<typeof nextDay>;
     for (let d = 1; d <= CO.MONTH_DAYS; d++) { expect(W.draft).toBeFalsy(); sendReady(W, P); M = nextDay(W, P); if (d < CO.MONTH_DAYS) expect(M).toBeNull(); }
     expect(M).not.toBeNull(); expect(W.month).toBe(2); expect(W.day).toBe(1);
     const r = M!.res[0], spend = Object.values(r.spend).reduce((a, b) => a + b, 0);
