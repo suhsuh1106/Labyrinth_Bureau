@@ -80,10 +80,10 @@ describe('몬스터와 편성 지침', () => {
 });
 
 describe('밸런스', () => {
-  it('어느 한 용병단이 1위를 도맡지 않고, 숙련 봇도 가끔 1위를 한다', () => {
+  it('어느 한 용병단이 1위를 도맡지 않고, 숙련 봇도 가끔 1위를 한다', async () => {
     const win: Record<string, number> = {};
     // 숙련 봇은 신고서도 다룬다 (장부 그대로 내면 성흔 기사단이 1위를 60% 넘게 가져간다)
-    for (let g = 1; g <= 60; g++) { const W = playGame(g, BOT.smart, FILER.smart); win[W.last!.rank[0]] = (win[W.last!.rank[0]] || 0) + 1; }
+    for (let g = 1; g <= 60; g++) { const W = playGame(g, BOT.smart, FILER.smart); win[W.last!.rank[0]] = (win[W.last!.rank[0]] || 0) + 1; await new Promise(r => setTimeout(r, 0)); }
     expect(Math.max(...Object.values(win))).toBeLessThan(60 * 0.6);
     expect(win.us || 0).toBeGreaterThan(0);
   });

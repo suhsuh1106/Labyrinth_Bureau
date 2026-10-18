@@ -30,8 +30,9 @@ import { DEX, askable, badSure } from '../src/core/dex';
 import { dayAbs, nextDay, openMonth, sellStock, sendReady, stateOf, stockValue } from '../src/core/company';
 
 describe('용병단 장부', () => {
-  it('매달 모든 용병단의 금고 변화가 판매 수입에서 지출을 뺀 값과 같다', () => {
+  it('매달 모든 용병단의 금고 변화가 판매 수입에서 지출을 뺀 값과 같다', async () => {
     for (let seed = 1; seed <= 20; seed++) {
+      await new Promise(r => setTimeout(r, 0));
       setSeed(seed); const W = newWorld();
       const bot = Object.values(BOT)[seed % 4];
       for (let m = 0; m < 36; m++) {
@@ -123,9 +124,10 @@ describe('상단·교회와 포션 담합', () => {
       }
     }
   });
-  it('담합 전에는 소문이 먼저 돌고, 담합 중에는 상단·교회 포션 값이 함께 오른다', () => {
+  it('담합 전에는 소문이 먼저 돌고, 담합 중에는 상단·교회 포션 값이 함께 오른다', async () => {
     let seen = 0;
     for (let g = 1; g <= 40; g++) {
+      await new Promise(r => setTimeout(r, 0));
       const W = playGame(g, BOT.even);
       const start = W.log.find(l => /함께 올린다고/.test(l.t));
       if (!start) continue;
@@ -1103,9 +1105,10 @@ describe('영주청: 영주세 · 법령 · 가정산 · 감사', () => {
     expect(R).toContain('영주청'); expect(R).toContain('영주세');
     expect(draftHtml(W, {})).toContain('낼 신고서가 없어요');
   });
-  it('궁지에 몰린 경쟁 용병단은 장부를 고치고, 크게 걸리면 스캔들이 나고 영주청이 그 칸을 모두에게 더 꼼꼼히 본다', () => {
+  it('궁지에 몰린 경쟁 용병단은 장부를 고치고, 크게 걸리면 스캔들이 나고 영주청이 그 칸을 모두에게 더 꼼꼼히 본다', async () => {
     let scandals = 0, rivals = 0;
     for (let g = 1; g <= 30; g++) {
+      await new Promise(r => setTimeout(r, 0));
       const W = playGame(g, BOT.smart, FILER.smart);
       W.cos.forEach(c => { scandals += c.scandals || 0; if (c.style !== 'player') rivals += c.scandals || 0; });
       const sl = W.log.filter(l => /^스캔들: /.test(l.t));

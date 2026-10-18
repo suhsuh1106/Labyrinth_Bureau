@@ -29,11 +29,13 @@ import { WEAK_KEYS } from '../src/core/data';
 import { DEX } from '../src/core/dex';
 
 describe('용병단 행정실 화면', () => {
-  it('결정표와 정산서가 36개월 내내 깨지지 않고, 그려도 판은 그대로다', () => {
+  it('결정표와 정산서가 36개월 내내 깨지지 않고, 그려도 판은 그대로다', async () => {
     for (const [name, bot] of Object.entries(BOT)) {
+      await new Promise(r => setTimeout(r, 0));   // 오래 도는 테스트는 틈틈이 쉬어 테스트 일꾼이 멈춘 것으로 보이지 않게
       setSeed(21); const W = newWorld();
       let plan = carryPlan(W, null);
       for (let m = 0; m < 36; m++) {
+        if (m % 6 === 0) await new Promise(r => setTimeout(r, 0));
         const before = JSON.stringify(W);
         setSeed(1000 + m); const r0 = rnd(); setSeed(1000 + m);
         const html = plaqueHtml(W) + intelHtml(W) + bookHtml(W) + planHtml(W, plan) + resultsHtml(W) + newsLines(W).join('') + returnHtml(W) + depthsHtml(W, plan) + paperHtml(W);
@@ -69,9 +71,9 @@ describe('경쟁 용병단', () => {
     }
     expect(checked).toBeGreaterThan(3);
   });
-  it('시장을 읽는 숙련 봇이 고르게 두는 봇보다 평균 순위가 높다', () => {
+  it('시장을 읽는 숙련 봇이 고르게 두는 봇보다 평균 순위가 높다', async () => {
     let smart = 0, even = 0;
-    for (let g = 1; g <= 40; g++) { smart += rankOf(playGame(g, BOT.smart)); even += rankOf(playGame(g, BOT.even)); }
+    for (let g = 1; g <= 40; g++) { smart += rankOf(playGame(g, BOT.smart)); even += rankOf(playGame(g, BOT.even)); await new Promise(r => setTimeout(r, 0)); }
     expect(smart).toBeLessThan(even);
   });
 });
