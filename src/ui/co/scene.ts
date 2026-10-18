@@ -34,14 +34,14 @@ export function openScene(W: World, i: number, sfx: (k: string) => void = () => 
   const no = (x.t ?? i) + 1;
 
   const el = document.createElement('div');
-  el.className = 'scene';
+  el.className = 'sc-wrap';
   el.innerHTML = `<div class="sc-box" role="dialog" aria-modal="true" aria-label="${no}조 탐사 재생">
     <header><b>${no}조</b> <span>${esc(F.name)}</span> <span class="sc-day">출발</span>
       <span class="sc-ctl"><button type="button" data-sc="pause">일시정지</button><button type="button" data-sc="speed">×1</button><button type="button" data-sc="end">끝까지</button><button type="button" data-sc="close" aria-label="닫기">✕</button></span></header>
     <div class="sc-stage">
-      <div class="sc-party">${cls.map((c, m) => `<div class="sc-m" data-m="${m}"><span class="ic" aria-hidden="true">${ICON[c] || '·'}</span><b>${esc(nm[m] || c)}</b><small>${esc(c)}${m === ld ? ' · 단장' : ''}</small><span class="mk"></span><span class="fx"></span></div>`).join('')}</div>
+      <div class="sc-party">${cls.map((c, m) => `<div class="sc-m" data-m="${m}"><span class="ic" aria-hidden="true">${ICON[c] || '·'}</span><b>${esc(nm[m] || c)}</b><small>${esc(c)}${m === ld ? ' · 단장' : ''}</small><span class="mk"></span><span class="sc-fx"></span></div>`).join('')}</div>
       <div class="sc-vs"><span class="sc-verdict">VS</span></div>
-      <div class="sc-mon"><span class="ic" aria-hidden="true">?</span><b>—</b><small></small><span class="fx"></span></div>
+      <div class="sc-mon"><span class="ic" aria-hidden="true">?</span><b>—</b><small></small><span class="sc-fx"></span></div>
     </div>
     ${tags.length ? `<p class="sc-tags">${tags.map(([a, b]) => `<span title="${esc(b)}">${esc(a)}</span>`).join('')}</p>` : ''}
     <p class="sc-log" aria-live="polite">횃불을 켜고 들어간다</p>
@@ -52,7 +52,7 @@ export function openScene(W: World, i: number, sfx: (k: string) => void = () => 
   const $ = (s: string) => el.querySelector(s) as HTMLElement;
   const card = (m: number) => $(`.sc-m[data-m="${m}"]`);
   const log = (t: string) => { $('.sc-log').innerHTML = t; };
-  const pop = (box: HTMLElement, t: string, k: string) => { const f = box.querySelector('.fx') as HTMLElement; f.className = `fx on ${k}`; f.textContent = t; void f.offsetWidth; f.classList.add('go'); };
+  const pop = (box: HTMLElement, t: string, k: string) => { const f = box.querySelector('.sc-fx') as HTMLElement; f.className = `sc-fx on ${k}`; f.textContent = t; void f.offsetWidth; f.classList.add('go'); };
   const sup = (tl: number, pl: number, fl: number, ol: number, pk: number) => {
     $('.sc-sup').innerHTML = `<span class="t">횃불 ${tl}</span><span class="p">포션 ${pl}</span><span class="f">식량 ${fl}</span><span class="o">정비 ${ol}</span>`;
     $('.sc-pack').innerHTML = packBar(T.slots, tl, pl, pk, fl, ol);
