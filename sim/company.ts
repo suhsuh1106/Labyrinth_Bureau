@@ -153,7 +153,7 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
   // 몸집: 조당 남는 돈이 급여보다 넉넉하면 숙소를 늘린다. 본부의 질(훈련장 · 의무실)은 올리지 않는다:
   // 공사가 숙소 증축을 한 달씩 미루는 값이 커서 이 봇의 운영에선 손해였다 (의무실 1단계만 본전 근처)
   // 횃불: 지도만큼 헤맬 것을 셈해, 돌아설 확률이 TORCH_RISK 밑이 되는 데까지 들고 간다
-  P.torch = FLOORS.map((_, f) => { const r = torchRate(f, mapOf(c, f)); let t = 1; while (t < CO.DAYS && tripOdds(t, r).dark > TORCH_RISK) t++; return t; });
+  P.torch = FLOORS.map((_, f) => { const r = torchRate(f, mapOf(c, f)); let t = 1; while (t < CO.DAYS && tripOdds(t, r, CO.TRIP_DAYS[f]).dark > TORCH_RISK) t++; return t; });
   grow(W, P, GROW_K, GROW_M);
   if (!c.crew || !guide) return P;
   // 조를 짜 두고: 도감 이해도가 찬 주 몬스터는 노리고(지정 탐사), 단장이 가는 층의 몬스터 중 하나에 기록상 가장 그럴듯한 약점을 묻는다
