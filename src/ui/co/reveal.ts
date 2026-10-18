@@ -76,7 +76,7 @@ export function revealHtml(W: World, live: boolean, mute = false) {
   // 영주청: 탐사 선금과 보급 · 층 지원금 (의뢰 포상 · 지도 판매도 같은 줄에)
   const other = r.sales - loot0 - r.matSales;
   if (other) lines.push({ k: 'gain', v: other, t: `의뢰 · 영주청 지원금${r.adv ? ' · 탐사 선금' : ''}`, amt: sgn(other) });
-  const costs: [string, number][] = [['급여 · 신입 · 치료', s.wage + (s.fire || 0) + s.recruit + (s.heal || 0)], ['출정 · 계약', s.sortie + s.hire + s.tool], ['채비 (포션 · 횃불 · 식량 · 정비 · 장비)', s.potion + s.gear + (s.torch || 0) + (s.food || 0) + (s.mend || 0)], ['정보 · 조사', s.intel + s.probe], ['훈련 · 숙소 · 건물', s.train + s.base + s.proc + s.donate + s.root + (s.dorm || 0) + (s.hq || 0) + (s.job || 0)], ['영주세', s.tax || 0], ['추징금', s.fine || 0]];
+  const costs: [string, number][] = [['급여 · 관리비 · 신입 · 치료', s.wage + (s.admin || 0) + (s.fire || 0) + s.recruit + (s.heal || 0)], ['채비 (포션 · 횃불 · 식량 · 정비 · 장비)', s.potion + s.gear + (s.torch || 0) + (s.food || 0) + (s.mend || 0)], ['정보 · 조사', s.intel + s.probe], ['훈련 · 숙소 · 건물', s.train + s.base + s.proc + s.donate + s.root + (s.dorm || 0) + (s.hq || 0) + (s.job || 0)], ['영주세', s.tax || 0], ['추징금', s.fine || 0]];
   costs.filter(([, v]) => v > 0).forEach(([t, v]) => lines.push({ k: 'cost', v: -v, t, amt: sgn(-v) }));
   lines.push({ k: 'net', v: 0, t: r.capex ? `금고 변화 <small>(공사비 ${fmt(r.capex)}는 건물 자산)</small>` : '순이익', amt: sgn(r.net) });
   const ok = r.ok.reduce((a, b) => a + b, 0), sent = r.sent.reduce((a, b) => a + b, 0) + r.hired.reduce((a, b) => a + b, 0);

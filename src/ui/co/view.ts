@@ -1,5 +1,5 @@
 // 용병단 행정실 화면: 결정표(위)와 지난달 정산(아래). HTML 문자열을 만들기만 하고 상태는 건드리지 않는다
-import { CO, FLOORS, INTEL, ITEMS, type Plan, SRCS, type World, bedsOf, fcRank, gradeOf, churchPrice, dormKeep, guideParts, hireCost, intelBlock, intelCost, lootMul, toolCost, trainBonus, maxParties, mapOf, potsExpiring, potsOf, priceOf, rankOf, sanitize, sortieCost, succRate, us, worth, profitOf } from '../../core/company';
+import { CO, FLOORS, INTEL, ITEMS, type Plan, SRCS, type World, bedsOf, fcRank, gradeOf, churchPrice, dormKeep, guideParts, intelBlock, intelCost, lootMul, toolCost, trainBonus, maxParties, mapOf, potsExpiring, potsOf, priceOf, rankOf, sanitize, sortieCost, succRate, us, worth, profitOf } from '../../core/company';
 import { CLASSES, GEARS, MONSTERS } from '../../core/data';
 import { keyLabel } from '../../core/util';
 import { cashChart, fcChart, flowChart, fmtG, incomeMix, moneySeries, perHeadChart, perPartyChart, priceBoard, shareChart, spendMix } from './charts';
@@ -49,24 +49,24 @@ export function resultsHtml(W: World) {
       <td class="n">${i === 0 || seeGate ? `${r.sent.reduce((a, b) => a + b, 0) + r.hired.reduce((a, b) => a + b, 0)}조` : '?'}</td><td class="n">${fmt(worth(W, c))}</td></tr>`;
   };
   const r = L.res[0];
-  const mine = `<div class="tw"><table class="grid"><thead><tr><th>층</th><th class="n">우리</th><th class="n">계약</th><th class="n">성공</th><th class="n">캐 온 양</th></tr></thead><tbody>${FLOORS.map((F, f) => (r.sent[f] + r.hired[f] ? `<tr><td>${F.name}</td><td class="n">${r.sent[f]}</td><td class="n">${r.hired[f]}</td><td class="n">${r.ok[f]}</td><td class="n">${r.got[f]}</td></tr>` : '')).join('')}</tbody></table></div>
+  const mine = `<div class="tw"><table class="grid"><thead><tr><th>층</th><th class="n">조</th><th class="n">탐사</th><th class="n">해냄</th><th class="n">캐 온 양</th></tr></thead><tbody>${FLOORS.map((F, f) => (r.sent[f] ? `<tr><td>${F.name}</td><td class="n">${r.sent[f]}</td><td class="n">${L.ours.filter(o => o.f === f).length}</td><td class="n">${r.ok[f]}</td><td class="n">${r.got[f]}</td></tr>` : '')).join('')}</tbody></table></div>
     <div class="tw"><table class="grid"><thead><tr><th>정산</th><th class="n">금액</th></tr></thead><tbody>${ITEMS.map((it, j) => (r.sold[j] ? `<tr><td>${it.name} ${fmt(r.sold[j])}개 × ${fmtG(L.price[j])}G</td><td class="n">${fmt(r.sold[j] * L.price[j])}</td></tr>` : '')).join('')}
       ${r.jobPay ? `<tr><td>의뢰 (납품 웃돈 · 포상)</td><td class="n">${fmt(r.jobPay)}</td></tr>` : ''}
       ${r.mapSale ? `<tr><td>지도 사본 판매 (관리국)</td><td class="n">${fmt(r.mapSale)}</td></tr>` : ''}
       ${r.matSales ? `<tr><td>갈무리 소재 ${Object.values(r.matSold).reduce((a, b) => a + b, 0)}개</td><td class="n">${fmt(r.matSales)}</td></tr>` : ''}
       ${r.adv ? `<tr><td>탐사 선금 (영주청)</td><td class="n">${fmt(r.adv)}</td></tr>` : ''}
       ${r.file && r.file.bill.sub + r.file.bill.aid ? `<tr><td>보급 · 층 지원금 (영주청)</td><td class="n">${fmt(r.file.bill.sub + r.file.bill.aid)}</td></tr>` : ''}
-      ${r.spend.sortie ? `<tr><td>계약 파티 출정비</td><td class="n">−${fmt(r.spend.sortie)}</td></tr>` : ''}
       ${r.spend.food ? `<tr><td>식량 ${fmt(r.spend.food / CO.FOOD_PRICE)}개</td><td class="n">−${fmt(r.spend.food)}</td></tr>` : ''}
       ${r.spend.mend ? `<tr><td>정비 도구 ${fmt(r.spend.mend / CO.MEND_PRICE)}개</td><td class="n">−${fmt(r.spend.mend)}</td></tr>` : ''}
       ${r.spend.potion ? `<tr><td>포션 구매 ${r.potNeed}병 (교회 ${r.potC}병)</td><td class="n">−${fmt(r.spend.potion)}</td></tr>` : ''}
       ${r.potUsed ? `<tr><td class="dim">위기에 쓴 포션 ${r.potUsed}병 (나머지는 창고로)</td><td class="n dim">-</td></tr>` : ''}
       ${r.spend.gear ? `<tr><td>장비 ${r.spend.gear / CO.GEAR_PRICE}벌</td><td class="n">−${fmt(r.spend.gear)}</td></tr>` : ''}
       ${r.spend.probe ? `<tr><td>조사 의뢰</td><td class="n">−${fmt(r.spend.probe)}</td></tr>` : ''}
-      ${r.spend.hire ? `<tr><td>계약 파티 수수료</td><td class="n">−${fmt(r.spend.hire)}</td></tr>` : ''}
       <tr><td>급여</td><td class="n">−${fmt(r.spend.wage)}</td></tr>
+      ${r.spend.admin ? `<tr><td>관리비 (행정 여력 ${r.admin ? Math.round(r.admin.load / r.admin.cap * 100) : 0}%)</td><td class="n">−${fmt(r.spend.admin)}</td></tr>` : ''}
+      ${r.adminSpoil ? `<tr><td class="neg">행정이 밀려 창고 포션 ${r.adminSpoil}병 상함</td><td class="n dim">-</td></tr>` : ''}
       ${r.spend.fire ? `<tr><td>해고 위로금 ${(r.fired || []).length}명 <span class="dim">${(r.fired || []).join(', ')}</span></td><td class="n">−${fmt(r.spend.fire)}</td></tr>` : ''}
-      ${r.spend.heal ? `<tr><td>치료비 (부상 ${r.hurt}명 · 다음 달 쉼)</td><td class="n">−${fmt(r.spend.heal)}</td></tr>` : ''}
+      ${r.spend.heal ? `<tr><td>치료비 (부상 ${r.hurt}명)</td><td class="n">−${fmt(r.spend.heal)}</td></tr>` : ''}
       ${r.spend.job ? `<tr><td class="neg">의뢰 위약금 (못 채운 납품)</td><td class="n">−${fmt(r.spend.job)}</td></tr>` : ''}
       ${r.spend.torch ? `<tr><td>횃불 ${fmt(r.spend.torch / CO.TORCH_PRICE)}개${r.torchShort ? ` <span class="neg">· 횃불 없이 간 조 ${r.torchShort}</span>` : ''}</td><td class="n">−${fmt(r.spend.torch)}</td></tr>` : ''}
       ${r.spend.hq ? `<tr><td>본부 공사 · 유지비</td><td class="n">−${fmt(r.spend.hq)}</td></tr>` : ''}

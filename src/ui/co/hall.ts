@@ -4,6 +4,7 @@
 // 상태를 쓰지 않고 난수도 쓰지 않는다
 import { CO, FLOORS, ITEMS, type Ours, type Person, type Plan, type Sortie, type World, awayIds, boughtOf, dayAbs, dayOf, floorMons, forecastTrips, jo, potShock, sanitize, stateOf, teamReady, us } from '../../core/company';
 import { TRIP_END } from '../../core/events';
+import { adminBar } from './desk';
 import { nameOf, packBar } from './roster';
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
@@ -185,6 +186,7 @@ export function hallHtml(W: World, raw: Plan) {
         <button type="button" class="link" data-act="phase" data-phase="1">출정 편성 →</button></div>
       <div class="panel month"><header><h2>제${W.month}월 장부</h2><span class="right">${W.day || 1}일 / ${CO.MONTH_DAYS}일</span></header>
         <dl class="fc-line"><div><dt>돌아온 조</dt><dd>${monthBack}</dd></div><div><dt>짐 어림</dt><dd>${fmt(haul)}G</dd></div><div><dt>바로 쓴 돈</dt><dd>${fmt(spent)}G</dd></div></dl>
+        ${adminBar(W, P)}
         <p class="note">캐 온 것은 그믐 정산 때 모두가 같은 시세에 판다 · 급여 · 본부 유지비도 그믐에</p></div>
       ${nextDayBtn(W, 'big')}
     </aside></div>`;

@@ -24,7 +24,7 @@ import { floorMax, keyOf } from '../src/core/company';
 import { fcRank, forecast, gradeOf } from '../src/core/company';
 import { bedsOf, classCap, dormCost, dormKeep, formTeams, recruitPrice, recruitWants, rookCount, rookSlots, shareOut } from '../src/core/company';
 import { CLASSES } from '../src/core/data';
-import { needOf, tripOdds, potShock, profitOf, drillGain, weakShare, hireCap } from '../src/core/company';
+import { needOf, tripOdds, potShock, profitOf, drillGain, weakShare } from '../src/core/company';
 import { WEAK_KEYS } from '../src/core/data';
 import { DEX } from '../src/core/dex';
 
@@ -68,15 +68,6 @@ describe('경쟁 용병단', () => {
       checked++;
     }
     expect(checked).toBeGreaterThan(3);
-  });
-  it('계약 파티는 군소 용병대가 가진 파티 수를 넘지 않는다', () => {
-    setSeed(13); const W = newWorld();
-    for (let m = 0; m < 24; m++) {
-      const P = BOT.even(W); P.hire = [9, 9, 9, 9, 9];
-      const crowd = W.cos.find(c => c.style === 'crowd')!, free = maxParties(crowd);
-      const M = runMonth(W, P);
-      expect(M.res.reduce((a, r) => a + r.hired.reduce((s, v) => s + v, 0), 0)).toBeLessThanOrEqual(free);
-    }
   });
   it('시장을 읽는 숙련 봇이 고르게 두는 봇보다 평균 순위가 높다', () => {
     let smart = 0, even = 0;

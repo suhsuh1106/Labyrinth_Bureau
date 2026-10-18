@@ -24,7 +24,7 @@ import { floorMax, keyOf } from '../src/core/company';
 import { fcRank, forecast, gradeOf } from '../src/core/company';
 import { bedsOf, classCap, dormCost, dormKeep, formTeams, recruitPrice, recruitWants, rookCount, rookSlots, shareOut } from '../src/core/company';
 import { CLASSES } from '../src/core/data';
-import { needOf, tripOdds, potShock, profitOf, drillGain, weakShare, badShare, classBad, hireCap, synOf, synTags, teamSlots, SYN } from '../src/core/company';
+import { needOf, tripOdds, potShock, profitOf, drillGain, weakShare, badShare, classBad, synOf, synTags, teamSlots, SYN } from '../src/core/company';
 import { WEAK_KEYS } from '../src/core/data';
 import { DEX, askable, badSure } from '../src/core/dex';
 import { dayAbs, nextDay, sendReady, stateOf } from '../src/core/company';
@@ -97,13 +97,6 @@ describe('용병단 시장', () => {
     expect(M.res[0].sent[1]).toBe(0);        // 2층은 아직 닫혀 있다
     M.res.forEach((r, i) => { if (W.cos[i].style !== 'crowd') expect(r.sold).toEqual(r.got); });
     expect(M.Q[0]).toBe(M.res.reduce((a, r) => a + r.sold[0], 0));
-  });
-  it('계약 파티를 쓰면 수수료가 나가고, 캔 것의 일부는 군소 용병대 몫이 된다', () => {
-    setSeed(9); const W = newWorld();
-    const P = defaultPlan(W); P.hire = [2, 0, 0, 0, 0];
-    const M = runMonth(W, P);
-    expect(M.res[0].hired[0]).toBe(2);
-    expect(M.res[0].spend.hire).toBe(2 * CO.HIRE_FEE);
   });
   it('36개월을 돌려도 숫자가 깨지지 않고, 순위는 평가액 순서다', () => {
     for (const bot of Object.values(BOT)) {
@@ -1320,7 +1313,7 @@ describe('훈련 배치 · 채비 어림', () => {
   });
 });
 
-describe('약점 짝 · 계약 조', () => {
+describe('약점 짝', () => {
   it('약점은 여섯 가지(장비 꼴)이고, 장비 + 맡는 직업이면 다, 장비만 절반, 직업만 ¼. 역효과는 장비를 들었을 때만', () => {
     MONSTERS.forEach(m => { expect(WEAK_KEYS).toContain(m.key); expect(WEAK_KEYS).toContain(m.bad); expect(WEAK_KEYS).toContain(m.alt); expect(new Set([m.key, m.bad, m.alt]).size).toBe(3); });
     expect(WEAK_KEYS.length).toBe(6);
@@ -1335,14 +1328,6 @@ describe('약점 짝 · 계약 조', () => {
     expect(classBad('g:냉기', '마법사', ['c:마법사'])).toBe(true);
     expect(classBad('g:화염', '마법사', ['c:마법사', 'g:화염'])).toBe(false);
     expect(classBad('g:화염', '전사', ['c:전사'])).toBe(false);
-  });
-  it('계약 조가 다치거나 죽어도 우리 단원 · 치료비와 상관없다', () => {
-    for (let s = 1; s <= 8; s++) {
-      setSeed(s); const W = newWorld(), c = us(W);
-      const P = sanitize(W, c, defaultPlan(W)); P.teams = []; P.parties = P.parties.map(() => 0); P.hire = [hireCap(W), 0, 0, 0, 0];
-      const n0 = c.crew!.length, M = runMonth(W, P);
-      expect(M.res[0].deaths).toBe(0); expect(M.res[0].hurt).toBe(0); expect(c.crew!.length).toBe(n0 + M.res[0].recruited);
-    }
   });
 });
 

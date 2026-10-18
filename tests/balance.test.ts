@@ -24,7 +24,7 @@ import { floorMax, keyOf } from '../src/core/company';
 import { fcRank, forecast, gradeOf } from '../src/core/company';
 import { bedsOf, classCap, dormCost, dormKeep, formTeams, recruitPrice, recruitWants, rookCount, rookSlots, shareOut } from '../src/core/company';
 import { CLASSES } from '../src/core/data';
-import { needOf, tripOdds, potShock, profitOf, drillGain, weakShare, hireCap } from '../src/core/company';
+import { needOf, tripOdds, potShock, profitOf, drillGain, weakShare } from '../src/core/company';
 import { WEAK_KEYS } from '../src/core/data';
 import { DEX } from '../src/core/dex';
 
@@ -38,9 +38,9 @@ describe('몬스터와 편성 지침', () => {
   });
   it('현장 기록은 우리 직영 파티만 남기고, 처음 간 층에서는 겉모습 증언을 듣는다', () => {
     setSeed(4); const W = newWorld();
-    const P = defaultPlan(W); P.hire = [2, 0, 0, 0, 0];
+    const P = defaultPlan(W);
     const M0 = runMonth(W, P);
-    expect(W.obs[0]['*'].n).toBe(M0.ours.filter(o => o.f === 0).length);   // 다녀온 탐사마다 하나 (계약 조는 기록을 가져오지 않는다)
+    expect(W.obs[0]['*'].n).toBe(M0.ours.filter(o => o.f === 0).length);   // 다녀온 탐사마다 하나
     expect(W.notes[0]).toEqual({ m: 1, f: 0, t: MONSTERS[W.mons[0]].look[0] });
     for (let m = 0; m < 11; m++) runMonth(W, defaultPlan(W));
     // 오래된 기록일수록 흐려진다: 달마다 OBS_FADE를 곱한 뒤 이번 달 것을 더한다

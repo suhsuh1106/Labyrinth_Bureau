@@ -74,7 +74,7 @@ function salesHtml(W: World) {
 function plHtml(W: World, netF: number, B: ReturnType<typeof preview>['bill']) {
   const L = W.last!, r = L.res[W.draft!.i], s = r.spend;
   const loot = r.lootSales || 0, other = r.sales - loot - r.matSales;
-  const cost: [string, number][] = [['급여', s.wage + (s.fire || 0)], ['신입 계약금', s.recruit], ['치료비', s.heal || 0], ['계약 조', s.sortie + s.hire + s.tool], ['포션', s.potion], ['횃불', s.torch || 0], ['식량 · 정비 도구', (s.food || 0) + (s.mend || 0)], ['장비', s.gear],
+  const cost: [string, number][] = [['급여 · 관리비', s.wage + (s.admin || 0) + (s.fire || 0)], ['신입 계약금', s.recruit], ['치료비', s.heal || 0], ['포션', s.potion], ['횃불', s.torch || 0], ['식량 · 정비 도구', (s.food || 0) + (s.mend || 0)], ['장비', s.gear],
     ['정보 · 조사', s.intel + s.probe], ['교관', s.train], ['숙소 · 본부 유지비', (s.dorm || 0) + (s.hq || 0) - (r.capex || 0) + s.base + s.proc], ['건물 감가상각', r.dep || 0], ['교회 후원 · 근원 기금', s.donate + s.root], ['의뢰 위약금', s.job || 0]];
   const row = (t: string, v: number, cls = '') => `<tr class="${cls}"><td>${t}</td><td class="n ${v < 0 ? 'neg' : ''}">${sgn(Math.round(v))}</td></tr>`;
   return `<section class="rp"><h3>손익</h3><div class="tw"><table class="grid slim pl"><tbody>

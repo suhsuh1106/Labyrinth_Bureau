@@ -1258,3 +1258,11 @@ table.tsum td .send { display: block; margin-top: 3px; padding: 2px 8px; }
 .hall-room .dstrip i { color: #f1e6cf; border-color: rgba(255,255,255,.2); background: rgba(0,0,0,.25); }
 .hall-room .dstrip i.today { background: #d9b45a; color: #221e18; }
 @media (max-width: 760px) { .weeks .dstrip { width: 100%; margin: 0 0 4px; justify-content: space-between; } .dstrip i { width: auto; flex: 1; } }
+/* 행정 여력: 부하 ÷ 역량. 점선(70%)까지 여유, 넘으면 관리비, 100%를 넘으면 창고 포션이 더 상한다 */
+.adm { display: grid; gap: 3px; }
+.adm-n { font-size: 12.5px; } .adm-n small { color: var(--bl-soft); font: 11px var(--f-num); margin-left: 4px; }
+.adm-bar { position: relative; display: block; height: 8px; border-radius: 4px; background: var(--bl-3); border: 1px solid var(--bl-line); overflow: hidden; }
+.adm-bar i { position: absolute; inset: 0 auto 0 0; background: #6b8f74; }
+.adm-bar em { position: absolute; top: -1px; bottom: -1px; border-left: 1px dashed var(--bl-soft); }
+.adm.warn .adm-bar i { background: #d9b45a; } .adm.over .adm-bar i { background: #c0563f; }
+.adm-t { font-size: 11.5px; color: var(--bl-soft); } .adm.over .adm-t { color: var(--bl-bad); }
