@@ -6,14 +6,14 @@ import { sellStock, setClerks, buyNow, fireNow, nextDay, sendReady, sendTeam, CO
 import { DESC_FIRST, packBar } from './ui/co/roster';
 import { CLASSES, GEARS } from './core/data';
 import { plaqueHtml } from './ui/co/view';
-import { type DeskUi, DOC_KEYS, PLACE_KEYS, expWeekHtml, infoWeekHtml, orderOf, resultWeekHtml, weeksHtml } from './ui/co/desk';
+import { type DeskUi, DOC_KEYS, PLACE_KEYS, infoWeekHtml, orderOf, resultWeekHtml, weeksHtml } from './ui/co/desk';
 import { todayBack } from './ui/co/hall';
 import { draftHtml } from './ui/co/draft';
 import { closeScene, openScene } from './ui/co/scene';
 import { advanceArrival, arrivalOpen, closeArrival, playArrival } from './ui/co/arrival';
 
 const $ = (id: string): any => document.getElementById(id);
-const KEY = 'lb-co', VERSION = 27, MONTHS = 36;   // 27: 날 단위 시장 · 창고의 전리품 (이전 판은 새 게임으로)
+const KEY = 'lb-co', VERSION = 28, MONTHS = 36;   // 28: 하루 네 번 마주침 · 돌아온 날 지도 (이전 판은 새 게임으로)
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
 let W: World, plan: Plan, ui: DeskUi;
 // 도장을 막 찍은 결과 화면이면 귀환 장부를 한 줄씩 띄운다 (저장하지 않는 화면 상태)
@@ -33,12 +33,14 @@ function render() {
 function draw() {
   $('stats').innerHTML = plaqueHtml(W);
   // 신고서를 아직 내지 않았으면 가정산에 머문다. 임기가 끝나면 정산만
+  if (ui.phase === 1) { ui.phase = 0; ui.exp = true; }   // 출정은 길드 위의 창
   if (W.draft) ui.phase = 2;
   else if (ui.phase === 2) ui.phase = 3;
+  if (ui.phase) ui.exp = false;
   const over = W.month > MONTHS && !W.draft;
   if (over) ui.phase = 3;
   $('weeks').innerHTML = weeksHtml(W, ui.phase);
-  $('desk').innerHTML = ui.phase === 0 ? infoWeekHtml(W, plan, ui) : ui.phase === 1 ? expWeekHtml(W, plan, ui) : ui.phase === 2 ? draftHtml(W, ui.file || {}, live) : resultWeekHtml(W, live, !!ui.mute);
+  $('desk').innerHTML = ui.phase === 0 ? infoWeekHtml(W, plan, ui) : ui.phase === 2 ? draftHtml(W, ui.file || {}, live) : resultWeekHtml(W, live, !!ui.mute);
   if (over) { const b = document.querySelector('#desk .resultwrap .btn-next') as HTMLButtonElement | null; if (b) { b.disabled = true; b.textContent = `임기가 끝났어요. 최종 ${rankOf(W)}위`; } }
 }
 function setPhase(p: number) { stopRun(); closeScene(); ui.phase = p; ui.open = false; ui.place = undefined; render(); save(); window.scrollTo({ top: 0 }); }
@@ -72,6 +74,7 @@ document.addEventListener('keydown', e => {
   if (arrivalOpen()) closeArrival();
   else if (ui && ui.open) { ui.open = false; render(); save(); }
   else if (ui && ui.place) { ui.place = undefined; render(); save(); }
+  else if (ui && ui.exp) { ui.exp = false; ui.pick = null; render(); save(); }
 });
 
 // 우리 조 편성: 고칠 때마다 규칙 안으로 맞춰 둔다 (없는 사람·겹친 자리·빈 조를 지우고 조 수를 다시 센다)
@@ -133,6 +136,8 @@ function say(t: string) {
 function act(b: HTMLElement) {
   const a = b.dataset.act;
   if (a === 'phase') return setPhase(+(b.dataset.phase || 0));
+  if (a === 'exp') { ui.exp = true; ui.place = undefined; ui.open = false; render(); save(); (document.querySelector('.reader.exp .close') as HTMLElement | null)?.focus(); return; }
+  if (a === 'close-exp') { ui.exp = false; ui.pick = null; render(); save(); return; }
   if (a === 'probe-mkt' || a === 'probe-riv') {
     const r = probe(W, a === 'probe-mkt' ? 'mkt' : 'riv', ui.rival || ($('probe-rival') && $('probe-rival').value) || '');
     if (r) { ui.tab = 'probe'; say(a === 'probe-mkt' ? '시장 조사 답이 왔어요' : '타 용병단 조사 답이 왔어요'); }
@@ -368,12 +373,12 @@ function countTo(el: HTMLElement, from: number, to: number) {
   requestAnimationFrame(f);
 }
 function stopRun() { clearTimeout(runTimer); runTimer = null; live = false; }
-// 귀환(가정산): 날마다 1조부터 차례로 그날 칸을 켜고 짐 막대를 그날 모습으로 바꾼다. 다 돌면 결과 · 단장 보고 · 잃은 사람을 띄운다
+// 귀환(가정산): 마주침마다 1조부터 차례로 그 칸을 켜고 짐 막대를 그날 모습으로 바꾼다. 다 돌면 결과 · 단장 보고 · 잃은 사람을 띄운다
 function playTrips(box: HTMLElement) {
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return finishRun();
   const teams = [...box.querySelectorAll('li.rv')] as HTMLElement[];
   const steps: (() => number)[] = [];
-  for (let j = 0; j < CO.DAYS; j++) teams.forEach(li => {
+  for (let j = 0; j <= CO.DAYS * CO.ENC_DAY; j++) teams.forEach(li => {
     const cell = li.querySelectorAll('.days i')[j] as HTMLElement | undefined;
     if (!cell || !cell.classList.contains('hid')) return;
     steps.push(() => {
@@ -384,7 +389,7 @@ function playTrips(box: HTMLElement) {
       // 그 조의 마지막 칸이면 결과를 띄운다
       const left = [...li.querySelectorAll('.days i.hid')].length;
       if (!left) { li.querySelectorAll('.hid').forEach(e => e.classList.remove('hid')); const pw2 = li.querySelector('.packw') as HTMLElement | null; if (pw2) { const st = JSON.parse(pw2.dataset.steps || '[]') as number[][], x = st[st.length - 1]; pw2.innerHTML = packBar(+(pw2.dataset.slots || 0), x[1], x[2], x[0], x[3], x[4]); } }
-      return s.includes('die') ? 700 : 190;
+      return s.includes('die') ? 700 : 80;
     });
   });
   let i = 0;

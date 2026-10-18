@@ -129,8 +129,9 @@ function awayCard(W: World, P: Plan, s: Sortie) {
 // 오늘 아침 돌아온 조 하나: 해냈나 · 다닌 날 · 짐 · 잃은 사람. ▶ 보기는 탐사 재생 장면
 export function backLine(r: Ours, i: number, src: string) {
   const T = r.trip!, D = r.days || [], wins = D.filter(d => d.win).length, dead = r.dead || [];
-  const days = D.map((d, j) => `<i class="${d.win ? 'w' : 'x'}${dead.some(z => z.day === j + 1) ? ' dead' : ''}" title="${esc(`${j + 1}일 · ${d.mon} · ${d.win ? '승' : '패'} ${d.k}/${d.n}`)}">${dead.some(z => z.day === j + 1) ? '†' : d.cr ? '!' : ''}</i>`).join('');
-  return `<li class="bk ${dead.length ? 'die' : r.ok ? 'ok' : 'no'}"><div class="bk-h"><b>${(r.t ?? i) + 1}조</b> ${FLOORS[r.f].name} <span class="dim">${D.length}일 · ${wins}승 ${D.length - wins}패 · ${TRIP_END[T.end]}</span>
+  // 마주침 하나가 한 칸, 하루가 바뀌면 띄운다
+  const days = D.map((d, j) => `<i class="${d.win ? 'w' : 'x'}${d.d ? ' dead' : ''}${j && d.dd !== D[j - 1].dd ? ' nd' : ''}" title="${esc(`${d.dd ?? j + 1}일 · ${d.mon} · ${d.win ? '승' : '패'} ${d.k}/${d.n}`)}">${d.d ? '†' : d.cr ? '!' : ''}</i>`).join('');
+  return `<li class="bk ${dead.length ? 'die' : r.ok ? 'ok' : 'no'}"><div class="bk-h"><b>${(r.t ?? i) + 1}조</b> ${FLOORS[r.f].name} <span class="dim">${T.fd ?? D.length}일 · ${wins}승 ${D.length - wins}패 · ${TRIP_END[T.end]}</span>
     <button type="button" class="sc-open" data-act="scene" data-src="${src}" data-i="${i}" aria-label="${(r.t ?? i) + 1}조 탐사 재생">▶ 보기</button></div>
     <div class="bk-d"><span class="days">${days || '<i class="dk"></i>'}</span>${packBar(T.slots, T.torch - T.tu, Math.max(0, (r.potC || 0) - (r.pots || 0)), T.pack, (T.food || 0) - (T.fu || 0), (T.tools || 0) - (T.tk || 0))}</div>
     <div class="bk-r">${r.got != null ? `<span>${esc(ITEMS[r.f].name)} <b>${fmt(r.got)}</b>개 → 창고</span>` : ''}${dead.length ? `<b class="dead-n">† ${dead.map(z => esc(z.n)).join(', ')}</b>` : ''}${r.mats.length ? `<span>${r.mats.slice(0, 3).map(([m, n]) => `${esc(m)} ×${n}`).join(', ')}${r.mats.length > 3 ? ` 외 ${r.mats.length - 3}` : ''}</span>` : ''}${r.hurt ? `<span class="neg">부상 ${r.hurt}</span>` : ''}</div></li>`;
@@ -182,11 +183,10 @@ export function hallHtml(W: World, raw: Plan) {
     </div>
     <aside class="hall-side">
       ${back.length ? `<div class="panel backs"><header><h2>오늘 아침 돌아온 조</h2></header><ol class="bks">${back.map(s => backLine(s.rep!, (W.back || []).indexOf(s), 'back')).join('')}</ol></div>` : ''}
-      ${stockPanel(W, P)}
       <div class="panel aways"><header><h2>미궁에 나간 조</h2><span class="right">${away.length}조</span></header>${away.length ? `<ol class="aws">${away.map(s => awayCard(W, P, s)).join('')}</ol>` : '<p class="note">나가 있는 조가 없어요</p>'}</div>
       <div class="panel readys"><header><h2>나갈 수 있는 조</h2>${ready.length > 1 ? '<button type="button" class="ghost sm" data-act="send-all">모두 보내기</button>' : ''}</header>
         ${ready.length ? `<ul class="rds">${ready.map(({ T, t }) => `<li><b>${t + 1}조</b> ${FLOORS[T.f].name} <span class="dim">${T.m.filter(x => x != null).length}명 · ${CO.TRIP_DAYS[T.f]}일 길</span><button type="button" class="send" data-act="send" data-t="${t}">보내기</button></li>`).join('')}</ul>` : '<p class="note">본부에 짐을 다 싼 조가 없어요 (편성은 출정에서)</p>'}
-        <button type="button" class="link" data-act="phase" data-phase="1">출정 편성 →</button></div>
+        <button type="button" class="link" data-act="exp">출정 편성 →</button></div>
       <div class="panel month"><header><h2>제${W.month}월 장부</h2><span class="right">${W.day || 1}일 / ${CO.MONTH_DAYS}일</span></header>
         <dl class="fc-line"><div><dt>돌아온 조</dt><dd>${monthBack}</dd></div><div><dt>짐 어림</dt><dd>${fmt(haul)}G</dd></div><div><dt>바로 쓴 돈</dt><dd>${fmt(spent)}G</dd></div></dl>
         ${adminBar(W, P)}
@@ -196,8 +196,9 @@ export function hallHtml(W: World, raw: Plan) {
 }
 
 // ---------- 창고의 전리품과 시장 소식 ----------
-// 창고: 층마다 캐 온 전리품, 오늘 값(어제 · 기준 값과 견줘), 지금 팔면 얼마, 하루에 상하는 몫. 팔기 · 반 팔기 · 모두 팔기, 돌아오면 바로 팔기
-export function stockPanel(W: World, P: Plan) {
+// 창고의 전리품 칸: 층마다 캐 온 전리품, 오늘 값(어제 · 기준 값과 견줘), 지금 팔면 얼마, 하루에 상하는 몫. 팔기 · 반 팔기 · 모두 팔기, 돌아오면 바로 팔기
+// (채비 칸과 함께 창고 창 하나에 든다. desk.ts의 storeHtml)
+export function lootStock(W: World, P: Plan) {
   const st = W.stock || [], rows = ITEMS.map((it, j) => ({ it, j, n: Math.floor((st[j] || 0) + 1e-9) })).filter(x => x.n > 0 || x.j < W.unlocked);
   const pp = W.pp || W.price, total = rows.reduce((a, x) => a + x.n * priceNow(W, x.j), 0);
   const row = ({ it, j, n }: { it: typeof ITEMS[number]; j: number; n: number }) => {
@@ -206,10 +207,10 @@ export function stockPanel(W: World, P: Plan) {
       <td class="n">${p.toFixed(1)}G<small class="${vs > 0.02 ? 'pos' : vs < -0.02 ? 'neg' : 'dim'}">기준 ${vs >= 0 ? '+' : '−'}${Math.round(Math.abs(vs) * 100)}%${Math.abs(d) >= 0.05 ? ` · 어제 ${d > 0 ? '+' : '−'}${Math.abs(d).toFixed(1)}` : ''}</small></td>
       <td class="n">${n ? `<button type="button" class="send sm" data-act="sell" data-j="${j}" data-n="all" title="${fmt(n * p)}G">${fmt(n * p)}G</button>${n > 1 ? `<button type="button" class="link" data-act="sell" data-j="${j}" data-n="half">반만</button>` : ''}` : '<span class="dim">-</span>'}</td></tr>`;
   };
-  return `<div class="panel stockp"><header><h2>창고 전리품</h2><span class="right">지금 팔면 <b>${fmt(total)}G</b></span></header>
+  return `<section class="stockp"><header><h3>전리품</h3><span class="right">지금 팔면 <b>${fmt(total)}G</b></span></header>
     <table class="grid slim stk"><thead><tr><th>물품</th><th class="n">개수</th><th class="n">오늘 값</th><th class="n">팔기</th></tr></thead><tbody>${rows.map(row).join('')}</tbody></table>
     <div class="buybar"><button type="button" class="tog" data-act="auto-sell" aria-pressed="${P.autoSell !== false}" title="돌아온 날 캐 온 것을 그날 시세로 바로 판다">돌아오면 바로 팔기</button><span class="sp"></span>${total ? '<button type="button" class="ghost sm" data-act="sell-all">모두 팔기</button>' : ''}</div>
-    ${marketNews(W)}</div>`;
+    ${marketNews(W)}</section>`;
 }
 // 시장 소식: 최근 사흘의 큰 판매. 값이 움직인 것은 누구나 보고, 판 양은 상단 장부 1단계부터, 누가 팔았는지는 2단계부터
 export function marketNews(W: World) {

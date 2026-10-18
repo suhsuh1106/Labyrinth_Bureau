@@ -9,7 +9,7 @@ import { CLASSES, GEARS, PAIR_CLASS, WEAK_KEYS } from './data';
 
 export const DEX = {
   // 이해도: 한 번 만나면 이긴 날 U_WIN, 진 날 U_LOSS × (1 − 이해도/U_SLOW). 100이 끝
-  U_WIN: 3, U_LOSS: 2.2, U_SLOW: 120,
+  U_WIN: 1.5, U_LOSS: 1.1, U_SLOW: 120,   // (하루에 CO.ENC_DAY번 만나서 옛 하루 한 번의 절반씩)
   ECO_AT: [1, 20, 60], REC_AT: 20, ASK_AT: 20, TARGET_AT: 40, ROOT_AT: 100,
   // 지정 탐사: 노린 몬스터를 만날 무게 TARGET_W(나머지는 남은 몫을 나눈다), 그 몬스터 상대 성공 +TARGET_SUCC, 소재 ×TARGET_MAT
   // 약점을 확정해 두었으면 노린 조는 성공 +KEY_SUCC 더, 위기 ×KEY_CRISIS. 소재 조건을 확정해 두었으면 그 소재 ×MAT_SURE

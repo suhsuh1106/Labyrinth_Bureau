@@ -40,11 +40,11 @@ describe('몬스터와 편성 지침', () => {
     setSeed(4); const W = newWorld();
     const P = defaultPlan(W);
     const M0 = runMonth(W, P);
-    expect(W.obs[0]['*'].n).toBe(M0.ours.filter(o => o.f === 0).length);   // 다녀온 탐사마다 하나
+    expect(W.obs[0]['*'].n).toBeCloseTo(M0.ours.filter(o => o.f === 0).length * CO.OBS_FADE, 6);   // 다녀온 탐사마다 하나 (그믐에 흐려진다)
     expect(W.notes[0]).toEqual({ m: 1, f: 0, t: MONSTERS[W.mons[0]].look[0] });
     for (let m = 0; m < 11; m++) runMonth(W, defaultPlan(W));
-    // 오래된 기록일수록 흐려진다: 달마다 OBS_FADE를 곱한 뒤 이번 달 것을 더한다
-    const faded = W.history.reduce((a, M) => a * CO.OBS_FADE + M.ours.filter(o => o.f === 0).length, 0);
+    // 오래된 기록일수록 흐려진다: 돌아온 날 더하고, 그믐마다 OBS_FADE를 곱한다
+    const faded = W.history.reduce((a, M) => (a + M.ours.filter(o => o.f === 0).length) * CO.OBS_FADE, 0);
     expect(W.obs[0]['*'].n).toBeCloseTo(faded, 6);
   });
   it('약점은 그날 만난 몬스터의 것만 먹힌다: 주 몬스터의 약점을 갖추면 주 몬스터를 만난 날 더 해낸다', () => {
