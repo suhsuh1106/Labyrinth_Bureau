@@ -27,7 +27,7 @@ import { CLASSES } from '../src/core/data';
 import { needOf, tripOdds, potShock, profitOf, drillGain, weakShare, badShare, classBad, hireCap, synOf, synTags, teamSlots, SYN } from '../src/core/company';
 import { WEAK_KEYS } from '../src/core/data';
 import { DEX, askable, badSure } from '../src/core/dex';
-import { nextDay, sendReady, stateOf } from '../src/core/company';
+import { dayAbs, nextDay, sendReady, stateOf } from '../src/core/company';
 
 describe('용병단 장부', () => {
   it('매달 모든 용병단의 금고 변화가 판매 수입에서 지출을 뺀 값과 같다', () => {
@@ -870,12 +870,14 @@ describe('성공 정도 · 부상 · 수입 어림', () => {
 });
 
 describe('내정 책상', () => {
-  it('지도와 결재안이 나오고, 장소를 열면 그 업무 창이 뜬다', () => {
+  it('본 화면은 길드 홀이고 마을 지도와 결재안은 펼쳐 보며, 장소를 열면 그 업무 창이 뜬다', () => {
     setSeed(81); const W = newWorld();
     runMonth(W, BOT.even(W)); runMonth(W, BOT.even(W));
     const P = carryPlan(W, W.last!.plans[0]);
     const home = infoWeekHtml(W, P, { phase: 0, tab: 'report', pins: [] });
-    expect(home).toContain('하르덴'); expect(home).toContain('결재안'); expect(home).toContain('data-place="staff"');
+    expect(home).toContain('회색늑대 숙소'); expect(home).toContain('다음 날'); expect(home).toContain('data-place="staff"');
+    const town = infoWeekHtml(W, P, { phase: 0, tab: 'report', pins: [], town: true });
+    expect(town).toContain('하르덴'); expect(town).toContain('결재안');
     expect(home).not.toContain('class="reader');   // 처음엔 창이 닫혀 있다
     const want: Record<string, string> = { staff: '지원자 명단', train: '훈련장', market: '교회 성수', church: '근원 기금', alley: '정보망' };
     Object.entries(want).forEach(([place, word]) => {
@@ -1380,3 +1382,38 @@ describe('역효과 단장 조사', () => {
   });
 });
 
+
+describe('날 단위 턴 · 길드 홀', () => {
+  it('보낸 조는 층 깊이만큼 날이 지나 다음 날 아침 돌아오고, 돌아온 날은 쉰 뒤 다시 나갈 수 있다', () => {
+    setSeed(7); const W = newWorld(); W.unlocked = 3;
+    const P = sanitize(W, us(W), defaultPlan(W)); P.teams!.forEach((T, t) => { T.f = t % 3; });
+    const cash0 = us(W).cash, sent = sendReady(W, P);
+    expect(sent.length).toBe(P.teams!.length);
+    expect(us(W).cash).toBeLessThan(cash0);   // 모자란 채비를 보낼 때 바로 샀다
+    expect(sendReady(W, P).length).toBe(0);   // 나가 있는 조는 다시 보낼 수 없다
+    sent.forEach(s => expect(s.d1 - s.d0).toBeLessThanOrEqual(CO.TRIP_DAYS[s.f]));
+    for (let d = 1; d <= 3; d++) {
+      nextDay(W, P);
+      sent.forEach(s => { const back = (W.back || []).includes(s); expect(back).toBe(s.d1 <= dayAbs(W)); });
+    }
+    // 1층 조는 2일 아침에 돌아와 그날 쉬고, 3일에 다시 나갈 수 있다
+    const one = sent.find(s => s.f === 0 && s.d1 === 2)!;
+    if (one) one.m.forEach(id => { const p = us(W).crew!.find(x => x.id === id); if (p && !p.hurt) expect(stateOf(W, p)).toBe('free'); });
+  });
+  it('한 달은 날마다 정산하지 않고 그믐이 지나야 정산하며, 금고 변화는 판매에서 이번 달 지출(바로 산 것 포함)을 뺀 값이다', () => {
+    setSeed(9); const W = newWorld(), P = sanitize(W, us(W), defaultPlan(W)), cash0 = us(W).cash;
+    let M = null;
+    for (let d = 1; d <= CO.MONTH_DAYS; d++) { expect(W.draft).toBeFalsy(); sendReady(W, P); M = nextDay(W, P); if (d < CO.MONTH_DAYS) expect(M).toBeNull(); }
+    expect(M).not.toBeNull(); expect(W.month).toBe(2); expect(W.day).toBe(1);
+    const r = M!.res[0], spend = Object.values(r.spend).reduce((a, b) => a + b, 0);
+    expect(us(W).cash).toBe(cash0 + r.sales - spend);
+  });
+  it('길드 홀은 본부에 있는 사람을 구역마다 보이고 말풍선을 띄우며, 그려도 판은 그대로다 (같은 날이면 같은 말)', () => {
+    setSeed(11); const W = newWorld(), P = sanitize(W, us(W), defaultPlan(W));
+    P.teams = P.teams!.slice(0, 2); sendReady(W, P); nextDay(W, P); nextDay(W, P);
+    const before = JSON.stringify(W); setSeed(3); const r0 = rnd(); setSeed(3);
+    const a = infoWeekHtml(W, P, { phase: 0, tab: 'report', pins: [] }), b = infoWeekHtml(W, P, { phase: 0, tab: 'report', pins: [] });
+    expect(rnd()).toBe(r0); expect(JSON.stringify(W)).toBe(before); expect(a).toBe(b);
+    expect(a).toContain('class="bub"'); expect(a).toContain('훈련 마당'); expect(a).not.toMatch(/undefined|NaN|\[object/);
+  });
+});
