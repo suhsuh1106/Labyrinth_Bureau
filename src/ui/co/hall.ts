@@ -2,7 +2,7 @@
 // 옆 판에는 미궁에 나가 있는 조(며칠째 · 언제 돌아올지 · 어림), 오늘 아침 돌아온 조, 나갈 수 있는 조가 있다.
 // 대화는 기록(오늘 돌아온 조 · 다친 사람 · 시세 · 소문 · 특성)에서 고르고, 고르는 데 난수 대신 날짜와 사람 번호의 해시를 쓴다.
 // 상태를 쓰지 않고 난수도 쓰지 않는다
-import { CO, FLOORS, ITEMS, type Ours, type Person, type Plan, type Sortie, type World, awayIds, boughtOf, dayAbs, dayOf, floorMons, forecastTrips, jo, potShock, sanitize, stateOf, teamReady, us } from '../../core/company';
+import { priceNow, CO, FLOORS, ITEMS, type Ours, type Person, type Plan, type Sortie, type World, awayIds, boughtOf, dayAbs, dayOf, floorMons, forecastTrips, jo, potShock, sanitize, stateOf, teamReady, us } from '../../core/company';
 import { TRIP_END } from '../../core/events';
 import { adminBar } from './desk';
 import { nameOf, packBar } from './roster';
@@ -89,6 +89,8 @@ function talksOf(W: World, P: Plan, here: Person[], zone: Map<number, Zone>) {
     const hi = ITEMS.findIndex((it, f) => f < W.unlocked && W.price[f] > it.P0 * 1.12), lo = ITEMS.findIndex((it, f) => f < W.unlocked && W.price[f] < it.P0 * 0.85);
     if (hi >= 0) say(p0.id, 'hi', [`${ITEMS[hi].name} 값이 좋다던데. 지금이 때야.`], 2, anyone(p0, 'hi'), REPLY);
     else if (lo >= 0) say(p0.id, 'lo', [`${J(ITEMS[lo].name, '이', '가')} 너무 풀려서 값이 바닥이래.`], 2, anyone(p0, 'lo'), REPLY);
+    const drop = (W.sales || []).filter(s => s.i !== 0 && s.d === dayAbs(W) && s.p1 < s.p0 * 0.94)[0];
+    if (drop) say(p0.id, 'drop', [`${J(ITEMS[drop.j].name, '이', '가')} 오늘 확 떨어졌대. 누가 잔뜩 풀었나 봐.`, `경매장에 ${ITEMS[drop.j].name}이 산더미래.`], 4, anyone(p0, 'drop'), ['우리 건 좀 들고 있자.', '값이 오를 때까지 기다리자.', ...REPLY]);
     if (potShock(W.month + 1) > potShock(W.month)) say(p0.id, 'shock', ['약초 흉년이라던데, 포션 값이 오르겠어.'], 4, anyone(p0, 'shock'), ['행정관님이 미리 사 두시겠지.']);
     if (day >= CO.MONTH_DAYS - 1) say(p0.id, 'end', ['그믐이 코앞이야. 장부 넘기는 소리가 들려.', '이달 장사는 어땠으려나.'], 2, anyone(p0, 'end'), REPLY);
     if ((W.anoms || 0) > 0 && (W.pressure || 0) > 50) say(p0.id, 'anom', ['요즘 미궁 숨소리가 거칠어졌어.', '입구 바람이 뜨뜻하더라. 좋은 징조는 아니야.'], 3, anyone(p0, 'anom'), ['교회에서도 그 얘기를 하더라.']);
@@ -131,7 +133,7 @@ export function backLine(r: Ours, i: number, src: string) {
   return `<li class="bk ${dead.length ? 'die' : r.ok ? 'ok' : 'no'}"><div class="bk-h"><b>${(r.t ?? i) + 1}조</b> ${FLOORS[r.f].name} <span class="dim">${D.length}일 · ${wins}승 ${D.length - wins}패 · ${TRIP_END[T.end]}</span>
     <button type="button" class="sc-open" data-act="scene" data-src="${src}" data-i="${i}" aria-label="${(r.t ?? i) + 1}조 탐사 재생">▶ 보기</button></div>
     <div class="bk-d"><span class="days">${days || '<i class="dk"></i>'}</span>${packBar(T.slots, T.torch - T.tu, Math.max(0, (r.potC || 0) - (r.pots || 0)), T.pack, (T.food || 0) - (T.fu || 0), (T.tools || 0) - (T.tk || 0))}</div>
-    <div class="bk-r">${dead.length ? `<b class="dead-n">† ${dead.map(z => esc(z.n)).join(', ')}</b>` : ''}${r.mats.length ? `<span>${r.mats.slice(0, 3).map(([m, n]) => `${esc(m)} ×${n}`).join(', ')}${r.mats.length > 3 ? ` 외 ${r.mats.length - 3}` : ''}</span>` : ''}${r.hurt ? `<span class="neg">부상 ${r.hurt}</span>` : ''}</div></li>`;
+    <div class="bk-r">${r.got != null ? `<span>${esc(ITEMS[r.f].name)} <b>${fmt(r.got)}</b>개 → 창고</span>` : ''}${dead.length ? `<b class="dead-n">† ${dead.map(z => esc(z.n)).join(', ')}</b>` : ''}${r.mats.length ? `<span>${r.mats.slice(0, 3).map(([m, n]) => `${esc(m)} ×${n}`).join(', ')}${r.mats.length > 3 ? ` 외 ${r.mats.length - 3}` : ''}</span>` : ''}${r.hurt ? `<span class="neg">부상 ${r.hurt}</span>` : ''}</div></li>`;
 }
 
 // 날 띠: 이번 달 열흘. 지난 날 · 오늘 · 돌아올 조가 있는 날(예정)
@@ -180,6 +182,7 @@ export function hallHtml(W: World, raw: Plan) {
     </div>
     <aside class="hall-side">
       ${back.length ? `<div class="panel backs"><header><h2>오늘 아침 돌아온 조</h2></header><ol class="bks">${back.map(s => backLine(s.rep!, (W.back || []).indexOf(s), 'back')).join('')}</ol></div>` : ''}
+      ${stockPanel(W, P)}
       <div class="panel aways"><header><h2>미궁에 나간 조</h2><span class="right">${away.length}조</span></header>${away.length ? `<ol class="aws">${away.map(s => awayCard(W, P, s)).join('')}</ol>` : '<p class="note">나가 있는 조가 없어요</p>'}</div>
       <div class="panel readys"><header><h2>나갈 수 있는 조</h2>${ready.length > 1 ? '<button type="button" class="ghost sm" data-act="send-all">모두 보내기</button>' : ''}</header>
         ${ready.length ? `<ul class="rds">${ready.map(({ T, t }) => `<li><b>${t + 1}조</b> ${FLOORS[T.f].name} <span class="dim">${T.m.filter(x => x != null).length}명 · ${CO.TRIP_DAYS[T.f]}일 길</span><button type="button" class="send" data-act="send" data-t="${t}">보내기</button></li>`).join('')}</ul>` : '<p class="note">본부에 짐을 다 싼 조가 없어요 (편성은 출정에서)</p>'}
@@ -187,7 +190,31 @@ export function hallHtml(W: World, raw: Plan) {
       <div class="panel month"><header><h2>제${W.month}월 장부</h2><span class="right">${W.day || 1}일 / ${CO.MONTH_DAYS}일</span></header>
         <dl class="fc-line"><div><dt>돌아온 조</dt><dd>${monthBack}</dd></div><div><dt>짐 어림</dt><dd>${fmt(haul)}G</dd></div><div><dt>바로 쓴 돈</dt><dd>${fmt(spent)}G</dd></div></dl>
         ${adminBar(W, P)}
-        <p class="note">캐 온 것은 그믐 정산 때 모두가 같은 시세에 판다 · 급여 · 본부 유지비도 그믐에</p></div>
+        <p class="note">전리품은 창고에서 팔 날을 고른다 (시세는 날마다) · 소재 · 급여 · 본부 유지비는 그믐에</p></div>
       ${nextDayBtn(W, 'big')}
     </aside></div>`;
+}
+
+// ---------- 창고의 전리품과 시장 소식 ----------
+// 창고: 층마다 캐 온 전리품, 오늘 값(어제 · 기준 값과 견줘), 지금 팔면 얼마, 하루에 상하는 몫. 팔기 · 반 팔기 · 모두 팔기, 돌아오면 바로 팔기
+export function stockPanel(W: World, P: Plan) {
+  const st = W.stock || [], rows = ITEMS.map((it, j) => ({ it, j, n: Math.floor((st[j] || 0) + 1e-9) })).filter(x => x.n > 0 || x.j < W.unlocked);
+  const pp = W.pp || W.price, total = rows.reduce((a, x) => a + x.n * priceNow(W, x.j), 0);
+  const row = ({ it, j, n }: { it: typeof ITEMS[number]; j: number; n: number }) => {
+    const p = priceNow(W, j), d = p - (pp[j] ?? p), vs = p / it.P0 - 1;
+    return `<tr><td><b>${esc(it.name)}</b><small>${FLOORS[j].name}${n ? ` · 하루 −${Math.round(CO.LOOT_ROT[j] * 1000) / 10}% 상함` : ''}</small></td><td class="n">${fmt(n)}</td>
+      <td class="n">${p.toFixed(1)}G<small class="${vs > 0.02 ? 'pos' : vs < -0.02 ? 'neg' : 'dim'}">기준 ${vs >= 0 ? '+' : '−'}${Math.round(Math.abs(vs) * 100)}%${Math.abs(d) >= 0.05 ? ` · 어제 ${d > 0 ? '+' : '−'}${Math.abs(d).toFixed(1)}` : ''}</small></td>
+      <td class="n">${n ? `<button type="button" class="send sm" data-act="sell" data-j="${j}" data-n="all" title="${fmt(n * p)}G">${fmt(n * p)}G</button>${n > 1 ? `<button type="button" class="link" data-act="sell" data-j="${j}" data-n="half">반만</button>` : ''}` : '<span class="dim">-</span>'}</td></tr>`;
+  };
+  return `<div class="panel stockp"><header><h2>창고 전리품</h2><span class="right">지금 팔면 <b>${fmt(total)}G</b></span></header>
+    <table class="grid slim stk"><thead><tr><th>물품</th><th class="n">개수</th><th class="n">오늘 값</th><th class="n">팔기</th></tr></thead><tbody>${rows.map(row).join('')}</tbody></table>
+    <div class="buybar"><button type="button" class="tog" data-act="auto-sell" aria-pressed="${P.autoSell !== false}" title="돌아온 날 캐 온 것을 그날 시세로 바로 판다">돌아오면 바로 팔기</button><span class="sp"></span>${total ? '<button type="button" class="ghost sm" data-act="sell-all">모두 팔기</button>' : ''}</div>
+    ${marketNews(W)}</div>`;
+}
+// 시장 소식: 최근 사흘의 큰 판매. 값이 움직인 것은 누구나 보고, 판 양은 상단 장부 1단계부터, 누가 팔았는지는 2단계부터
+export function marketNews(W: World) {
+  const lv = W.intel ? W.intel.lv.mkt : 0, now = dayAbs(W);
+  const big = (W.sales || []).filter(s => s.i !== 0 && now - s.d <= 2 && s.p1 < s.p0 * 0.96).slice(-5).reverse();
+  if (!big.length) return '';
+  return `<ul class="mnews">${big.map(s => `<li><span class="dim">${s.d === now ? '오늘' : `${now - s.d}일 전`}</span> <b>${esc(ITEMS[s.j].name)}</b> ${Math.round((s.p1 / s.p0 - 1) * 100)}% · ${lv >= 2 ? esc(W.cos[s.i].name) : '누군가'}${lv >= 1 ? ` ${fmt(s.q)}개` : ' 많이'} 풀었다</li>`).join('')}</ul>`;
 }

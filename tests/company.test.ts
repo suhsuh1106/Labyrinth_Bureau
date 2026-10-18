@@ -27,7 +27,7 @@ import { CLASSES } from '../src/core/data';
 import { needOf, tripOdds, potShock, profitOf, drillGain, weakShare, badShare, classBad, synOf, synTags, teamSlots, SYN } from '../src/core/company';
 import { WEAK_KEYS } from '../src/core/data';
 import { DEX, askable, badSure } from '../src/core/dex';
-import { dayAbs, nextDay, sendReady, stateOf } from '../src/core/company';
+import { dayAbs, nextDay, openMonth, sellStock, sendReady, stateOf, stockValue } from '../src/core/company';
 
 describe('용병단 장부', () => {
   it('매달 모든 용병단의 금고 변화가 판매 수입에서 지출을 뺀 값과 같다', () => {
@@ -35,12 +35,13 @@ describe('용병단 장부', () => {
       setSeed(seed); const W = newWorld();
       const bot = Object.values(BOT)[seed % 4];
       for (let m = 0; m < 36; m++) {
-        const before = W.cos.map(c => c.cash);
-        const M = runMonth(W, bot(W));
+        // 우리 전리품은 판 날 금고에 들어온다: 달 첫날 아침에 판 것은 runMonth 앞뒤로 걸쳐 있다 (그달 장부에 든다)
+        const before = W.cos.map(c => c.cash), carry0 = W.mo ? W.mo.income : 0;
+        const M = runMonth(W, bot(W)), carry1 = W.mo ? W.mo.income : 0;
         const check = () => W.cos.forEach((c, i) => {
           if (c.style === 'crowd') return;
           const r = M.res[i], spend = Object.values(r.spend).reduce((a, b) => a + b, 0);
-          expect(c.cash - before[i], `시드 ${seed} 제${M.month}월 ${c.id}`).toBe(r.sales - spend);
+          expect(c.cash - before[i], `시드 ${seed} 제${M.month}월 ${c.id}`).toBe(r.sales - spend + (i === 0 ? carry1 - carry0 : 0));
           expect(r.net).toBe(r.sales - spend);
         });
         // 가정산 전에도, 신고서를 낸 뒤에도 (장부 그대로 · 적당히 고쳐서 · 한도까지 고쳐서) 맞는다
@@ -770,6 +771,7 @@ describe('숙소 · 신입 모집 · 수습 · 명성', () => {
     expect(recruitPrice(20, 10)).toBeGreaterThan(CO.RECRUIT);
     expect(recruitPrice(999, 1)).toBe(CO.RECRUIT * CO.RECRUIT_MAX);
     setSeed(8); const W = newWorld(); W.cos.forEach(c => { c.beds = c.members + 8; }); W.apps = 5;
+    openMonth(W);   // 경쟁 용병단은 달 첫날 계획을 세운다 (늘린 침상을 보고 다시)
     const M = runMonth(W, defaultPlan(W));
     expect(M.res.reduce((a, r) => a + r.recruited, 0)).toBe(5);
     expect(M.res[0].recruitPrice).toBeGreaterThan(CO.RECRUIT);
@@ -1416,5 +1418,28 @@ describe('날 단위 턴 · 길드 홀', () => {
     for (let g = 1; g <= 40; g++) { lo += run(g, false); hi += run(g, true); }
     expect(hi).toBeGreaterThan(lo);
     expect(run(5, false)).toBe(run(5, false));   // 같은 시드면 같다
+  });
+  it('시장은 날마다: 경쟁 용병단 조가 돌아온 날 캐 가고 바로 팔아 값이 내려가고, 층에 남은 양은 날마다 준다', () => {
+    setSeed(14); const W = newWorld(), P = sanitize(W, us(W), defaultPlan(W)); P.autoSell = false;
+    let drops = 0;
+    for (let d = 1; d < CO.MONTH_DAYS; d++) {
+      const pool = [...W.pool], before = W.sales ? W.sales.length : 0;
+      nextDay(W, P);
+      const today = (W.sales || []).slice(before).filter(x => x.i !== 0);
+      today.forEach(x => { expect(x.p1).toBeLessThanOrEqual(x.p0); if (x.p1 < x.p0) drops++; });
+      W.pool.forEach((v, f) => expect(v).toBeLessThanOrEqual(pool[f]));   // 다시 차는 것은 그믐에만
+    }
+    expect(drops).toBeGreaterThan(0);
+  });
+  it('우리 전리품은 창고에 들어와 날마다 조금씩 상하고, 팔면 금고에 바로 들어오며, 남은 것은 평가액에 든다', () => {
+    setSeed(15); const W = newWorld(), P = sanitize(W, us(W), defaultPlan(W)); P.autoSell = false;
+    sendReady(W, P); nextDay(W, P); nextDay(W, P);
+    const st = W.stock!, n = st[0];
+    expect(n).toBeGreaterThan(0);
+    expect(worth(W, us(W))).toBe(us(W).cash + (us(W).book || 0) + stockValue(W));
+    nextDay(W, P); expect(W.stock![0]).toBeLessThan(n + 1e-9 + (W.back || []).filter(x => (W.today || []).includes(x.id)).reduce((a, x) => a + (x.got || 0), 0));
+    const cash = us(W).cash, have = Math.floor(W.stock![0] + 1e-9), v = sellStock(W, 0);
+    expect(v).toBeGreaterThan(0); expect(us(W).cash).toBe(cash + v); expect(Math.floor(W.stock![0] + 1e-9)).toBe(0);
+    expect(W.mo!.res[0].sold[0]).toBeGreaterThanOrEqual(have);
   });
 });

@@ -50,7 +50,8 @@ export function resultsHtml(W: World) {
   };
   const r = L.res[0];
   const mine = `<div class="tw"><table class="grid"><thead><tr><th>층</th><th class="n">조</th><th class="n">탐사</th><th class="n">해냄</th><th class="n">캐 온 양</th></tr></thead><tbody>${FLOORS.map((F, f) => (r.sent[f] ? `<tr><td>${F.name}</td><td class="n">${r.sent[f]}</td><td class="n">${L.ours.filter(o => o.f === f).length}</td><td class="n">${r.ok[f]}</td><td class="n">${r.got[f]}</td></tr>` : '')).join('')}</tbody></table></div>
-    <div class="tw"><table class="grid"><thead><tr><th>정산</th><th class="n">금액</th></tr></thead><tbody>${ITEMS.map((it, j) => (r.sold[j] ? `<tr><td>${it.name} ${fmt(r.sold[j])}개 × ${fmtG(L.price[j])}G</td><td class="n">${fmt(r.sold[j] * L.price[j])}</td></tr>` : '')).join('')}
+    <div class="tw"><table class="grid"><thead><tr><th>정산</th><th class="n">금액</th></tr></thead><tbody>${ITEMS.map((it, j) => (r.sold[j] ? `<tr><td>${it.name} ${fmt(r.sold[j])}개 <span class="dim">개당 ${fmtG((r.soldV ? r.soldV[j] : r.sold[j] * L.price[j]) / r.sold[j])}G</span></td><td class="n">${fmt(r.soldV ? r.soldV[j] : r.sold[j] * L.price[j])}</td></tr>` : '')).join('')}
+      ${r.stockLeft && r.stockLeft.some(n => n > 0) ? `<tr><td class="dim">창고에 남긴 전리품 ${r.stockLeft.map((n, j) => (n ? `${ITEMS[j].name} ${fmt(n)}` : '')).filter(Boolean).join(' · ')}</td><td class="n dim">-</td></tr>` : ''}
       ${r.jobPay ? `<tr><td>의뢰 (납품 웃돈 · 포상)</td><td class="n">${fmt(r.jobPay)}</td></tr>` : ''}
       ${r.mapSale ? `<tr><td>지도 사본 판매 (관리국)</td><td class="n">${fmt(r.mapSale)}</td></tr>` : ''}
       ${r.matSales ? `<tr><td>갈무리 소재 ${Object.values(r.matSold).reduce((a, b) => a + b, 0)}개</td><td class="n">${fmt(r.matSales)}</td></tr>` : ''}

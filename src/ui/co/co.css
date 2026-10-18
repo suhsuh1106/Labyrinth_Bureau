@@ -1266,3 +1266,10 @@ table.tsum td .send { display: block; margin-top: 3px; padding: 2px 8px; }
 .adm-bar em { position: absolute; top: -1px; bottom: -1px; border-left: 1px dashed var(--bl-soft); }
 .adm.warn .adm-bar i { background: #d9b45a; } .adm.over .adm-bar i { background: #c0563f; }
 .adm-t { font-size: 11.5px; color: var(--bl-soft); } .adm.over .adm-t { color: var(--bl-bad); }
+/* 창고 전리품 · 시장 소식 */
+.stockp table td small { display: block; font-size: 11px; }
+.send.sm { padding: 2px 9px; font-size: 12px; }
+.mnews { list-style: none; margin: 0; padding: 6px 0 0; border-top: 1px dashed var(--bl-line); display: grid; gap: 3px; font-size: 12px; }
+.mnews b { color: var(--bl-ink); }
+.panel .stockp table.grid.stk, table.grid.stk { width: 100%; min-width: 0; }
+table.grid.stk td .link { display: block; font-size: 11px; }

@@ -2,7 +2,7 @@
 import './ui/co/base.css';
 import './ui/co/co.css';
 import { setSeed } from './core/rng';
-import { setClerks, buyNow, fireNow, nextDay, sendReady, sendTeam, CO, FILE_KEYS, teamPots, teamTorch, teamMend, carryOf, foodDays, mendOf, FLOORS, type Plan, SRCS, type World, carryPlan, closeBooks, fileFix, fillTeams, formTeams, newWorld, probe, rankOf, roomOf, sanitize, awayIds, us } from './core/company';
+import { sellStock, setClerks, buyNow, fireNow, nextDay, sendReady, sendTeam, CO, FILE_KEYS, teamPots, teamTorch, teamMend, carryOf, foodDays, mendOf, FLOORS, type Plan, SRCS, type World, carryPlan, closeBooks, fileFix, fillTeams, formTeams, newWorld, probe, rankOf, roomOf, sanitize, awayIds, us } from './core/company';
 import { DESC_FIRST, packBar } from './ui/co/roster';
 import { CLASSES, GEARS } from './core/data';
 import { plaqueHtml } from './ui/co/view';
@@ -13,7 +13,7 @@ import { closeScene, openScene } from './ui/co/scene';
 import { advanceArrival, arrivalOpen, closeArrival, playArrival } from './ui/co/arrival';
 
 const $ = (id: string): any => document.getElementById(id);
-const KEY = 'lb-co', VERSION = 26, MONTHS = 36;   // 26: 계약 조를 없애고 행정력 · 서기 (이전 판은 새 게임으로)
+const KEY = 'lb-co', VERSION = 27, MONTHS = 36;   // 27: 날 단위 시장 · 창고의 전리품 (이전 판은 새 게임으로)
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
 let W: World, plan: Plan, ui: DeskUi;
 // 도장을 막 찍은 결과 화면이면 귀환 장부를 한 줄씩 띄운다 (저장하지 않는 화면 상태)
@@ -47,7 +47,7 @@ function start(fresh = false) {
   const d = fresh ? null : load();
   if (d) { W = d.W; plan = d.plan; ui = d.ui || { phase: 0, tab: 'report', pins: [] }; }
   // 첫 결정표: 포션 상한 0병(처음 받은 포션은 창고에), 신입 없음, 교관 없음. 돈 드는 것은 모두 고르는 것
-  else { setSeed((Date.now() ^ 0x5bd1e995) >>> 0); W = newWorld(); plan = carryPlan(W, null); plan.pots = plan.pots.map(() => 0); plan.pick = []; plan.train = 0; plan.coach = 0; ui = { phase: 0, tab: 'report', pins: [] }; }
+  else { setSeed((Date.now() ^ 0x5bd1e995) >>> 0); W = newWorld(); plan = carryPlan(W, null); plan.pots = plan.pots.map(() => 0); plan.pick = []; plan.train = 0; plan.coach = 0; plan.autoSell = false; ui = { phase: 0, tab: 'report', pins: [] }; }
   plan.intelUp = plan.intelUp || {};   // 정보망은 유지비를 저절로 내고, 넓히는 돈만 따로 정한다
   tidyTeams();
   render(); save();
@@ -189,6 +189,12 @@ function act(b: HTMLElement) {
     Object.entries(o.gear).forEach(([g, n]) => { v += buyNow(W, 'gear', n, g); });
     plan.buy = {}; render(); save(); say(v ? `보급 ${Math.round(v).toLocaleString('ko-KR')}G어치가 창고에 들어왔어요` : '살 것이 없어요'); return;
   }
+  if (a === 'sell' || a === 'sell-all') {
+    const js = a === 'sell-all' ? FLOORS.map((_, j) => j) : [+(b.dataset.j || 0)];
+    let v = 0; js.forEach(j => { const n = Math.floor(((W.stock || [])[j] || 0) + 1e-9); v += sellStock(W, j, b.dataset.n === 'half' ? Math.ceil(n / 2) : n); });
+    render(); save(); say(v ? `전리품 ${Math.round(v).toLocaleString('ko-KR')}G어치를 팔았어요` : '팔 것이 없어요'); return;
+  }
+  if (a === 'auto-sell') { if (plan.autoSell === false) delete plan.autoSell; else plan.autoSell = false; render(); save(); return; }
   if (a === 'auto-buy') { if (plan.autoBuy === false) delete plan.autoBuy; else plan.autoBuy = false; render(); save(); return; }
   if (a === 'town') { ui.town = !ui.town; ui.place = undefined; ui.open = false; render(); save(); return; }
   if (a === 'file') return file();

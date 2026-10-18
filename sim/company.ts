@@ -60,6 +60,8 @@ export const BOT: Record<string, (W: World) => Plan> = {
   // 몸집을 불리지 않는 숙련 봇 (숙소·모집이 순위에 얼마나 보태는지 재는 기준)
   smartStay: W => { const P = smartPlan(W); P.dorm = false; return P; },
   smart: W => smartPlan(W),
+  // 숙련 봇이 전리품을 창고에 두고 지정가(기준 값의 SELL_AT배)를 넘으면 파는 것 (창고 보관이 이득인지 재는 기준)
+  smartHold: W => { const P = smartPlan(W); P.autoSell = false; P.sellAt = +(process.env.SELL_AT || 1); return P; },
   // 숙련 봇에서 추리만 뺀 것 (편성 지침이 순위에 얼마나 보태는지 재는 기준)
   smartNoGuide: W => smartPlan(W, 'mine', true, false, false),
   smartAsk: W => smartPlan(W, 'mine', true, false, true, true),   // 단장 조사를 소거법으로
@@ -89,7 +91,7 @@ export function fileSmart(W: World, risk = FILE_RISK): Partial<Filing> {
   return fileAt(D.truth, lo);
 }
 export const FILER: Record<string, (W: World) => Partial<Filing>> = {
-  smart: W => fileSmart(W), smartNoGuide: W => fileSmart(W), smartAsk: W => fileSmart(W), smartNoKit: W => fileSmart(W), smartScout: W => fileSmart(W), smartSeal: W => fileSmart(W), smartNoRoot: W => fileSmart(W), smartStay: W => fileSmart(W),
+  smart: W => fileSmart(W), smartNoGuide: W => fileSmart(W), smartAsk: W => fileSmart(W), smartNoKit: W => fileSmart(W), smartScout: W => fileSmart(W), smartSeal: W => fileSmart(W), smartNoRoot: W => fileSmart(W), smartStay: W => fileSmart(W), smartHold: W => fileSmart(W),
   smartGreedy: W => (W.draft ? fileAt(W.draft.truth, 1) : {}),
 };
 

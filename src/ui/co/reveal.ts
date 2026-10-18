@@ -65,12 +65,12 @@ export function revealHtml(W: World, live: boolean, mute = false) {
   // 조마다의 귀환은 가정산에서 띄웠다. 정산은 돈 줄만
   const lines: { k: string; v: number; t: string; amt?: string }[] = [];
   // 층마다 판 전리품 (상단 단골 값을 얹은 실제 판매 수입을 층별 몫으로 나눈다)
-  const loot0 = r.lootSales ?? r.sales - r.matSales, loot = loot0, base = ITEMS.map((_, j) => r.sold[j] * L.price[j]), bsum = base.reduce((a, b) => a + b, 0);
+  const loot0 = r.lootSales ?? r.sales - r.matSales, loot = loot0, base = ITEMS.map((_, j) => (r.soldV ? r.soldV[j] : r.sold[j] * L.price[j])), bsum = base.reduce((a, b) => a + b, 0);
   let left = loot;
   const sold = ITEMS.map((_, j) => j).filter(j => r.sold[j] > 0);
   sold.forEach((j, i) => {
     const v = i === sold.length - 1 ? left : Math.round(loot * base[j] / Math.max(1, bsum)); left -= v;
-    lines.push({ k: 'gain', v, t: `${ITEMS[j].name} ${fmt(r.sold[j])}개 × ${fmtG(L.price[j])}G`, amt: sgn(v) });
+    lines.push({ k: 'gain', v, t: `${ITEMS[j].name} ${fmt(r.sold[j])}개 · 개당 ${fmtG(v / r.sold[j])}G`, amt: sgn(v) });
   });
   if (r.matSales) lines.push({ k: 'gain', v: r.matSales, t: `갈무리 소재 ${Object.values(r.matSold).reduce((a, b) => a + b, 0)}개`, amt: sgn(r.matSales) });
   // 영주청: 탐사 선금과 보급 · 층 지원금 (의뢰 포상 · 지도 판매도 같은 줄에)
