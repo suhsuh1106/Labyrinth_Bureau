@@ -6,7 +6,7 @@
 //   부상 주사위: 해내지 못한 사람은 주사위를 굴린다. 걸리면 포션이 있으면 한 병 써서 막고, 없으면 다치고(그 탐사 동안 성공 −injPen, 다음 달 쉰다),
 //   다친 채 또 걸리면 죽는다.
 //   식량: 하루 한 사람에 하나를 먹고, 모자라면 굶은 사람은 그날 성공 −hungerPen. 정비 도구: 진 날 하나 써서 무기를 고친다. 없으면 무뎌져 그 뒤로 날마다 성공 −toolPen씩 쌓인다. 짐 칸이 다 차면 돌아서고, 둘이 죽으면 물러난다.
-// 이 파일은 하루하루를 굴리기만 한다. 성공률 · 위기 · 포션 · 사망 · 갈무리 · 도감 기록은 runMonth가 넘겨 준 함수가 정한다.
+// 탐사는 날마다 한 걸음씩 굴린다(stepTrip): 그날의 성공률 · 위기는 그날의 판 상태로 다시 셈한다. 이 파일은 하루하루를 굴리기만 한다. 성공률 · 위기 · 포션 · 사망 · 갈무리 · 도감 기록은 runMonth가 넘겨 준 함수가 정한다.
 // 경쟁 용병단과 계약 파티는 숫자로 한 번 굴리고 여기를 거치지 않는다
 import { rnd } from './rng';
 
@@ -42,54 +42,69 @@ export type TripCfg = {
 
 const pickW = (ws: number[]) => { let x = rnd() * ws.reduce((a, b) => a + b, 0); for (let i = 0; i < ws.length; i++) { x -= ws[i]; if (x <= 0) return i; } return ws.length - 1; };
 
-export function runTrip(C: TripCfg) {
-  const gone = new Set<number>(), hurt = new Set<number>(), wins = Array(C.size).fill(0), seen = Array(C.size).fill(0), days: Day[] = [];
-  let tu = 0, pack = 0, lootSum = 0, end: Trip['end'] = 'done', food = C.food, tools = C.tools, blunt = 0, fu = 0, tk = 0;
+// 탐사의 지금 상태 (저장할 수 있는 모양). 탐사는 날마다 한 걸음씩 굴린다: 그날의 성공률 · 위기는 그날의 판 상태로 다시 셈한다
+export type TripState = { day: number; gone: number[]; hurt: number[]; wins: number[]; seen: number[]; days: Day[]; tu: number; pack: number; lootSum: number;
+  end: Trip['end']; food: number; tools: number; blunt: number; fu: number; tk: number; done: boolean };
+export function startTrip(size: number, food: number, tools: number): TripState {
+  return { day: 0, gone: [], hurt: [], wins: Array(size).fill(0), seen: Array(size).fill(0), days: [], tu: 0, pack: 0, lootSum: 0, end: 'done', food, tools, blunt: 0, fu: 0, tk: 0, done: false };
+}
+// 부상 주사위: 걸리면 포션이 먼저 막고(성수면 그 탐사 동안의 부상도 낫는다), 없으면 다치고, 다친 채 또 걸리면 죽는다
+// 돌려주는 글자: '' 안 걸림 · p 포션으로 막음 · h 다침 · d 죽음 · s 죽을 뻔하고 버팀
+function dice(C: TripCfg, S: TripState, m: number, j: number, day: number, D: { cr: number; d: number; sv?: number }) {
+  if (rnd() >= C.injP(m, j)) return '';
+  D.cr++;
+  const pot = C.usePot(); if (pot) { D.sv = (D.sv || 0) + 1; if (pot === 'holy') S.hurt = S.hurt.filter(x => x !== m); return 'p'; }
+  if (!S.hurt.includes(m)) { S.hurt.push(m); C.hurt(m, day); return 'h'; }
+  if (C.kill(m, day)) { D.d++; S.gone.push(m); return 'd'; }
+  return 's';
+}
+// 하루를 굴린다 (끝났으면 S.done). 횃불 · 식량 · 몬스터 · 조원마다 굴림 · 짐 · 갈무리 · 부상 주사위 · 정비 도구
+export function stepTrip(C: TripCfg, S: TripState) {
+  if (S.done) return;
+  if (S.day >= C.days) { S.done = true; return; }
+  const day = S.day, gone = new Set(S.gone), hurt = new Set(S.hurt);
   // 짐 칸: 남은 횃불 · 포션 · 정비 도구가 한 칸씩, 식량은 foodSlot개가 한 칸
-  const held = () => (C.torch - tu) + C.pots() + food / C.foodSlot + tools;
-  // 부상 주사위: 처음 걸리면 다치고(그 탐사 동안 성공 −injPen), 다친 채 또 걸리면 포션으로 살리거나 죽는다
-  // 포션이 1차 방어다: 걸리면 먼저 포션을 한 병 써서 막는다(성수면 그 탐사 동안의 부상도 낫는다). 포션이 없으면 다치고, 다친 채 또 걸리면 죽는다
-  // 돌려주는 글자: '' 안 걸림 · p 포션으로 막음 · h 다침 · d 죽음 · s 죽을 뻔하고 버팀
-  const dice = (m: number, j: number, day: number, D: { cr: number; d: number; sv?: number }) => {
-    if (rnd() >= C.injP(m, j)) return '';
-    D.cr++;
-    const pot = C.usePot(); if (pot) { D.sv = (D.sv || 0) + 1; if (pot === 'holy') hurt.delete(m); return 'p'; }
-    if (!hurt.has(m)) { hurt.add(m); C.hurt(m, day); return 'h'; }
-    if (C.kill(m, day)) { D.d++; gone.add(m); return 'd'; }
-    return 's';
-  };
-  for (let day = 0; day < C.days; day++) {
-    const up = Array.from({ length: C.size }, (_, m) => m).filter(m => !gone.has(m));
-    if (!up.length || gone.size >= 2) { end = 'flee'; break; }
-    if (day === 0 || rnd() < C.rate) { if (tu < C.torch) tu++; else { end = 'torch'; break; } }
-    // 식량: 하루 한 사람에 하나. 모자라면 뒷사람부터 굶는다 (굶은 사람은 그날 성공 −hungerPen)
-    const eat = Math.min(food, up.length); food -= eat; fu += eat;
-    const hungry = new Set(up.slice(eat));
-    const j = pickW(C.w);
-    const dd = up.map(m => rnd() < Math.max(0.03, C.pm(m, j) - (hurt.has(m) ? C.injPen : 0) - (hungry.has(m) ? C.hungerPen : 0) - blunt * C.toolPen)), kd = dd.filter(Boolean).length, win = kd >= Math.min(2, up.length);
-    up.forEach((m, x) => { seen[m]++; if (dd[x]) wins[m]++; });
-    const D: Day = { mon: C.names[j], win, k: kd, n: up.length, mats: [], cr: 0, d: 0, ...(hungry.size ? { hg: hungry.size } : {}) };
-    if (kd) {
-      // 전리품: 해낸 사람 몫만큼 짐 칸을 채운다 (진 날은 loseLoot배만. 다 쓴 횃불 · 포션 칸도 쓴다). 칸이 모자라면 두고 온다
-      const l = up.reduce((a, m, x) => a + (dd[x] ? C.loot(m) : 0), 0) / C.party * (win ? 1 : C.loseLoot), need = l * C.lootSlot;
-      const room = Math.max(0, C.slots - held() - pack), take = Math.min(need, room);
-      pack += take; lootSum += need ? l * take / need : 0; D.loot = Math.round(take * 10) / 10;
-      if (take < need) end = 'pack';
-      if (win) D.mats = C.win(j, kd);
-    }
-    const ms = Array(C.size).fill('-');
-    up.forEach((m, x) => { ms[m] = dd[x] ? 'o' : dice(m, j, day + 1, D) || 'x'; });
-    D.ms = ms.join('');
-    // 정비 도구: 진 날은 무기가 상한다. 도구가 있으면 하나 써서 고치고, 없으면 무뎌진 채로 다닌다 (그 뒤로 날마다 성공 −toolPen씩 쌓임)
-    if (!win) { if (tools > 0) { tools--; tk++; D.fx = 1; } else { blunt++; D.bl = blunt; } }
-    if (C.meet) C.meet(j, up, win, D.cr, kd);
-    D.pk = Math.round(pack * 10) / 10; D.tl = C.torch - tu; D.pl = C.pots(); D.fl = food; D.ol = tools; D.hu = hurt.size - [...hurt].filter(m => gone.has(m)).length;
-    days.push(D);
-    if (end === 'pack') break;
+  const held = () => (C.torch - S.tu) + C.pots() + S.food / C.foodSlot + S.tools;
+  const up = Array.from({ length: C.size }, (_, m) => m).filter(m => !gone.has(m));
+  if (!up.length || gone.size >= 2) { S.end = 'flee'; S.done = true; return; }
+  if (day === 0 || rnd() < C.rate) { if (S.tu < C.torch) S.tu++; else { S.end = 'torch'; S.done = true; return; } }
+  // 식량: 하루 한 사람에 하나. 모자라면 뒷사람부터 굶는다 (굶은 사람은 그날 성공 −hungerPen)
+  const eat = Math.min(S.food, up.length); S.food -= eat; S.fu += eat;
+  const hungry = new Set(up.slice(eat));
+  const j = pickW(C.w);
+  const dd = up.map(m => rnd() < Math.max(0.03, C.pm(m, j) - (hurt.has(m) ? C.injPen : 0) - (hungry.has(m) ? C.hungerPen : 0) - S.blunt * C.toolPen)), kd = dd.filter(Boolean).length, win = kd >= Math.min(2, up.length);
+  up.forEach((m, x) => { S.seen[m]++; if (dd[x]) S.wins[m]++; });
+  const D: Day = { mon: C.names[j], win, k: kd, n: up.length, mats: [], cr: 0, d: 0, ...(hungry.size ? { hg: hungry.size } : {}) };
+  if (kd) {
+    // 전리품: 해낸 사람 몫만큼 짐 칸을 채운다 (진 날은 loseLoot배만. 다 쓴 횃불 · 포션 칸도 쓴다). 칸이 모자라면 두고 온다
+    const l = up.reduce((a, m, x) => a + (dd[x] ? C.loot(m) : 0), 0) / C.party * (win ? 1 : C.loseLoot), need = l * C.lootSlot;
+    const room = Math.max(0, C.slots - held() - S.pack), take = Math.min(need, room);
+    S.pack += take; S.lootSum += need ? l * take / need : 0; D.loot = Math.round(take * 10) / 10;
+    if (take < need) S.end = 'pack';
+    if (win) D.mats = C.win(j, kd);
   }
-  // 어둠 속 귀환: 횃불이 떨어지면 남은 사람마다 부상 주사위를 한 번 더 (darkMin + 그 층 주사위 × darkBack)
+  const ms = Array(C.size).fill('-');
+  up.forEach((m, x) => { ms[m] = dd[x] ? 'o' : dice(C, S, m, j, day + 1, D) || 'x'; });
+  D.ms = ms.join('');
+  // 정비 도구: 진 날은 무기가 상한다. 도구가 있으면 하나 써서 고치고, 없으면 무뎌진 채로 다닌다 (그 뒤로 날마다 성공 −toolPen씩 쌓임)
+  if (!win) { if (S.tools > 0) { S.tools--; S.tk++; D.fx = 1; } else { S.blunt++; D.bl = S.blunt; } }
+  if (C.meet) C.meet(j, up, win, D.cr, kd);
+  const g2 = new Set(S.gone);
+  D.pk = Math.round(S.pack * 10) / 10; D.tl = C.torch - S.tu; D.pl = C.pots(); D.fl = S.food; D.ol = S.tools; D.hu = S.hurt.filter(m => !g2.has(m)).length;
+  S.days.push(D); S.day++;
+  if (S.end === 'pack' || S.day >= C.days) S.done = true;
+}
+// 탐사를 마친다: 횃불이 떨어졌으면 남은 사람마다 어둠 속 귀환의 부상 주사위를 한 번 더 (darkMin + 그 층 주사위 × darkBack)
+export function finishTrip(C: TripCfg, S: TripState) {
   const DK = { cr: 0, d: 0 }, dm = Array(C.size).fill('-');
-  if (end === 'torch') Array.from({ length: C.size }, (_, m) => m).filter(m => !gone.has(m)).forEach(m => { dm[m] = dice(m, -1, 0, DK) || 'o'; });
-  const trip: Trip = { torch: C.torch, tu, slots: C.slots, pack: Math.round(pack * 10) / 10, rest: Math.round(held() * 10) / 10, end, dark: DK.cr, food: C.food, fu, tools: C.tools, tk, blunt, ...(end === 'torch' ? { dm: dm.join('') } : {}) };
-  return { days, trip, wins, seen, lootSum, tu, fu, tk, foodLeft: food, toolsLeft: tools };
+  if (S.end === 'torch') Array.from({ length: C.size }, (_, m) => m).filter(m => !S.gone.includes(m)).forEach(m => { dm[m] = dice(C, S, m, -1, 0, DK) || 'o'; });
+  const rest = (C.torch - S.tu) + C.pots() + S.food / C.foodSlot + S.tools;
+  const trip: Trip = { torch: C.torch, tu: S.tu, slots: C.slots, pack: Math.round(S.pack * 10) / 10, rest: Math.round(rest * 10) / 10, end: S.end, dark: DK.cr, food: C.food, fu: S.fu, tools: C.tools, tk: S.tk, blunt: S.blunt, ...(S.end === 'torch' ? { dm: dm.join('') } : {}) };
+  return { days: S.days, trip, wins: S.wins, seen: S.seen, lootSum: S.lootSum, tu: S.tu, fu: S.fu, tk: S.tk, foodLeft: S.food, toolsLeft: S.tools };
+}
+// 한꺼번에 굴리기 (하루씩 굴리는 것과 같다)
+export function runTrip(C: TripCfg) {
+  const S = startTrip(C.size, C.food, C.tools);
+  while (!S.done) stepTrip(C, S);
+  return finishTrip(C, S);
 }

@@ -1416,4 +1416,20 @@ describe('날 단위 턴 · 길드 홀', () => {
     expect(rnd()).toBe(r0); expect(JSON.stringify(W)).toBe(before); expect(a).toBe(b);
     expect(a).toContain('class="bub"'); expect(a).toContain('훈련 마당'); expect(a).not.toMatch(/undefined|NaN|\[object/);
   });
+  it('탐사는 보낼 때 정해지지 않는다: 날마다 그날 판 상태로 굴리고, 나가 있는 동안 바뀐 것(지도)이 남은 날에 먹힌다', () => {
+    const run = (seed: number, mapUp: boolean) => {
+      setSeed(seed); const W = newWorld(); W.unlocked = 3;
+      const P = sanitize(W, us(W), defaultPlan(W)); P.teams = P.teams!.slice(0, 1); P.teams[0].f = 2;
+      const [s] = sendReady(W, P);
+      expect(s.out).toBeUndefined(); expect(s.st!.days.length).toBe(0);   // 보낸 날엔 아직 아무것도 굴리지 않았다
+      nextDay(W, P);
+      if (mapUp) us(W).map![2] = 100;   // 나가 있는 동안 지도가 다 찼다 (다른 조 · 사본)
+      while (!s.out) nextDay(W, P);
+      return s.out.days.slice(1).reduce((a, d) => a + d.k / d.n, 0);   // 둘째 날부터 해낸 사람 비율
+    };
+    let lo = 0, hi = 0;
+    for (let g = 1; g <= 40; g++) { lo += run(g, false); hi += run(g, true); }
+    expect(hi).toBeGreaterThan(lo);
+    expect(run(5, false)).toBe(run(5, false));   // 같은 시드면 같다
+  });
 });

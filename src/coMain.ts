@@ -13,7 +13,7 @@ import { closeScene, openScene } from './ui/co/scene';
 import { advanceArrival, arrivalOpen, closeArrival, playArrival } from './ui/co/arrival';
 
 const $ = (id: string): any => document.getElementById(id);
-const KEY = 'lb-co', VERSION = 24, MONTHS = 36;   // 24: 날 단위 턴 (조마다 보내고 층 깊이만큼 날이 지나 돌아온다. 이전 판은 새 게임으로)
+const KEY = 'lb-co', VERSION = 25, MONTHS = 36;   // 25: 탐사를 날마다 굴린다 (나가 있는 조의 상태를 판에 둔다. 이전 판은 새 게임으로)
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
 let W: World, plan: Plan, ui: DeskUi;
 // 도장을 막 찍은 결과 화면이면 귀환 장부를 한 줄씩 띄운다 (저장하지 않는 화면 상태)
