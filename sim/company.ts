@@ -40,7 +40,8 @@ for (const k of ['gather', 'hunt', 'scout'] as const) { const v = process.env['M
 if (process.env.SEGS) CO.SEGS = process.env.SEGS.split(',').map(Number);
 if (process.env.MAT_SLOT) CO.MAT_SLOT = FLOORS.map(() => +process.env.MAT_SLOT!);
 if (process.env.TRAIL_SLOT) CO.TRAIL_SLOT = +process.env.TRAIL_SLOT;
-for (const k of ['A_K', 'A_CLERK', 'CLERK_WAGE', 'A_TRIP', 'A_BASE', 'A_MEMBER', 'A_FLOOR', 'A_FREE'] as const) if (process.env[k]) (CO as any)[k] = +process.env[k]!;
+if (process.env.TIER_DEEP) CO.TIER_DEEP = process.env.TIER_DEEP.split(',').map(Number);
+for (const k of ['A_MEMBER_K', 'A_K', 'A_CLERK', 'CLERK_WAGE', 'A_TRIP', 'A_BASE', 'A_MEMBER', 'A_FLOOR', 'A_FREE'] as const) if (process.env[k]) (CO as any)[k] = +process.env[k]!;
 for (const k of Object.keys(SYN) as (keyof typeof SYN)[]) if (process.env['SYN_' + k]) SYN[k] = +process.env['SYN_' + k]!;   // 조 시너지 숫자 (SYN_WAR2_SUCC=0 등)
 const arg = (k: string, d: string) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
 const games = +arg('games', '200'), seed0 = +arg('seed', '1'), only = arg('style', '');
@@ -66,6 +67,8 @@ export const BOT: Record<string, (W: World) => Plan> = {
   // 몸집을 불리지 않는 숙련 봇 (숙소·모집이 순위에 얼마나 보태는지 재는 기준)
   smartStay: W => { const P = smartPlan(W); P.dorm = false; return P; },
   smart: W => smartPlan(W),
+  // 소수 정예: 숙련 봇과 같되 단원을 ELITE_CAP명(기본 24)까지만 뽑는다 (다수 길드인 숙련 봇과 견준다)
+  smartElite: W => { const P = smartPlan(W), c = us(W); if (P.pick) P.pick = P.pick.slice(0, Math.max(0, ELITE_CAP - c.members - (c.hireQ || []).length)); return P; },
   // 숙련 봇이 전리품을 창고에 두고 지정가(기준 값의 SELL_AT배)를 넘으면 파는 것 (창고 보관이 이득인지 재는 기준)
   smartHold: W => { const P = smartPlan(W); P.autoSell = false; P.sellAt = +(process.env.SELL_AT || 1); return P; },
   // 숙련 봇에서 추리만 뺀 것 (편성 지침이 순위에 얼마나 보태는지 재는 기준)
@@ -99,7 +102,7 @@ export function fileSmart(W: World, risk = FILE_RISK): Partial<Filing> {
   return fileAt(D.truth, lo);
 }
 export const FILER: Record<string, (W: World) => Partial<Filing>> = {
-  smart: W => fileSmart(W), smartNoGuide: W => fileSmart(W), smartAsk: W => fileSmart(W), smartNoKit: W => fileSmart(W), smartScout: W => fileSmart(W), smartSeal: W => fileSmart(W), smartNoRoot: W => fileSmart(W), smartStay: W => fileSmart(W), smartHold: W => fileSmart(W), smartGather: W => fileSmart(W),
+  smart: W => fileSmart(W), smartNoGuide: W => fileSmart(W), smartAsk: W => fileSmart(W), smartNoKit: W => fileSmart(W), smartScout: W => fileSmart(W), smartSeal: W => fileSmart(W), smartNoRoot: W => fileSmart(W), smartStay: W => fileSmart(W), smartHold: W => fileSmart(W), smartGather: W => fileSmart(W), smartElite: W => fileSmart(W),
   smartGreedy: W => (W.draft ? fileAt(W.draft.truth, 1) : {}),
 };
 
@@ -118,6 +121,7 @@ const MISSION = process.env.MISSION !== '0', SCOUT_UNDER = +(process.env.SCOUT_U
 const HIRE_SKIP = +(process.env.HIRE_SKIP || 0);
 // 인원 상한(SIZE_CAP=24면 단원을 24명까지만 뽑는다): 작게 굴리는 봇과 크게 굴리는 봇을 견주는 기준
 const SIZE_CAP = +(process.env.SIZE_CAP || 99);
+const ELITE_CAP = +(process.env.ELITE_CAP || 24);
 let BIAS: { c: string; mode: 'pre' | 'avoid' | 'thin' } | null = null;   // thin: 직업과 상관없이 지원자 다섯에 하나를 거른다 (빼기가 직업 탓인지 덜 뽑은 탓인지 가르는 기준)
 const DEATH_V = +(process.env.DEATH_V || 300), HUNT_EDGE = +(process.env.HUNT_EDGE || 0.05), HUNT_MAX = +(process.env.HUNT_MAX || 0.5);
 export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine', kit = true, scout = false, guide = true, askAll = ASK_ALL, missions = MISSION): Plan {
@@ -172,7 +176,8 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
   // 탐사 계획서: 그 층에 보낼 조를 그대로 적어 내고 선금을 받는다
   jobsExplore(W).forEach(J => { if (P.parties[J.f]) P.take![J.id] = P.parties[J.f]; });
   // 서기: 지난달 행정 여력이 CLERK_HI를 넘었으면 한 명 더 (빈 침상을 신입보다 먼저), CLERK_LO 밑이면 한 명 줄인다
-  const A = L && L.res[0].admin; if (c.crew && A) { const r = A.load / A.cap; if (r > CLERK_HI && roomOf(c) > 0) setClerks(W, (c.clerks || 0) + 1); else if (r < CLERK_LO && c.clerks) setClerks(W, c.clerks - 1); }
+  // (넘친 만큼 한 번에: 지난달 부하가 CLERK_HI 밑이 되는 데 모자란 역량을 서기로. 단원 부하는 머릿수가 늘수록 가팔라 한 명씩으론 늦다)
+  const A = L && L.res[0].admin; if (c.crew && A) { const r = A.load / A.cap; if (r > CLERK_HI && roomOf(c) > 0) setClerks(W, (c.clerks || 0) + Math.max(1, Math.ceil((A.load / CLERK_HI - A.cap) / CO.A_CLERK))); else if (r < CLERK_LO && c.clerks) setClerks(W, c.clerks - 1); }
   // 신입: 지원자 명단에서 실력 좋은 사람부터 빈 침상만큼 (그달 찾아오는 날에 계약한다)
   const B = BIAS, fav = (x: { c: string }) => (B && B.mode === 'pre' && x.c === B.c ? 1 : 0);
   if (c.crew && W.cand) P.pick = [...W.cand].filter(x => !(B && B.mode === 'avoid' && x.c === B.c) && !(B && B.mode === 'thin' && x.id % 5 === 0) && !(HIRE_SKIP && (x.id * 2654435761 >>> 0) % 100 < HIRE_SKIP)).sort((a, b) => fav(b) - fav(a) || (b.sk || 0) - (a.sk || 0)).slice(0, Math.min(roomOf(c), Math.max(0, SIZE_CAP - c.members - (c.hireQ || []).length))).map(x => x.id);

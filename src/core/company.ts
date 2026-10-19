@@ -89,6 +89,9 @@ export const CO = {
   SHORT_PEN: 0.12, TPL0: ['전사', '궁수', '도적', '마법사'],
   // 단원 한 사람: 실력(0~100)은 TIER_STEP마다 한 단계(신입 · 수련 · 숙련 · 노련 · 명인). 단계마다 그 사람의 성공 굴림에 TIER_B를 더하고,
   // 급여는 TIER_WAGE, 뽑는 값은 신입 값의 TIER_COST배다. 나가서 해내면 실력 +SK_WIN, 못 해내도 +SK_TRY. 그 층 경험은 +EX_WIN / +EX_TRY (100까지)
+  // 실력 단계의 성공 보정을 층이 깊을수록 TIER_DEEP배 (깊은 층은 실력이 값). 지금은 끔(모두 1): 1 · 2 · 3.5 · 5 · 6.5로 켜도 소수 정예(24명) 봇은
+  // 2.9위 그대로이고(실력 좋은 사람은 큰 길드에도 있다), 우리 채집품이 많아져 시세가 떨어지는 몫을 수입 어림이 놓쳐 어림이 높게 나온다
+  TIER_DEEP: [1, 1, 1, 1, 1],
   TIER_STEP: 20, TIER_B: [-0.06, -0.02, 0.02, 0.05, 0.08], TIER_WAGE: [26, 28, 31, 35, 40], TIER_COST: [1, 1.5, 2.2, 3, 4],
   SK_WIN: 2, SK_TRY: 1, EX_WIN: 6, EX_TRY: 3, CHICKEN_WAGE: 4,
   // 조직력: 조원 둘씩 짝지어 같은 조로 함께 나간 달(CO_MAX달이 끝)을 평균해 0~1. 1이면 성공 +CO_SUCC, 위기 ×(1 − CO_CRISIS)
@@ -127,6 +130,9 @@ export const CO = {
   //   + 건물 한 단계마다 A_BLD + 정보망 한 단계마다 A_INTEL + 맡은 탐사 계획서마다 A_JOB.
   // 역량 = 행정관 A_BASE + 서기마다 A_CLERK + 기록실 단계마다 A_REC. 여력 = 부하 ÷ 역량이 A_FREE를 넘으면 관리비 = 급여 × A_K × (넘은 만큼)²,
   // 1을 넘으면 창고 포션을 챙기지 못해 (넘은 만큼 × A_SPOIL, A_SPOIL_MAX까지) 더 상한다
+  // 단원 · 서기 부하를 머릿수가 늘수록 가파르게: n명이면 n × A_MEMBER × (1 + n / A_MEMBER_K). 지금은 끔(0): 150으로 켜도 서기를 넉넉히 두면
+  // 큰 길드가 그대로 이기고, 60이면 큰 길드 · 소수 정예가 함께 무너진다
+  A_MEMBER_K: 0,
   A_MEMBER: 1, A_TRIP: 0.5, A_FLOOR: 3, A_KIND: 1, A_UNITS: 20, A_BLD: 1, A_INTEL: 1, A_JOB: 2,
   A_BASE: 65, A_CLERK: 10, A_REC: 12, A_FREE: 0.7, A_K: 6, A_SPOIL: 1, A_SPOIL_MAX: 0.5,
   // 서기: 미궁에 가지 않는 사람. 급여 CLERK_WAGE, 침상 하나를 차지한다
@@ -602,6 +608,8 @@ export function crewOf(n: number): Person[] {
   const best = crew.reduce((a, x) => ((x.sk || 0) > (a.sk || 0) ? x : a), crew[0]); if (best) best.lead = true;
   return crew;
 }
+// 그 층에서 실력 단계가 더하는 성공 (깊을수록 TIER_DEEP배)
+export const tierB = (p: Person, f: number) => CO.TIER_B[tierOf(p)] * (CO.TIER_DEEP[f] ?? 1);
 // 실력 단계(0 신입 ~ 4 명인), 한 사람의 급여
 export const tierOf = (p: Person) => (p.sk == null ? 2 : Math.min(4, Math.floor(p.sk / CO.TIER_STEP)));
 // 해고 위로금: 내보낸 사람마다 FIRE_PAY달치 급여
@@ -619,10 +627,11 @@ export function adminOf(W: World, c = us(W), trips?: number, floors?: number) {
   const kinds = stock.filter(([, n]) => n > 0).length, units = stock.reduce((a, [, n]) => a + n, 0);
   const bld = c.hq ? Object.values(c.hq).reduce((a, b) => a + b, 0) : 0, intel = W.intel ? Object.values(W.intel.lv).reduce((a, b) => a + b, 0) : 0;
   const jobs = jobsExplore(W).filter(J => (J.take[0] || 0) > 0).length;
-  const load: [string, number][] = [['단원 · 서기', (c.members + (c.clerks || 0)) * CO.A_MEMBER], ['탐사', nT * CO.A_TRIP], ['층', nF * CO.A_FLOOR], ['창고', kinds * CO.A_KIND + Math.floor(units / CO.A_UNITS)], ['건물', bld * CO.A_BLD], ['정보망', intel * CO.A_INTEL], ['의뢰', jobs * CO.A_JOB]];
+  const load: [string, number][] = [['단원 · 서기', memberLoad(c.members + (c.clerks || 0))], ['탐사', nT * CO.A_TRIP], ['층', nF * CO.A_FLOOR], ['창고', kinds * CO.A_KIND + Math.floor(units / CO.A_UNITS)], ['건물', bld * CO.A_BLD], ['정보망', intel * CO.A_INTEL], ['의뢰', jobs * CO.A_JOB]];
   const cap = CO.A_BASE + (c.clerks || 0) * CO.A_CLERK + hqLv(c, 'rec') * CO.A_REC, sum = load.reduce((a, [, v]) => a + v, 0);
   return { load, sum: Math.round(sum * 10) / 10, cap, r: sum / cap };
 }
+export const memberLoad = (n: number) => Math.round(n * CO.A_MEMBER * (1 + (CO.A_MEMBER_K ? n / CO.A_MEMBER_K : 0)) * 10) / 10;
 // 행정력이 넘친 만큼: 관리비 (급여에 곱하는 몫)와 포션이 더 상하는 몫
 export const adminFee = (r: number) => CO.A_K * Math.max(0, r - CO.A_FREE) ** 2;
 export const adminSpoil = (r: number) => Math.min(CO.A_SPOIL_MAX, Math.max(0, r - 1) * CO.A_SPOIL);
@@ -640,7 +649,7 @@ export function memberMods(who: Person[], f: number, u = 100, real = false) {
   const coh = cohesion(who), has = (t: string) => who.some(p => p.tr === t);
   return {
     coh,
-    pp: who.map(p => CO.TIER_B[tierOf(p)] + coh * CO.CO_SUCC + (p.tr === '새가슴' && f > 0 && u < 50 ? -0.1 : 0) + (real && p.hd ? (HIDDEN[p.hd] || { v: 0 }).v : 0)),
+    pp: who.map(p => tierB(p, f) + coh * CO.CO_SUCC + (p.tr === '새가슴' && f > 0 && u < 50 ? -0.1 : 0) + (real && p.hd ? (HIDDEN[p.hd] || { v: 0 }).v : 0)),
     cr: who.map(p => (p.tr === '신중함' ? 0.7 : p.tr === '욕심쟁이' ? 1.2 : 1) * (1 - CO.CO_CRISIS * coh)),
     loot: who.map(p => (p.tr === '신중함' ? 0.9 : 1)),
     mat: (has('욕심쟁이') ? 1.3 : 1) * (has('눈썰미') ? 1.15 : 1),
@@ -2357,8 +2366,10 @@ export function forecast(W: World, P: Plan): Forecast {
       // 조우는 조우 난이도를 빼고, 채집 지점 · 흔적은 층 난이도만. 채집에서 둘 미만 해내면 해낸 몫의 LOSE_LOOT배만 싣는다
       // (임무 적성은 그 사건에서 조원 평균만큼)
       const ap = (m: Mission) => (who && who.length ? who.reduce((a, x) => a + aptB(x, m), 0) / who.length : 0);
-      const pd = odds ? clamp(pt - CO.HARD_F[f] - CO.HARD_MAIN * CO.ENC_W[0] + (SY.war ? SYN.WAR2_SUCC : 0) + (SY.arc ? SYN.ARC1_FIGHT : 0) + ap('hunt'), 0.03, 0.97) : pt, one1 = size * pd * Math.pow(1 - pd, size - 1);
-      const pg = odds ? clamp(pt - CO.HARD_F[f] + CO.GATHER_EASE + ap('gather'), 0.03, 0.97) : pt, ptr = clamp(pt - CO.HARD_F[f] + CO.TRAIL_EASE + ap('scout') + (SY.mag ? SYN.MAG1_TRAIL : 0), 0.03, 0.97), g1 = size * pg * Math.pow(1 - pg, size - 1);
+      // (조원마다 셈해 평균한다: 깊은 층에선 실력 단계 보정이 커서 평균을 먼저 내면 바닥에서 잘리는 몫을 놓친다)
+      const byM = (d: number, m?: Mission) => (MM ? MM.pp.reduce((a, x, k) => a + clamp(clamp(pt0 + x, 0.05, 0.97) + d + (m ? aptB(who![k], m) : 0), 0.03, 0.97), 0) / who!.length : clamp(pt + d + (m ? ap(m) : 0), 0.03, 0.97));
+      const pd = odds ? byM(-CO.HARD_F[f] - CO.HARD_MAIN * CO.ENC_W[0] + (SY.war ? SYN.WAR2_SUCC : 0) + (SY.arc ? SYN.ARC1_FIGHT : 0), 'hunt') : pt, one1 = size * pd * Math.pow(1 - pd, size - 1);
+      const pg = odds ? byM(-CO.HARD_F[f] + CO.GATHER_EASE, 'gather') : pt, ptr = byM(-CO.HARD_F[f] + CO.TRAIL_EASE + (SY.mag ? SYN.MAG1_TRAIL : 0), 'scout'), g1 = size * pg * Math.pow(1 - pg, size - 1);
       const pwin = odds ? 1 - Math.pow(1 - pd, size) - one1 : 1, lf = odds ? 1 - (1 - CO.LOSE_LOOT) * g1 / Math.max(1e-9, size * pg) : 1, wG = odds ? MW[0] * CO.GATHER_K : 1;
       const matOf = (M: typeof mons[number]) => M.mats.reduce((b, x) => b + matChance(x, keys, full) / CO.PARTY * ((W.mat && W.mat.ref[x.n]) || x.val) * (x.k ? (x.k[0] + x.k[1]) / 2 : 1) * demandMul(W, x.n), 0);
       const mat = hired ? 0 : (MM ? MM.mat : 1) * (odds ? mons.reduce((a, M, j) => a + CO.ENC_W[j] * CO.DAYS * CO.MAT_ENC * matOf(M), 0) * dk * MW[1] * CO.HUNT_MAT * ((T && T.mission) === 'hunt' ? CO.HUNT_CARE : 1) * (pwin + (1 - pwin) * CO.LOSE_MAT / 2) : mons.reduce((a, M) => a + matOf(M), 0));

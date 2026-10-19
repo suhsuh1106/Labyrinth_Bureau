@@ -11,7 +11,7 @@ const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
 export const nameOf = (p: Person) => p.n || `${p.c} ${p.id}`;
-export const tierHtml = (p: Person) => { const t = tierOf(p); return `<span class="tier t${t}" title="실력 ${TIER_N[t]} · 성공 ${CO.TIER_B[t] >= 0 ? '+' : '−'}${Math.round(Math.abs(CO.TIER_B[t]) * 100)}%p"><span class="pips">${'<i></i>'.repeat(5)}</span><em>${TIER_N[t]}</em></span>`; };
+export const tierHtml = (p: Person) => { const t = tierOf(p); return `<span class="tier t${t}" title="실력 ${TIER_N[t]} · 성공 ${CO.TIER_B[t] >= 0 ? '+' : '−'}${Math.round(Math.abs(CO.TIER_B[t]) * 100)}%p${CO.TIER_DEEP[4] !== 1 ? ` (5층 ×${CO.TIER_DEEP[4]})` : ''}"><span class="pips">${'<i></i>'.repeat(5)}</span><em>${TIER_N[t]}</em></span>`; };
 export const traitHtml = (p: Person) => (p.tr ? `<span class="trait" title="${esc(TRAITS[p.tr] || '')}">${p.tr}</span>` : '')
   + (hidSeen(p) && p.hd !== '무난' ? `<span class="trait hid ${(HIDDEN[p.hd!] || { v: 0 }).v > 0 ? 'up' : 'dn'}" title="숨은 기질 · ${esc((HIDDEN[p.hd!] || { t: '' }).t)}">${p.hd}</span>` : '');
 // 임무 적성 · 잠재력(함께한 지 CO.POT_SEE달 뒤에 보임) · 해낸 비율(나선 구간 중)
