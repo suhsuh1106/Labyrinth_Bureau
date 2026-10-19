@@ -54,7 +54,7 @@ export function draftHtml(W: World, F0: Partial<Filing>, live = false) {
   <div class="foot"><button type="button" class="ghost" data-act="file-reset">장부 그대로 다시</button><span class="tot">순이익 <b class="${netF < 0 ? 'neg' : 'pos'}">${sgn(netF)}G</b>${X.total ? ` <span class="dim">(장부 그대로보다 +${fmt(X.total)})</span>` : ''}</span><button type="button" class="seal" data-act="file">신고서 내기</button></div></div>`;
 }
 
-// 판매 내역: 품목마다 개수 · 판매액 · 세율 · 장부대로 낼 세금. 전리품은 처음부터 시장에 등록된 물품이라 영주세, 갈무리 소재는 시장에 등록된 것만(법령), 의뢰 · 선금 · 지도 판매는 비과세
+// 판매 내역: 품목마다 개수 · 판매액 · 세율 · 장부대로 낼 세금. 채집품은 처음부터 시장에 등록된 물품이라 영주세, 전리품은 시장에 등록된 것만(법령), 의뢰 · 선금 · 지도 판매는 비과세
 function salesHtml(W: World) {
   const D = W.draft!, L = W.last!, r = L.res[D.i], lootR = D.lootRate * (1 - (D.relief || 0));
   const lootV = ITEMS.map((_, j) => (r.sold[j] ? Math.round(r.sold[j] * L.price[j]) : 0)), lootSum = lootV.reduce((a, b) => a + b, 0);
@@ -63,7 +63,7 @@ function salesHtml(W: World) {
   ITEMS.forEach((it, j) => { if (!r.sold[j]) return; const v = Math.round(lootV[j] * scale); rows.push(`<tr><td>${it.name}</td><td class="n">${fmt(r.sold[j])}개</td><td class="n">${fmt(v)}</td><td class="n">${Math.round(lootR * 100)}%</td><td class="n">${fmt(v * lootR)}</td></tr>`); });
   const mats = Object.entries(r.matSold).filter(([, n]) => n > 0), taxed = mats.filter(([m]) => D.matTaxed.includes(m)), free = mats.filter(([m]) => !D.matTaxed.includes(m));
   taxed.forEach(([m, n]) => { const v = n * (L.matPrice[m] || 0); rows.push(`<tr><td>${m}</td><td class="n">${fmt(n)}개</td><td class="n">${fmt(v)}</td><td class="n">${Math.round(D.matRate * 100)}%</td><td class="n">${fmt(v * D.matRate)}</td></tr>`); });
-  if (free.length) { const n = free.reduce((a, [, k]) => a + k, 0), v = free.reduce((a, [m, k]) => a + k * (L.matPrice[m] || 0), 0); rows.push(`<tr><td>갈무리 소재<small>${free.slice(0, 4).map(([m]) => m).join(' · ')}${free.length > 4 ? ' …' : ''}</small></td><td class="n">${fmt(n)}개</td><td class="n">${fmt(v)}</td><td class="n dim">미등록</td><td class="n dim">0</td></tr>`); }
+  if (free.length) { const n = free.reduce((a, [, k]) => a + k, 0), v = free.reduce((a, [m, k]) => a + k * (L.matPrice[m] || 0), 0); rows.push(`<tr><td>전리품<small>${free.slice(0, 4).map(([m]) => m).join(' · ')}${free.length > 4 ? ' …' : ''}</small></td><td class="n">${fmt(n)}개</td><td class="n">${fmt(v)}</td><td class="n dim">미등록</td><td class="n dim">0</td></tr>`); }
   const other = (r.jobPay || 0) + (r.adv || 0) + (r.mapSale || 0);
   if (other) rows.push(`<tr><td>의뢰 · 선금 · 지도 판매</td><td></td><td class="n">${fmt(other)}</td><td class="n dim">비과세</td><td class="n dim">0</td></tr>`);
   return `<section class="rp"><h3>판매</h3><div class="tw"><table class="grid slim sales"><thead><tr><th>품목</th><th class="n">개수</th><th class="n">판매액</th><th class="n">세율</th><th class="n">세금</th></tr></thead><tbody>${rows.join('')}
@@ -78,7 +78,7 @@ function plHtml(W: World, netF: number, B: ReturnType<typeof preview>['bill']) {
     ['정보 · 조사', s.intel + s.probe], ['교관', s.train], ['숙소 · 본부 유지비', (s.dorm || 0) + (s.hq || 0) - (r.capex || 0) + s.base + s.proc], ['건물 감가상각', r.dep || 0], ['교회 후원 · 근원 기금', s.donate + s.root], ['의뢰 위약금', s.job || 0]];
   const row = (t: string, v: number, cls = '') => `<tr class="${cls}"><td>${t}</td><td class="n ${v < 0 ? 'neg' : ''}">${sgn(Math.round(v))}</td></tr>`;
   return `<section class="rp"><h3>손익</h3><div class="tw"><table class="grid slim pl"><tbody>
-    ${row('전리품 판매', loot)}${r.matSales ? row('갈무리 소재 판매', r.matSales) : ''}${other ? row('의뢰 · 선금 · 지도 판매', other) : ''}
+    ${row('채집품 판매', loot)}${r.matSales ? row('전리품 판매', r.matSales) : ''}${other ? row('의뢰 · 선금 · 지도 판매', other) : ''}
     ${row('판매 합계', r.sales, 'sub')}
     ${cost.filter(([, v]) => v > 0).map(([t, v]) => row(t, -v)).join('')}
     ${row('순이익 (세금 전)', profitOf(r), 'sub')}

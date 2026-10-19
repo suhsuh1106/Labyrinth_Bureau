@@ -92,7 +92,7 @@ function monPage(W: World, P: Plan | undefined, f: number, j: number) {
   if (!D) return `<div class="nb-pages unk"><section class="nb-page"><div class="nb-img" aria-hidden="true">?</div><h4>???</h4>${tag}<p class="note">아직 만나지 못했어요</p></section><section class="nb-page"></section></div>`;
   const eco = ecoOf(raw).map((t, k) => (D.u >= DEX.ECO_AT[k] ? `<li>${t}</li>` : `<li class="lock">이해도 ${DEX.ECO_AT[k]}에서</li>`)).join('');
   const marks = [DEX.REC_AT, DEX.TARGET_AT, ...(j ? [] : [DEX.ROOT_AT])].map(v => `<i style="left:${v}%" title="${v}"></i>`).join('');
-  const target = D.u >= DEX.TARGET_AT ? '<span class="pos">지정 탐사 가능</span>' : `지정 탐사: 이해도 ${DEX.TARGET_AT}부터`;
+  const target = D.u >= DEX.TARGET_AT ? '<span class="pos">사냥 임무로 노릴 수 있음</span>' : `사냥 임무로 노리기: 이해도 ${DEX.TARGET_AT}부터`;
   const root = j ? '' : ` · 근원: ${(W.roots && W.roots[f] && W.roots[f].found) ? '<span class="pos">찾음</span>' : `이해도 ${DEX.ROOT_AT} + 약점 확정`}`;
   const asking = P && P.ask && P.ask.mon === M.name ? `<p class="note"><b>이번 달 단장 조사</b> · ${P.ask.m ? `${P.ask.m}: ${keyName(P.ask.k)}` : `${P.ask.b ? '역효과' : '약점'}: ${weakName(P.ask.k)}`}</p>` : '';
   return `<div class="nb-pages"><section class="nb-page">
@@ -125,6 +125,6 @@ export function bookHtml(W: World, P?: Plan, sel?: string) {
     <div class="tw"><table class="grid bk-sold"><thead><tr><th>찾는 곳</th><th>소재</th><th class="n">값</th><th>기한</th><th>들은 곳</th></tr></thead>
       <tbody>${news || (hidden ? '' : '<tr><td colspan="5" class="dim">지금 들려오는 소식이 없어요</td></tr>')}${lock}</tbody></table></div>
     <h3>몬스터</h3>
-    <p class="note">약점은 다섯 가지 — ${ASK_KEYS.map(weakName).join(' · ')}. 장비만 들면 절반, 맡는 직업만 있으면 ¼, 둘 다면 다 찌른다. 역효과는 그 장비를 들었을 때만. 만날수록 이해도가 찹니다. 이해도 ${DEX.REC_AT} 전적 · ${DEX.TARGET_AT} 지정 탐사(편성표) · 단장 조사는 출정에서 한 달에 하나${ask ? ` · 지난달 단장 조사: ${ask.mon} — ${ask.m ? `${ask.m}, ${keyName(ask.k)}` : `${ask.b ? '역효과 ' : ''}${weakName(ask.k)}`} ${ask.ans === 'yes' ? '확정' : ask.ans === 'no' ? '아님' : ask.ans === 'miss' ? '만나지 못함' : '단장이 나가지 않음'}` : ''}</p>
+    <p class="note">약점은 다섯 가지 — ${ASK_KEYS.map(weakName).join(' · ')}. 장비만 들면 절반, 맡는 직업만 있으면 ¼, 둘 다면 다 찌른다. 역효과는 그 장비를 들었을 때만. 만날수록 이해도가 찹니다. 이해도 ${DEX.REC_AT} 전적 · ${DEX.TARGET_AT} 사냥 임무로 노리기(편성표) · 단장 조사는 출정에서 한 달에 하나${ask ? ` · 지난달 단장 조사: ${ask.mon} — ${ask.m ? `${ask.m}, ${keyName(ask.k)}` : `${ask.b ? '역효과 ' : ''}${weakName(ask.k)}`} ${ask.ans === 'yes' ? '확정' : ask.ans === 'no' ? '아님' : ask.ans === 'miss' ? '만나지 못함' : '단장이 나가지 않음'}` : ''}</p>
     ${floors}`;
 }

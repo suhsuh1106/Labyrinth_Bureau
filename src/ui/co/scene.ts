@@ -1,12 +1,13 @@
 // 탐사 재생 장면: 귀환한 조 하나의 하루하루를 오토 배틀러처럼 다시 보여 준다.
-// 왼쪽에 조원 카드, 오른쪽에 그날 만난 몬스터. 조원마다 해냈나가 차례로 뜨고, 승 · 패, 짐, 부상 주사위(포션 · 다침 · 죽음)가 이어진다.
+// 왼쪽에 조원 카드, 오른쪽에 그 구간의 사건(만난 몬스터 · 채집 지점 · 흔적). 조원마다 해냈나가 차례로 뜨고, 승 · 패, 짐, 부상 주사위(포션 · 다침 · 죽음)가 이어진다.
 // 기록(W.last.ours[i].days · trip)을 읽어 보여 주기만 한다. 상태를 쓰지 않고 난수도 쓰지 않는다.
 // 약점 · 역효과는 도감에서 확정해 둔 것만 띄운다 (모르는 것을 화면이 알려 주지 않는다)
-import { FLOORS, type Person, type World, floorMons, synTags } from '../../core/company';
+import { FLOORS, ITEMS, type Person, type World, floorMons, synTags } from '../../core/company';
 import { PAIR_CLASS } from '../../core/data';
 import { badSure } from '../../core/dex';
 import { TRIP_END } from '../../core/events';
-import { packBar } from './roster';
+import { EV_NAME, dayCls, dayMark, packBar } from './roster';
+import { evOf } from '../../core/expedition';
 
 const ICON: Record<string, string> = { 전사: '🛡️', 궁수: '🏹', 마법사: '🔮', 사제: '✝️', 도적: '🗡️' };
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
@@ -74,18 +75,20 @@ export function openScene(W: World, i: number, sfx: (k: string) => void = () => 
   });
   D.forEach((d, j) => {
     const M = mons.find(y => y.name === d.mon), ms = d.ms || '', dd = d.dd ?? j + 1, e = D.slice(0, j).filter(y => (y.dd ?? 0) === dd).length + 1;
+    const mon = d.mon || '', ev = evOf(d), nmE = mon || EV_NAME[ev];
     steps.push({ ms: 500, fn: () => {
-      $('.sc-day').textContent = d.dd ? `${dd}일째 · ${e}번째 마주침` : `${dd}일째`;
+      $('.sc-day').textContent = d.dd ? `${dd}일째 · ${e}번째 구간` : `${dd}일째`;
       el.classList.remove('dark');
       el.querySelectorAll('.sc-m').forEach(c => c.classList.remove('ok', 'no'));
       el.querySelectorAll('.sc-m .mk').forEach(k => { k.textContent = ''; });
       const mb = $('.sc-mon'); mb.classList.remove('beaten', 'won', 'in'); void mb.offsetWidth; mb.classList.add('in');
       mb.classList.toggle('main', !!M && M.main);
-      (mb.querySelector('.ic') as HTMLElement).textContent = d.mon.slice(0, 1);
-      (mb.querySelector('b') as HTMLElement).textContent = d.mon;
-      (mb.querySelector('small') as HTMLElement).textContent = M && M.main ? '주 몬스터' : '곁 몬스터';
-      $('.sc-verdict').textContent = 'VS'; $('.sc-verdict').className = 'sc-verdict';
-      log(`${dd}일 · <b>${esc(d.mon)}</b> 조우${d.hg ? ` · <b class="hurt">굶은 사람 ${d.hg}</b>` : ''}${badGear(d.mon) ? ' · <b class="hurt">역효과 장비</b>' : ''}`);
+      mb.dataset.ev = ev;
+      (mb.querySelector('.ic') as HTMLElement).textContent = ev === 'g' ? '⛏' : ev === 't' ? '👣' : mon.slice(0, 1);
+      (mb.querySelector('b') as HTMLElement).textContent = ev === 'g' ? ITEMS[x.f].name : nmE;
+      (mb.querySelector('small') as HTMLElement).textContent = ev === 'g' ? '채집 지점' : ev === 't' ? '지도' : `${M && M.main ? '주 몬스터' : '곁 몬스터'}${d.am ? ' · 들킴' : ''}`;
+      $('.sc-verdict').textContent = ev === 'f' ? 'VS' : '…'; $('.sc-verdict').className = 'sc-verdict';
+      log(`${dd}일 · <b>${esc(nmE)}</b>${ev === 'f' ? (d.am ? ' 들켜서 조우' : ' 조우') : ''}${d.hg ? ` · <b class="hurt">굶은 사람 ${d.hg}</b>` : ''}${mon && badGear(mon) ? ' · <b class="hurt">역효과 장비</b>' : ''}`);
       sup(d.tl ?? 0, j ? D[j - 1].pl ?? 0 : x.potC ?? 0, d.fl ?? 0, j ? D[j - 1].ol ?? 0 : T.tools || 0, j ? D[j - 1].pk ?? 0 : 0);
     } });
     // 조원마다 해냈나 (기록이 없는 옛 판은 해낸 수만)
@@ -95,21 +98,23 @@ export function openScene(W: World, i: number, sfx: (k: string) => void = () => 
         const c = card(m), ok = ch === 'o';
         c.classList.add(ok ? 'ok' : 'no');
         (c.querySelector('.mk') as HTMLElement).textContent = ok ? '✓' : '✗';
-        if (ok && keyHit(d.mon, m)) pop(c, '약점!', 'key');
+        if (ok && mon && keyHit(mon, m)) pop(c, '약점!', 'key');
         sfx(ok ? 'ok' : 'no');
       } });
     });
     steps.push({ ms: 650, fn: () => {
-      const v = $('.sc-verdict'); v.textContent = d.win ? '승' : '패'; v.className = `sc-verdict ${d.win ? 'w' : 'x'}`;
+      const vt = ev === 'f' ? (d.win ? '승' : '패') : d.win ? '해냄' : '놓침';
+      const v = $('.sc-verdict'); v.textContent = vt; v.className = `sc-verdict ${d.win ? 'w' : 'x'}`;
       $('.sc-mon').classList.add(d.win ? 'beaten' : 'won');
       const mats = d.mats.map(([a, c]) => `${esc(a)} ×${c}`).join(', ');
-      log(`${d.win ? '승' : '패'} · ${d.k}/${d.n} 해냄${d.loot ? ` · 전리품 ${d.loot}칸` : ''}${mats ? ` · <b class="mat">${mats}</b>` : ''}${d.fx ? ' · 정비 도구로 고침' : ''}${d.bl ? ` · <b class="hurt">무뎌짐 ${d.bl}</b>` : ''}`);
+      log(`${vt} · ${d.k}/${d.n} 해냄${d.loot ? ` · 채집품 ${d.loot}칸` : ''}${mats ? ` · <b class="mat">${mats}</b>` : ''}${d.fx ? ' · 정비 도구로 고침' : ''}${d.bl ? ` · <b class="hurt">무뎌짐 ${d.bl}</b>` : ''}`);
       if (mats) pop($('.sc-mon'), '갈무리', 'mat');
+      else if (d.loot) pop($('.sc-mon'), '채집', 'mat');
       sup(d.tl ?? 0, d.pl ?? 0, d.fl ?? 0, d.ol ?? 0, d.pk ?? 0);
       sfx(d.win ? 'gain' : 'cost');
     } });
-    if (ms) dice(ms, d.mon);
-    steps.push({ ms: 250, fn: () => { const c = $(`.sc-days i[data-j="${j}"]`); c.className = `${d.win ? 'w' : 'x'}${d.d ? ' dead' : ''}${j && d.dd !== D[j - 1].dd ? ' nd' : ''}`; c.textContent = d.d ? '†' : d.cr ? '!' : ''; } });
+    if (ms) dice(ms, mon);
+    steps.push({ ms: 250, fn: () => { const c = $(`.sc-days i[data-j="${j}"]`); c.className = `${dayCls(d)}${j && d.dd !== D[j - 1].dd ? ' nd' : ''}`; c.textContent = dayMark(d); } });
   });
   // 어둠 속 귀환: 횃불이 떨어진 채 돌아오는 길
   if (T.end === 'torch') {
@@ -124,7 +129,7 @@ export function openScene(W: World, i: number, sfx: (k: string) => void = () => 
   steps.push({ ms: 0, fn: () => {
     const w = D.filter(d => d.win).length, dead = x.dead || [];
     $('.sc-day').textContent = TRIP_END[T.end];
-    log(`<b>${TRIP_END[T.end]}</b> · ${T.fd ?? D.length}일 · ${w}승 ${D.length - w}패 · 짐 ${T.pack}/${T.slots}칸${dead.length ? ` · <b class="dead">† ${dead.map(z => esc(z.n)).join(', ')}</b>` : ''}`);
+    log(`<b>${TRIP_END[T.end]}</b> · ${T.fd ?? D.length}일 · 구간 ${D.length} · ${w}번 해냄 · 짐 ${T.pack}/${T.slots}칸${dead.length ? ` · <b class="dead">† ${dead.map(z => esc(z.n)).join(', ')}</b>` : ''}`);
     sfx(dead.length ? 'lose' : w * 2 >= D.length ? 'win' : 'lose');
     el.classList.add('fin'); ($('[data-sc="pause"]')).hidden = true; ($('[data-sc="end"]')).hidden = true;
   } });

@@ -4,7 +4,7 @@ import { type Forecast, ITEMS, type MonthResult, type World, fcRank, us } from '
 
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
 const sgn = (n: number) => (n > 0 ? '+' : n < 0 ? '−' : '±') + fmt(Math.abs(n));
-// 전리품 한 개 값: 0.1G 단위까지 (7.6G), 딱 떨어지면 정수로
+// 채집품 한 개 값: 0.1G 단위까지 (7.6G), 딱 떨어지면 정수로
 export const fmtG = (n: number) => { const t = Math.round(n * 10); return t % 10 ? (t / 10).toFixed(1) : fmt(t / 10); };
 const r1 = (n: number) => Math.round(n * 10) / 10;
 // 눈금 끝값: 1 · 1.2 · 1.5 · 2 · 2.5 · 3 · 4 · 5 · 6 · 8 · 10 꼴로 올린다
@@ -95,7 +95,7 @@ function stacked(title: string, months: number[], parts: { name: string; color: 
   return fig(title, parts.map(p => key(p.color, p.name)).join(' '), `${axes(0, hi, Y, months.map(m => `${m}월`), X)}${bars}
     ${hits(n, X, step, k => `제${months[k]}월|${parts.map(p => `${p.name} ${fmt(p.v[k])}G`).join('|')}|모두 ${fmt(tot[k])}G`)}`, aria);
 }
-export const incomeMix = (W: World) => { const S = moneySeries(W); return stacked('수입 구성', S.months, [{ name: '전리품', color: 'var(--c-us)', v: S.loot }, { name: '갈무리 소재', color: 'var(--c-holy)', v: S.mats }], '달별 전리품과 소재 수입'); };
+export const incomeMix = (W: World) => { const S = moneySeries(W); return stacked('수입 구성', S.months, [{ name: '채집품', color: 'var(--c-us)', v: S.loot }, { name: '전리품', color: 'var(--c-holy)', v: S.mats }], '달별 채집품과 소재 수입'); };
 export const spendMix = (W: World) => { const S = moneySeries(W); return stacked('지출 구성', S.months, SPEND_KEYS.map(([k, name, color]) => ({ name, color, v: S.spend.map(x => x[k]) })), '달별 지출 구성'); };
 
 // 선 하나짜리 작은 그래프 (효율 지표)
@@ -123,14 +123,14 @@ export function perHeadChart(W: World) {
   const v = S.net.map((x, k) => x / S.heads[k]);
   return single('단원 한 명당 순이익', S.months, v, 'G', k => `제${S.months[k]}월|한 명당 ${sgn(v[k])}G|순이익 ${sgn(S.net[k])}G · 단원 ${S.heads[k]}명`, '단원 한 명당 순이익');
 }
-// 채집 점유율: 모두가 캐 간 전리품 값 중 우리 몫
+// 채집 점유율: 모두가 캐 간 채집품 값 중 우리 몫
 export function shareChart(W: World) {
   const S = moneySeries(W), v = S.share.map(x => x * 100);
   return single('채집 점유율', S.months, v, '%', k => `제${S.months[k]}월|우리 몫 ${v[k].toFixed(1)}%`, '달별 채집 점유율');
 }
 
-// 시세 흐름: 열린 층(시장에 풀린) 전리품마다 작은 선. 옅은 띠가 그 전리품이 오갈 수 있는 가격대(바닥~천장)이고,
-// 얕은 층 전리품은 띠가 좁아 거의 평평하고 깊은 층 전리품은 띠가 넓어 크게 출렁인다. 점선은 기준 시세. 아직 안 열린 층의 전리품은 보이지 않는다
+// 시세 흐름: 열린 층(시장에 풀린) 채집품마다 작은 선. 옅은 띠가 그 채집품이 오갈 수 있는 가격대(바닥~천장)이고,
+// 얕은 층 채집품은 띠가 좁아 거의 평평하고 깊은 층 채집품은 띠가 넓어 크게 출렁인다. 점선은 기준 시세. 아직 안 열린 층의 채집품은 보이지 않는다
 // 공급과 수요: 가운데 눈금이 수요(시장이 한 달에 사 가는 양), 막대가 그달 공급. 수요를 넘으면 주황(값이 떨어짐)
 // 공급과 수요는 상단 장부(시장 정보망) 1단계부터 보인다. 가운데 눈금이 수요, 막대가 그달 시장 전체 공급, 수요를 넘으면 주황
 function sdBar(D: number, Q: number | null, see: boolean) {
@@ -144,7 +144,7 @@ export function priceBoard(W: World) {
     const ps = H.map(M => (M.Q[j] ? M.price[j] : null)), have = ps.filter((v): v is number => v != null);
     if (j >= W.unlocked && !have.length) return '';
     const lo = r1(it.P0 * it.lo), hi = r1(it.P0 * it.hi);
-    // 세로 눈금은 모든 전리품이 같은 비율(기준 시세의 가장 낮은 바닥 ~ 가장 높은 천장)이라 출렁임의 크기를 서로 견줄 수 있다
+    // 세로 눈금은 모든 채집품이 같은 비율(기준 시세의 가장 낮은 바닥 ~ 가장 높은 천장)이라 출렁임의 크기를 서로 견줄 수 있다
     const w = 150, h = 40, n = Math.max(2, ps.length), yLo = it.P0 * Math.min(...ITEMS.map(x => x.lo)), yHi = it.P0 * Math.max(...ITEMS.map(x => x.hi));
     const X = (k: number) => 4 + (k / Math.max(1, n - 1)) * (w - 8), Y = (v: number) => 3 + (1 - (v - yLo) / Math.max(1, yHi - yLo)) * (h - 6);
     const band = `<rect class="band" x="2" y="${Y(hi)}" width="${w - 4}" height="${Y(lo) - Y(hi)}"/><line class="base" x1="2" x2="${w - 2}" y1="${Y(it.P0)}" y2="${Y(it.P0)}"/>`;
@@ -160,10 +160,10 @@ export function priceBoard(W: World) {
       ${band}<path class="sp" d="${path}"/><circle class="spend ${d < 0 ? 'dn' : d > 0 ? 'up' : ''}" cx="${X(lastK)}" cy="${Y(now)}" r="3"/>${hs}</svg></td>
       <td class="n"><b>${fmtG(now)}G</b><small>기준 ${fmtG(it.P0)}</small></td><td class="n ${d > 0 ? 'pos' : d < 0 ? 'neg' : 'dim'}">${d > 0 ? '▲' : d < 0 ? '▼' : ''}${d ? Math.abs(d) + '%' : '±0%'}</td>${seeQ ? `<td>${sdBar(it.D, H[H.length - 1].Q[j], seeQ)}</td>` : ''}<td class="n dim range">${fmtG(lo)}~${fmtG(hi)}G</td></tr>`;
   }).join('');
-  return `<table class="grid board"><thead><tr><th>전리품</th><th>흐름</th><th class="n">시세</th><th class="n">전월 대비</th>${seeQ ? '<th>공급 / 수요</th>' : ''}<th class="n range">가격대</th></tr></thead><tbody>${rows}</tbody></table>${seeQ ? '' : '<p class="note sd-lock">공급 / 수요는 상단 장부 1단계부터 보여요</p>'}`;
+  return `<table class="grid board"><thead><tr><th>채집품</th><th>흐름</th><th class="n">시세</th><th class="n">전월 대비</th>${seeQ ? '<th>공급 / 수요</th>' : ''}<th class="n range">가격대</th></tr></thead><tbody>${rows}</tbody></table>${seeQ ? '' : '<p class="note sd-lock">공급 / 수요는 상단 장부 1단계부터 보여요</p>'}`;
 }
 
-// 수입 어림 그림: 이번 달 전리품 · 소재 수입이 얼마쯤 나올지 (막대는 그 값이 나올 가능성, 옅은 띠는 열에 여덟이 드는 폭).
+// 수입 어림 그림: 이번 달 채집품 · 전리품 수입이 얼마쯤 나올지 (막대는 그 값이 나올 가능성, 옅은 띠는 열에 여덟이 드는 폭).
 // 이번 달 나갈 돈(cost)과 실제로 나온 값(actual)이 있으면 선으로 긋는다
 export function fcChart(fc: Forecast, cost: number | null, actual: number | null, aria: string) {
   const W = 640, H = 130, L = 8, R = 8, T = 10, B = 22;
