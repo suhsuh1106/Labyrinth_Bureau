@@ -20,7 +20,7 @@ export type DeskUi = { phase: number; tab: string; seen?: number; dexMon?: strin
   file?: Partial<Filing>;   // 가정산에서 고치는 신고서
   pick?: { t?: number; s?: number; id?: number } | null;
   sort?: Record<string, string>;   // 명단 정렬 (rs 인원 명단 · cd 지원자 · as 편성표): "열:방향"
-  place?: string; town?: boolean; exp?: boolean };   // exp: 출정 편성 창   // town: 길드 홀 대신 마을 지도와 결재안을 펼쳐 둔다   // 내정에서 열어 둔 장소 창 (인원 · 건물 · 상단 거리 · 교회 · 정보망)   // 편성판에서 집어 든 사람 (조의 자리, 또는 대기 인원)
+  place?: string; town?: boolean; exp?: boolean; store?: boolean };   // store: 창고 창   // exp: 출정 편성 창   // town: 길드 홀 대신 마을 지도와 결재안을 펼쳐 둔다   // 내정에서 열어 둔 장소 창 (인원 · 건물 · 상단 거리 · 교회 · 정보망)   // 편성판에서 집어 든 사람 (조의 자리, 또는 대기 인원)
 const lvOf = (W: World, k: keyof typeof INTEL.BASE) => (W.intel ? W.intel.lv[k] : INTEL.BASE[k]);
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
@@ -481,7 +481,7 @@ function placeBar(seals: Record<string, string>) {
     ${PLACE_KEYS.map((k, i) => `<button type="button" class="pb" data-act="place" data-place="${k}" title="${PLACES[k].where}${seals[k] ? ' · ' + seals[k] : ''}">${PLACES[k].name}<kbd>${i + 1}</kbd>${mark(k)}</button>`).join('')}
     <span class="sep" aria-hidden="true"></span>
     ${DOC_TABS.map(([k, n], i) => `<button type="button" class="pb doc" data-act="open-doc" data-tab="${k}">${n}<kbd>${(PLACE_KEYS.length + i + 1) % 10}</kbd>${mark(k === 'report' ? '' : k)}</button>`).join('')}
-    <span class="sep" aria-hidden="true"></span><button type="button" class="pb doc" data-act="town" aria-pressed="${!!seals.__town}">${seals.__town ? '길드 홀' : '마을 지도 · 결재안'}</button>
+    <span class="sep" aria-hidden="true"></span><button type="button" class="pb doc" data-act="store">창고</button><button type="button" class="pb doc" data-act="town" aria-pressed="${!!seals.__town}">${seals.__town ? '길드 홀' : '마을 지도 · 결재안'}</button>
     <span class="sp"></span><button type="button" class="pb go" data-act="exp">출정 편성</button></div>`;
 }
 // 알림 줄: 이번 달 새로 걸린 의뢰 · 상단 소문. 장소를 열면(또는 닫기) 그달은 접힌다
@@ -493,14 +493,19 @@ function noticeHtml(W: World, ui: DeskUi) {
   if (!ns.length || ui.seen === W.month) return '';
   return `<div class="notices" role="status">${ns.map(([k, h, t]) => `<div class="nt"><b>${esc(h)}</b><span>${esc(t)}</span>${k === 'gate' ? '' : `<button type="button" class="link" data-act="place" data-place="${k}">보기</button>`}</div>`).join('')}<button type="button" class="link close-n" data-act="seen" aria-label="알림 접기">접기</button></div>`;
 }
-// 길드 (본 화면): 위에 알림 줄과 장소 단추 줄, 가운데 길드 홀(대기 중인 단원 · 나가 있는 조 · 오늘 돌아온 조), 아래 창고.
-// 마을 지도 · 결재안은 단추 줄에서 펼친다
+// 길드 (본 화면): 위에 알림 줄과 장소 단추 줄, 그 아래 길드 홀(대기 중인 단원 · 나가 있는 조 · 오늘 돌아온 조)이 화면을 채운다.
+// 마을 지도 · 결재안과 창고 창은 단추 줄에서 연다
 export function infoWeekHtml(W: World, raw: Plan, ui: DeskUi) {
   const seals = sealsOf(W, raw);
   const main = ui.town ? `<div class="town">${townSceneHtml(fmt(townOf(W)), seals)}${ledgerHtml(W, raw)}</div>` : hallHtml(W, raw);
   return `${noticeHtml(W, ui)}${placeBar({ ...seals, ...(ui.town ? { __town: '1' } : {}) })}${main}
-    ${storeHtml(W, raw, sanitize(W, us(W), raw))}
-    ${ui.exp ? expHtml(W, raw, ui) : ''}${readerHtml(W, ui, raw)}${placeHtml(W, raw, ui)}`;
+    ${ui.store ? storeWin(W, raw) : ''}${ui.exp ? expHtml(W, raw, ui) : ''}${readerHtml(W, ui, raw)}${placeHtml(W, raw, ui)}`;
+}
+// 창고 창: 채집품(팔기) · 채비
+function storeWin(W: World, raw: Plan) {
+  return `<div class="reader store-w" role="dialog" aria-modal="true" aria-label="창고"><div class="reader-in">
+    <div class="reader-bar"><span class="sp"></span><button type="button" class="close" data-act="close-store" aria-label="창 닫기">×</button></div>
+    ${storeHtml(W, raw, sanitize(W, us(W), raw))}</div></div>`;
 }
 // 출정 편성 창: 길드 위에 뜬다 (장소 창처럼). 보급 창 · 자료는 그 위에 겹쳐 연다
 function expHtml(W: World, raw: Plan, ui: DeskUi) {

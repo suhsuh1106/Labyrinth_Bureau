@@ -1,5 +1,19 @@
 /* 용병단 행정실: 책상 위에 결정표와 정산서를 위아래로 펼쳐 둔다. 종이는 테마를 따르고 책상은 늘 같은 색이다 */
-.co-desk { display: grid; gap: 14px; }
+.co-desk { display: grid; gap: 14px; align-content: start; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+/* 길드: 알림 줄 · 단추 줄 아래 홀(또는 마을 지도)이 남은 높이를 채우고, 넘치면 칸마다 따로 스크롤한다 */
+.co-desk.ph0 { display: flex; flex-direction: column; gap: 8px; }
+.co-desk.ph0 > .placebar { margin-bottom: 0; }
+@media (min-width: 961px) and (min-height: 520px) {
+  .co-desk.ph0 { overflow: hidden; }
+  .co-desk.ph0 > .hall, .co-desk.ph0 > .town { flex: 1; min-height: 0; align-items: stretch; }
+  .hall > *, .town > * { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .hall-side { align-content: start; }
+  .hall-side > .nextday { position: sticky; bottom: 0; z-index: 1; }
+  .hall-room { display: flex; flex-direction: column; }
+  .hall-zones { flex: 1; grid-template-rows: minmax(min-content, 1fr) auto; }
+  .town > .scene { height: 100%; }
+  .town .ledger { position: static; align-content: start; }
+}
 .co-sheet { background: var(--paper); color: var(--ink); border-radius: 3px; padding: 18px 20px; box-shadow: var(--obj-shadow); display: grid; gap: 10px; min-width: 0; }
 .co-sheet .kind { font-size: 11px; letter-spacing: .08em; color: var(--ink-soft); }
 .co-sheet h2 { font-family: var(--f-display); font-size: 21px; margin: 0; text-wrap: balance; }
@@ -212,14 +226,14 @@ table.grid.bk-sold { min-width: 0; }
    압지 안에서는 종이 색 토큰을 압지 색으로 바꿔, 조절칸·표가 그대로 어두운 판 위에 그려지게 한다 */
 :root { --bl-1: #1f3329; --bl-2: #284034; --bl-3: #172720; --bl-line: #3a5446; --bl-ink: #e1e9df; --bl-soft: #a5b8aa; --bl-good: #86cf9f; --bl-bad: #f08a7e; --bl-accent: #d9b45a; }
 .weeks { display: flex; margin-left: auto; }
-.wk { display: flex; align-items: center; gap: 7px; padding: 5px 12px; border: 1px solid rgba(42,30,8,.45); background: rgba(255,255,255,.12); color: #2a1e08; cursor: pointer; font: 500 13px var(--f-body); }
+.wk { display: flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid rgba(42,30,8,.45); background: rgba(255,255,255,.12); color: #2a1e08; cursor: pointer; font: 500 13px var(--f-body); }
 .wk:first-child { border-radius: 3px 0 0 3px; } .wk:last-child { border-radius: 0 3px 3px 0; } .wk + .wk { border-left: 0; }
 .wk i { font: 600 11px var(--f-num); font-style: normal; width: 19px; height: 19px; border-radius: 50%; display: grid; place-items: center; border: 1px solid currentColor; }
 .wk[aria-current="step"] { background: #2a1e08; color: #f3e2b5; }
 .wk.done i { background: rgba(42,30,8,.25); }
 .wk:disabled { opacity: .45; cursor: default; }
 .wk:focus-visible { outline: 2px solid #2a1e08; outline-offset: 2px; }
-@media (max-width: 760px) { .weeks { margin-left: 0; width: 100%; order: 3; } .wk { flex: 1; justify-content: center; padding: 6px 4px; font-size: 12px; } }
+@media (max-width: 760px) { .weeks { margin-left: 0; width: 100%; order: 3; flex-wrap: wrap; } .wk { flex: 1; justify-content: center; padding: 3px 4px; font-size: 12px; } }
 
 .co-desk .main { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 14px; align-items: start; }
 @media (max-width: 960px) { .co-desk .main { grid-template-columns: minmax(0, 1fr); } }
@@ -358,6 +372,7 @@ table.grid.cmp { min-width: 0; margin-bottom: 6px; }
   padding: calc(16px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px)); }
 .reader-in { width: min(1100px, 100%); display: grid; gap: 0; }
 .reader-bar { display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap; }
+.reader-bar .sp { flex: 1; }
 .reader-bar .tabs { display: flex; gap: 3px; flex-wrap: wrap; margin-right: auto; }
 .reader-bar .tab { border: 1px solid rgba(232,220,198,.35); border-bottom: 0; background: rgba(23,39,32,.9); color: #cbd6cd; padding: 7px 14px; border-radius: 3px 3px 0 0; cursor: pointer; font: 600 13px var(--f-body); }
 .reader-bar .tab[aria-selected="true"] { background: #fcfbf7; color: #1d2a23; border-color: transparent; }
@@ -743,10 +758,10 @@ table.grid.fcv td, table.grid.fcv th { font-size: 12px; }
 @media (max-width: 640px) { .sup-r { grid-template-columns: 1fr; } .sup-n { text-align: left; } }
 
 /* 내정: 지도 위 단추 줄 (지도의 장소 · 책상 위 자료를 단추로도) */
-.placebar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 10px; padding: 8px; border-radius: 6px; background: var(--wood); }
+.placebar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 10px; padding: 6px 8px; border-radius: 6px; background: var(--wood); }
 .placebar .sep { width: 1px; align-self: stretch; background: var(--brass-dark); margin: 0 4px; }
 .placebar .sp { flex: 1; }
-.placebar .pb { position: relative; font: 500 13px var(--f-body); color: #24170f; background: #e9dcc0; border: 1px solid #b9a37a; border-radius: 4px; padding: 5px 11px; cursor: pointer; }
+.placebar .pb { position: relative; font: 500 13px var(--f-body); color: #24170f; background: #e9dcc0; border: 1px solid #b9a37a; border-radius: 4px; padding: 4px 10px; cursor: pointer; }
 .placebar .pb.doc { background: #d9c8a2; }
 .placebar .pb.go { background: var(--brass); border-color: var(--brass-dark); font-weight: 600; }
 .placebar .pb:hover { filter: brightness(1.05); }
@@ -1186,12 +1201,12 @@ table.tsum .syn span { font-size: 10.5px; padding: 0 6px; border-radius: 9px; ba
 .hall-room { position: relative; border-radius: 6px; padding: 12px; min-width: 0;
   background: radial-gradient(ellipse at 18% 8%, rgba(255,190,110,.22), transparent 55%), repeating-linear-gradient(90deg, #4a3423 0 46px, #3f2c1e 46px 48px), #3a281b;
   box-shadow: inset 0 0 0 1px rgba(0,0,0,.4), inset 0 -40px 60px rgba(0,0,0,.35), var(--obj-shadow); color: #f1e6cf; }
-.hall-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-bottom: 10px; font-family: var(--f-display); font-size: 16px; }
+.hall-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-bottom: 8px; font-family: var(--f-display); font-size: 16px; }
 .hall-top .dim { color: #cbb99b; font: 12px var(--f-body); }
 .hall-top .dstrip { margin-left: auto; }
-.hall-zones { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.hall-zones { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 @media (max-width: 560px) { .hall-zones { grid-template-columns: minmax(0, 1fr); } }
-.zone { border-radius: 5px; padding: 8px 10px 10px; min-height: 120px; border: 1px solid rgba(255,255,255,.08); background: rgba(0,0,0,.18); }
+.zone { border-radius: 5px; padding: 6px 10px 8px; min-height: 84px; border: 1px solid rgba(255,255,255,.08); background: rgba(0,0,0,.18); }
 .zone > header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
 .zone > header b { font: 700 13.5px var(--f-display); color: #f3e2b5; }
 .zone > header small { font-size: 11.5px; color: #bfae90; }
@@ -1199,8 +1214,8 @@ table.tsum .syn span { font-size: 10.5px; padding: 0 6px; border-radius: 9px; ba
 .zone.gate { background: linear-gradient(90deg, rgba(0,0,0,.25), rgba(40,60,50,.35)); border-color: rgba(217,180,90,.35); }
 .zone.yard { background: linear-gradient(180deg, rgba(70,90,60,.28), rgba(30,40,25,.35)); }
 .zone.ward { background: linear-gradient(180deg, rgba(220,230,235,.08), rgba(0,0,0,.25)); }
-.figs { display: flex; flex-wrap: wrap; gap: 46px 8px; padding-top: 44px; align-items: flex-end; }
-.figs .empty { font-size: 12px; color: #a3937a; margin-top: -24px; }
+.figs { display: flex; flex-wrap: wrap; gap: 38px 6px; padding-top: 38px; align-items: flex-end; }
+.figs .empty { font-size: 12px; color: #a3937a; margin-top: -30px; }
 /* 단원 하나: 직업 색 몸통 + 이름. 말하는 사람은 머리 위에 말풍선 */
 .mc { position: relative; display: grid; justify-items: center; gap: 1px; width: 64px; text-align: center; }
 .mc .body { width: 34px; height: 34px; border-radius: 50% 50% 42% 42%; display: grid; place-items: center; font-size: 17px; background: #6b7a70; box-shadow: 0 2px 0 rgba(0,0,0,.35), inset 0 -4px 0 rgba(0,0,0,.2); }
