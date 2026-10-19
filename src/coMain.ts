@@ -2,7 +2,7 @@
 import './ui/co/base.css';
 import './ui/co/co.css';
 import { setSeed } from './core/rng';
-import { sellStock, setClerks, buyNow, fireNow, nextDay, sendReady, sendTeam, CO, FILE_KEYS, teamPots, teamTorch, teamMend, carryOf, foodDays, mendOf, FLOORS, type Plan, SRCS, type World, carryPlan, closeBooks, fileFix, fillTeams, formTeams, newWorld, probe, rankOf, roomOf, sanitize, awayIds, us, MISSIONS, type Mission } from './core/company';
+import { sellStock, setClerks, buyNow, fireNow, nextDay, sendQueued, teamReady, CO, FILE_KEYS, teamPots, teamTorch, teamMend, carryOf, foodDays, mendOf, FLOORS, type Plan, SRCS, type World, carryPlan, closeBooks, fileFix, fillTeams, formTeams, newWorld, probe, rankOf, roomOf, sanitize, awayIds, us, MISSIONS, type Mission } from './core/company';
 import { DESC_FIRST, packBar } from './ui/co/roster';
 import { CLASSES, GEARS } from './core/data';
 import { plaqueHtml } from './ui/co/view';
@@ -13,7 +13,7 @@ import { closeScene, openScene } from './ui/co/scene';
 import { advanceArrival, arrivalOpen, closeArrival, playArrival } from './ui/co/arrival';
 
 const $ = (id: string): any => document.getElementById(id);
-const KEY = 'lb-co', VERSION = 29, MONTHS = 36;   // 29: 구간과 임무 (채집 지점 · 조우 · 흔적, 채집품 · 전리품) (이전 판은 새 게임으로)
+const KEY = 'lb-co', VERSION = 30, MONTHS = 36;   // 30: 전리품 · 지도 기록도 짐 칸, 보낼 예정 (이전 판은 새 게임으로)
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
 let W: World, plan: Plan, ui: DeskUi;
 // 도장을 막 찍은 결과 화면이면 귀환 장부를 한 줄씩 띄운다 (저장하지 않는 화면 상태)
@@ -179,13 +179,18 @@ function act(b: HTMLElement) {
   if (a === 'auto-mend') { plan.buy = { ...(plan.buy || {}) }; delete plan.buy.mend; render(); save(); return; }
   if (a === 'kit-add') { const f = +(b.dataset.f || 0); plan.kits = plan.kits || []; plan.kits[f] = [...(plan.kits[f] || []), { n: 0, g: '' }]; render(); save(); return; }
   if (a === 'kit-del') { const f = +(b.dataset.f || 0), k = +(b.dataset.j || 0); if (plan.kits && plan.kits[f]) plan.kits[f].splice(k, 1); render(); save(); return; }
+  // 보내기는 예정만 잡는다 (다시 누르면 취소). 다음 날 단추를 누르면 그날 떠난다
   if (a === 'go' || a === 'send-all') {
-    const S = sendReady(W, plan); tidyTeams(); render(); save();
-    say(S.length ? `${S.map(x => `${x.t + 1}조`).join(' · ')} 출발 · ${[...new Set(S.map(x => FLOORS[x.f].name))].join(' · ')}` : '지금 나갈 수 있는 조가 없어요'); return;
+    tidyTeams(); const T = plan.teams || [], ready = T.map((x, t) => t).filter(t => teamReady(W, T[t])), all = ready.length > 0 && ready.every(t => T[t].go);
+    ready.forEach(t => { if (all) delete T[t].go; else T[t].go = true; }); render(); save();
+    say(!ready.length ? '지금 나갈 수 있는 조가 없어요' : all ? '보낼 예정을 모두 거뒀어요' : `${ready.map(t => `${t + 1}조`).join(' · ')} 보낼 예정 · 다음 날을 누르면 떠나요`); return;
   }
   if (a === 'send') {
-    const t = +(b.dataset.t || 0), x = sendTeam(W, plan, t); tidyTeams(); render(); save();
-    say(x ? `${t + 1}조가 ${FLOORS[x.f].name}로 떠났어요 · ${CO.TRIP_DAYS[x.f]}일 길` : '그 조는 지금 나갈 수 없어요'); return;
+    tidyTeams(); const t = +(b.dataset.t || 0), T = (plan.teams || [])[t];
+    if (!T || !teamReady(W, T)) { render(); say('그 조는 지금 나갈 수 없어요'); return; }
+    if (T.go) delete T.go; else T.go = true;
+    render(); save();
+    say(T.go ? `${t + 1}조 보낼 예정 · ${FLOORS[T.f].name} ${CO.TRIP_DAYS[T.f]}일 길 · 다음 날을 누르면 떠나요` : `${t + 1}조 보낼 예정을 거뒀어요`); return;
   }
   if (a === 'next-day') return advance();
   if (a === 'buy-now') {
@@ -214,6 +219,9 @@ function advance() {
   if (W.month > MONTHS || W.draft) return;
   stopRun(); closeScene();
   if (plan.fire && plan.fire.length) { fireNow(W, plan.fire); delete plan.fire; }
+  // 보낼 예정인 조가 오늘 떠난다 (모자란 채비는 지금 산다)
+  tidyTeams();
+  const Q = sendQueued(W, plan), gone = Q.sent.length ? `${Q.sent.map(x => `${x.t + 1}조`).join(' · ')} 출발${Q.stuck.length ? ` · ${Q.stuck.map(t => `${t + 1}조`).join(' · ')}는 못 떠남` : ''} · ` : Q.stuck.length ? `${Q.stuck.map(t => `${t + 1}조`).join(' · ')}는 못 떠남 · ` : '';
   const M = nextDay(W, plan);
   tidyTeams();
   if (M) {
@@ -227,8 +235,8 @@ function advance() {
   render(); save();
   // 오늘 아침 돌아온 조: 몇 조가 해냈고, 누가 다치고 누구를 잃었나
   const back = todayBack(W).map(x => x.rep!).filter(Boolean), dead = back.reduce((a, r) => a + (r.dead || []).length, 0);
-  if (back.length) { SOUND[dead ? 'die' : back.some(r => r.ok) ? 'win' : 'lose']?.(0); say(`${W.day}일 아침 · ${back.map(r => `${(r.t ?? 0) + 1}조`).join(' · ')} 귀환 · ${back.filter(r => r.ok).length}조 해냄${dead ? ` · ${dead}명을 잃었어요` : ''}`); }
-  else say(`제${W.month}월 ${W.day}일${(W.away || []).length ? ` · ${(W.away || []).length}조가 미궁에 있어요` : ''}`);
+  if (back.length) { SOUND[dead ? 'die' : back.some(r => r.ok) ? 'win' : 'lose']?.(0); say(`${gone}${W.day}일 아침 · ${back.map(r => `${(r.t ?? 0) + 1}조`).join(' · ')} 귀환 · ${back.filter(r => r.ok).length}조 해냄${dead ? ` · ${dead}명을 잃었어요` : ''}`); }
+  else say(`${gone}제${W.month}월 ${W.day}일${(W.away || []).length ? ` · ${(W.away || []).length}조가 미궁에 있어요` : ''}`);
 }
 // 신고서를 내면 정산이 끝나고 귀환 장부가 한 줄씩 뜬다
 function file() {
@@ -384,11 +392,11 @@ function playTrips(box: HTMLElement) {
     steps.push(() => {
       cell.classList.remove('hid'); cell.classList.add('pop');
       const pw = li.querySelector('.packw') as HTMLElement | null;
-      if (pw) { const st = JSON.parse(pw.dataset.steps || '[]') as number[][], x = st[Math.min(j + 1, st.length - 1)]; pw.innerHTML = packBar(+(pw.dataset.slots || 0), x[1], x[2], x[0], x[3], x[4]); }
+      if (pw) { const st = JSON.parse(pw.dataset.steps || '[]') as number[][], x = st[Math.min(j + 1, st.length - 1)]; pw.innerHTML = packBar(+(pw.dataset.slots || 0), x[1], x[2], x[0], x[3], x[4], x[5], x[6]); }
       const s = cell.dataset.s || ''; SOUND[s.includes('die') ? 'die' : s.startsWith('ok') ? 'ok' : 'no']?.(j);
       // 그 조의 마지막 칸이면 결과를 띄운다
       const left = [...li.querySelectorAll('.days i.hid')].length;
-      if (!left) { li.querySelectorAll('.hid').forEach(e => e.classList.remove('hid')); const pw2 = li.querySelector('.packw') as HTMLElement | null; if (pw2) { const st = JSON.parse(pw2.dataset.steps || '[]') as number[][], x = st[st.length - 1]; pw2.innerHTML = packBar(+(pw2.dataset.slots || 0), x[1], x[2], x[0], x[3], x[4]); } }
+      if (!left) { li.querySelectorAll('.hid').forEach(e => e.classList.remove('hid')); const pw2 = li.querySelector('.packw') as HTMLElement | null; if (pw2) { const st = JSON.parse(pw2.dataset.steps || '[]') as number[][], x = st[st.length - 1]; pw2.innerHTML = packBar(+(pw2.dataset.slots || 0), x[1], x[2], x[0], x[3], x[4], x[5], x[6]); } }
       return s.includes('die') ? 700 : 80;
     });
   });
@@ -424,7 +432,7 @@ function finishRun() {
   if (box) {
     box.querySelectorAll('li.rv').forEach(li => li.classList.add('on'));
     box.querySelectorAll('.hid').forEach(e => e.classList.remove('hid'));
-    box.querySelectorAll('.packw').forEach(pw => { const p = pw as HTMLElement, st = JSON.parse(p.dataset.steps || '[]') as number[][], x = st[st.length - 1]; if (x) p.innerHTML = packBar(+(p.dataset.slots || 0), x[1], x[2], x[0], x[3], x[4]); });
+    box.querySelectorAll('.packw').forEach(pw => { const p = pw as HTMLElement, st = JSON.parse(p.dataset.steps || '[]') as number[][], x = st[st.length - 1]; if (x) p.innerHTML = packBar(+(p.dataset.slots || 0), x[1], x[2], x[0], x[3], x[4], x[5], x[6]); });
     const fin = +(box.dataset.net || 0), tv = box.querySelector('.tv') as HTMLElement | null;
     if (tv) { tv.textContent = sgnG(fin); tv.classList.toggle('neg', fin < 0); box.classList.add(fin >= 0 ? 'win' : 'lose'); }
     box.classList.remove('live');

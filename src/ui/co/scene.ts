@@ -54,9 +54,9 @@ export function openScene(W: World, i: number, sfx: (k: string) => void = () => 
   const card = (m: number) => $(`.sc-m[data-m="${m}"]`);
   const log = (t: string) => { $('.sc-log').innerHTML = t; };
   const pop = (box: HTMLElement, t: string, k: string) => { const f = box.querySelector('.sc-fx') as HTMLElement; f.className = `sc-fx on ${k}`; f.textContent = t; void f.offsetWidth; f.classList.add('go'); };
-  const sup = (tl: number, pl: number, fl: number, ol: number, pk: number) => {
+  const sup = (tl: number, pl: number, fl: number, ol: number, pk: number, pm = 0, pt = 0) => {
     $('.sc-sup').innerHTML = `<span class="t">횃불 ${tl}</span><span class="p">포션 ${pl}</span><span class="f">식량 ${fl}</span><span class="o">정비 ${ol}</span>`;
-    $('.sc-pack').innerHTML = packBar(T.slots, tl, pl, pk, fl, ol);
+    $('.sc-pack').innerHTML = packBar(T.slots, tl, pl, pk, fl, ol, pm, pt);
   };
   sup(T.torch, x.potC ?? 0, T.food || 0, T.tools || 0, 0);
   if (ld >= 0) card(ld).classList.add('lead');
@@ -89,7 +89,7 @@ export function openScene(W: World, i: number, sfx: (k: string) => void = () => 
       (mb.querySelector('small') as HTMLElement).textContent = ev === 'g' ? '채집 지점' : ev === 't' ? '지도' : `${M && M.main ? '주 몬스터' : '곁 몬스터'}${d.am ? ' · 들킴' : ''}`;
       $('.sc-verdict').textContent = ev === 'f' ? 'VS' : '…'; $('.sc-verdict').className = 'sc-verdict';
       log(`${dd}일 · <b>${esc(nmE)}</b>${ev === 'f' ? (d.am ? ' 들켜서 조우' : ' 조우') : ''}${d.hg ? ` · <b class="hurt">굶은 사람 ${d.hg}</b>` : ''}${mon && badGear(mon) ? ' · <b class="hurt">역효과 장비</b>' : ''}`);
-      sup(d.tl ?? 0, j ? D[j - 1].pl ?? 0 : x.potC ?? 0, d.fl ?? 0, j ? D[j - 1].ol ?? 0 : T.tools || 0, j ? D[j - 1].pk ?? 0 : 0);
+      sup(d.tl ?? 0, j ? D[j - 1].pl ?? 0 : x.potC ?? 0, d.fl ?? 0, j ? D[j - 1].ol ?? 0 : T.tools || 0, j ? D[j - 1].pk ?? 0 : 0, j ? D[j - 1].pm ?? 0 : 0, j ? D[j - 1].pt ?? 0 : 0);
     } });
     // 조원마다 해냈나 (기록이 없는 옛 판은 해낸 수만)
     if (ms) [...ms].forEach((ch, m) => {
@@ -110,7 +110,7 @@ export function openScene(W: World, i: number, sfx: (k: string) => void = () => 
       log(`${vt} · ${d.k}/${d.n} 해냄${d.loot ? ` · 채집품 ${d.loot}칸` : ''}${mats ? ` · <b class="mat">${mats}</b>` : ''}${d.fx ? ' · 정비 도구로 고침' : ''}${d.bl ? ` · <b class="hurt">무뎌짐 ${d.bl}</b>` : ''}`);
       if (mats) pop($('.sc-mon'), '갈무리', 'mat');
       else if (d.loot) pop($('.sc-mon'), '채집', 'mat');
-      sup(d.tl ?? 0, d.pl ?? 0, d.fl ?? 0, d.ol ?? 0, d.pk ?? 0);
+      sup(d.tl ?? 0, d.pl ?? 0, d.fl ?? 0, d.ol ?? 0, d.pk ?? 0, d.pm ?? 0, d.pt ?? 0);
       sfx(d.win ? 'gain' : 'cost');
     } });
     if (ms) dice(ms, mon);

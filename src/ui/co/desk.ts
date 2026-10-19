@@ -548,7 +548,7 @@ function tplBar(W: World, P: Plan) {
 }
 export function expWeekHtml(W: World, raw: Plan, ui: DeskUi) {
   const c = us(W), P = sanitize(W, c, raw), L = W.last, S = supOf(c), need = needOf(homePlan(W, P)), gb = gearBuy(c, homePlan(W, P)), cost = monthCost(W, raw);
-  const readyN = (P.teams || []).filter(T => teamReady(W, T)).length;
+  const readyN = (P.teams || []).filter(T => teamReady(W, T)).length, goN = (P.teams || []).filter(T => T.go && teamReady(W, T)).length;
   const others = (f: number) => (L ? L.plans.reduce((a, Q, i) => a + (i ? Q.parties[f] + Q.hire[f] : 0), 0) : f === 0 ? 75 : 0);
   const sc = sortieCost(P);
   const H = potsOf(c), holyB = (P.buy && P.buy.holy) || 0, potB = P.buy && P.buy.pot != null ? P.buy.pot : Math.max(0, need.pot - H.pot - H.holy - holyB);
@@ -585,7 +585,7 @@ export function expWeekHtml(W: World, raw: Plan, ui: DeskUi) {
       <div class="tw"><table class="grid pick"><thead><tr><th>층</th><th class="n">시세</th><th class="n">위험</th><th class="n">지도</th><th class="n">남들</th><th class="n">성공</th><th class="n">조당</th><th class="n">우리 조</th></tr></thead><tbody>${rows}</tbody></table></div></div>
     ${fcPanel(W, P, cost.all)}
     ${warn.length ? `<div class="warn">${warn.join(' · ')}</div>` : ''}
-    <div class="foot"><button type="button" class="ghost" data-act="close-exp">← 길드로</button><span class="tot">이번 달 나갈 돈 <b>${fmt(cost.all)}G</b> <span class="dim">(${cost.parts.map(([n, v]) => `${n} ${fmt(v)}`).join(' · ')})</span></span>${readyN ? `<button type="button" class="seal" id="go" data-act="send-all">나갈 수 있는 ${readyN}조 보내기</button>` : ''}${nextDayBtn(W)}</div>
+    <div class="foot"><button type="button" class="ghost" data-act="close-exp">← 길드로</button><span class="tot">이번 달 나갈 돈 <b>${fmt(cost.all)}G</b> <span class="dim">(${cost.parts.map(([n, v]) => `${n} ${fmt(v)}`).join(' · ')})</span></span>${readyN ? `<button type="button" class="seal" id="go" data-act="send-all">${goN === readyN ? '보낼 예정 모두 거두기' : `나갈 수 있는 ${readyN}조 보낼 예정`}</button>` : ''}${nextDayBtn(W, '', goN)}</div>
     <div class="main">
       <div class="col">${jobsTrack(W, P)}${memo ? `<div class="panel"><header><h2>이번 달 조사</h2></header><div class="memo">${memo}</div></div>` : ''}</div>
     </div>

@@ -38,6 +38,8 @@ if (process.env.MAT_ENC) CO.MAT_ENC = +process.env.MAT_ENC;
 for (const k of ['GATHER_K', 'GATHER_EASE', 'TRAIL_EASE', 'TRAIL_INJ', 'TRAIL_MAP', 'MAP_BASE', 'AMBUSH', 'HUNT_MAT', 'HUNT_CARE', 'LOSE_MAT', 'FIND', 'MAT_FLOW', 'MAT_LO', 'MAT_HI', 'MAT_EXP', 'MAT_VAL'] as const) if (process.env[k]) (CO as any)[k] = +process.env[k]!;
 for (const k of ['gather', 'hunt', 'scout'] as const) { const v = process.env['MW_' + k.toUpperCase()]; if (v) CO.MISSION_W[k] = v.split(',').map(Number); }
 if (process.env.SEGS) CO.SEGS = process.env.SEGS.split(',').map(Number);
+if (process.env.MAT_SLOT) CO.MAT_SLOT = FLOORS.map(() => +process.env.MAT_SLOT!);
+if (process.env.TRAIL_SLOT) CO.TRAIL_SLOT = +process.env.TRAIL_SLOT;
 for (const k of ['A_K', 'A_CLERK', 'CLERK_WAGE', 'A_TRIP', 'A_BASE', 'A_MEMBER', 'A_FLOOR', 'A_FREE'] as const) if (process.env[k]) (CO as any)[k] = +process.env[k]!;
 const arg = (k: string, d: string) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
 const games = +arg('games', '200'), seed0 = +arg('seed', '1'), only = arg('style', '');
