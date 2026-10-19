@@ -33,6 +33,7 @@ import { candNow, crewOf, hireNow, hirePrice, aptB, skUp, skCap, potSeen, hidSee
 import { HIDDEN } from '../src/core/data';
 import { rosterHtml } from '../src/ui/co/roster';
 import { returnsHtml } from '../src/ui/co/reveal';
+import { backLine } from '../src/ui/co/hall';
 // 옛 시작(16명 · 네 조)을 전제로 한 규칙 테스트: 우리 명단을 16명으로 바꾸고 지원자는 비운다
 const big = (W: World) => { const c = us(W); c.crew = crewOf(16); c.members = 16; c.nextId = 16; c.sup!.pot = [12]; W.cand = []; return W; };
 import { evOf } from '../src/core/expedition';
@@ -1564,5 +1565,14 @@ describe('귀환 기록: 기대 대비', () => {
       expect(returnsHtml(W)).toContain('기대');
     }
     expect(lucky).toBeGreaterThan(luckyE); expect(sumW).toBeGreaterThan(sumE);
+  });
+});
+
+describe('귀환 줄', () => {
+  it('채집품을 못 캐 온 조(탐색 등)는 "0개 → 창고"를 적지 않는다', () => {
+    setSeed(4); const W = newWorld(); const M = runMonth(W, defaultPlan(W));
+    const o = { ...M.ours[0], got: 0, mission: 'scout' as const };
+    expect(backLine(o, 0, 'back')).not.toContain('→ 창고');
+    expect(backLine({ ...o, got: 5 }, 0, 'back')).toContain('5</b>개 → 창고');
   });
 });

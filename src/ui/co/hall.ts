@@ -135,7 +135,7 @@ export function backLine(r: Ours, i: number, src: string) {
   const days = D.map((d, j) => `<i class="${dayCls(d)}${j && d.dd !== D[j - 1].dd ? ' nd' : ''}" title="${esc(dayTip(d, j))}">${dayMark(d)}</i>`).join('');
   // 임무마다 초점 하나를 앞에: 채집은 캐 온 채집품, 사냥은 전리품, 탐색은 그려 온 지도
   const ms = r.mission || 'gather', mapT = r.mp ? `<span>지도 <b>+${r.mp}</b>%p</span>` : '';
-  const gotT = r.got != null ? `<span>${esc(ITEMS[r.f].name)} <b>${fmt(r.got)}</b>개 → 창고</span>` : '', matT = r.mats.length ? `<span>${r.mats.slice(0, 3).map(([m, n]) => `${esc(m)} ×${n}`).join(', ')}${r.mats.length > 3 ? ` 외 ${r.mats.length - 3}` : ''}</span>` : '';
+  const gotT = r.got ? `<span>${esc(ITEMS[r.f].name)} <b>${fmt(r.got)}</b>개 → 창고</span>` : '', matT = r.mats.length ? `<span>${r.mats.slice(0, 3).map(([m, n]) => `${esc(m)} ×${n}`).join(', ')}${r.mats.length > 3 ? ` 외 ${r.mats.length - 3}` : ''}</span>` : '';
   const focus = ms === 'scout' ? [mapT, gotT, matT] : ms === 'hunt' ? [matT, gotT, mapT] : [gotT, matT, mapT];
   return `<li class="bk ${dead.length ? 'die' : r.ok ? 'ok' : 'no'}"><div class="bk-h"><b>${(r.t ?? i) + 1}조</b> ${FLOORS[r.f].name} <span class="ms-tag ${ms}">${MISSION_NAME[ms]}</span> <span class="dim">${T.fd ?? D.length}일 · 구간 ${D.length} · ${wins}번 해냄 · ${TRIP_END[T.end]}</span>
     <button type="button" class="sc-open" data-act="scene" data-src="${src}" data-i="${i}" aria-label="${(r.t ?? i) + 1}조 탐사 재생">▶ 보기</button></div>
