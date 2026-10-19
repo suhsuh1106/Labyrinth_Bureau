@@ -114,6 +114,10 @@ const CLERK_HI = +(process.env.CLERK_HI || 0.8), CLERK_LO = +(process.env.CLERK_
 // 사냥은 조마다 수입 어림(사망 하나를 DEATH_V로 뺀)이 채집보다 HUNT_EDGE만큼 나으면, 조의 HUNT_MAX까지 (어림은 사냥을 조금 후하게 본다)
 const MISSION = process.env.MISSION !== '0', SCOUT_UNDER = +(process.env.SCOUT_UNDER || 60), LEAD_HUNT = process.env.LEAD_HUNT !== '0';
 // 직업 실험(--classes): 신입을 그 직업부터 뽑거나(pre) 그 직업은 뽑지 않는다(avoid)
+// 지원자 거르기(HIRE_SKIP=40이면 직업과 상관없이 지원자 열에 넷을 거른다): 몸집을 얼마나 키울지 재는 기준
+const HIRE_SKIP = +(process.env.HIRE_SKIP || 0);
+// 인원 상한(SIZE_CAP=24면 단원을 24명까지만 뽑는다): 작게 굴리는 봇과 크게 굴리는 봇을 견주는 기준
+const SIZE_CAP = +(process.env.SIZE_CAP || 99);
 let BIAS: { c: string; mode: 'pre' | 'avoid' | 'thin' } | null = null;   // thin: 직업과 상관없이 지원자 다섯에 하나를 거른다 (빼기가 직업 탓인지 덜 뽑은 탓인지 가르는 기준)
 const DEATH_V = +(process.env.DEATH_V || 300), HUNT_EDGE = +(process.env.HUNT_EDGE || 0.05), HUNT_MAX = +(process.env.HUNT_MAX || 0.5);
 export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine', kit = true, scout = false, guide = true, askAll = ASK_ALL, missions = MISSION): Plan {
@@ -171,7 +175,7 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
   const A = L && L.res[0].admin; if (c.crew && A) { const r = A.load / A.cap; if (r > CLERK_HI && roomOf(c) > 0) setClerks(W, (c.clerks || 0) + 1); else if (r < CLERK_LO && c.clerks) setClerks(W, c.clerks - 1); }
   // 신입: 지원자 명단에서 실력 좋은 사람부터 빈 침상만큼 (그달 찾아오는 날에 계약한다)
   const B = BIAS, fav = (x: { c: string }) => (B && B.mode === 'pre' && x.c === B.c ? 1 : 0);
-  if (c.crew && W.cand) P.pick = [...W.cand].filter(x => !(B && B.mode === 'avoid' && x.c === B.c) && !(B && B.mode === 'thin' && x.id % 5 === 0)).sort((a, b) => fav(b) - fav(a) || (b.sk || 0) - (a.sk || 0)).slice(0, roomOf(c)).map(x => x.id);
+  if (c.crew && W.cand) P.pick = [...W.cand].filter(x => !(B && B.mode === 'avoid' && x.c === B.c) && !(B && B.mode === 'thin' && x.id % 5 === 0) && !(HIRE_SKIP && (x.id * 2654435761 >>> 0) % 100 < HIRE_SKIP)).sort((a, b) => fav(b) - fav(a) || (b.sk || 0) - (a.sk || 0)).slice(0, Math.min(roomOf(c), Math.max(0, SIZE_CAP - c.members - (c.hireQ || []).length))).map(x => x.id);
   // 몸집: 조당 남는 돈이 급여보다 넉넉하면 숙소를 늘린다. 본부의 질(훈련장 · 의무실)은 올리지 않는다:
   // 공사가 숙소 증축을 한 달씩 미루는 값이 커서 이 봇의 운영에선 손해였다 (의무실 1단계만 본전 근처)
   // 횃불: 지도만큼 헤맬 것을 셈해, 돌아설 확률이 TORCH_RISK 밑이 되는 데까지 들고 간다
