@@ -232,7 +232,7 @@ function buyPanel(W: World, raw: Plan, P: Plan) {
 // 조당 기본 채비: 층마다 한 조가 들고 갈 포션 · 횃불 · 식량(며칠치) · 정비 도구. 편성표에서 조마다 바꿀 수 있다
 function kitPanel(W: World, P: Plan) {
   const c = us(W), rows = FLOORS.slice(0, W.unlocked).map((F, f) => {
-    const n = (P.teams || []).filter(T => T.f === f).length, room = CO.PARTY * CO.SLOT_PP;
+    const n = (P.teams || []).filter(T => T.f === f).length, room = Math.round(CO.PARTY * CO.SLOT_PP);
     const used = (P.pots[f] || 0) + carryOf(P, f) + Math.ceil(foodDays(P, f) * CO.PARTY / CO.FOOD_SLOT) + mendOf(P, f);
     const u = Math.round(mapOf(c, f)), dark = torchOdds(f, carryOf(P, f), torchRate(f, u)).dark;
     return `<tr><td><b>${F.name}</b>${n ? `<small>이번 달 ${n}조</small>` : ''}</td><td>${stepper('pots', f, P.pots[f] || 0, `${F.name} 포션`)}</td>

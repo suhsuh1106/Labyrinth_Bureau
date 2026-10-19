@@ -1,6 +1,6 @@
 // 단원 명단과 편성표: 엑셀처럼 한 줄에 한 사람. 머리글을 누르면 정렬한다.
 // 인원 창의 명단 · 지원자 명단과, 출정의 편성표(조 요약 줄 + 배치 칸)를 그린다. 상태를 쓰지 않고 난수도 쓰지 않는다
-import { type Ours, awayIds, dayAbs, sortieOf, stateOf, teamReady, CO, FLOORS, type Person, type Plan, type World, candPrice, candNow, hirePrice, boughtOf, cohesion, hqLv, mapOf, personWage, roomOf, teamOdds, teamPots, teamTorch, teamFood, teamMend, foodDays, clamp, tierOf, torchRate, torchOdds, segRate, MISSIONS, MISSION_NAME, type Mission, us, drillGain, isRook, weakShare, synTags, teamSlots, synOf, SYN, potSeen, hidSeen } from '../../core/company';
+import { type Ours, awayIds, dayAbs, sortieOf, stateOf, teamReady, CO, FLOORS, type Person, type Plan, type World, candPrice, candNow, hirePrice, boughtOf, cohesion, hqLv, mapOf, personWage, roomOf, teamOdds, teamPots, teamTorch, teamFood, teamMend, foodDays, clamp, tierOf, torchRate, torchOdds, segRate, MISSIONS, MISSION_NAME, type Mission, us, drillGain, isRook, weakShare, synTags, teamSlots, synOf, potSeen, hidSeen } from '../../core/company';
 import { stepper } from './view';
 import { type Day, evOf } from '../../core/expedition';
 import { floorMons } from '../../core/company';
@@ -107,7 +107,7 @@ export function assignHtml(W: World, P: Plan, others: (f: number) => number, sor
   };
   const sum = teams.map((T, t) => {
     const who = whoOf(t), crowd = P.parties[T.f] + P.hire[T.f] + others(T.f), o = teamOdds(W, c, T.f, who, P.pots[T.f], crowd, T);
-    const pk = teamPots(P, T), tk = teamTorch(P, T), fd = teamFood(P, T), md = teamMend(P, T), fdays = T.food != null ? clamp(Math.floor(T.food), 0, CO.DAYS) : foodDays(P, T.f), dark = torchOdds(T.f, Math.min(tk, teamSlots(who)), torchRate(T.f, o.u) * (synOf(who).arc ? SYN.ARC1_TORCH : 1)).dark, ms = T.mission || 'gather';
+    const pk = teamPots(P, T), tk = teamTorch(P, T), fd = teamFood(P, T), md = teamMend(P, T), fdays = T.food != null ? clamp(Math.floor(T.food), 0, CO.DAYS) : foodDays(P, T.f), dark = torchOdds(T.f, Math.min(tk, teamSlots(who)), torchRate(T.f, o.u)).dark, ms = T.mission || 'gather';
     const bonded = cohesion(who) > 0, fresh = bonded ? who.filter(p => who.every(x => x.id === p.id || !((p.mt && p.mt[x.id]) || 0))).length : 0;
     // 확정한 역효과: 그 층 몬스터의 역효과 장비를 들었거나, 그 속성을 맡는 직업이 맨몸으로 끼었으면 (단장이 있으면 괜찮다)
     const badW = synOf(who).lead ? [] : floorMons(W, T.f).flatMap(M => { const b = badSure((W.dex || {})[M.name]); if (!b) return []; const nm = b.slice(2);

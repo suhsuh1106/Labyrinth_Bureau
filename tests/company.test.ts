@@ -24,7 +24,7 @@ import { floorMax, keyOf } from '../src/core/company';
 import { fcRank, forecast, gradeOf } from '../src/core/company';
 import { bedsOf, classCap, dormCost, dormKeep, formTeams, recruitPrice, recruitWants, rookCount, rookSlots, shareOut } from '../src/core/company';
 import { CLASSES } from '../src/core/data';
-import { needOf, tripOdds, potShock, profitOf, drillGain, weakShare, badShare, classBad, synOf, synTags, teamSlots, SYN } from '../src/core/company';
+import { needOf, tripOdds, potShock, profitOf, drillGain, weakShare, badShare, classBad, synOf, synTags, teamSlots } from '../src/core/company';
 import { WEAK_KEYS } from '../src/core/data';
 import { DEX, askable, badSure } from '../src/core/dex';
 import { dayAbs, nextDay, openMonth, sellStock, sendReady, stateOf, stockValue } from '../src/core/company';
@@ -1228,7 +1228,7 @@ describe('미궁 도감 · 단장 · 지정 탐사', () => {
   });
   it('단장은 처음부터 가장 숙련된 사람이고, 죽지 않는다 (크게 다쳐 두 달 쉰다)', () => {
     let hurt = 0;
-    for (let g = 1; g <= 12; g++) {
+    for (let g = 1; g <= 30; g++) {
       setSeed(g); const W = newWorld(), c = us(W), lead = c.crew!.find(x => x.lead)!;
       expect(c.crew!.filter(x => x.lead).length).toBe(1);
       expect(lead.sk).toBe(Math.max(...c.crew!.map(x => x.sk || 0)));
@@ -1403,20 +1403,14 @@ describe('약점 짝', () => {
   });
 });
 
-describe('조 시너지 · 단장', () => {
+describe('조 · 단장', () => {
   const P = (c: string, lead = false) => ({ id: 0, c, sk: 40, ...(lead ? { lead: true } : {}) }) as any;
-  it('직업 수로 시너지가 켜진다: 전사 둘이면 짐 한 칸 더, 단장이 있으면 역효과 없음', () => {
-    expect(synOf([P('전사'), P('궁수')]).war).toBe(false);
-    expect(synOf([P('전사'), P('전사')]).war).toBe(true);
-    expect(teamSlots([P('전사'), P('전사'), P('궁수'), P('도적')])).toBe(4 * CO.SLOT_PP + SYN.WAR2_SLOT);
-    expect(synOf([P('사제'), P('사제')]).pri2).toBe(true);
-    expect(synOf([P('마법사'), P('마법사')]).mag2).toBe(true);
-    expect(synOf([P('전사', true)]).lead).toBe(true);
-    expect(synTags([P('도적'), P('궁수'), P('궁수')]).map(t => t[0])).toEqual(['도적', '궁수 2']);
-  });
-  it('도적이 끼면 그 조의 층 이해도가 오른다', () => {
+  it('직업 시너지는 없다: 짐 칸은 사람 수만큼, 단장이 있으면 역효과 없음', () => {
+    expect(teamSlots([P('전사'), P('전사'), P('궁수'), P('도적')])).toBe(Math.round(4 * CO.SLOT_PP));
+    expect(synOf([P('전사', true)]).lead).toBe(true); expect(synOf([P('전사')]).lead).toBe(false);
+    expect(synTags([P('도적'), P('궁수'), P('궁수')])).toEqual([]);
     setSeed(2); const W = newWorld(), c = us(W);
-    expect(teamUnd(c, 0, [P('도적'), P('전사')])).toBe(teamUnd(c, 0, [P('궁수'), P('전사')]) + SYN.ROG1_UND);
+    expect(teamUnd(c, 0, [P('도적'), P('전사')])).toBe(teamUnd(c, 0, [P('궁수'), P('전사')]));
   });
 });
 
@@ -1539,11 +1533,6 @@ describe('단원의 깊이: 임무 적성 · 잠재력 · 숨은 기질 · 1인 
     c.crew!.forEach(x => expect(x.sk!).toBeLessThanOrEqual(skCap(c, x)));
     expect(hidSeen({ ...p, sg: [CO.HID_SEE, 20] })).toBe(true);
     expect(rosterHtml(W)).toContain('까지');
-  });
-  it('궁수 · 마법사는 혼자서도 시너지가 켜진다', () => {
-    const who = [{ id: 1, c: '궁수' }, { id: 2, c: '마법사' }, { id: 3, c: '전사' }, { id: 4, c: '도적' }];
-    const S = synOf(who); expect(S.arc).toBe(true); expect(S.mag).toBe(true); expect(S.mag2).toBe(false);
-    const tags = synTags(who).map(t => t[0]); expect(tags).toContain('궁수 1'); expect(tags).toContain('마법사 1');
   });
 });
 

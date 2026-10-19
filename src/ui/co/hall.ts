@@ -126,7 +126,7 @@ function awayCard(W: World, P: Plan, s: Sortie) {
   return `<li class="aw"><div class="aw-h"><b>${s.t + 1}조</b> ${FLOORS[s.f].name} <span class="ms-tag ${s.mission || 'gather'}">${MISSION_NAME[s.mission || 'gather']}</span> <span class="dim">${dayOf(s.d0)}일 출발</span><span class="when">귀환 ${when}${back > CO.MONTH_DAYS * W.month ? ' · 다음 달' : ''}</span></div>
     <div class="aw-d" role="img" aria-label="${L}일 중 ${gone}일째">${cells}</div>
     <div class="aw-m">${s.who.map(p => `<span class="${CLS_TAG[p.c] || ''}">${p.lead ? '★' : ''}${esc(nameOf(p))}</span>`).join('')}</div>
-    <div class="aw-k">${packBar(s.who.length * CO.SLOT_PP, s.kit.torch, s.kit.pots, 0, s.kit.food, s.kit.mend)}<span class="dim">어림 <b>${fmt(fc)}G</b></span></div></li>`;
+    <div class="aw-k">${packBar(Math.round(s.who.length * CO.SLOT_PP), s.kit.torch, s.kit.pots, 0, s.kit.food, s.kit.mend)}<span class="dim">어림 <b>${fmt(fc)}G</b></span></div></li>`;
 }
 // 오늘 아침 돌아온 조 하나: 해냈나 · 다닌 날 · 짐 · 잃은 사람. ▶ 보기는 탐사 재생 장면
 export function backLine(r: Ours, i: number, src: string) {
