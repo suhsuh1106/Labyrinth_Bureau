@@ -448,7 +448,7 @@ details.fold[open] > summary { margin-bottom: 6px; }
 .run .days i.dk { background: #0b100d; border-color: #555; }
 .run .days i.dead { background: #a3312a; border-color: #ff8a7a; box-shadow: 0 0 0 1px #ff8a7a; }
 .run .legend-d { flex-basis: 100%; font-size: 11.5px; color: #a5b8aa; }
-.run .legend-d i.l { background: #f2c230; } .run .legend-d i.t { background: #d9822b; } .run .legend-d i.p { background: #c0392b; } .run .legend-d i.lf { background: #3fbf7a; } .run .legend-d i.lo { background: #8c919b; }
+.run .legend-d i.l { background: #f2c230; } .run .legend-d i.t { background: #d9822b; } .run .legend-d i.p { background: #c0392b; } .run .legend-d i.lf { background: #3fbf7a; } .run .legend-d i.lo { background: #8c919b; } .run .legend-d i.m { background: #d0729e; } .run .legend-d i.n { background: #5d95d4; }
 .run .pack i { border-color: #6f8a7a; } .run .pack i.l { border-color: #f2c230; } .run .pack i.t { border-color: #d9822b; } .run .pack i.p { border-color: #c0392b; } .run .pack i.f { border-color: #3fbf7a; } .run .pack i.o { border-color: #8c919b; }
 .run.live li.rv.on .days i { animation: dayin .22s both; animation-delay: calc(var(--j) * 110ms); }
 @keyframes dayin { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: none; } }
@@ -975,6 +975,8 @@ table.tsum select { font: 12px var(--f-body); }
 .pack i.l { border-color: #c99a1e; background: #f2c230; }
 .pack i.f { border-color: #2f8f5b; background: #3fbf7a; }
 .pack i.o { border-color: #6b6f78; background: #8c919b; }
+.pack i.m { border-color: #9c4670; background: #d0729e; }
+.pack i.n { border-color: #2c5684; background: #5d95d4; }
 table.tsum small { display: block; font-size: 11px; }
 table.tsum .step input { width: 28px; padding: 4px 2px; text-align: center; }
 table.tsum .step button { width: 20px; }
@@ -1237,6 +1239,8 @@ table.tsum .syn span { font-size: 10.5px; padding: 0 6px; border-radius: 9px; ba
 .rds li .send { margin-left: auto; }
 .send { border: 1px solid #d9b45a; background: #d9b45a; color: #221e18; padding: 4px 12px; border-radius: 3px; cursor: pointer; font: 600 12.5px var(--f-body); }
 .send:hover { background: #e8c56a; }
+.send.on { background: #2f6b45; border-color: #4a9a68; color: #eaf6ee; }
+.send.on:hover { background: #3a7d53; }
 .go-st { display: block; font-size: 11.5px; color: var(--bl-soft); }
 .go-st.out { color: var(--bl-accent); }
 .go-st small { display: block; font: 11px var(--f-num); }
@@ -1306,3 +1310,4 @@ table.grid.stk td .link { display: block; font-size: 11px; }
 /* 임무 꼬리표 (채집 · 사냥 · 탐색) */
 .ms-tag { display: inline-block; padding: 0 5px; border-radius: 3px; font-size: 11px; line-height: 16px; border: 1px solid; vertical-align: 1px; }
 .ms-tag.gather { color: #e0b43a; border-color: #8a6d1c; } .ms-tag.hunt { color: #ff9b85; border-color: #a5432f; } .ms-tag.scout { color: #8fbff2; border-color: #2c5684; }
+.nextday small.go { color: #2f6b45; font-weight: 700; margin-left: 6px; }

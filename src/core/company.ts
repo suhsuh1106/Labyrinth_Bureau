@@ -46,9 +46,12 @@ export const CO = {
   // 해낸 몫 × GATHER_K만큼 채집품(층마다 정해진 기본 소재)을 싣는다. 흔적은 TRAIL_EASE, 못 해낸 사람의 부상 주사위 ×TRAIL_INJ, 해낸 비율 × TRAIL_MAP만큼 지도를 그린다.
   // 채집 · 흔적에서 둘 미만 해내면 AMBUSH의 확률로 들켜 다음 구간이 조우. 조우는 전리품(사냥 소재)만 남긴다: 갈무리 MAT_ENC × HUNT_MAT, 진 조우도 해낸 몫의 LOSE_MAT배
   SEGS: [5, 6, 6, 7, 7],
+  // 짐 칸: 채집품 · 전리품 · 지도 기록 셋 모두 짐을 채운다. 전리품 한 점은 층마다 MAT_SLOT칸, 흔적 하나를 다 해내면 TRAIL_SLOT칸(탁본 · 표식 · 측량 기록).
+  // (전리품 한 점이 두 칸이면 칸당 값이 채집품의 절반 밑이라 사냥이 남지 않았다)
+  MAT_SLOT: [1, 1, 1, 1, 1], TRAIL_SLOT: 3,
   // 사냥 임무는 갈무리를 정성껏 한다: 전리품 ×HUNT_CARE. 지도는 흔적에서 주로 그린다(그냥 다니며 그리는 몫은 MAP_BASE로 작다)
   MISSION_W: { gather: [0.7, 0.2, 0.1], hunt: [0.15, 0.75, 0.1], scout: [0.15, 0.2, 0.65] } as Record<Mission, number[]>,
-  GATHER_EASE: 0.1, TRAIL_EASE: 0, TRAIL_INJ: 0.6, TRAIL_MAP: 12, MAP_BASE: 0.2, AMBUSH: 0.3, GATHER_K: 1.32, HUNT_MAT: 4, HUNT_CARE: 1.75, LOSE_MAT: 0.5,
+  GATHER_EASE: 0.1, TRAIL_EASE: 0, TRAIL_INJ: 0.6, TRAIL_MAP: 12, MAP_BASE: 0.2, AMBUSH: 0.3, GATHER_K: 1.45, HUNT_MAT: 5, HUNT_CARE: 2.25, LOSE_MAT: 0.5,
   // 관리국 게시판의 공표된 경쟁 · 납품 의뢰 (지금은 닫아 둔다. 탐사 계획서는 따로 열려 있다)
   JOBS_OPEN: false,
   // 거점 2단계면 성공 한 번에 BASE_TAKE개를 더 캔다
@@ -352,7 +355,7 @@ export type Person = { id: number; c: string; rk?: number; hurt?: number; n?: st
 export type Mission = 'gather' | 'hunt' | 'scout';
 export const MISSIONS: Mission[] = ['gather', 'hunt', 'scout'];
 export const MISSION_NAME: Record<Mission, string> = { gather: '채집', hunt: '사냥', scout: '탐색' };
-export type Team = { f: number; m: (number | null)[]; g: string; mission?: Mission; pots?: number; torch?: number; food?: number; mend?: number; target?: string };   // food: 며칠치   // mission: 임무 (비워 두면 채집) · target: 사냥 임무가 노릴 몬스터 (도감 이해도 DEX.TARGET_AT부터) · pots · torch: 그 조가 들고 갈 포션 · 횃불 (비워 두면 층 기본)
+export type Team = { f: number; m: (number | null)[]; g: string; mission?: Mission; go?: boolean; pots?: number; torch?: number; food?: number; mend?: number; target?: string };   // food: 며칠치   // go: 보낼 예정 (다음 날 단추를 누르면 떠난다)   // mission: 임무 (비워 두면 채집) · target: 사냥 임무가 노릴 몬스터 (도감 이해도 DEX.TARGET_AT부터) · pots · torch: 그 조가 들고 갈 포션 · 횃불 (비워 두면 층 기본)
 // guide: 층마다 편성 지침 (KEYS 중 하나, 없으면 빈 문자열)
 // donate: 교회 후원금, root: 찾아낸 근원 하나에 봉인·채굴장 기금으로 넣는 돈
 // tool: 채집 장비 수준(0~2), proc: 갈무리장 투자, intel: 출처별 정보비, spyOn: 정보원을 붙일 경쟁 용병단
@@ -478,7 +481,7 @@ export type Sortie = { id: number; t: number; f: number; m: number[]; who: Perso
   out?: TripOut; rep?: Ours; got?: number };   // 탐사가 끝나면 결과, 돌아오면 귀환 보고 · 캐 온 전리품 개수
 // 탐사 중 우리 몫의 상태: 남은 포션 · 성수, 쓴 것, 사망 · 부상, 갈무리한 소재, 도감에 적을 만남, 단장 조사의 답
 export type TripCo = { pots: number; holy: number; pu: number; h: number; dq: number; hq: number; lead?: string; priSaved: boolean; ans?: 'yes' | 'no';
-  dead: TripOut['dead']; hurtM: number[]; hurtIds: number[]; heavy: [number, number][]; got: [string, number][]; meets: TripOut['meets']; lastGot: [string, number][] };
+  dead: TripOut['dead']; hurtM: number[]; hurtIds: number[]; heavy: [number, number][]; got: [string, number][]; meets: TripOut['meets'] };
 // 탐사 결과 (굴려 둔 것): 캐 온 몫 · 해낸 몫 · 지도, 사람마다 해냈나 · 죽음 · 부상, 쓴 채비, 소재, 장비 파손, 도감에 적을 만남
 export type TripOut = { days: Day[]; trip: Trip; did: boolean[]; k: number; ok: boolean; fd: number; loot: number; w: number; map: number; mapBy: Record<number, number>;
   dead: { id: number; n: string; day: number; pot: boolean }[]; hurt: number[]; heavy: [number, number][]; lead?: string; dq: number; hq: number;
@@ -1100,9 +1103,17 @@ export function sendTeam(W: World, raw: Plan, t: number, P = us(W).crew ? saniti
   // 탐사는 보내는 날부터 날마다 한 걸음씩 굴린다 (nextDay). d1은 돌아올 예정인 날 (일찍 돌아서면 앞당겨진다)
   const d0 = dayAbs(W), s: Sortie = { id: W.seq = (W.seq || 0) + 1, t, f: T.f, m: who.map(p => p.id), who: JSON.parse(JSON.stringify(who)), d0, d1: d0 + CO.TRIP_DAYS[T.f], m0: W.month, g: T.g,
     ...(T.mission === 'hunt' && T.target ? { target: T.target } : {}), ...(T.mission && T.mission !== 'gather' ? { mission: T.mission } : {}), ...(ask ? { q: ask } : {}), kit,
-    st: startTrip(who.length, food, mend), co: { pots: kit.pots, holy: kit.holy, pu: 0, h: 0, dq: 0, hq: 0, priSaved: false, dead: [], hurtM: [], hurtIds: [], heavy: [], got: [], meets: [], lastGot: [] } };
+    st: startTrip(who.length, food, mend), co: { pots: kit.pots, holy: kit.holy, pu: 0, h: 0, dq: 0, hq: 0, priSaved: false, dead: [], hurtM: [], hurtIds: [], heavy: [], got: [], meets: [] } };
   (W.away || (W.away = [])).push(s);
   return s;
+}
+// 보낼 예정인 조(T.go)를 보낸다: 화면의 보내기는 예정만 잡고, 다음 날 단추를 누르면 그날 떠난다 (모자란 채비는 그때 산다).
+// 그사이 나갈 수 없게 된 조(부상 · 해고 · 빈 조)는 예정을 지우고 남긴다. 떠난 조와 못 떠난 조 번호를 돌려준다
+export function sendQueued(W: World, plan: Plan) {
+  const sent: Sortie[] = [], stuck: number[] = [];
+  if (us(W).crew) plan.teams = sanitize(W, us(W), plan).teams;   // (조 번호가 sendTeam이 보는 것과 같게)
+  (plan.teams || []).forEach((T, t) => { if (!T.go) return; delete T.go; const s = sendTeam(W, plan, t); if (s) sent.push(s); else stuck.push(t); });
+  return { sent, stuck };
 }
 // 나갈 수 있는 조를 모두 보낸다 (봇과 한 달 결재가 쓴다. 다친 사람은 나을 때까지 빠지고, 빈자리는 빈 채로 간다)
 export function sendReady(W: World, raw: Plan) {
@@ -1130,7 +1141,7 @@ function tripCtx(W: World, s: Sortie) {
   const hurtOnce = (m: number) => { if (!co.hurtM.includes(m)) { co.hurtM.push(m); co.hq++; } };
   const addMat = (to: [string, number][], x: MatRef) => {
     const n = x.k ? x.k[0] + Math.floor(rnd() * (x.k[1] - x.k[0] + 1)) : 1;
-    to.push([x.n, n]); const e = co.got.find(g => g[0] === x.n); if (e) e[1] += n; else co.got.push([x.n, n]);
+    to.push([x.n, n]);
   };
   // 사냥 임무가 노린 몬스터는 더 자주 만나고 더 잘 해내고 전리품이 더 나온다. 약점 · 소재 조건을 확정해 두었으면 덤이 커진다
   const dex = W.dex || {}, Dx = mons.map(M => dex[M.name]);
@@ -1146,7 +1157,7 @@ function tripCtx(W: World, s: Sortie) {
   const C: TripCfg = {
     size, segs: segsOf(CO.SEGS[f], CO.TRIP_DAYS[f]), slots, torch: kit.torch, rate: segRate(f, torchRate(f, u) * (S.arc ? SYN.ARC1_TORCH : 1)), names: mons.map(M => M.name),
     evs: [{ k: 'g', w: MW[0] }, ...wts.map((w, j) => ({ k: 'f' as const, j, w: w * MW[1] })), { k: 't', w: MW[2] }], ambush: CO.AMBUSH,
-    lootSlot: CO.LOOT_SLOT[f], darkMin: CO.DARK_MIN, darkBack: CO.DARK_BACK, party: CO.PARTY,
+    lootSlot: CO.LOOT_SLOT[f], matSlot: CO.MAT_SLOT[f], trailSlot: CO.TRAIL_SLOT, darkMin: CO.DARK_MIN, darkBack: CO.DARK_BACK, party: CO.PARTY,
     injPen: CO.INJ_PEN, loseLoot: CO.LOSE_LOOT, pots: () => co.pots,
     food: kit.food, foodSlot: CO.FOOD_SLOT, hungerPen: CO.HUNGER_PEN, tools: kit.mend, toolPen: CO.MEND_PEN,
     // 조우 난이도: 층마다 HARD_F, 주 몬스터는 HARD_MAIN만큼 더 해내기 어렵다
@@ -1184,13 +1195,14 @@ function tripCtx(W: World, s: Sortie) {
         let ch = matChance(x, keys, full) * kd / CO.PARTY * CO.MAT_ENC * sd * CO.HUNT_MAT * (mission === 'hunt' ? CO.HUNT_CARE : 1) * (won ? 1 : CO.LOSE_MAT) * MM.mat * (x.p < SYN.RARE_P ? (S.rog ? SYN.ROG1_RARE : 1) : (S.arc2 ? SYN.ARC2_MAT : 1)) * (aim ? DEX.TARGET_MAT * (matSure(Dx[j], x.n) ? DEX.MAT_SURE : 1) : 1);
         for (; ch > 0; ch--) if (rnd() < ch) addMat(out, x);
       });
-      co.lastGot = out; return out;
+      return out;
     },
     // 도감에 적을 것은 돌아와서 적는다 (만남마다 그날 나선 사람의 직업과 들고 간 장비)
-    meet: (j, up, win, cr, kd) => {
+    // (실어 온 전리품만 거둔다. 짐 칸이 모자라 두고 온 것은 빠진다)
+    meet: (j, up, win, cr, kd, got) => {
       const M = mons[j];
-      co.meets.push({ j, conds: condKeys(up.map(m => who[m].c), gearOut ? 'g:' + gearOut : ''), win, cr, kd, n: up.length, got: win ? co.lastGot : [] });
-      co.lastGot = [];
+      got.forEach(([m, n]) => { const e = co.got.find(g => g[0] === m); if (e) e[1] += n; else co.got.push([m, n]); });
+      co.meets.push({ j, conds: condKeys(up.map(m => who[m].c), gearOut ? 'g:' + gearOut : ''), win, cr, kd, n: up.length, got: win ? got : [] });
       if (q && !co.ans && M.name === q.mon && up.some(m => who[m].lead)) {
         const x = q.m ? M.mats.find(y => y.n === q.m) : null;
         co.ans = (x ? !!(x.b || []).some(([k]) => k.split('+').includes(q.k)) : q.b ? q.k === M.bad : q.k === M.key) ? 'yes' : 'no';
@@ -2111,7 +2123,7 @@ export function sanitize(W: World, c: Company, P: Plan): Plan {
     if (!Q.fire.length) delete Q.fire;
     const ids = new Set(c.crew.filter(x => !x.hurt && !(Q.fire || []).includes(x.id)).map(x => x.id)), seen = new Set<number>();
     Q.teams = Q.teams.filter(T => T.f >= 0 && T.f < W.unlocked).map(T => ({
-      f: T.f, g: GEARS.includes((T.g || '').slice(2)) && T.g !== 'g:일반' ? T.g : '', ...(T.mission && T.mission !== 'gather' && MISSIONS.includes(T.mission) ? { mission: T.mission } : {}),
+      f: T.f, g: GEARS.includes((T.g || '').slice(2)) && T.g !== 'g:일반' ? T.g : '', ...(T.mission && T.mission !== 'gather' && MISSIONS.includes(T.mission) ? { mission: T.mission } : {}), ...(T.go ? { go: true } : {}),
       ...(T.pots != null ? { pots: clamp(Math.floor(T.pots), 0, 8) } : {}), ...(T.food != null ? { food: clamp(Math.floor(T.food), 0, CO.DAYS) } : {}), ...(T.mend != null ? { mend: clamp(Math.floor(T.mend), 0, 6) } : {}), ...(T.torch != null ? { torch: clamp(Math.floor(T.torch), 0, CO.DAYS) } : {}),
       ...(T.target && canTarget(W, T.f, T.target) ? { target: T.target } : {}),
       m: [0, 1, 2, 3].map(s => { const id = T.m[s]; if (id == null || !ids.has(id) || seen.has(id)) return null; seen.add(id); return id; }),
@@ -2265,11 +2277,14 @@ export function forecast(W: World, P: Plan): Forecast {
       const mat = hired ? 0 : (MM ? MM.mat : 1) * (odds ? mons.reduce((a, M, j) => a + CO.ENC_W[j] * CO.DAYS * CO.MAT_ENC * matOf(M), 0) * dk * MW[1] * CO.HUNT_MAT * ((T && T.mission) === 'hunt' ? CO.HUNT_CARE : 1) * (pwin + (1 - pwin) * CO.LOSE_MAT / 2) : mons.reduce((a, M) => a + matOf(M), 0));
       // 식량 · 정비 도구를 쓸 어림: 다닐 날만큼 사람마다 먹고(들고 간 만큼까지), 진 날마다 도구 하나 (들고 간 만큼까지)
       if (T && odds) { foodE += size * Math.min(T.food != null ? T.food : foodDays(P, f), dk * CO.DAYS); mendE += Math.min(teamMend(P, T), dk * CO.DAYS * (1 - Math.pow(pwin, MW[1] / segDay(f)))); }
-      // 짐 칸: 채집 지점에서 실을 칸의 기대가 빈 칸(채비를 뺀)을 넘으면 넘는 몫의 절반쯤 두고 온다
+      // 짐 칸: 실어 올 칸(채집품 · 전리품 · 지도 기록)의 기대가 빈 칸(채비를 뺀)을 넘으면 넘는 몫의 절반쯤 두고 온다
       const free = T && who ? Math.max(0, teamSlots(who) - Math.min(teamTorch(P, T), teamSlots(who)) - pk - teamFood(P, T) / CO.FOOD_SLOT - teamMend(P, T)) : Infinity;
-      const need = odds ? dk * CO.DAYS / segDay(f) * MW[0] * size * pg / CO.PARTY * loM * lf * segK(f) * CO.GATHER_K * CO.LOOT_SLOT[f] : 0, cap = need > free ? (1 + free / need) / 2 : 1;   // (구간마다 실을 양이 흩어져 기대만큼 다 잘리지는 않는다)
+      // (전리품은 조우 하나에 대개 한 점 남짓, 지도 기록은 흔적에서 해낸 만큼. 셋이 같은 짐 칸을 나눠 쓴다)
+      const segs = odds ? dk * CO.DAYS / segDay(f) : 0, care = (T && T.mission) === 'hunt' ? CO.HUNT_CARE : 1;
+      const need = segs * (MW[0] * size * pg / CO.PARTY * loM * lf * segK(f) * CO.GATHER_K * CO.LOOT_SLOT[f] + MW[1] * pwin * 0.6 * care * CO.MAT_SLOT[f] + MW[2] * ptr * CO.TRAIL_SLOT);
+      const cap = need > free ? (1 + free / need) / 2 : 1;   // (구간마다 실을 양이 흩어져 기대만큼 다 잘리지는 않는다)
       // (갈무리는 조우에서 해낸 사람 몫이라 채집 지점의 해낸 사람 하나에 pd/pg만큼)
-      parts.push({ n: size, p: pg, v: per * loM * lk * lf * wG * cap + mat * pd / Math.max(1e-9, pg) }); lootE += size * pg * per * loM * lk * lf * wG * cap;
+      parts.push({ n: size, p: pg, v: (per * loM * lk * lf * wG + mat * pd / Math.max(1e-9, pg)) * cap }); lootE += size * pg * per * loM * lk * lf * wG * cap;
       if (!hired && odds) {
         // 우리 조: 부상 주사위. 한 사람이 맞을 주사위 수 h (다닌 날 × 못 해낼 확률 × 주사위), 처음 하나는 부상, 그 뒤는 포션이 막고 모자라면 사망
         // 조 전체가 맞을 주사위 size × h 중 포션이 먼저 pk만큼 막고, 남은 것이 한 사람에 h2씩: 처음 하나는 부상, 그 뒤는 사망

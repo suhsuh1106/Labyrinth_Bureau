@@ -5,7 +5,7 @@
 import { MISSION_NAME, priceNow, CO, FLOORS, ITEMS, type Ours, type Person, type Plan, type Sortie, type World, awayIds, boughtOf, dayAbs, dayOf, floorMons, forecastTrips, jo, potShock, sanitize, stateOf, teamReady, us } from '../../core/company';
 import { TRIP_END } from '../../core/events';
 import { adminBar } from './desk';
-import { dayCls, dayMark, dayTip, nameOf, packBar } from './roster';
+import { dayCls, dayMark, dayTip, nameOf, packBar, sendBtn } from './roster';
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
@@ -139,7 +139,7 @@ export function backLine(r: Ours, i: number, src: string) {
   const focus = ms === 'scout' ? [mapT, gotT, matT] : ms === 'hunt' ? [matT, gotT, mapT] : [gotT, matT, mapT];
   return `<li class="bk ${dead.length ? 'die' : r.ok ? 'ok' : 'no'}"><div class="bk-h"><b>${(r.t ?? i) + 1}조</b> ${FLOORS[r.f].name} <span class="ms-tag ${ms}">${MISSION_NAME[ms]}</span> <span class="dim">${T.fd ?? D.length}일 · 구간 ${D.length} · ${wins}번 해냄 · ${TRIP_END[T.end]}</span>
     <button type="button" class="sc-open" data-act="scene" data-src="${src}" data-i="${i}" aria-label="${(r.t ?? i) + 1}조 탐사 재생">▶ 보기</button></div>
-    <div class="bk-d"><span class="days">${days || '<i class="dk"></i>'}</span>${packBar(T.slots, T.torch - T.tu, Math.max(0, (r.potC || 0) - (r.pots || 0)), T.pack, (T.food || 0) - (T.fu || 0), (T.tools || 0) - (T.tk || 0))}</div>
+    <div class="bk-d"><span class="days">${days || '<i class="dk"></i>'}</span>${packBar(T.slots, T.torch - T.tu, Math.max(0, (r.potC || 0) - (r.pots || 0)), T.pack, (T.food || 0) - (T.fu || 0), (T.tools || 0) - (T.tk || 0), T.pm || 0, T.pt || 0)}</div>
     <div class="bk-r">${focus[0]}${dead.length ? `<b class="dead-n">† ${dead.map(z => esc(z.n)).join(', ')}</b>` : ''}${focus[1]}${focus[2]}${r.hurt ? `<span class="neg">부상 ${r.hurt}</span>` : ''}</div></li>`;
 }
 
@@ -152,10 +152,10 @@ export function dayStrip(W: World) {
     return `<i class="${d < day ? 'past' : d === day ? 'today' : ''}${d === CO.MONTH_DAYS ? ' end' : ''}" title="${d}일${d === CO.MONTH_DAYS ? ' · 그믐 (정산)' : ''}${n ? ` · ${n}조 귀환 예정` : ''}">${d}${n ? `<sup>${n}</sup>` : ''}</i>`;
   }).join('')}</span>`;
 }
-// 다음 날 단추: 마지막 날이면 그믐 정산으로
-export function nextDayBtn(W: World, cls = '') {
-  const last = (W.day || 1) >= CO.MONTH_DAYS;
-  return `<button type="button" class="nextday${cls ? ' ' + cls : ''}${last ? ' end' : ''}" data-act="next-day">${last ? `그믐 · 제${W.month}월 정산 ▶` : `다음 날 ▶ <small>${(W.day || 1) + 1}일</small>`}</button>`;
+// 다음 날 단추: 마지막 날이면 그믐 정산으로. go: 보낼 예정인 조 수 (누르면 떠난다)
+export function nextDayBtn(W: World, cls = '', go = 0) {
+  const last = (W.day || 1) >= CO.MONTH_DAYS, gt = go ? ` <small class="go">${go}조 출발</small>` : '';
+  return `<button type="button" class="nextday${cls ? ' ' + cls : ''}${last ? ' end' : ''}" data-act="next-day">${last ? `그믐 · 제${W.month}월 정산 ▶` : `다음 날 ▶ <small>${(W.day || 1) + 1}일</small>`}${gt}</button>`;
 }
 
 export function hallHtml(W: World, raw: Plan) {
@@ -190,14 +190,14 @@ export function hallHtml(W: World, raw: Plan) {
     <aside class="hall-side">
       ${back.length ? `<div class="panel backs"><header><h2>오늘 아침 돌아온 조</h2></header><ol class="bks">${back.map(s => backLine(s.rep!, (W.back || []).indexOf(s), 'back')).join('')}</ol></div>` : ''}
       <div class="panel aways"><header><h2>미궁에 나간 조</h2><span class="right">${away.length}조</span></header>${away.length ? `<ol class="aws">${away.map(s => awayCard(W, P, s)).join('')}</ol>` : '<p class="note">나가 있는 조가 없어요</p>'}</div>
-      <div class="panel readys"><header><h2>나갈 수 있는 조</h2>${ready.length > 1 ? '<button type="button" class="ghost sm" data-act="send-all">모두 보내기</button>' : ''}</header>
-        ${ready.length ? `<ul class="rds">${ready.map(({ T, t }) => `<li><b>${t + 1}조</b> ${FLOORS[T.f].name} <span class="ms-tag ${T.mission || 'gather'}">${MISSION_NAME[T.mission || 'gather']}</span> <span class="dim">${T.m.filter(x => x != null).length}명 · ${CO.TRIP_DAYS[T.f]}일 길</span><button type="button" class="send" data-act="send" data-t="${t}">보내기</button></li>`).join('')}</ul>` : '<p class="note">본부에 짐을 다 싼 조가 없어요 (편성은 출정에서)</p>'}
+      <div class="panel readys"><header><h2>나갈 수 있는 조</h2>${ready.length > 1 ? `<button type="button" class="ghost sm" data-act="send-all">${ready.every(x => x.T.go) ? '예정 모두 거두기' : '모두 보내기'}</button>` : ''}</header>
+        ${ready.length ? `<ul class="rds">${ready.map(({ T, t }) => `<li><b>${t + 1}조</b> ${FLOORS[T.f].name} <span class="ms-tag ${T.mission || 'gather'}">${MISSION_NAME[T.mission || 'gather']}</span> <span class="dim">${T.m.filter(x => x != null).length}명 · ${CO.TRIP_DAYS[T.f]}일 길</span>${sendBtn(T, t)}</li>`).join('')}</ul>` : '<p class="note">본부에 짐을 다 싼 조가 없어요 (편성은 출정에서)</p>'}
         <button type="button" class="link" data-act="exp">출정 편성 →</button></div>
       <div class="panel month"><header><h2>제${W.month}월 장부</h2><span class="right">${W.day || 1}일 / ${CO.MONTH_DAYS}일</span></header>
         <dl class="fc-line"><div><dt>돌아온 조</dt><dd>${monthBack}</dd></div><div><dt>짐 어림</dt><dd>${fmt(haul)}G</dd></div><div><dt>바로 쓴 돈</dt><dd>${fmt(spent)}G</dd></div></dl>
         ${adminBar(W, P)}
         <p class="note">채집품은 창고에서 팔 날을 고른다 (시세는 날마다) · 전리품 · 급여 · 본부 유지비는 그믐에</p></div>
-      ${nextDayBtn(W, 'big')}
+      ${nextDayBtn(W, 'big', ready.filter(x => x.T.go).length)}
     </aside></div>`;
 }
 

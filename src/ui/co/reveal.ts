@@ -37,10 +37,10 @@ function teamLines(W: World, live = false) {
     }).join('') + (back ? (() => { const z = dead.filter(y => y.day === 0); return `<span class="dg"><i class="dk${z.length ? ' dead' : ''}${live ? ' hid' : ''}" data-s="${z.length ? 'die' : 'no'}" style="--j:${D.length}" title="${esc(`${END[T.end]} · 어둠 속 귀환${T.dark ? ` · 위기 ${T.dark}` : ''}${z.length ? ` · 사망 ${z.map(y => y.n).join(', ')}` : ''}`)}">${z.length ? '†' : T.dark ? '!' : ''}</i></span>`; })() : '');
     const fLeft = (T.food || 0) - (T.fu || 0), oLeft = (T.tools || 0) - (T.tk || 0);
     const potLeft = Math.max(0, Math.round(T.rest - (T.torch - T.tu) - fLeft / CO.FOOD_SLOT - oLeft)), wins = D.filter(d => d.win).length;
-    // 짐 막대의 구간마다 모습: [채집품 칸, 남은 횃불, 남은 포션, 남은 식량, 남은 정비 도구] — 떠날 때, 날마다, 돌아왔을 때 (연출이 날마다 바꿔 그린다)
-    const steps = [[0, T.torch, x.potC ?? potLeft, T.food || 0, T.tools || 0], ...D.map(d => [d.pk ?? 0, d.tl ?? 0, d.pl ?? 0, d.fl ?? 0, d.ol ?? 0]), [T.pack, T.torch - T.tu, potLeft, fLeft, oLeft]];
+    // 짐 막대의 구간마다 모습: [채집품 칸, 남은 횃불, 남은 포션, 남은 식량, 남은 정비 도구, 전리품 칸, 지도 기록 칸] — 떠날 때, 구간마다, 돌아왔을 때 (연출이 구간마다 바꿔 그린다)
+    const steps = [[0, T.torch, x.potC ?? potLeft, T.food || 0, T.tools || 0, 0, 0], ...D.map(d => [d.pk ?? 0, d.tl ?? 0, d.pl ?? 0, d.fl ?? 0, d.ol ?? 0, d.pm ?? 0, d.pt ?? 0]), [T.pack, T.torch - T.tu, potLeft, fLeft, oLeft, T.pm || 0, T.pt || 0]];
     const st0 = live ? steps[0] : steps[steps.length - 1];
-    const strip = `<span class="trip"><span class="days" role="img" aria-label="${T.fd ?? D.length}일 다님 · 구간 ${D.length} · ${wins}번 해냄 · ${END[T.end]}">${days}</span><span class="packw" data-slots="${T.slots}" data-steps="${JSON.stringify(steps)}">${packBar(T.slots, st0[1], st0[2], st0[0], st0[3], st0[4])}</span><small class="${live ? 'hid' : ''}">${END[T.end]}</small></span>`;
+    const strip = `<span class="trip"><span class="days" role="img" aria-label="${T.fd ?? D.length}일 다님 · 구간 ${D.length} · ${wins}번 해냄 · ${END[T.end]}">${days}</span><span class="packw" data-slots="${T.slots}" data-steps="${JSON.stringify(steps)}">${packBar(T.slots, st0[1], st0[2], st0[0], st0[3], st0[4], st0[5], st0[6])}</span><small class="${live ? 'hid' : ''}">${END[T.end]}</small></span>`;
     const deadTxt = dead.length ? `<b class="dead-n">† ${dead.map(z => `${esc(z.n)}${z.pot ? ' (포션 쓰고도)' : ''}`).join(', ')}</b>` : '';
     // 재생 장면: 이 조의 하루하루를 조원 카드와 몬스터로 다시 본다 (scene.ts)
     const play = `<button type="button" class="sc-open" data-act="scene" data-i="${oi}" aria-label="${no}조 탐사 재생">▶ 보기</button>`;
@@ -57,7 +57,7 @@ export function returnsHtml(W: World, live = false) {
   const fallen: string[] = [];
   L.ours.map((x, j) => ({ x, no: (x.t ?? j) + 1 })).sort((a, b) => a.no - b.no).forEach(({ x, no }) => (x.dead || []).forEach(z => fallen.push(`<b>${esc(z.n)}</b> <span>${no}조 · ${FLOORS[x.f].name} · ${x.d0 != null ? `${x.d0}일 출발 · ` : ''}${z.day ? `탐사 ${z.day}일째` : '어둠 속 귀환'}${z.pot ? ' · 포션 쓰고도' : ' · 포션 없이'}</span>`)));
   return `<section class="run trips${live ? ' live' : ''}" aria-label="제${L.month}월 귀환"><header><h3>제${L.month}월 귀환</h3><span class="dim">${ok}/${sent}조 해냄${r.hurt ? ` · 부상 ${r.hurt}` : ''}${r.deaths ? ` · <b class="neg">사망 ${r.deaths}</b>` : ''}</span>
-      <span class="legend-d">${DAY_LEGEND} · <i class="o"></i>못 감 · 칸 하나가 구간, 묶음 하나가 하루 (층마다 ${CO.TRIP_DAYS.join(' · ')}일 · ${CO.SEGS.join(' · ')}구간) · 짐 <i class="l"></i>채집품 <i class="t"></i>횃불 <i class="p"></i>포션 <i class="lf"></i>식량 <i class="lo"></i>정비 도구</span></header>
+      <span class="legend-d">${DAY_LEGEND} · <i class="o"></i>못 감 · 칸 하나가 구간, 묶음 하나가 하루 (층마다 ${CO.TRIP_DAYS.join(' · ')}일 · ${CO.SEGS.join(' · ')}구간) · 짐 <i class="l"></i>채집품 <i class="m"></i>전리품 <i class="n"></i>지도 기록 <i class="t"></i>횃불 <i class="p"></i>포션 <i class="lf"></i>식량 <i class="lo"></i>정비 도구</span></header>
     <div class="after${live ? ' hid' : ''}">${askLine(W)}</div>
     ${fallen.length ? `<div class="fallen after${live ? ' hid' : ''}"><span class="fx">†</span><div><small>잃은 사람</small>${fallen.map(t => `<p>${t}</p>`).join('')}</div></div>` : ''}
     <ol>${teamLines(W, live).map(l => `<li class="rv ${l.k} on" data-k="${l.k}"><span class="mk${live ? ' hid' : ''}" aria-hidden="true">${l.k === 'ok' ? '✓' : l.k === 'no' ? '✗' : '†'}</span><span class="tx">${l.t}</span><span class="am${live ? ' hid' : ''}">${l.amt || ''}</span></li>`).join('')}</ol></section>`;

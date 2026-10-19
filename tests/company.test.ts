@@ -28,7 +28,7 @@ import { needOf, tripOdds, potShock, profitOf, drillGain, weakShare, badShare, c
 import { WEAK_KEYS } from '../src/core/data';
 import { DEX, askable, badSure } from '../src/core/dex';
 import { dayAbs, nextDay, openMonth, sellStock, sendReady, stateOf, stockValue } from '../src/core/company';
-import { MISSIONS } from '../src/core/company';
+import { MISSIONS, sendQueued } from '../src/core/company';
 import { evOf } from '../src/core/expedition';
 
 describe('용병단 장부', () => {
@@ -393,6 +393,8 @@ describe('전리품 비율과 몬스터 적응', () => {
           if (T.end === 'pack') pack++;
           if (T.end === 'done') { expect(T.fd).toBe(CO.TRIP_DAYS[o.f]); expect(D.length).toBe(CO.SEGS[o.f]); }   // 층마다 정해진 날 · 구간을 다 다니고 돌아온다
           expect(T.pack).toBeLessThanOrEqual(T.slots + 1e-9);
+          expect(T.pack + (T.pm || 0) + (T.pt || 0)).toBeLessThanOrEqual(T.slots + 1e-9);   // 채집품 · 전리품 · 지도 기록이 같은 짐 칸을 나눠 쓴다
+          D.forEach(d => { if (evOf(d) === 'f') expect(d.mats.reduce((a, [, k]) => a + k, 0) * CO.MAT_SLOT[o.f]).toBeLessThanOrEqual(T.slots); });
           // 그 조가 갈무리한 것 = 날마다 갈무리한 것의 합
           const sum: Record<string, number> = {}; D.forEach(d => d.mats.forEach(([n, k]) => { sum[n] = (sum[n] || 0) + k; }));
           expect(Object.fromEntries(o.mats)).toEqual(sum);
@@ -405,6 +407,20 @@ describe('전리품 비율과 몬스터 적응', () => {
     // 임무가 사건의 비중을 바꾼다: 채집은 채집 지점, 사냥은 조우, 탐색은 흔적이 가장 많다
     const top = (x: Record<string, number>) => Object.entries(x).sort((a, b) => b[1] - a[1])[0][0];
     expect(top(seen.gather)).toBe('g'); expect(top(seen.hunt)).toBe('f'); expect(top(seen.scout)).toBe('t');
+  });
+  it('보내기는 예정만 잡고, 다음 날 단추를 누르면 그날 떠난다 (나갈 수 없게 된 조는 예정을 지운다)', () => {
+    setSeed(5); const W = newWorld(), c = us(W);
+    const P = sanitize(W, c, defaultPlan(W)); P.teams![0].go = true; P.teams![1].go = true;
+    const Q = sanitize(W, c, P);
+    expect(Q.teams![0].go).toBe(true); expect(Q.teams![2].go).toBeUndefined();
+    expect(W.away || []).toHaveLength(0);   // 예정만으로는 떠나지 않는다
+    c.crew!.find(x => x.id === Q.teams![1].m[0])!.bk = dayAbs(W);   // 그사이 쉬는 날인 사람이 생긴 조
+    const day = W.day || 1, R = sendQueued(W, Q);
+    expect(R.sent.map(s => s.t)).toEqual([0]); expect(R.stuck).toEqual([1]);
+    expect(R.sent[0].d0).toBe(dayAbs(W)); expect(W.day || 1).toBe(day);
+    expect(Q.teams!.some(T => T.go)).toBe(false);
+    nextDay(W, Q);
+    expect((W.away || []).length + (W.back || []).length).toBe(1);
   });
   it('임무: 채집은 채집품이 많고 덜 다치며, 사냥은 전리품이 많고, 탐색은 지도를 가장 많이 그린다', () => {
     const sum: Record<string, { got: number; mats: number; map: number; cr: number; n: number }> = {};
@@ -506,11 +522,11 @@ describe('전리품 비율과 몬스터 적응', () => {
 });
 
 describe('갈무리 소재와 미궁 도감', () => {
-  it('소재는 이긴 날이 있는 우리 직영 조만 갈무리해 오고, 판 값은 판매 수입에 들어 있다', () => {
+  it('전리품은 조우에서 해낸 사람이 있던 우리 직영 조만 갈무리해 오고, 판 값은 판매 수입에 들어 있다', () => {
     setSeed(51); const W: World = newWorld();
     for (let m = 0; m < 12; m++) {
       const M = runMonth(W, BOT.smart(W)), r = M.res[0];
-      M.ours.filter(x => !x.days!.some(d => d.win)).forEach(x => expect(x.mats).toEqual([]));   // 이긴 날이 없으면 갈무리도 없다
+      M.ours.filter(x => !x.days!.some(d => evOf(d) === 'f' && d.k)).forEach(x => expect(x.mats).toEqual([]));   // 조우에서 해낸 사람이 없으면 갈무리도 없다 (진 조우도 해낸 몫은 갈무리)
       const fromOurs: Record<string, number> = {};
       M.ours.forEach(x => x.mats.forEach(([n, k]) => { fromOurs[n] = (fromOurs[n] || 0) + k; }));
       expect(fromOurs).toEqual(r.matSold);
