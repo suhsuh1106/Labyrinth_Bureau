@@ -356,7 +356,7 @@ export type Company = {
 };
 // 단원: 직업(c), 이름(n), 실력(sk, 0~100), 특성(tr), 층마다 경험(ex, 0~100), 함께 나간 짝마다 함께한 달(mt), 해낸 수(wins), 부상으로 쉬는 달(hurt).
 // rk는 옛 수습(경쟁 용병단과 옛 판에만)
-export type Person = { id: number; c: string; rk?: number; hurt?: number; n?: string; sk?: number; tr?: string; ex?: number[]; mt?: Record<number, number>; wins?: number; lead?: boolean; bk?: number; ad?: number; apt?: Mission; pt?: number; hd?: string; sg?: number[]; mo?: number };   // apt · pt · hd: 임무 적성 · 잠재력 · 숨은 기질, sg: 나선 구간 · 해낸 구간, mo: 함께한 달 · ad: 지원자가 찾아오는 날 (그달 며칠째) · lead: 단장 (죽지 않는다) · bk: 귀환해 쉬는 마지막 날 (판 전체의 날 번호). hurt는 쉬는 날 수
+export type Person = { id: number; c: string; rk?: number; hurt?: number; n?: string; sk?: number; tr?: string; ex?: number[]; mt?: Record<number, number>; wins?: number; lead?: boolean; bk?: number; ad?: number; apt?: Mission; pt?: number; hd?: string; sg?: number[]; mo?: number };   // apt · pt · hd: 임무 적성 · 잠재력 · 숨은 기질, sg: 나선 구간 · 해낸 구간 · 해낼 기대(누적), mo: 함께한 달 · ad: 지원자가 찾아오는 날 (그달 며칠째) · lead: 단장 (죽지 않는다) · bk: 귀환해 쉬는 마지막 날 (판 전체의 날 번호). hurt는 쉬는 날 수
 // 우리 조 하나: 층, 자리 넷(단원 id, 빈자리는 null), 챙길 장비("g:은" 꼴, 빈 문자열이면 섞인 대로)
 // 임무: 채집(gather, 몬스터를 피하고 채집 지점 위주 · 안전) · 사냥(hunt, 조우 위주 · 전리품과 도감) · 탐색(scout, 흔적 위주 · 지도). 출정 전에 조마다 하나
 export type Mission = 'gather' | 'hunt' | 'scout';
@@ -433,7 +433,8 @@ export type CoResult = {
   potNeed: number; potC: number;   // 이번 달 산 포션과 그중 교회 포션
 };
 // 우리 조 하나의 귀환 보고. d0 · d1: 나간 날 · 돌아온 날 (그달의 며칠째)
-export type Ours = { f: number; keys: string[]; ok: boolean; d: number; mats: [string, number][]; first: string[]; kit: number; g: string; crisis?: number; pots?: number; n?: number; k?: number; hurt?: number; days?: Day[]; trip?: Trip; dead?: { n: string; day: number; pot: boolean; tk?: number; ex?: number; mt?: number }[]; cls?: string[]; potC?: number; t?: number; nm?: string[]; ld?: number; d0?: number; d1?: number; tk?: number[]; mi?: number[]; got?: number; mission?: Mission; mp?: number };   // got: 캐 와 창고에 넣은 채집품 · mission: 임무(없으면 채집) · mp: 그려 온 지도(%p)   // mi: 간 사람들의 단원 번호   // tk: 간 사람들의 실력 단계 (보낼 때). 죽은 사람의 tk · ex · mt: 실력 단계 · 층 경험 합 · 조직력 짝 수 (잃은 자산)
+// sn · sw · se: 조원마다 나선 구간 · 해낸 구간 · 해낼 기대 (nm과 같은 순서)
+export type Ours = { sn?: number[]; sw?: number[]; se?: number[]; f: number; keys: string[]; ok: boolean; d: number; mats: [string, number][]; first: string[]; kit: number; g: string; crisis?: number; pots?: number; n?: number; k?: number; hurt?: number; days?: Day[]; trip?: Trip; dead?: { n: string; day: number; pot: boolean; tk?: number; ex?: number; mt?: number }[]; cls?: string[]; potC?: number; t?: number; nm?: string[]; ld?: number; d0?: number; d1?: number; tk?: number[]; mi?: number[]; got?: number; mission?: Mission; mp?: number };   // got: 캐 와 창고에 넣은 채집품 · mission: 임무(없으면 채집) · mp: 그려 온 지도(%p)   // mi: 간 사람들의 단원 번호   // tk: 간 사람들의 실력 단계 (보낼 때). 죽은 사람의 tk · ex · mt: 실력 단계 · 층 경험 합 · 조직력 짝 수 (잃은 자산)
 export type MonthResult = {
   month: number; res: CoResult[]; plans: Plan[]; Q: number[]; price: number[]; potion: number; potQ: number; potionC: number; cartel: boolean;
   floors: { before: number; taken: number; crowd: number; cut?: number }[]; perParty: number[]; opened: number | null; rank: string[];
@@ -490,7 +491,8 @@ export type Sortie = { id: number; t: number; f: number; m: number[]; who: Perso
 export type TripCo = { pots: number; holy: number; pu: number; h: number; dq: number; hq: number; lead?: string; priSaved: boolean; ans?: 'yes' | 'no';
   dead: TripOut['dead']; hurtM: number[]; hurtIds: number[]; heavy: [number, number][]; got: [string, number][]; meets: TripOut['meets'] };
 // 탐사 결과 (굴려 둔 것): 캐 온 몫 · 해낸 몫 · 지도, 사람마다 해냈나 · 죽음 · 부상, 쓴 채비, 소재, 장비 파손, 도감에 적을 만남
-export type TripOut = { days: Day[]; trip: Trip; did: boolean[]; k: number; ok: boolean; fd: number; loot: number; w: number; map: number; mapBy: Record<number, number>;
+// sn · sw · se: 조원마다 나선 구간 · 해낸 구간 · 해낼 기대 (숨은 기질을 뺀, 행정관이 아는 것만으로 셈한 확률의 합)
+export type TripOut = { days: Day[]; trip: Trip; did: boolean[]; k: number; sn?: number[]; sw?: number[]; se?: number[]; ok: boolean; fd: number; loot: number; w: number; map: number; mapBy: Record<number, number>;
   dead: { id: number; n: string; day: number; pot: boolean }[]; hurt: number[]; heavy: [number, number][]; lead?: string; dq: number; hq: number;
   pu: number; h: number; tu: number; fu: number; tk: number; foodLeft: number; toolsLeft: number; mats: [string, number][]; broke: boolean;
   keys: string[]; cls: string[]; hasKey: boolean; hasBad: boolean; crisis: number;
@@ -648,10 +650,10 @@ export function memberMods(who: Person[], f: number, u = 100, real = false) {
 // 층 이해도: 용병단의 지도에, 우리 조는 그 층을 가장 잘 아는 조원 경험의 ¼(최대 UND_EX)과 길잡이를 더한다
 export const mapOf = (c: Company, f: number) => (c.map ? c.map[f] || 0 : f === 0 ? CO.MAP0 : 0);
 // ---------- 조 시너지 (오토체스처럼 조 안의 직업 수로) ----------
-// 전사 둘: 성공 + · 짐 한 칸 더 / 사제 하나: 부상 주사위 × · 둘: 한 탐사에 한 번 죽음을 막음 / 도적 하나: 이해도 + · 귀한 소재 ×
+// 전사 둘: 짐 한 칸 더 (성공 덤 WAR2_SUCC는 0: 60판에서 성공 +3%p를 빼도 숙련 봇 1.83 → 1.93위, 짐 칸을 빼면 2.03위 · 1위 43 → 33%) / 사제 하나: 부상 주사위 × · 둘: 한 탐사에 한 번 죽음을 막음 / 도적 하나: 이해도 + · 귀한 소재 ×
 // 궁수 하나: 횃불을 덜 태움 · 조우 성공 + · 둘: 흔한 소재 × / 마법사 하나: 약점 덤 × · 흔적 성공 + · 둘: 약점 덤 더 × / 단장: 그 조는 역효과를 받지 않음
 export const SYN = {
-  WAR2_SUCC: 0.03, WAR2_SLOT: 1, PRI1_INJ: 0.85, ROG1_UND: 6, ROG1_RARE: 1.25, RARE_P: 0.1, ARC1_TORCH: 0.85, ARC1_FIGHT: 0.03, ARC2_MAT: 1.2, MAG1_KEY: 1.25, MAG1_TRAIL: 0.04, MAG2_KEY: 1.5,
+  WAR2_SUCC: 0, WAR2_SLOT: 1, PRI1_INJ: 0.85, ROG1_UND: 6, ROG1_RARE: 1.25, RARE_P: 0.1, ARC1_TORCH: 0.85, ARC1_FIGHT: 0.03, ARC2_MAT: 1.2, MAG1_KEY: 1.25, MAG1_TRAIL: 0.04, MAG2_KEY: 1.5,
 };
 export function synOf(who: Person[] | null) {
   const n = (k: string) => (who || []).filter(p => p.c === k).length;
@@ -660,7 +662,7 @@ export function synOf(who: Person[] | null) {
 // 시너지 이름표 (화면)
 export function synTags(who: Person[]) {
   const S = synOf(who), out: [string, string][] = [];
-  if (S.war) out.push(['전사 2', `성공 +${Math.round(SYN.WAR2_SUCC * 100)}%p · 짐 +${SYN.WAR2_SLOT}칸`]);
+  if (S.war) out.push(['전사 2', `${SYN.WAR2_SUCC ? `성공 +${Math.round(SYN.WAR2_SUCC * 100)}%p · ` : ''}짐 +${SYN.WAR2_SLOT}칸`]);
   if (S.pri) out.push([S.pri2 ? '사제 2' : '사제 1', `부상 주사위 ×${SYN.PRI1_INJ}${S.pri2 ? ' · 한 번 죽음을 막음' : ''}`]);
   if (S.rog) out.push(['도적', `이해도 +${SYN.ROG1_UND} · 귀한 소재 ×${SYN.ROG1_RARE}`]);
   if (S.arc) out.push([S.arc2 ? '궁수 2' : '궁수 1', `횃불 ×${SYN.ARC1_TORCH} · 조우 +${Math.round(SYN.ARC1_FIGHT * 100)}%p${S.arc2 ? ` · 흔한 소재 ×${SYN.ARC2_MAT}` : ''}`]);
@@ -1230,6 +1232,7 @@ function tripCtx(W: World, s: Sortie) {
     // 채집 지점 · 흔적: 몬스터의 약점 · 역효과 없이 층의 난이도만
     gp: m => clamp(ppBase - CO.HARD_F[f] + CO.GATHER_EASE + MM.pp[m] + aptB(who[m], 'gather'), 0.05, 0.97),
     tp: m => clamp(ppBase - CO.HARD_F[f] + CO.TRAIL_EASE + MM.pp[m] + aptB(who[m], 'scout') + (S.mag ? SYN.MAG1_TRAIL : 0), 0.05, 0.97),
+    hid: m => (who[m].hd ? (HIDDEN[who[m].hd!] || { v: 0 }).v : 0),
     // 부상 주사위: 구간 하나는 그 층 하루의 sd 몫 (흔적은 TRAIL_INJ배, 어둠 속 귀환은 따로)
     injP: (m, j) => { const p0 = CO.INJ_BASE + CO.INJ_K * F.risk; return Math.min(0.9, (j === -1 ? CO.DARK_MIN + p0 * CO.DARK_BACK : p0 * sd * (j === -2 ? CO.TRAIL_INJ : 1)) * (j >= 0 && !S.lead && classBad(mons[j].bad, who[m].c, keys) ? (badSure(Dx[j]) === mons[j].bad ? CO.BAD_INJ_KNOWN : CO.BAD_INJ) : 1) * (S.pri ? SYN.PRI1_INJ : 1) * MM.cr[m] * CO.INJ_TIER[tierOf(who[m])] * U.crisis * (j >= 0 && j === tg && keySure(Dx[j]) ? DEX.KEY_CRISIS : 1)); },
     hurt: m => { hurtOnce(m); if (!MM.medic && CO.INJ_REST && !co.hurtIds.includes(who[m].id)) co.hurtIds.push(who[m].id); },
@@ -1291,7 +1294,7 @@ function stepSortie(W: World, s: Sortie) {
   // 장비: 역효과 몬스터를 만난 날이 있으면 더 잘 망가진다 (다닌 날만큼)
   const gearOut = s.kit.gear, badMet = S.lead ? false : R.days.some(D => { const M = D.mon && mons.find(x => x.name === D.mon); return !!M && badShare(M.bad, keys) > 0; });
   const broke = !!gearOut && rnd() < (k >= 2 ? CO.GEAR_BREAK : CO.GEAR_LOST) * (badMet ? CO.BAD_BREAK : 1) * Math.max(1, fd) / CO.DAYS;
-  s.out = { days: R.days, trip: R.trip, did, k, ok: k >= 2, fd, loot: lootK / CO.PARTY * U.loot, w: winK / CO.PARTY * fd / CO.DAYS, map, mapBy,
+  s.out = { days: R.days, trip: R.trip, did, k, sn: R.seen, sw: R.wins, se: R.ex, ok: k >= 2, fd, loot: lootK / CO.PARTY * U.loot, w: winK / CO.PARTY * fd / CO.DAYS, map, mapBy,
     dead: co.dead, hurt: co.hurtIds, heavy: co.heavy, ...(co.lead ? { lead: co.lead } : {}), dq: co.dq, hq: co.hq, pu: co.pu, h: co.h, tu: R.tu, fu: R.fu, tk: R.tk, foodLeft: R.foodLeft, toolsLeft: R.toolsLeft, mats: co.got, broke,
     keys, cls, hasKey: kw >= 1, hasBad: bw > 0, crisis: R.days.reduce((a, d) => a + d.cr, 0) + R.trip.dark, meets: co.meets, ...(co.ans ? { ans: co.ans } : {}), ...(s.q ? { q: s.q } : {}) };
   s.d1 = dayAbs(W) + 1;
@@ -1316,7 +1319,8 @@ function takeBack(W: World, s: Sortie) {
     const did = o.did[m];
     x.sk = skUp(c, x, (did ? CO.SK_WIN : CO.SK_TRY) * (tl >= 1 ? CO.TRAIN_GROW : 1) * (tl >= 2 && tierOf(x) === 0 ? 2 : 1) * g);
     // 나선 구간 · 해낸 구간 (명단의 해낸 비율, 숨은 기질이 드러나는 때)
-    const sg = x.sg || (x.sg = [0, 0]); (o.days || []).forEach(d => { const ch = (d.ms || '')[m]; if (ch && ch !== '-') { sg[0]++; if (ch === 'o') sg[1]++; } });
+    // (sg: 나선 구간 · 해낸 구간 · 해낼 기대의 누적. 기대보다 꾸준히 낫거나 못하면 숨은 기질을 짐작할 수 있다)
+    const sg = x.sg || (x.sg = [0, 0, 0]); if (o.sn) { sg[0] += o.sn[m]; sg[1] += o.sw![m]; sg[2] = Math.round(((sg[2] || 0) + o.se![m]) * 100) / 100; }
     const ex = x.ex || (x.ex = FLOORS.map(() => 0)); ex[s.f] = Math.min(100, Math.round(((ex[s.f] || 0) + (did ? CO.EX_WIN : CO.EX_TRY) * g) * 10) / 10);
     if (did) x.wins = (x.wins || 0) + 1;
     if (isRook(x) && did) x.rk = Math.round(((x.rk || 0) + g) * 100) / 100;
@@ -1359,7 +1363,7 @@ function takeBack(W: World, s: Sortie) {
   const B0 = W.mat ? W.mat.book[s.f] : null, before = new Set([...(B0 ? Object.keys(B0.got).filter(m => B0.got[m]['*'] > 0) : []), ...(W.back || []).flatMap(x => (x.rep ? x.rep.mats.map(g => g[0]) : []))]);
   const ld = s.who.findIndex(x => x.lead);
   s.rep = { f: s.f, keys: o.keys, ok: o.ok, d: o.dq, mats: o.mats, first: o.mats.filter(([m]) => !before.has(m)).map(([m]) => m), kit: -1, g: s.kit.gear ? 'g:' + s.kit.gear : '', crisis: o.crisis, pots: o.pu, n: s.m.length, k: o.k, hurt: o.hq,
-    days: o.days, trip: o.trip, ...(o.dead.length ? { dead: o.dead.map(x => ({ n: x.n, day: x.day, pot: x.pot, ...lost.get(x.id) })) } : {}), cls: o.cls, potC: s.kit.pots, nm: s.who.map(x => x.n || x.c), mi: [...s.m], tk: s.who.map(tierOf), ld, t: s.t, d0: dayOf(s.d0), d1: dayOf(s.d1), ...(s.got != null ? { got: s.got } : {}), ...(s.mission ? { mission: s.mission } : {}), mp: Math.round(((c.map ? c.map[s.f] : 0) - map0) * 10) / 10 };
+    days: o.days, trip: o.trip, ...(o.sn ? { sn: o.sn, sw: o.sw, se: o.se } : {}), ...(o.dead.length ? { dead: o.dead.map(x => ({ n: x.n, day: x.day, pot: x.pot, ...lost.get(x.id) })) } : {}), cls: o.cls, potC: s.kit.pots, nm: s.who.map(x => x.n || x.c), mi: [...s.m], tk: s.who.map(tierOf), ld, t: s.t, d0: dayOf(s.d0), d1: dayOf(s.d1), ...(s.got != null ? { got: s.got } : {}), ...(s.mission ? { mission: s.mission } : {}), mp: Math.round(((c.map ? c.map[s.f] : 0) - map0) * 10) / 10 };
   // 찾는 곳의 소재 기록 (해낸 탐사만)
   if (o.ok && B0) {
     const cs = ['*', ...condsOf(o.keys)];

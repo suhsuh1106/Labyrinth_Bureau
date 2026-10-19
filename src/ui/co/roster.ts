@@ -1,6 +1,6 @@
 // 단원 명단과 편성표: 엑셀처럼 한 줄에 한 사람. 머리글을 누르면 정렬한다.
 // 인원 창의 명단 · 지원자 명단과, 출정의 편성표(조 요약 줄 + 배치 칸)를 그린다. 상태를 쓰지 않고 난수도 쓰지 않는다
-import { awayIds, dayAbs, sortieOf, stateOf, teamReady, CO, FLOORS, type Person, type Plan, type World, candPrice, candNow, hirePrice, boughtOf, cohesion, hqLv, mapOf, personWage, roomOf, teamOdds, teamPots, teamTorch, teamFood, teamMend, foodDays, clamp, tierOf, torchRate, torchOdds, segRate, MISSIONS, MISSION_NAME, type Mission, us, drillGain, isRook, weakShare, synTags, teamSlots, synOf, SYN, potSeen, hidSeen } from '../../core/company';
+import { type Ours, awayIds, dayAbs, sortieOf, stateOf, teamReady, CO, FLOORS, type Person, type Plan, type World, candPrice, candNow, hirePrice, boughtOf, cohesion, hqLv, mapOf, personWage, roomOf, teamOdds, teamPots, teamTorch, teamFood, teamMend, foodDays, clamp, tierOf, torchRate, torchOdds, segRate, MISSIONS, MISSION_NAME, type Mission, us, drillGain, isRook, weakShare, synTags, teamSlots, synOf, SYN, potSeen, hidSeen } from '../../core/company';
 import { stepper } from './view';
 import { type Day, evOf } from '../../core/expedition';
 import { floorMons } from '../../core/company';
@@ -18,7 +18,19 @@ export const traitHtml = (p: Person) => (p.tr ? `<span class="trait" title="${es
 export const aptHtml = (p: Person) => (p.apt ? `<span class="ms-tag ${p.apt}" title="${MISSION_NAME[p.apt]} 사건에서 성공 +${Math.round(CO.APT_SUCC * 100)}%p">${MISSION_NAME[p.apt]}</span>` : '<span class="dim">–</span>');
 export const potHtml = (p: Person) => (p.pt == null ? '<span class="dim">–</span>' : potSeen(p) ? `<span title="실력이 오를 수 있는 끝">${TIER_N[Math.min(4, Math.floor(p.pt / CO.TIER_STEP))]}까지</span>` : `<span class="dim" title="함께한 지 ${CO.POT_SEE}달이 지나면 보인다">?</span>`);
 const rateOf = (p: Person) => (p.sg && p.sg[0] ? p.sg[1] / p.sg[0] : -1);
-const rateHtml = (p: Person) => (p.sg && p.sg[0] ? `${Math.round(rateOf(p) * 100)}%<small class="dim"> · ${p.sg[0]}</small>` : '<span class="dim">–</span>');
+// 해낸 비율과 기대 비율(누적): 기대보다 꾸준히 낫거나 못하면 운이 아니라 사람 탓일 수 있다
+const rateHtml = (p: Person) => {
+  if (!p.sg || !p.sg[0]) return '<span class="dim">–</span>';
+  const r = Math.round(rateOf(p) * 100), e = p.sg[2] != null ? Math.round(p.sg[2] / p.sg[0] * 100) : null, d = e == null ? 0 : r - e;
+  return `${r}%${e == null ? '' : `<small class="luck ${d >= 5 ? 'up' : d <= -5 ? 'dn' : ''}" title="기대 ${e}% · 나선 구간 ${p.sg[0]}"> ${d > 0 ? '+' : d < 0 ? '−' : '±'}${Math.abs(d)}</small>`}`;
+};
+// 귀환 줄: 해낸 구간과 기대(행정관이 아는 것만으로 셈한 확률의 합)의 차. 조원마다는 마우스를 올리면
+export function luckHtml(r: Ours) {
+  if (!r.sn || !r.se || !r.sw) return '';
+  const n = r.sw.reduce((a, b) => a + b, 0), e = r.se.reduce((a, b) => a + b, 0), d = n - e;
+  const who = r.sn.map((k, m) => (k ? `${(r.nm || [])[m] || `${m + 1}번`} ${r.sw![m]}/${k} · 기대 ${r.se![m].toFixed(1)} (${r.sw![m] - r.se![m] >= 0 ? '+' : '−'}${Math.abs(r.sw![m] - r.se![m]).toFixed(1)})` : '')).filter(Boolean).join('\n');
+  return `<span class="luck ${d >= 1 ? 'up' : d <= -1 ? 'dn' : ''}" title="${esc(who)}">해냄 ${n} · 기대 ${e.toFixed(1)} (${d >= 0 ? '+' : '−'}${Math.abs(d).toFixed(1)})</span>`;
+}
 const exCell = (p: Person, f: number, hl: boolean) => { const v = (p.ex && p.ex[f]) || 0; return `<td class="n ex${hl ? ' hl' : ''}">${v ? `<i style="width:${Math.round(v * 0.36)}px"></i>${v}` : '<span class="dim">–</span>'}</td>`; };
 
 // 정렬: ui.sort는 "열:방향" (방향 1 오름 · -1 내림). 실력 · 경험 · 해낸 수는 처음 누르면 높은 순

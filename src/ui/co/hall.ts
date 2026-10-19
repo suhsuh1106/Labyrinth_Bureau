@@ -5,7 +5,7 @@
 import { MISSION_NAME, priceNow, CO, FLOORS, ITEMS, type Ours, type Person, type Plan, type Sortie, type World, awayIds, boughtOf, candNow, roomOf, dayAbs, dayOf, floorMons, forecastTrips, jo, potShock, sanitize, stateOf, teamReady, us } from '../../core/company';
 import { TRIP_END } from '../../core/events';
 import { adminBar } from './desk';
-import { dayCls, dayMark, dayTip, nameOf, packBar, sendBtn } from './roster';
+import { dayCls, dayMark, dayTip, luckHtml, nameOf, packBar, sendBtn } from './roster';
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
@@ -140,7 +140,7 @@ export function backLine(r: Ours, i: number, src: string) {
   return `<li class="bk ${dead.length ? 'die' : r.ok ? 'ok' : 'no'}"><div class="bk-h"><b>${(r.t ?? i) + 1}조</b> ${FLOORS[r.f].name} <span class="ms-tag ${ms}">${MISSION_NAME[ms]}</span> <span class="dim">${T.fd ?? D.length}일 · 구간 ${D.length} · ${wins}번 해냄 · ${TRIP_END[T.end]}</span>
     <button type="button" class="sc-open" data-act="scene" data-src="${src}" data-i="${i}" aria-label="${(r.t ?? i) + 1}조 탐사 재생">▶ 보기</button></div>
     <div class="bk-d"><span class="days">${days || '<i class="dk"></i>'}</span>${packBar(T.slots, T.torch - T.tu, Math.max(0, (r.potC || 0) - (r.pots || 0)), T.pack, (T.food || 0) - (T.fu || 0), (T.tools || 0) - (T.tk || 0), T.pm || 0, T.pt || 0)}</div>
-    <div class="bk-r">${focus[0]}${dead.length ? `<b class="dead-n">† ${dead.map(z => esc(z.n)).join(', ')}</b>` : ''}${focus[1]}${focus[2]}${r.hurt ? `<span class="neg">부상 ${r.hurt}</span>` : ''}</div></li>`;
+    <div class="bk-r">${luckHtml(r)}${focus[0]}${dead.length ? `<b class="dead-n">† ${dead.map(z => esc(z.n)).join(', ')}</b>` : ''}${focus[1]}${focus[2]}${r.hurt ? `<span class="neg">부상 ${r.hurt}</span>` : ''}</div></li>`;
 }
 
 // 날 띠: 이번 달 열흘. 지난 날 · 오늘 · 돌아올 조가 있는 날(예정)

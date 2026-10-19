@@ -32,6 +32,7 @@ import { MISSIONS, sendQueued } from '../src/core/company';
 import { candNow, crewOf, hireNow, hirePrice, aptB, skUp, skCap, potSeen, hidSeen } from '../src/core/company';
 import { HIDDEN } from '../src/core/data';
 import { rosterHtml } from '../src/ui/co/roster';
+import { returnsHtml } from '../src/ui/co/reveal';
 // 옛 시작(16명 · 네 조)을 전제로 한 규칙 테스트: 우리 명단을 16명으로 바꾸고 지원자는 비운다
 const big = (W: World) => { const c = us(W); c.crew = crewOf(16); c.members = 16; c.nextId = 16; c.sup!.pot = [12]; W.cand = []; return W; };
 import { evOf } from '../src/core/expedition';
@@ -190,7 +191,7 @@ describe('상단·교회와 포션 담합', () => {
 describe('교회 성수 포션', () => {
   it('같은 병 수라도 교회 포션을 쓰면 사망이 줄어든다', () => {
     let a = 0, b = 0;
-    for (let g = 1; g <= 30; g++) {
+    for (let g = 1; g <= 60; g++) {
       for (const church of [0, 9999]) {
         setSeed(g); const W = big(newWorld()); W.unlocked = 4;
         // 깊은 층에 포션 한 병씩만 들려 보내 포션이 모자라게 한다 (성수는 HOLY의 확률로 병을 비우지 않고 막는다)
@@ -1122,7 +1123,7 @@ describe('영주청: 영주세 · 법령 · 가정산 · 감사', () => {
   });
   it('한도까지 부풀리면 감사가 오고, 걸린 이득의 세 배를 추징한다. 감사가 끝나면 의심과 장부는 지워진다', () => {
     let audits = 0;
-    for (let seed = 1; seed <= 6; seed++) {
+    for (let seed = 1; seed <= 10; seed++) {
       setSeed(seed); const W = newWorld();
       for (let m = 0; m < 18; m++) {
         runMonth(W, BOT.smart(W)); const D = W.draft!;
@@ -1542,5 +1543,26 @@ describe('단원의 깊이: 임무 적성 · 잠재력 · 숨은 기질 · 1인 
     const who = [{ id: 1, c: '궁수' }, { id: 2, c: '마법사' }, { id: 3, c: '전사' }, { id: 4, c: '도적' }];
     const S = synOf(who); expect(S.arc).toBe(true); expect(S.mag).toBe(true); expect(S.mag2).toBe(false);
     const tags = synTags(who).map(t => t[0]); expect(tags).toContain('궁수 1'); expect(tags).toContain('마법사 1');
+  });
+});
+
+describe('귀환 기록: 기대 대비', () => {
+  it('조원마다 나선 구간 · 해낸 구간 · 기대를 적고, 기대는 숨은 기질을 빼고 셈하며, 명단에 누적된다', () => {
+    let sumW = 0, sumE = 0, lucky = 0, luckyE = 0;
+    for (let g = 1; g <= 8; g++) {
+      setSeed(g); const W = newWorld(), c = us(W);
+      c.crew!.forEach(p => { p.hd = '천운'; });   // 모두 천운이면 기대보다 잘 해낸다
+      for (let m = 0; m < 2; m++) {
+        const M = runMonth(W, defaultPlan(W)); closeBooks(W);
+        M.ours.forEach(o => {
+          expect(o.sn!.length).toBe(o.nm!.length);
+          o.sn!.forEach((k, j) => { expect(o.sw![j]).toBeLessThanOrEqual(k); expect(o.se![j]).toBeLessThanOrEqual(k); });
+          lucky += o.sw!.reduce((a, b) => a + b, 0); luckyE += o.se!.reduce((a, b) => a + b, 0);
+        });
+      }
+      c.crew!.filter(p => p.sg && p.sg[0]).forEach(p => { sumW += p.sg![1]; sumE += p.sg![2]; expect(p.sg![2]).toBeLessThanOrEqual(p.sg![0]); });
+      expect(returnsHtml(W)).toContain('기대');
+    }
+    expect(lucky).toBeGreaterThan(luckyE); expect(sumW).toBeGreaterThan(sumE);
   });
 });

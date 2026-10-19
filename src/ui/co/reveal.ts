@@ -2,7 +2,7 @@
 // 줄마다 data-v(장부에 더할 금액)와 data-k(종류: ok·no·die·gain·cost·net)를 달아 두고, 한 줄씩 띄우는 것은 coMain이 한다.
 // 기록을 읽어 HTML만 만든다. 상태를 쓰지 않고 난수도 쓰지 않는다
 import { CO, FLOORS, ITEMS, MISSION_NAME, type World, gradeOf } from '../../core/company';
-import { DAY_LEGEND, dayCls, dayMark, dayTip, packBar } from './roster';
+import { DAY_LEGEND, dayCls, dayMark, dayTip, luckHtml, packBar } from './roster';
 import { segsOf } from '../../core/expedition';
 import { ASK_SAY, TRIP_END } from '../../core/events';
 import { DEX, keyName, weakName } from '../../core/dex';
@@ -45,7 +45,7 @@ function teamLines(W: World, live = false) {
     // 재생 장면: 이 조의 하루하루를 조원 카드와 몬스터로 다시 본다 (scene.ts)
     const play = `<button type="button" class="sc-open" data-act="scene" data-i="${oi}" aria-label="${no}조 탐사 재생">▶ 보기</button>`;
     lines.push({ k: dead.length ? 'die' : x.ok ? 'ok' : 'no', v: 0, t: `${head}${play}${strip}`,
-      amt: [deadTxt, ms === 'scout' && x.mp ? `지도 +${x.mp}%p` : '', mats.length ? `${mats.slice(0, 3).join(', ')}${mats.length > 3 ? ` 외 ${mats.length - 3}` : ''}` : '', x.got ? `${ITEMS[x.f].name} ${x.got}개` : '', x.hurt ? `부상 ${x.hurt}` : ''].filter(Boolean).join(' · ') || '빈손' });
+      amt: [deadTxt, luckHtml(x), ms === 'scout' && x.mp ? `지도 +${x.mp}%p` : '', mats.length ? `${mats.slice(0, 3).join(', ')}${mats.length > 3 ? ` 외 ${mats.length - 3}` : ''}` : '', x.got ? `${ITEMS[x.f].name} ${x.got}개` : '', x.hurt ? `부상 ${x.hurt}` : ''].filter(Boolean).join(' · ') || '빈손' });
   });
   return lines;
 }

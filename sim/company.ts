@@ -4,7 +4,7 @@
 // 성향: even(고르게) · deep(깊은 층 위주) · smart(시장을 읽는 숙련자, 근원에는 채굴장)
 //       smartNoGuide · smartSeal · smartNoRoot: 숙련 봇에서 지침을 빼거나 근원을 달리 다룬 것
 import { setSeed } from '../src/core/rng';
-import { type Mission, type Team, forecast, CO, TAX, FLOORS, potShock, cashK, aidAt, jobsExplore, churchPrice, ITEMS, type Filing, type Plan, type World, closeBooks, preview, setClerks, defaultPlan, dormCost, jobsSign, partyMargin, roomOf, demandMul, potsOf, probe, floorMons, mapOf, maxParties, newWorld, torchRate, torchOdds, sanitize, canTarget, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
+import { type Mission, type Team, forecast, CO, TAX, FLOORS, potShock, cashK, aidAt, jobsExplore, churchPrice, ITEMS, type Filing, type Plan, type World, closeBooks, preview, setClerks, defaultPlan, dormCost, jobsSign, partyMargin, roomOf, SYN, demandMul, potsOf, probe, floorMons, mapOf, maxParties, newWorld, torchRate, torchOdds, sanitize, canTarget, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
 import { demandSeen } from '../src/ui/co/book';
 import { ASK_KEYS, DEX, MAT_KEYS, type Dex, askable, badSure, keySure } from '../src/core/dex';
 import { CLASSES, PAIR_CLASS, classWeaks } from '../src/core/data';
@@ -41,6 +41,7 @@ if (process.env.SEGS) CO.SEGS = process.env.SEGS.split(',').map(Number);
 if (process.env.MAT_SLOT) CO.MAT_SLOT = FLOORS.map(() => +process.env.MAT_SLOT!);
 if (process.env.TRAIL_SLOT) CO.TRAIL_SLOT = +process.env.TRAIL_SLOT;
 for (const k of ['A_K', 'A_CLERK', 'CLERK_WAGE', 'A_TRIP', 'A_BASE', 'A_MEMBER', 'A_FLOOR', 'A_FREE'] as const) if (process.env[k]) (CO as any)[k] = +process.env[k]!;
+for (const k of Object.keys(SYN) as (keyof typeof SYN)[]) if (process.env['SYN_' + k]) SYN[k] = +process.env['SYN_' + k]!;   // 조 시너지 숫자 (SYN_WAR2_SUCC=0 등)
 const arg = (k: string, d: string) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
 const games = +arg('games', '200'), seed0 = +arg('seed', '1'), only = arg('style', '');
 const MONTHS = 36;

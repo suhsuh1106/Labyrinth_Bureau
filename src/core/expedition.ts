@@ -48,6 +48,7 @@ export type TripCfg = {
   pm: (m: number, j: number) => number;   // 조원 m이 몬스터 j를 상대로 해낼 확률 (다치기 전)
   gp: (m: number) => number;   // 조원 m이 채집 지점에서 해낼 확률
   tp: (m: number) => number;   // 조원 m이 흔적을 따라 해낼 확률
+  hid?: (m: number) => number;   // 그 확률에 든 숨은 몫 (기대에서 뺀다: 기대는 행정관이 아는 것만으로)
   injP: (m: number, j: number) => number;   // 해내지 못한 조원 m이 부상 주사위에 걸릴 확률 (j: 몬스터, −1 어둠 속 귀환, −2 흔적)
   hurt: (m: number, day: number) => void;   // 처음 다쳤다 (다음 달 쉰다)
   usePot: () => false | 'pot' | 'holy';   // 주사위에 걸리면 먼저 포션 한 병으로 막는다 (포션이 없으면 false). 성수면 그 탐사 동안의 부상도 낫는다
@@ -63,7 +64,7 @@ export const segsOf = (n: number, d: number) => Array.from({ length: d }, (_, i)
 
 // 탐사의 지금 상태 (저장할 수 있는 모양). 탐사는 구간마다 한 걸음씩 굴린다: 그날의 성공률 · 위기는 그날의 판 상태로 다시 셈한다
 // e: 그날 몇째 구간, amb: 들켜서 다음 구간이 조우, trail: 흔적에서 해낸 비율의 합 (지도를 그린 만큼), pm · pt: 전리품 · 지도 기록이 차지한 짐 칸
-export type TripState = { day: number; e?: number; amb?: boolean; trail?: number; pm?: number; pt?: number; lost?: boolean; hg?: number; gone: number[]; hurt: number[]; wins: number[]; seen: number[]; days: Day[]; tu: number; pack: number; lootSum: number;
+export type TripState = { day: number; e?: number; amb?: boolean; trail?: number; pm?: number; pt?: number; lost?: boolean; hg?: number; gone: number[]; hurt: number[]; wins: number[]; seen: number[]; days: Day[]; tu: number; pack: number; lootSum: number; ex?: number[];   // ex: 조원마다 해낼 기대 (숨은 기질을 뺀 확률의 합)
   end: Trip['end']; food: number; tools: number; blunt: number; fu: number; tk: number; done: boolean };
 export function startTrip(size: number, food: number, tools: number): TripState {
   return { day: 0, gone: [], hurt: [], wins: Array(size).fill(0), seen: Array(size).fill(0), days: [], tu: 0, pack: 0, lootSum: 0, end: 'done', food, tools, blunt: 0, fu: 0, tk: 0, done: false };
@@ -81,8 +82,10 @@ function dice(C: TripCfg, S: TripState, m: number, j: number, day: number, D: { 
 // 조원마다 굴린다: 다쳤거나 굶었거나 무뎌졌으면 그만큼 어렵다
 function rolls(C: TripCfg, S: TripState, up: number[], hungry: Set<number>, p: (m: number) => number) {
   const hurt = new Set(S.hurt);
-  const dd = up.map(m => rnd() < Math.max(0.03, p(m) - (hurt.has(m) ? C.injPen : 0) - (hungry.has(m) ? C.hungerPen : 0) - S.blunt * C.toolPen));
-  up.forEach((m, x) => { S.seen[m]++; if (dd[x]) S.wins[m]++; });
+  const pen = (m: number) => (hurt.has(m) ? C.injPen : 0) + (hungry.has(m) ? C.hungerPen : 0) + S.blunt * C.toolPen;
+  const dd = up.map(m => rnd() < Math.max(0.03, p(m) - pen(m)));
+  const ex = S.ex || (S.ex = Array(S.seen.length).fill(0));
+  up.forEach((m, x) => { S.seen[m]++; if (dd[x]) S.wins[m]++; ex[m] += Math.max(0.03, p(m) - pen(m) - (C.hid ? C.hid(m) : 0)); });
   return { dd, kd: dd.filter(Boolean).length };
 }
 // 짐에 남은 칸 (남은 채비 · 채집품 · 전리품 · 지도 기록을 뺀)
@@ -174,7 +177,7 @@ export function finishTrip(C: TripCfg, S: TripState) {
   if (S.end === 'torch') Array.from({ length: C.size }, (_, m) => m).filter(m => !S.gone.includes(m)).forEach(m => { dm[m] = dice(C, S, m, -1, 0, DK) || 'o'; });
   const rest = (C.torch - S.tu) + C.pots() + S.food / C.foodSlot + S.tools;
   const trip: Trip = { fd: S.day + (S.e ? 1 : 0), torch: C.torch, tu: S.tu, slots: C.slots, pack: Math.round(S.pack * 10) / 10, pm: Math.round((S.pm || 0) * 10) / 10, pt: Math.round((S.pt || 0) * 10) / 10, rest: Math.round(rest * 10) / 10, end: S.end, dark: DK.cr, food: C.food, fu: S.fu, tools: C.tools, tk: S.tk, blunt: S.blunt, ...(S.end === 'torch' ? { dm: dm.join('') } : {}) };
-  return { days: S.days, trip, wins: S.wins, seen: S.seen, lootSum: S.lootSum, trail: S.trail || 0, tu: S.tu, fu: S.fu, tk: S.tk, foodLeft: S.food, toolsLeft: S.tools };
+  return { days: S.days, trip, wins: S.wins, seen: S.seen, ex: (S.ex || S.seen.map(() => 0)).map(v => Math.round(v * 100) / 100), lootSum: S.lootSum, trail: S.trail || 0, tu: S.tu, fu: S.fu, tk: S.tk, foodLeft: S.food, toolsLeft: S.tools };
 }
 // 하루를 굴린다 (그날의 구간을 모두, 끝났으면 S.done)
 export function stepDay(C: TripCfg, S: TripState) {
