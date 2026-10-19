@@ -321,7 +321,7 @@ export const priceOf = (it: Item, Q: number) => Math.round(it.P0 * (Q ? marketMu
 // 포션은 모든 용병단이 많이 살수록 비싸진다
 // 이번 달이 약초 흉년인가 · 다음 달부터인가
 export const potShock = (m: number) => (m >= CO.POT_SHOCK_AT && m < CO.POT_SHOCK_AT + CO.POT_SHOCK_LEN ? CO.POT_SHOCK : 1);
-// 이번 달 상단 포션 값 어림 (지난달 값에서 흉년 배율만 고친다)
+// 이번 달 상단 포션 값 예측 (지난달 값에서 흉년 배율만 고친다)
 export const potionNow = (W: World) => Math.round(W.potion / potShock(W.month - 1) * potShock(W.month));
 export const potionPrice = (Q: number) => Math.round(CO.POTION0 * clamp(Math.sqrt(Q / CO.POTION_Q0), 0.8, 1.6));
 
@@ -436,10 +436,10 @@ export type MonthResult = {
   pressure: number; overflow: boolean;
   apps: number;   // 그달 마을 지원자
   ask?: AskRes; leadHurt?: string;   // 단장 조사의 답, 크게 다친 단장
-  fc?: Forecast;   // 결재 직전 우리 수입 어림 (결과와 견준다)
+  fc?: Forecast;   // 결재 직전 우리 수입 예측 (결과와 견준다)
   map0?: number[]; mapBy?: Record<number, number>;   // 우리 지도: 이번 달 전 완성도, 단원마다 보탠 몫
 };
-// 수입 어림: 전리품과 소재 판매 수입의 분포 (약점 · 역효과는 넣지 않는다. 플레이어가 아는 것만으로 셈한다)
+// 수입 예측: 전리품과 소재 판매 수입의 분포 (약점 · 역효과는 넣지 않는다. 플레이어가 아는 것만으로 셈한다)
 export type Forecast = { mean: number; p10: number; p50: number; p90: number; bins: number[]; step: number; dead: number; hurt: number; loot?: number; crisis?: number; torch?: number; food?: number; mend?: number };   // food · mend: 먹을 식량 · 쓸 정비 도구 기대값, loot: 그중 전리품 기대값, crisis: 우리 조가 맞을 위기 기대값, torch: 태울 횃불 기대값
 // 근원: 찾은 달(0이면 아직), 봉인·채굴장 기금, 다 모은 쪽과 그 달
 export type Root = { found: number; seal: number; mine: number; done: '' | 'seal' | 'mine'; at: number };
@@ -669,7 +669,7 @@ export function undMods(u: number, map: number, f = 1) {
   const x = (100 - u) / 100 * (CO.UND_F[f] ?? 1);
   return { succ: -CO.UND_SUCC * x + (map >= 75 ? 0.03 : 0), crisis: (1 + CO.UND_CRISIS * x) * (map >= 25 ? 0.9 : 1), harm: 1 + CO.UND_HARM * x, loot: (1 - CO.UND_LOOT * x) * (map >= 50 ? 1.1 : 1) };
 }
-// 우리 조 하나의 성공률 어림: 층 · 훈련 · 거점 · 봉인 · 빈자리에 조원마다 실력 단계 · 특성 · 조직력을 더한 값의 평균 (약점 · 역효과는 모른다)
+// 우리 조 하나의 성공률 예측: 층 · 훈련 · 거점 · 봉인 · 빈자리에 조원마다 실력 단계 · 특성 · 조직력을 더한 값의 평균 (약점 · 역효과는 모른다)
 export function teamOdds(W: World, c: Company, f: number, who: Person[], pots: number, crowd: number, T: Team | null = null) {
   const p0 = succRate(c, f, pots, crowd) + (rootOf(W, f).done === 'seal' ? CO.SEAL_SUCC : 0);
   const u = teamUnd(c, f, who), U = undMods(u, mapOf(c, f), f);
@@ -871,7 +871,7 @@ export function defaultPlan(W: World): Plan {
 }
 
 // ---------- 경쟁 용병단 ----------
-// 층별 조당 벌이 전망: 지난달 그 층에 간 파티가 실제로 캐 온 값. 지난달 아무도 안 간 층(새로 열린 층 등)은 기준 시세로 어림한다
+// 층별 조당 벌이 전망: 지난달 그 층에 간 파티가 실제로 캐 온 값. 지난달 아무도 안 간 층(새로 열린 층 등)은 기준 시세로 예측한다
 export function outlook(W: World) {
   const L = W.last;
   return FLOORS.map((F, f) => {
@@ -899,7 +899,7 @@ const GROW: Record<Style, { build: number; cap: number; margin: number }> = {
   volume: { build: 1.5, cap: 140, margin: 60 }, steady: { build: 2.5, cap: 100, margin: 120 }, deep: { build: 3.5, cap: 48, margin: 150 }, chaser: { build: 2, cap: 80, margin: 100 },
   hoarder: { build: 3, cap: 64, margin: 120 }, shallow: { build: 3, cap: 20, margin: 120 }, second: { build: 3, cap: 16, margin: 120 }, crowd: { build: 0, cap: 0, margin: 0 }, player: { build: 0, cap: 0, margin: 0 },
 };
-// 조 하나를 더 보냈을 때 남을 돈 어림: 지난달 그 용병단이 보낸 층들의 조당 벌이(평균) − 출정비와 포션 − 늘어날 급여
+// 조 하나를 더 보냈을 때 남을 돈 예측: 지난달 그 용병단이 보낸 층들의 조당 벌이(평균) − 출정비와 포션 − 늘어날 급여
 export function partyMargin(W: World, i: number) {
   const L = W.last, c = W.cos[i]; if (!L) return 0;
   const sent = L.res[i].sent, n = sent.reduce((a, b) => a + b, 0); if (!n) return 0;
@@ -1063,7 +1063,7 @@ export function fireNow(W: World, ids: number[]) {
   B.cost.fire += v; B.fired.push(...go.map(p => p.n || `${p.c} ${p.id}`)); c.cash -= v;
   return go;
 }
-// 지금 붐빔: 지난달 남들이 그 층에 보낸 조 + 지금 그 층에 나가 있는 우리 조 + 이번 조 (수입 어림과 같은 어림)
+// 지금 붐빔: 지난달 남들이 그 층에 보낸 조 + 지금 그 층에 나가 있는 우리 조 + 이번 조 (수입 예측과 같은 예측)
 export function crowdNow(W: World, f: number) {
   const L = W.last, others = L ? L.plans.reduce((a, Q, i) => a + (i ? Q.parties[f] + Q.hire[f] : 0), 0) : 0;
   return others + (W.away || []).filter(s => s.f === f).length + 1;
@@ -1539,7 +1539,7 @@ function settleMonth(W: World, playerPlan: Plan): MonthResult {
   });
   // 탐사 계획서: 이번 달 그 층에 보내겠다고 적어 낸 조 (보낼 수 있는 조까지)
   jobsExplore(W).forEach(J => { J.take = plans.map((P, i) => clamp(Math.floor((P.take && P.take[J.id]) || 0), 0, maxParties(W.cos[i]))); });
-  const fc = W.cos[0].crew ? forecastTrips(W, plans[0], backs) : undefined;   // 이번 달 다녀온 조들을 보낼 때 셈한 어림 (난수 없이)
+  const fc = W.cos[0].crew ? forecastTrips(W, plans[0], backs) : undefined;   // 이번 달 다녀온 조들을 보낼 때 셈한 예측 (난수 없이)
   // 포션 값: 경쟁 용병단은 달 첫날 그 값에 샀고, 우리는 날마다 바로 샀다
   const K = W.cartel, potion = mo.potion, potionC = mo.potionC, potQ = mo.potQ + B0.pot + B0.holy;
   const res = mo.res;
@@ -1947,7 +1947,7 @@ function legislate(W: World) {
     }
   }
 }
-// 이번 달 결재안의 어림 (정직하게 신고할 때): 영주세, 보급 · 층 지원금, 탐사 선금
+// 이번 달 결재안의 예측 (정직하게 신고할 때): 영주세, 보급 · 층 지원금, 탐사 선금
 export function taxGuess(W: World, P: Plan, fc: Forecast) {
   const m = W.month, aid = aidAt(W, m), EX = jobsExplore(W)[0], mul = subMul(W, m);
   const adv = EX ? clamp(Math.floor((P.take && P.take[EX.id]) || 0), 0, maxParties(us(W))) * EX.prem : 0;
@@ -2231,9 +2231,9 @@ function fundRoot(W: World, P: Plan) {
 
 // 성공 정도: 해낸 사람 수로 (넷 다 대성공, 셋 성공, 둘 고전, 하나 이하 실패)
 export const gradeOf = (k: number) => (k >= 4 ? '대성공' : k === 3 ? '성공' : k === 2 ? '고전' : '실패');
-// 수입 어림: 우리 조마다 해낼 사람 수의 분포(이항)를 굴리지 않고 그대로 합쳐, 이번 달 전리품 · 소재 수입의 분포를 낸다.
+// 수입 예측: 우리 조마다 해낼 사람 수의 분포(이항)를 굴리지 않고 그대로 합쳐, 이번 달 전리품 · 소재 수입의 분포를 낸다.
 // 성공률은 화면에 보이는 것(층 · 훈련 · 거점 · 수습 · 빈자리, 붐빔은 지난달 남들만큼)이고 약점과 역효과는 모른다고 본다.
-// 값은 지난달 시세, 층에서 나눠 가진 몫은 지난달 우리 몫, 소재는 기록된 평소 값으로 어림한다. 상태를 쓰지 않고 난수도 쓰지 않는다
+// 값은 지난달 시세, 층에서 나눠 가진 몫은 지난달 우리 몫, 소재는 기록된 평소 값으로 예측한다. 상태를 쓰지 않고 난수도 쓰지 않는다
 export function forecast(W: World, P: Plan): Forecast {
   const c = us(W), L = W.last, I = W.intel;
   let dead = 0, hurt = 0, maxV = 0, floorLoss = 0, lootE = 0, crisis = 0, burn = 0, foodE = 0, mendE = 0;
@@ -2257,7 +2257,7 @@ export function forecast(W: World, P: Plan): Forecast {
       // 층 이해도 (계약 파티는 우리 지도를 모른다고 보지 않고 지도만큼)
       const MW = CO.MISSION_W[(T && T.mission) || 'gather'], u = teamUnd(c, f, who), U = undMods(u, mapOf(c, f), f);
       const pt0 = clamp(p0 + U.succ - rooks * CO.ROOK_PEN - (CO.PARTY - size) * CO.SHORT_PEN, 0.05, 0.97);
-      // 우리 조는 조원마다 실력 단계 · 특성 · 조직력을 더한 성공률의 평균으로 (조원끼리 다른 성공률을 하나로 어림)
+      // 우리 조는 조원마다 실력 단계 · 특성 · 조직력을 더한 성공률의 평균으로 (조원끼리 다른 성공률을 하나로 예측)
       const MM = who && who.length ? memberMods(who, f, u) : null;
       const pt = MM ? MM.pp.reduce((a, d) => a + clamp(pt0 + d, 0.05, 0.97), 0) / who!.length : pt0;
       const keys = who ? [...new Set(who.map(x => 'c:' + x.c)), ...(T!.g ? [T!.g] : [])] : [];
@@ -2275,7 +2275,7 @@ export function forecast(W: World, P: Plan): Forecast {
       const pwin = odds ? 1 - Math.pow(1 - pd, size) - one1 : 1, lf = odds ? 1 - (1 - CO.LOSE_LOOT) * g1 / Math.max(1e-9, size * pg) : 1, wG = odds ? MW[0] * CO.GATHER_K : 1;
       const matOf = (M: typeof mons[number]) => M.mats.reduce((b, x) => b + matChance(x, keys, full) / CO.PARTY * ((W.mat && W.mat.ref[x.n]) || x.val) * (x.k ? (x.k[0] + x.k[1]) / 2 : 1) * demandMul(W, x.n), 0);
       const mat = hired ? 0 : (MM ? MM.mat : 1) * (odds ? mons.reduce((a, M, j) => a + CO.ENC_W[j] * CO.DAYS * CO.MAT_ENC * matOf(M), 0) * dk * MW[1] * CO.HUNT_MAT * ((T && T.mission) === 'hunt' ? CO.HUNT_CARE : 1) * (pwin + (1 - pwin) * CO.LOSE_MAT / 2) : mons.reduce((a, M) => a + matOf(M), 0));
-      // 식량 · 정비 도구를 쓸 어림: 다닐 날만큼 사람마다 먹고(들고 간 만큼까지), 진 날마다 도구 하나 (들고 간 만큼까지)
+      // 식량 · 정비 도구를 사용 예측: 다닐 날만큼 사람마다 먹고(들고 간 만큼까지), 진 날마다 도구 하나 (들고 간 만큼까지)
       if (T && odds) { foodE += size * Math.min(T.food != null ? T.food : foodDays(P, f), dk * CO.DAYS); mendE += Math.min(teamMend(P, T), dk * CO.DAYS * (1 - Math.pow(pwin, MW[1] / segDay(f)))); }
       // 짐 칸: 실어 올 칸(채집품 · 전리품 · 지도 기록)의 기대가 빈 칸(채비를 뺀)을 넘으면 넘는 몫의 절반쯤 두고 온다
       const free = T && who ? Math.max(0, teamSlots(who) - Math.min(teamTorch(P, T), teamSlots(who)) - pk - teamFood(P, T) / CO.FOOD_SLOT - teamMend(P, T)) : Infinity;
@@ -2326,20 +2326,20 @@ export function forecast(W: World, P: Plan): Forecast {
   for (let b = 0; b < NBIN; b++) if (dist[b]) bins[Math.min(NB - 1, Math.floor(b * step / width))] += dist[b];
   return { mean: Math.round(mean), p10: q(0.1), p50: q(0.5), p90: q(0.9), bins: bins.map(x => Math.round(x * 1000) / 1000), step: width, dead: Math.round(dead * 10) / 10, hurt: Math.round(hurt * 10) / 10, loot: Math.round(Math.max(0, lootE - floorLoss)), crisis: Math.round(crisis * 10) / 10, torch: Math.round(burn), food: Math.round(foodE), mend: Math.round(mendE * 10) / 10 };
 }
-// 이번 달 다녀온 우리 조들의 어림: 보낼 때의 조원(사본)과 채비로 짠 조마다 한 번씩 (같은 조가 여러 번 다녀왔으면 그만큼). 계약 조는 정산 때의 것
+// 이번 달 다녀온 우리 조들의 예측: 보낼 때의 조원(사본)과 채비로 짠 조마다 한 번씩 (같은 조가 여러 번 다녀왔으면 그만큼). 계약 조는 정산 때의 것
 export function forecastTrips(W: World, P: Plan, trips: Sortie[]): Forecast {
   const c = us(W), have = new Set((c.crew || []).map(p => p.id));
   const crew = [...(c.crew || []), ...trips.flatMap(s => s.who.filter(p => !have.has(p.id)))];
   const teams: Team[] = trips.map(s => ({ f: s.f, m: [...s.m], g: s.kit.gear ? 'g:' + s.kit.gear : '', pots: s.kit.pots, torch: s.kit.torch, food: s.m.length ? Math.floor(s.kit.food / s.m.length) : 0, mend: s.kit.mend, ...(s.mission ? { mission: s.mission } : {}) }));
-  // 같은 사람이 여러 번 다녀왔으면 조마다 따로 센다 (어림은 사람을 읽기만 한다)
+  // 같은 사람이 여러 번 다녀왔으면 조마다 따로 센다 (예측은 사람을 읽기만 한다)
   const W2: World = { ...W, cos: [{ ...c, crew }, ...W.cos.slice(1)] };
   return forecast(W2, { ...P, teams, parties: FLOORS.map((_, f) => teams.filter(T => T.f === f).length) });
 }
 const binom = (n: number, k: number) => { let r = 1; for (let j = 1; j <= k; j++) r = r * (n - k + j) / j; return r; };
-// 어림에서 이 값이 아래에서 몇 %쯤인가 (그림 칸으로 셈)
+// 예측에서 이 값이 아래에서 몇 %쯤인가 (그림 칸으로 셈)
 export const fcRank = (fc: Forecast, v: number) => { let acc = 0; for (let b = 0; b < fc.bins.length; b++) { const lo = b * fc.step; if (v < lo + fc.step) return Math.min(1, acc + fc.bins[b] * Math.max(0, (v - lo) / fc.step)); acc += fc.bins[b]; } return 1; };
 
-// 하르덴 주민 어림: 용병 한 명마다 식구·대장장이·여관·짐꾼이 따라붙는다 (화면과 신문이 쓴다)
+// 하르덴 주민 예측: 용병 한 명마다 식구·대장장이·여관·짐꾼이 따라붙는다 (화면과 신문이 쓴다)
 export const townOf = (W: World) => Math.round((600 + 6 * W.cos.reduce((a, c) => a + c.members, 0)) / 100) * 100;
 // want만큼 찾는 이들에게 pool을 무게(want × wt)대로 나눈다. 다 줄 수 있으면 찾는 만큼, 모자라면 무게대로 (찾는 것보다 많이는 주지 않는다)
 export function shareOut(want: number[], wt: number[], pool: number) {

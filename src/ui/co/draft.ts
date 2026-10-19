@@ -49,7 +49,7 @@ export function draftHtml(W: World, F0: Partial<Filing>, live = false) {
         <div class="me"><small>순이익 (이 신고서)</small><b class="${netF < 0 ? 'neg' : 'pos'}">${sgn(netF)}G</b><i>${X.total ? `장부 그대로보다 <b class="pos">+${fmt(X.total)}</b> · 걸리면 ×${1 + TAX.AUDIT_PEN} 추징` : '장부 그대로'}</i></div>
       </div>
       <p class="note rumor">${X.watched || (c.watch || 0) >= D.m ? '스캔들 뒤로 회계관이 우리 장부를 지켜본다는 말이 있어요.' : suspSay(c.sus || 0)}</p></section>
-    <section class="rp"><h3>법령</h3>${lawsHtml(W, D.m)}</section>
+    <section class="rp">${lawsHtml(W, D.m)}</section>
   </article>
   <div class="foot"><button type="button" class="ghost" data-act="file-reset">장부 그대로 다시</button><span class="tot">순이익 <b class="${netF < 0 ? 'neg' : 'pos'}">${sgn(netF)}G</b>${X.total ? ` <span class="dim">(장부 그대로보다 +${fmt(X.total)})</span>` : ''}</span><button type="button" class="seal" data-act="file">신고서 내기</button></div></div>`;
 }

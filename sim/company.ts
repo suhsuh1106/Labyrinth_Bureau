@@ -103,14 +103,14 @@ export const FILER: Record<string, (W: World) => Partial<Filing>> = {
 };
 
 // 숙련 봇: 경쟁자와 군소 용병대가 지난달 벌이를 쫓아 몰려다니므로, 한 층에 몰아넣지 않고 열린 층에 고르게 나누되
-// 조당 남는 돈(기준 시세와 지난 시세의 중간으로 어림)에 비례해 기울인다. 포션은 5병, 훈련비는 300(훈련은 갈수록 덜 올라 이 근처가 가장 낫다), 채집 장비 1단계,
+// 조당 남는 돈(기준 시세와 지난 시세의 중간으로 예측)에 비례해 기울인다. 포션은 5병, 훈련비는 300(훈련은 갈수록 덜 올라 이 근처가 가장 낫다), 채집 장비 1단계,
 // 크게 남는 층에는 계약 파티를 쓴다.
 // 거점과 쌓아 두기는 지금 규모에서는 손해라 쓰지 않는다 (시뮬레이션으로 확인함)
 const GROW_K = +(process.env.GROW_K || 1.2), GROW_M = +(process.env.GROW_M || 80);
 const CLERK_HI = +(process.env.CLERK_HI || 0.8), CLERK_LO = +(process.env.CLERK_LO || 0.5)// 지정 탐사로 주 몬스터를 노리는 것도 지금은 조금 손해다 (주 몬스터가 더 어렵다). AIM=1이면 노린다
 , AIM = process.env.AIM === '1', KEY_TPL = process.env.KEY_TPL === '1';
 // 임무: 지도가 SCOUT_UNDER 밑인 층마다 한 조는 탐색, 단장 조는 사냥(도감 · 단장 조사), 나머지는 채집. MISSION=0이면 모두 채집
-// 사냥은 조마다 수입 어림(사망 하나를 DEATH_V로 뺀)이 채집보다 HUNT_EDGE만큼 나으면, 조의 HUNT_MAX까지 (어림은 사냥을 조금 후하게 본다)
+// 사냥은 조마다 수입 예측(사망 하나를 DEATH_V로 뺀)이 채집보다 HUNT_EDGE만큼 나으면, 조의 HUNT_MAX까지 (예측은 사냥을 조금 후하게 본다)
 const MISSION = process.env.MISSION !== '0', SCOUT_UNDER = +(process.env.SCOUT_UNDER || 60), LEAD_HUNT = process.env.LEAD_HUNT !== '0';
 const DEATH_V = +(process.env.DEATH_V || 300), HUNT_EDGE = +(process.env.HUNT_EDGE || 0.05), HUNT_MAX = +(process.env.HUNT_MAX || 0.5);
 export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine', kit = true, scout = false, guide = true, askAll = ASK_ALL, missions = MISSION): Plan {
@@ -251,7 +251,7 @@ export function deduce(W: World) {
 }
 
 // 조사 의뢰로 붐빔 읽기: 금고가 넉넉하면 지난달 가장 많이 보낸 경쟁 용병단 둘의 이번 달 계획을 사 보고, 나머지는 지난달만큼 온다고 본다.
-// 층마다 모두가 캐 갈 양이 층의 크기를 넘으면 나눠 갖는다고 보고(층에 남은 양은 모르므로 가득의 3/4로 어림), 사망의 값까지 빼서
+// 층마다 모두가 캐 갈 양이 층의 크기를 넘으면 나눠 갖는다고 보고(층에 남은 양은 모르므로 가득의 3/4로 예측), 사망의 값까지 빼서
 // 한 조를 더 보냈을 때 우리 몫이 가장 많이 느는 층에 한 조씩 나눈다. 조사할 수 없는 달은 원래 나누기(base)를 쓴다
 export function scoutSplit(W: World, n: number, pots: number, value: number[]) {
   const c = us(W), L = W.last;

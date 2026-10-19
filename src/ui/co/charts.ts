@@ -163,11 +163,11 @@ export function priceBoard(W: World) {
   return `<table class="grid board"><thead><tr><th>채집품</th><th>흐름</th><th class="n">시세</th><th class="n">전월 대비</th>${seeQ ? '<th>공급 / 수요</th>' : ''}<th class="n range">가격대</th></tr></thead><tbody>${rows}</tbody></table>${seeQ ? '' : '<p class="note sd-lock">공급 / 수요는 상단 장부 1단계부터 보여요</p>'}`;
 }
 
-// 수입 어림 그림: 이번 달 채집품 · 전리품 수입이 얼마쯤 나올지 (막대는 그 값이 나올 가능성, 옅은 띠는 열에 여덟이 드는 폭).
+// 수입 예측 그림: 이번 달 채집품 · 전리품 수입이 얼마쯤 나올지 (막대는 그 값이 나올 가능성, 옅은 띠는 열에 여덟이 드는 폭).
 // 이번 달 나갈 돈(cost)과 실제로 나온 값(actual)이 있으면 선으로 긋는다
 export function fcChart(fc: Forecast, cost: number | null, actual: number | null, aria: string) {
   const W = 640, H = 130, L = 8, R = 8, T = 10, B = 22;
-  // 가로축: 어림이 거의 다 들어가는 곳(누적 99.5%)과 비용 · 실제 중 큰 값까지, 보기 좋은 끝값으로
+  // 가로축: 예측이 거의 다 들어가는 곳(누적 99.5%)과 비용 · 실제 중 큰 값까지, 보기 좋은 끝값으로
   let acc = 0, last = 0; fc.bins.forEach((p, b) => { acc += p; if (acc < 0.995) last = b + 1; });
   const hi = nice(Math.max((last + 1) * fc.step, cost || 0, actual || 0, fc.p90 * 1.1)), top = Math.max(...fc.bins, 0.001);
   const X = (v: number) => L + (W - L - R) * Math.min(1, v / hi), Y = (p: number) => T + (H - T - B) * (1 - p / top);
@@ -182,4 +182,4 @@ export function fcChart(fc: Forecast, cost: number | null, actual: number | null
     ${band}${bars}<line x1="${L}" x2="${W - R}" y1="${H - B}" y2="${H - B}" class="fc-axis"/>
     ${vline(fc.mean, 'fc-mean')}${cost != null ? vline(cost, 'fc-cost') : ''}${actual != null ? vline(actual, 'fc-act') : ''}${ticks}</svg>${key}</figure>`;
 }
-// 어림 숫자 한 줄: 기대 · 나쁜 달 · 좋은 달 (그리고 나갈 돈이 있으면 기대 순이익과 적자 가능성)
+// 예측 숫자 한 줄: 기대 · 나쁜 달 · 좋은 달 (그리고 나갈 돈이 있으면 기대 순이익과 적자 가능성)

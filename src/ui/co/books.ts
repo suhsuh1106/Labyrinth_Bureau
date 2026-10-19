@@ -13,21 +13,29 @@ export const ROW: Record<FileKey, { n: string; u: string; step: number; dir: str
 };
 
 const LAW_NAME: Record<Law['kind'], string> = { mat: '시장 등록', aid: '층 지원금', sub: '보급 지원금', loot: '채집품 세율', check: '대조 강화' };
+// 법령 한 조: 공문 말투로 (숫자는 결정에 쓰는 것만)
 export function lawLine(L: Law) {
-  if (L.kind === 'mat') return `${L.m} 시장 등록 · 세금 ${Math.round((L.rate || 0) * 100)}%`;
-  if (L.kind === 'aid') return `${FLOORS[L.f!].name}에 들어가는 조마다 ${fmt(L.amt || 0)}G`;
-  if (L.kind === 'sub') return L.rate ? `포션 · 횃불 지원금 ${Math.round((L.rate || 0) * 100)}%로 줄임` : '포션 · 횃불 지원금 끊음';
-  if (L.kind === 'check') return `${ROW[L.k!].n}${jo(ROW[L.k!].n, '을', '를')} ${FILE_SRC[L.k!]}${jo(FILE_SRC[L.k!], '과', '와')} 더 꼼꼼히 맞대 봄 (걸릴 확률 ×${TAX.CHECK_DET}, 의심 ×${TAX.CHECK_SUS})`;
-  return `채집품 세율 +${Math.round((L.rate || 0) * 100)}%p (범람 복구)`;
+  if (L.kind === 'mat') return `${L.m}${jo(L.m || '', '을', '를')} 시장에 등록함 · 세율 ${Math.round((L.rate || 0) * 100)}%`;
+  if (L.kind === 'aid') return `${FLOORS[L.f!].name}에 드는 조마다 ${fmt(L.amt || 0)}G 지급`;
+  if (L.kind === 'sub') return L.rate ? `포션 · 횃불 지원금을 ${Math.round((L.rate || 0) * 100)}%로 줄임` : '포션 · 횃불 지원금을 거둠';
+  if (L.kind === 'check') return `신고서의 ${ROW[L.k!].n}${jo(ROW[L.k!].n, '을', '를')} ${FILE_SRC[L.k!]}${jo(FILE_SRC[L.k!], '과', '와')} 엄히 대조함`;
+  return `범람 복구를 위하여 채집품 세율을 ${Math.round((L.rate || 0) * 100)}%p 올림`;
 }
-const until = (L: Law) => (L.until >= 999 ? '계속' : `제${L.until}월까지`);
-// 법령 게시: 지금 효력이 있는 것과 다음 달부터의 것. 지금의 기본 세율과 지원금 단가도 함께
+const until = (L: Law) => (L.until >= 999 ? '' : `제${L.until}월까지`);
+// 영주청 고시: 공문 한 장. 기본 세율 · 지원금 단가가 앞 조항, 효력 있는 법령과 예고된 법령이 뒤 조항
 export function lawsHtml(W: World, m = W.month) {
   const now = lawsAt(W, m), next = (W.laws || []).filter(L => L.from > m);
   const rate = TAX.LOOT + now.filter(L => L.kind === 'loot').reduce((a, L) => a + (L.rate || 0), 0), mul = now.filter(L => L.kind === 'sub').reduce((a, L) => Math.min(a, L.rate ?? 1), 1);
-  const row = (L: Law, soon: boolean) => `<li class="law ${L.kind}"><span class="lk">${LAW_NAME[L.kind]}</span><span>${lawLine(L)}</span><span class="dim">${soon ? `제${L.from}월부터 · ` : ''}${until(L)}</span></li>`;
-  return `<div class="laws"><p class="note">영주세 <b>${Math.round(rate * 100)}%</b> (채집품) · 전리품은 시장 등록 전엔 세금 없음 · 포션 지원 <b>${fmt(TAX.SUB_POT * mul)}G</b>/병 · 횃불 지원 <b>${fmt(TAX.SUB_TORCH * mul)}G</b>/개 · 교회 후원 공제 ${Math.round(TAX.DONATE_CREDIT * 100)}% · 큰 용병단 감면 있음 (우리 없음)</p>
-    ${now.length || next.length ? `<ul class="lawlist">${next.map(L => row(L, true)).join('')}${now.map(L => row(L, false)).join('')}</ul>` : '<p class="note">지금 붙은 법령이 없어요. 영주청은 넉 달마다 장부를 살펴 법령을 고시해요.</p>'}</div>`;
+  const art = (h: string, t: string, cls = '', when = '') => `<li class="${cls}"><b>${h}</b><span>${t}</span>${when ? `<small>${when}</small>` : ''}</li>`;
+  const base = [
+    art('영주세', `채집품 판매액의 ${Math.round(rate * 100)}% · 전리품은 시장에 등록된 품목만`),
+    art('보급 지원금', mul > 0 ? `포션 한 병에 ${fmt(TAX.SUB_POT * mul)}G · 횃불 하나에 ${fmt(TAX.SUB_TORCH * mul)}G` : '없음'),
+    art('교회 후원', `후원한 돈의 ${Math.round(TAX.DONATE_CREDIT * 100)}%를 세금에서 덜어 줌`),
+  ];
+  const laws = [...next.map(L => art(LAW_NAME[L.kind], lawLine(L), `law ${L.kind} soon`, `예고 · 제${L.from}월부터${until(L) ? ' ' + until(L) : ''}`)), ...now.map(L => art(LAW_NAME[L.kind], lawLine(L), `law ${L.kind}`, until(L)))];
+  return `<article class="decree" aria-label="영주청 고시"><header><small>하르덴 백작령 영주청</small><h4>고 시</h4><small>제${m}월</small></header>
+    <ol>${[...base, ...laws].join('')}</ol>
+    <footer>하르덴 백작<span class="dc-seal" aria-hidden="true">印</span></footer></article>`;
 }
 
 // 정산서의 신고 줄: 낸 신고와 고지서, 감사 결과 (기록을 읽어 보여 주기만 한다)

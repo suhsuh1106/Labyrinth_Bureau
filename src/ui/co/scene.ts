@@ -103,11 +103,11 @@ export function openScene(W: World, i: number, sfx: (k: string) => void = () => 
       } });
     });
     steps.push({ ms: 650, fn: () => {
-      const vt = ev === 'f' ? (d.win ? '승' : '패') : d.win ? '해냄' : '놓침';
+      const vt = ev === 'f' ? (d.win ? '승' : '패') : d.win ? '성공' : '실패';
       const v = $('.sc-verdict'); v.textContent = vt; v.className = `sc-verdict ${d.win ? 'w' : 'x'}`;
       $('.sc-mon').classList.add(d.win ? 'beaten' : 'won');
       const mats = d.mats.map(([a, c]) => `${esc(a)} ×${c}`).join(', ');
-      log(`${vt} · ${d.k}/${d.n} 해냄${d.loot ? ` · 채집품 ${d.loot}칸` : ''}${mats ? ` · <b class="mat">${mats}</b>` : ''}${d.fx ? ' · 정비 도구로 고침' : ''}${d.bl ? ` · <b class="hurt">무뎌짐 ${d.bl}</b>` : ''}`);
+      log(`${vt} · 성공 ${d.k}/${d.n}${d.loot ? ` · 채집품 ${d.loot}칸` : ''}${mats ? ` · <b class="mat">${mats}</b>` : ''}${d.fx ? ' · 정비 도구로 고침' : ''}${d.bl ? ` · <b class="hurt">무뎌짐 ${d.bl}</b>` : ''}`);
       if (mats) pop($('.sc-mon'), '갈무리', 'mat');
       else if (d.loot) pop($('.sc-mon'), '채집', 'mat');
       sup(d.tl ?? 0, d.pl ?? 0, d.fl ?? 0, d.ol ?? 0, d.pk ?? 0, d.pm ?? 0, d.pt ?? 0);
@@ -121,7 +121,7 @@ export function openScene(W: World, i: number, sfx: (k: string) => void = () => 
     steps.push({ ms: 900, fn: () => {
       el.classList.add('dark'); $('.sc-day').textContent = '귀환';
       const mb = $('.sc-mon'); mb.classList.remove('main', 'beaten', 'won'); (mb.querySelector('.ic') as HTMLElement).textContent = '·'; (mb.querySelector('b') as HTMLElement).textContent = '어둠'; (mb.querySelector('small') as HTMLElement).textContent = '횃불 없음';
-      log(`횃불 다 씀 · <b class="hurt">어둠 속 귀환</b>${T.dark ? '' : ' · 무사히'}`);
+      log(`횃불 소진 · <b class="hurt">어둠 속 귀환</b>${T.dark ? '' : ' · 무사히'}`);
     } });
     if (T.dm) dice(T.dm, '');
     steps.push({ ms: 250, fn: () => { const c = $('.sc-days i[data-j="dark"]'); if (T.dark) c.textContent = '!'; c.classList.add('on'); } });
@@ -129,7 +129,7 @@ export function openScene(W: World, i: number, sfx: (k: string) => void = () => 
   steps.push({ ms: 0, fn: () => {
     const w = D.filter(d => d.win).length, dead = x.dead || [];
     $('.sc-day').textContent = TRIP_END[T.end];
-    log(`<b>${TRIP_END[T.end]}</b> · ${T.fd ?? D.length}일 · 구간 ${D.length} · ${w}번 해냄 · 짐 ${T.pack}/${T.slots}칸${dead.length ? ` · <b class="dead">† ${dead.map(z => esc(z.n)).join(', ')}</b>` : ''}`);
+    log(`<b>${TRIP_END[T.end]}</b> · ${T.fd ?? D.length}일 · 구간 ${D.length} · 성공 ${w} · 짐 ${T.pack}/${T.slots}칸${dead.length ? ` · <b class="dead">† ${dead.map(z => esc(z.n)).join(', ')}</b>` : ''}`);
     sfx(dead.length ? 'lose' : w * 2 >= D.length ? 'win' : 'lose');
     el.classList.add('fin'); ($('[data-sc="pause"]')).hidden = true; ($('[data-sc="end"]')).hidden = true;
   } });

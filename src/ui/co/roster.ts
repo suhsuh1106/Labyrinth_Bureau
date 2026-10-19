@@ -6,6 +6,7 @@ import { type Day, evOf } from '../../core/expedition';
 import { floorMons } from '../../core/company';
 import { DEX, badSure } from '../../core/dex';
 import { GEARS, PAIR_CLASS, TIER_N, TRAITS, WEAK_KEYS } from '../../core/data';
+import { el } from './icons';
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
@@ -34,7 +35,7 @@ export function rosterHtml(W: World, sort?: string, raw?: Plan) {
   const rows = sortRows(crew.map(p => ({ p })), cur.k, cur.d, (r, k) => pval(r.p, k));
   const tiers = TIER_N.map((_, t) => crew.filter(p => tierOf(p) === t).length);
   return `<div class="rs-sum">${TIER_N.map((n, t) => (tiers[t] ? `<span>${n} <b>${tiers[t]}</b></span>` : '')).join('')}<span>급여 합 <b>${fmt(crew.reduce((a, p) => a + personWage(p), 0))}G</b> <small class="dim">(관리비 따로)</small></span></div>
-    <div class="tw"><table class="grid crewt"><thead><tr>${th('name', '이름', cur, 'rs')}${th('cls', '직업', cur, 'rs')}${th('sk', '실력', cur, 'rs')}${th('tr', '특성', cur, 'rs')}${open.map(f => th('ex' + f, FLOORS[f].name + ' 경험', cur, 'rs', 'n')).join('')}${th('wins', '해낸 수', cur, 'rs', 'n')}${th('st', '상태', cur, 'rs')}${th('wage', '급여', cur, 'rs', 'n')}<th title="다음 날 아침 떠남 · 위로금 ${CO.FIRE_PAY}달치 급여 (탐사 중인 사람은 돌아온 뒤)">해고</th></tr></thead>
+    <div class="tw"><table class="grid crewt"><thead><tr>${th('name', '이름', cur, 'rs')}${th('cls', '직업', cur, 'rs')}${th('sk', '실력', cur, 'rs')}${th('tr', '특성', cur, 'rs')}${open.map(f => th('ex' + f, FLOORS[f].name + ' 경험', cur, 'rs', 'n')).join('')}${th('wins', '성공', cur, 'rs', 'n')}${th('st', '상태', cur, 'rs')}${th('wage', '급여', cur, 'rs', 'n')}<th title="다음 날 아침 떠남 · 위로금 ${CO.FIRE_PAY}달치 급여 (탐사 중인 사람은 돌아온 뒤)">해고</th></tr></thead>
     <tbody>${rows.map(({ p }) => `<tr${p.hurt || out.includes(p.id) ? ' class="away"' : ''}><td class="nm">${p.lead ? '<span class="lead-b" title="단장: 죽지 않고, 크게 다치면 두 달 쉰다. 단장 조사를 맡는다">단장</span>' : ''}${esc(nameOf(p))}</td><td class="cn">${p.c}</td><td>${tierHtml(p)}</td><td>${traitHtml(p)}</td>${open.map(f => exCell(p, f, false)).join('')}<td class="n">${p.wins || 0}</td><td class="st">${p.hurt ? `<span class="hurt">부상 · ${p.hurt}일 쉼</span>` : ''}</td><td class="n">${personWage(p)}</td><td>${p.lead ? '' : `<button type="button" class="tog sm" data-act="fire" data-id="${p.id}" aria-pressed="${out.includes(p.id)}" title="위로금 ${Math.round(personWage(p) * CO.FIRE_PAY)}G">${out.includes(p.id) ? '내보냄' : '해고'}</button>`}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
@@ -48,7 +49,7 @@ export function candHtml(W: World, raw: Plan, sort?: string) {
     <tbody>${rows.map(({ p }) => { const k = picks.indexOf(p.id), on = k >= 0, full = !on && picks.length >= room;
       return `<tr${on ? ' class="on"' : ''}><td class="nm">${p.lead ? '<span class="lead-b" title="단장: 죽지 않고, 크게 다치면 두 달 쉰다. 단장 조사를 맡는다">단장</span>' : ''}${esc(nameOf(p))}</td><td class="cn">${p.c}</td><td>${tierHtml(p)}</td><td>${traitHtml(p)}</td><td class="n">${fmt(candPrice(p, rp))}</td><td class="n">${personWage(p)}</td>
         <td><button type="button" class="tog" data-act="pick" data-id="${p.id}" aria-pressed="${on}"${full ? ' disabled title="빈 침상이 모자라요"' : ''}>${on ? `${k + 1}번째로 뽑기` : '뽑기'}</button></td></tr>`; }).join('') || '<tr><td colspan="7" class="dim">이번 달엔 찾아온 사람이 없어요</td></tr>'}</tbody></table></div>
-    <p class="note">${picks.length ? `고른 ${picks.length}명 · 계약금 어림 ${fmt(total)}G` : raw.pick ? '아무도 뽑지 않아요' : `고르지 않으면 빈 침상만큼 기본 편성 직업 순으로 실력 좋은 사람부터 뽑아요`} · 빈 침상 ${room}개. 다른 용병단이 같은 사람을 찾으면 명성이 높은 곳이 먼저고, 찾는 사람이 많으면 계약금이 올라요.${raw.pick ? ' <button type="button" class="link" data-act="auto-recruit">자동으로 뽑기</button>' : ''}</p>`;
+    <p class="note">${picks.length ? `고른 ${picks.length}명 · 계약금 예측 ${fmt(total)}G` : raw.pick ? '아무도 뽑지 않아요' : `고르지 않으면 빈 침상만큼 기본 편성 직업 순으로 실력 좋은 사람부터 뽑아요`} · 빈 침상 ${room}개. 다른 용병단이 같은 사람을 찾으면 명성이 높은 곳이 먼저고, 찾는 사람이 많으면 계약금이 올라요.${raw.pick ? ' <button type="button" class="link" data-act="auto-recruit">자동으로 뽑기</button>' : ''}</p>`;
 }
 
 // 짐 칸: 한 사람 SLOT_PP칸. 쓰는 것(횃불 주황 · 포션 빨강 · 식량 초록 · 정비 도구 회색)이 앞에서부터, 채집품(금빛)은 뒤에서부터 찬다
@@ -56,8 +57,8 @@ export function candHtml(W: World, raw: Plan, sort?: string) {
 export const EV_NAME = { g: '채집 지점', f: '조우', t: '흔적' } as const;
 export const dayCls = (d: Day) => `${d.win ? 'w' : 'x'} e${evOf(d)}${d.d ? ' dead' : ''}`;
 export const dayMark = (d: Day) => (d.d ? '†' : d.cr ? '!' : '');
-export const dayTip = (d: Day, j: number) => `${d.dd ?? j + 1}일 · ${d.mon ? `${d.am ? '들킴 · ' : ''}${d.mon}` : EV_NAME[evOf(d)]} · ${d.mon ? (d.win ? '승' : '패') : d.win ? '해냄' : '못 해냄'} ${d.k}/${d.n}${d.loot ? ` · 채집품 ${d.loot}칸` : ''}${d.mats.length ? ` · ${d.mats.map(([m, c]) => `${m} ×${c}`).join(', ')}` : ''}${d.cr ? ` · 부상 주사위 ${d.cr}${d.sv ? ` · 포션으로 살림 ${d.sv}` : ''}` : ''}`;
-export const DAY_LEGEND = '<i class="w eg"></i>채집 지점 <i class="w ef"></i>조우 <i class="w et"></i>흔적 · 채운 칸 해냄 · 빈 칸 못 해냄 · ! 부상 · † 사망';
+export const dayTip = (d: Day, j: number) => `${d.dd ?? j + 1}일 · ${d.mon ? `${d.am ? '들킴 · ' : ''}${d.mon}` : EV_NAME[evOf(d)]} · ${d.mon ? (d.win ? '승' : '패') : d.win ? '성공' : '실패'} ${d.k}/${d.n}${d.loot ? ` · 채집품 ${d.loot}칸` : ''}${d.mats.length ? ` · ${d.mats.map(([m, c]) => `${m} ×${c}`).join(', ')}` : ''}${d.cr ? ` · 부상 주사위 ${d.cr}${d.sv ? ` · 포션으로 살림 ${d.sv}` : ''}` : ''}`;
+export const DAY_LEGEND = '<i class="w eg"></i>채집 지점 <i class="w ef"></i>조우 <i class="w et"></i>흔적 · 채운 칸 성공 · 빈 칸 실패 · ! 부상 · † 사망';
 // 실어 온 것(채집품 금빛 · 전리품 장밋빛 · 지도 기록 푸른빛)은 뒤에서부터 찬다
 export function packBar(slots: number, torch: number, pots: number, loot = 0, food = 0, mend = 0, mat = 0, map = 0) {
   const l = Math.min(slots, Math.round(loot)), m = Math.min(slots - l, Math.round(mat)), n = Math.min(slots - l - m, Math.round(map)), got = l + m + n;
@@ -72,7 +73,7 @@ export const sendBtn = (T: { f: number; go?: boolean }, t: number) => `<button t
 // ---------- 출정 편성표 ----------
 // 임무: 구간마다 사건의 비중 (채집 지점 · 조우 · 흔적)
 const MISSION_TIP: Record<Mission, string> = Object.fromEntries((['gather', 'hunt', 'scout'] as Mission[]).map(k => [k, `${{ gather: '채집: 몬스터를 피해 채집 지점 위주 · 안전', hunt: '사냥: 조우 위주 · 전리품과 도감', scout: '탐색: 흔적을 따라 지도 위주 · 흔적에서 다칠 수 있음' }[k]} · 채집 지점 ${Math.round(CO.MISSION_W[k][0] * 100)}% · 조우 ${Math.round(CO.MISSION_W[k][1] * 100)}% · 흔적 ${Math.round(CO.MISSION_W[k][2] * 100)}%`])) as Record<Mission, string>;
-// 조 요약 줄: 층, 사람 수, 직업, 조직력, 성공률 어림, 장비, 살필 것. 아래 명단의 배치 칸으로 사람을 넣고 뺀다
+// 조 요약 줄: 층, 사람 수, 직업, 조직력, 성공률 예측, 장비, 살필 것. 아래 명단의 배치 칸으로 사람을 넣고 뺀다
 export function assignHtml(W: World, P: Plan, others: (f: number) => number, sort?: string) {
   const c = us(W), crew = c.crew || [], byId = new Map(crew.map(p => [p.id, p])), teams = P.teams || [];
   const teamOf = new Map<number, number>(); teams.forEach((T, t) => T.m.forEach(id => { if (id != null) teamOf.set(id, t); }));
@@ -94,7 +95,7 @@ export function assignHtml(W: World, P: Plan, others: (f: number) => number, sor
     const bonded = cohesion(who) > 0, fresh = bonded ? who.filter(p => who.every(x => x.id === p.id || !((p.mt && p.mt[x.id]) || 0))).length : 0;
     // 확정한 역효과: 그 층 몬스터의 역효과 장비를 들었거나, 그 속성을 맡는 직업이 맨몸으로 끼었으면 (단장이 있으면 괜찮다)
     const badW = synOf(who).lead ? [] : floorMons(W, T.f).flatMap(M => { const b = badSure((W.dex || {})[M.name]); if (!b) return []; const nm = b.slice(2);
-      return T.g === b ? [`역효과 ${nm} 장비`] : who.some(p => PAIR_CLASS[nm] === p.c) ? [`역효과 ${PAIR_CLASS[nm]}`] : []; });
+      return T.g === b ? [`역효과 ${el(b, { bad: true, tip: `역효과 ${nm} 장비` })}장비`] : who.some(p => PAIR_CLASS[nm] === p.c) ? [`역효과 ${el(b, { bad: true, tip: `역효과 ${nm}` })}${PAIR_CLASS[nm]} 맨몸`] : []; });
     const warn = [...new Set(badW),...(who.length < CO.PARTY ? [`빈자리 ${CO.PARTY - who.length}`] : []), ...(fresh ? [`새 얼굴 ${fresh}`] : []),
       ...(T.f > 0 && o.u < 50 && who.some(p => p.tr === '새가슴') ? ['새가슴'] : [])];
     const best = Math.max(0, ...who.map(p => (p.ex && p.ex[T.f]) || 0)), m = Math.round(mapOf(c, T.f)), guide = who.some(p => p.tr === '길잡이');
@@ -102,11 +103,11 @@ export function assignHtml(W: World, P: Plan, others: (f: number) => number, sor
     return `<tr class="t${t % 8}"><td><b>${t + 1}조</b>${goCell(T, t)}</td>
       <td class="stk"><span class="seg sm" role="group" aria-label="${t + 1}조 층">${open.map(f => `<button type="button" data-act="tfloor" data-t="${t}" data-f="${f}" aria-pressed="${T.f === f}">${FLOORS[f].name}</button>`).join('')}</span>
       <span class="seg sm ms" role="group" aria-label="${t + 1}조 임무">${MISSIONS.map(k => `<button type="button" data-act="tmission" data-t="${t}" data-m="${k}" aria-pressed="${ms === k}" title="${MISSION_TIP[k]}">${MISSION_NAME[k]}</button>`).join('')}</span></td>
-      <td class="n">${who.length}/${CO.PARTY}</td><td><span class="cl">${who.map(p => `<span${p.lead ? ' class="lead" title="단장"' : ''}>${p.lead ? '★' : ''}${p.c}</span>`).join('')}</span>${(() => { const ks = WEAK_KEYS.map(k => [k, weakShare(k, who.map(p => p.c), T.g ? [T.g] : [])] as const).filter(([, v]) => v > 0); return ks.length ? `<small class="dim wk" title="찌를 수 있는 약점: 직업 둘이나 장비 한 벌이면 다, 직업 하나면 ¼">약점 ${ks.map(([k, v]) => `${k.slice(2)}${v < 1 ? (v <= 0.25 ? '¼' : '½') : ''}`).join(' · ')}</small>` : ''; })()}${(() => { const tg = synTags(who); return tg.length ? `<span class="syn">${tg.map(([n, t]) => `<span title="${t}">${n}</span>`).join('')}</span>` : ''; })()}</td>
+      <td class="n">${who.length}/${CO.PARTY}</td><td><span class="cl">${who.map(p => `<span${p.lead ? ' class="lead" title="단장"' : ''}>${p.lead ? '★' : ''}${p.c}</span>`).join('')}</span>${(() => { const ks = WEAK_KEYS.map(k => [k, weakShare(k, who.map(p => p.c), T.g ? [T.g] : [])] as const).filter(([, v]) => v > 0); return ks.length ? `<small class="dim wkn" title="찌를 수 있는 약점: 직업 둘이나 장비 한 벌이면 다, 직업 하나면 ¼">약점 ${ks.map(([k, v]) => `${el(k)}${v < 1 ? (v <= 0.25 ? '¼' : '½') : ''}`).join(' ')}</small>` : ''; })()}${(() => { const tg = synTags(who); return tg.length ? `<span class="syn">${tg.map(([n, t]) => `<span title="${t}">${n}</span>`).join('')}</span>` : ''; })()}</td>
       <td class="stk"><span class="ubar" title="${esc(uTip)}"><i><b style="width:${o.u}%"></b></i><span class="n">${o.u}</span></span>
       <span class="cobar" title="조원 둘씩 함께 나간 달의 평균 (${CO.CO_MAX}달이 끝)"><i><b style="width:${Math.round(o.coh * 100)}%"></b></i><span class="n">${Math.round(o.coh * 100)}</span><small class="dim">+${Math.round(o.coh * CO.CO_SUCC * 100)}%p</small></span></td>
       <td class="n"><b>${Math.round(o.p * 100)}%</b></td>
-      <td>${stepper('tpots', t, pk, `${t + 1}조 포션`)}<small class="dim" title="못 해낸 날 부상 주사위에 걸릴 확률 (조원 실력 평균) · 걸리면 포션 한 병이 먼저 막고, 없으면 다치고, 다친 채 또 걸리면 죽는다">부상 ${Math.round(Math.min(0.9, (CO.INJ_BASE + CO.INJ_K * FLOORS[T.f].risk) * o.U.crisis * (who.length ? who.reduce((x, p) => x + CO.INJ_TIER[tierOf(p)], 0) / who.length : 1)) * 100)}%</small></td>
+      <td>${stepper('tpots', t, pk, `${t + 1}조 포션`)}<small class="dim" title="실패한 날 부상 주사위에 걸릴 확률 (조원 실력 평균) · 걸리면 포션 한 병이 먼저 막고, 없으면 다치고, 다친 채 또 걸리면 죽는다">부상 ${Math.round(Math.min(0.9, (CO.INJ_BASE + CO.INJ_K * FLOORS[T.f].risk) * o.U.crisis * (who.length ? who.reduce((x, p) => x + CO.INJ_TIER[tierOf(p)], 0) / who.length : 1)) * 100)}%</small></td>
       <td>${stepper('ttorch', t, tk, `${t + 1}조 횃불`)}<small class="${dark >= 0.25 ? 'neg' : 'dim'}" title="첫 구간 하나, 그 뒤 구간마다 ${Math.round(segRate(T.f, torchRate(T.f, o.u)) * 100)}% 확률로 하나 · 다 쓰면 돌아섬">돌아섬 ${Math.round(dark * 100)}%</small></td>
       <td>${stepper('tfood', t, fdays, `${t + 1}조 식량 (며칠치)`)}<small class="dim" title="한 사람 하루 하나 · ${CO.FOOD_SLOT}개가 짐 한 칸 · 굶은 날 성공 −${Math.round(CO.HUNGER_PEN * 100)}%p">${fd}개</small></td>
       <td>${stepper('tmend', t, md, `${t + 1}조 정비 도구`)}</td>
