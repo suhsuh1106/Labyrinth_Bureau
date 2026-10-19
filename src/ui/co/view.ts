@@ -51,10 +51,10 @@ export function resultsHtml(W: World) {
   const r = L.res[0];
   const mine = `<div class="tw"><table class="grid"><thead><tr><th>층</th><th class="n">조</th><th class="n">탐사</th><th class="n">해냄</th><th class="n">캐 온 양</th></tr></thead><tbody>${FLOORS.map((F, f) => (r.sent[f] ? `<tr><td>${F.name}</td><td class="n">${r.sent[f]}</td><td class="n">${L.ours.filter(o => o.f === f).length}</td><td class="n">${r.ok[f]}</td><td class="n">${r.got[f]}</td></tr>` : '')).join('')}</tbody></table></div>
     <div class="tw"><table class="grid"><thead><tr><th>정산</th><th class="n">금액</th></tr></thead><tbody>${ITEMS.map((it, j) => (r.sold[j] ? `<tr><td>${it.name} ${fmt(r.sold[j])}개 <span class="dim">개당 ${fmtG((r.soldV ? r.soldV[j] : r.sold[j] * L.price[j]) / r.sold[j])}G</span></td><td class="n">${fmt(r.soldV ? r.soldV[j] : r.sold[j] * L.price[j])}</td></tr>` : '')).join('')}
-      ${r.stockLeft && r.stockLeft.some(n => n > 0) ? `<tr><td class="dim">창고에 남긴 전리품 ${r.stockLeft.map((n, j) => (n ? `${ITEMS[j].name} ${fmt(n)}` : '')).filter(Boolean).join(' · ')}</td><td class="n dim">-</td></tr>` : ''}
+      ${r.stockLeft && r.stockLeft.some(n => n > 0) ? `<tr><td class="dim">창고에 남긴 채집품 ${r.stockLeft.map((n, j) => (n ? `${ITEMS[j].name} ${fmt(n)}` : '')).filter(Boolean).join(' · ')}</td><td class="n dim">-</td></tr>` : ''}
       ${r.jobPay ? `<tr><td>의뢰 (납품 웃돈 · 포상)</td><td class="n">${fmt(r.jobPay)}</td></tr>` : ''}
       ${r.mapSale ? `<tr><td>지도 사본 판매 (관리국)</td><td class="n">${fmt(r.mapSale)}</td></tr>` : ''}
-      ${r.matSales ? `<tr><td>갈무리 소재 ${Object.values(r.matSold).reduce((a, b) => a + b, 0)}개</td><td class="n">${fmt(r.matSales)}</td></tr>` : ''}
+      ${r.matSales ? `<tr><td>전리품 ${Object.values(r.matSold).reduce((a, b) => a + b, 0)}개</td><td class="n">${fmt(r.matSales)}</td></tr>` : ''}
       ${r.adv ? `<tr><td>탐사 선금 (영주청)</td><td class="n">${fmt(r.adv)}</td></tr>` : ''}
       ${r.file && r.file.bill.sub + r.file.bill.aid ? `<tr><td>보급 · 층 지원금 (영주청)</td><td class="n">${fmt(r.file.bill.sub + r.file.bill.aid)}</td></tr>` : ''}
       ${r.spend.food ? `<tr><td>식량 ${fmt(r.spend.food / CO.FOOD_PRICE)}개</td><td class="n">−${fmt(r.spend.food)}</td></tr>` : ''}
@@ -244,11 +244,11 @@ export function returnHtml(W: World) {
         return `<tr><td><span class="ktag${x.k < 0 ? ' rest' : ''}">${x.k < 0 ? '–' : KTAG[x.k]}</span>${x.g ? condLabel(x.g) : '섞인 대로'}</td><td class="n">${x.xs.length}</td><td class="n">${x.xs.filter(y => y.ok).length}/${x.xs.length}</td><td class="n">${x.xs.reduce((a, y) => a + y.d, 0)}</td>${names.map(n => `<td>${x.m[n] ? `<span class="mbar" style="width:${Math.round((x.m[n] / top) * 48)}px"></span>${x.m[n]}개 · ${x.xs.filter(y => (y.mats || []).some(m => m[0] === n)).length}조` : '<span class="dim">없음</span>'}</td>`).join('')}<td class="n">${fmt(v)}G</td></tr>`;
       }).join('')}</tbody></table></div>`;
     }
-    return `<section class="rf"><div class="rf-h"><b>${F.name}</b><span class="rf-sum">${ps.length}조 중 ${ok}조 성공${d ? ` · <span class="neg">${d}명 사망</span>` : ''} · 캐 온 전리품 ${r.got[f]}개${r.hired[f] ? ` (계약 ${r.hired[f]}조 몫 포함)` : ''}</span></div>${cmp}<details class="fold"><summary>조마다 보기</summary><div class="ld-list">${rows}</div></details></section>`;
+    return `<section class="rf"><div class="rf-h"><b>${F.name}</b><span class="rf-sum">${ps.length}조 중 ${ok}조 성공${d ? ` · <span class="neg">${d}명 사망</span>` : ''} · 캐 온 채집품 ${r.got[f]}개${r.hired[f] ? ` (계약 ${r.hired[f]}조 몫 포함)` : ''}</span></div>${cmp}<details class="fold"><summary>조마다 보기</summary><div class="ld-list">${rows}</div></details></section>`;
   }).join('');
   const sold = Object.entries(r.matSold || {}).filter(([, n]) => n > 0);
   const tot = sold.reduce((a, [m, n]) => a + n * (L.matPrice[m] || 0), 0);
-  const soldT = sold.length ? `<details class="fold"><summary>판 소재 ${sold.reduce((a, [, n]) => a + n, 0)}개 · ${fmt(tot)}G</summary><div class="tw"><table class="grid bk-sold"><thead><tr><th>소재</th><th class="n">개수</th><th class="n">받은 값</th><th class="n">평균 시세 대비</th></tr></thead><tbody>${sold.map(([m, n]) => {
+  const soldT = sold.length ? `<details class="fold"><summary>판 전리품 ${sold.reduce((a, [, n]) => a + n, 0)}개 · ${fmt(tot)}G</summary><div class="tw"><table class="grid bk-sold"><thead><tr><th>소재</th><th class="n">개수</th><th class="n">받은 값</th><th class="n">평균 시세 대비</th></tr></thead><tbody>${sold.map(([m, n]) => {
     const p = L.matPrice[m] || 0, ref = L.matRef[m] || p, d = ref ? Math.round((p / ref - 1) * 100) : 0;
     return `<tr><td>${m}</td><td class="n">${n}</td><td class="n">${fmt(n * p)}</td><td class="n ${d > 0 ? 'pos' : d < 0 ? 'neg' : 'dim'}">${d > 0 ? '+' : d < 0 ? '−' : '±'}${Math.abs(d)}%</td></tr>`;
   }).join('')}<tr class="tot"><td>모두</td><td class="n">${sold.reduce((a, [, n]) => a + n, 0)}</td><td class="n">${fmt(tot)}</td><td></td></tr></tbody></table></div></details>` : '';

@@ -2,10 +2,10 @@
 // 옆 판에는 미궁에 나가 있는 조(며칠째 · 언제 돌아올지 · 어림), 오늘 아침 돌아온 조, 나갈 수 있는 조가 있다.
 // 대화는 기록(오늘 돌아온 조 · 다친 사람 · 시세 · 소문 · 특성)에서 고르고, 고르는 데 난수 대신 날짜와 사람 번호의 해시를 쓴다.
 // 상태를 쓰지 않고 난수도 쓰지 않는다
-import { priceNow, CO, FLOORS, ITEMS, type Ours, type Person, type Plan, type Sortie, type World, awayIds, boughtOf, dayAbs, dayOf, floorMons, forecastTrips, jo, potShock, sanitize, stateOf, teamReady, us } from '../../core/company';
+import { MISSION_NAME, priceNow, CO, FLOORS, ITEMS, type Ours, type Person, type Plan, type Sortie, type World, awayIds, boughtOf, dayAbs, dayOf, floorMons, forecastTrips, jo, potShock, sanitize, stateOf, teamReady, us } from '../../core/company';
 import { TRIP_END } from '../../core/events';
 import { adminBar } from './desk';
-import { nameOf, packBar } from './roster';
+import { dayCls, dayMark, dayTip, nameOf, packBar } from './roster';
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
@@ -39,7 +39,7 @@ function talksOf(W: World, P: Plan, here: Person[], zone: Map<number, Zone>) {
   // 오늘 돌아온 조: 해낸 것 · 혼난 것 · 잃은 사람 · 횃불 · 굶음 · 무뎌짐
   todayBack(W).forEach(s => {
     const r = s.rep; if (!r || !r.days) return;
-    const F = FLOORS[s.f].name, mon = r.days.length ? r.days[r.days.length - 1].mon : '', T = r.trip!;
+    const F = FLOORS[s.f].name, mon = [...r.days].reverse().find(d => d.mon)?.mon || '', T = r.trip!;
     const who = s.m.filter(id => byId.has(id)), dead = r.dead || [];
     who.forEach((id, k) => {
       const p = byId.get(id)!, to = mate(p, 'back');
@@ -47,6 +47,8 @@ function talksOf(W: World, P: Plan, here: Person[], zone: Map<number, Zone>) {
       if (T.end === 'torch' && k === 0) return say(id, 'dark', ['횃불이 꺼졌을 땐 정말 끝인 줄 알았어.', '어둠 속에서 길을 더듬어 나왔어.'], 7, to, ['다음엔 횃불을 더 챙겨.', '살아 돌아왔으면 됐어.']);
       if (r.days!.some(d => d.hg) && k === 1) return say(id, 'hungry', ['식량이 모자라서 배를 곯았어.', '빈속으로 칼을 휘두르는 건 못 할 짓이야.'], 6, to, ['행정관님께 말씀드려.', '오늘은 실컷 먹어.']);
       if (r.days!.some(d => d.bl) && k === 2) return say(id, 'blunt', ['날이 다 빠진 칼로 싸우는 건 두 번 다시 싫어.', '정비 도구가 떨어져서 애먹었어.'], 5, to, REPLY);
+      if (r.mission === 'scout' && r.mp && k === 0) return say(id, 'map', [`${F} 지도를 ${r.mp}칸쯤 더 그려 왔어.`, '낯선 통로를 하나 찾았어. 다음 조는 덜 헤맬 거야.'], 6, to, ['그게 다 우리 재산이지.', '고생했어. 발은 괜찮아?', ...REPLY]);
+      if (r.mission === 'hunt' && r.mats.length && k === 0) return say(id, 'hunt', [`${r.mats[0][0]}, 이번엔 제대로 갈무리했어.`, mon ? `${J(mon, '은', '는')} 이제 좀 알겠어.` : '사냥은 손이 많이 가.'], 6, to, ['값 좋을 때 팔자.', '도감에 적어 둬.', ...REPLY]);
       if (r.ok && k === 0) return say(id, 'ok', T.pack >= T.slots * 0.6 ? ['짐이 꽉 찼어. 등이 아직도 뻐근해.', `${F} 바닥엔 아직 남은 게 많더라.`] : [`${mon ? J(mon, '은', '는') + ' 이제 좀 알겠어.' : '이번엔 손발이 잘 맞았지.'}`, '이번엔 손발이 잘 맞았지.'], 6, to, ['고생했어. 한 잔 받아.', '역시 너희 조야.', ...REPLY]);
       if (!r.ok && k === 0) return say(id, 'fail', [`${F}는 아직 버거워.`, mon ? `${mon}한테 혼쭐이 났어.` : '오늘은 운이 없었어.'], 6, to, ['다음엔 채비를 더 챙기자.', '살아 왔으면 된 거야.']);
       if (r.ld >= 0 && r.ok && k === 1 && !byId.get(id)!.lead) return say(id, 'lead', ['단장님 덕에 살았어.', '단장님이 앞에 서니 든든하더라.'], 4, to, REPLY);
@@ -71,7 +73,7 @@ function talksOf(W: World, P: Plan, here: Person[], zone: Map<number, Zone>) {
     }
     // 특성 · 단장 · 손발 맞는 짝
     const TR: Record<string, string[]> = {
-      욕심쟁이: ['이번엔 소재 좀 넉넉히 챙겨 와야지.', '갈무리 칼은 내가 제일 잘 갈아.'], 새가슴: ['깊은 층 얘기만 들어도 손이 떨려.', '나는 1층이 좋아. 정말로.'],
+      욕심쟁이: ['이번엔 전리품 좀 넉넉히 챙겨 와야지.', '갈무리 칼은 내가 제일 잘 갈아.'], 새가슴: ['깊은 층 얘기만 들어도 손이 떨려.', '나는 1층이 좋아. 정말로.'],
       길잡이: [`${FLOORS[Math.max(0, W.unlocked - 1)].name} 길은 이제 눈 감고도 가.`, '지도에 없는 샛길을 하나 봐 뒀어.'], 강골: ['이 정도 상처는 침 바르면 낫지.'], 신중함: ['서두르면 죽어. 한 걸음씩이야.'],
       눈썰미: ['껍질은 결대로 벗겨야 값이 나가.'], 의무병: ['다치면 나한테 먼저 와. 붕대는 넉넉해.'],
     };
@@ -121,7 +123,7 @@ function awayCard(W: World, P: Plan, s: Sortie) {
   const fc = forecastTrips(W, P, [s]).mean;
   const cells = Array.from({ length: L }, (_, j) => `<i class="${j < gone ? 'gone' : j === gone ? 'now' : ''}"></i>`).join('');
   const when = back - dayAbs(W) <= 0 ? '오늘쯤' : back - dayAbs(W) === 1 ? '내일 아침' : `${back - dayAbs(W)}일 뒤`;
-  return `<li class="aw"><div class="aw-h"><b>${s.t + 1}조</b> ${FLOORS[s.f].name} <span class="dim">${dayOf(s.d0)}일 출발</span><span class="when">귀환 ${when}${back > CO.MONTH_DAYS * W.month ? ' · 다음 달' : ''}</span></div>
+  return `<li class="aw"><div class="aw-h"><b>${s.t + 1}조</b> ${FLOORS[s.f].name} <span class="ms-tag ${s.mission || 'gather'}">${MISSION_NAME[s.mission || 'gather']}</span> <span class="dim">${dayOf(s.d0)}일 출발</span><span class="when">귀환 ${when}${back > CO.MONTH_DAYS * W.month ? ' · 다음 달' : ''}</span></div>
     <div class="aw-d" role="img" aria-label="${L}일 중 ${gone}일째">${cells}</div>
     <div class="aw-m">${s.who.map(p => `<span class="${CLS_TAG[p.c] || ''}">${p.lead ? '★' : ''}${esc(nameOf(p))}</span>`).join('')}</div>
     <div class="aw-k">${packBar(s.who.length * CO.SLOT_PP, s.kit.torch, s.kit.pots, 0, s.kit.food, s.kit.mend)}<span class="dim">어림 <b>${fmt(fc)}G</b></span></div></li>`;
@@ -129,12 +131,16 @@ function awayCard(W: World, P: Plan, s: Sortie) {
 // 오늘 아침 돌아온 조 하나: 해냈나 · 다닌 날 · 짐 · 잃은 사람. ▶ 보기는 탐사 재생 장면
 export function backLine(r: Ours, i: number, src: string) {
   const T = r.trip!, D = r.days || [], wins = D.filter(d => d.win).length, dead = r.dead || [];
-  // 마주침 하나가 한 칸, 하루가 바뀌면 띄운다
-  const days = D.map((d, j) => `<i class="${d.win ? 'w' : 'x'}${d.d ? ' dead' : ''}${j && d.dd !== D[j - 1].dd ? ' nd' : ''}" title="${esc(`${d.dd ?? j + 1}일 · ${d.mon} · ${d.win ? '승' : '패'} ${d.k}/${d.n}`)}">${d.d ? '†' : d.cr ? '!' : ''}</i>`).join('');
-  return `<li class="bk ${dead.length ? 'die' : r.ok ? 'ok' : 'no'}"><div class="bk-h"><b>${(r.t ?? i) + 1}조</b> ${FLOORS[r.f].name} <span class="dim">${T.fd ?? D.length}일 · ${wins}승 ${D.length - wins}패 · ${TRIP_END[T.end]}</span>
+  // 구간 하나가 한 칸(색이 사건), 하루가 바뀌면 띄운다
+  const days = D.map((d, j) => `<i class="${dayCls(d)}${j && d.dd !== D[j - 1].dd ? ' nd' : ''}" title="${esc(dayTip(d, j))}">${dayMark(d)}</i>`).join('');
+  // 임무마다 초점 하나를 앞에: 채집은 캐 온 채집품, 사냥은 전리품, 탐색은 그려 온 지도
+  const ms = r.mission || 'gather', mapT = r.mp ? `<span>지도 <b>+${r.mp}</b>%p</span>` : '';
+  const gotT = r.got != null ? `<span>${esc(ITEMS[r.f].name)} <b>${fmt(r.got)}</b>개 → 창고</span>` : '', matT = r.mats.length ? `<span>${r.mats.slice(0, 3).map(([m, n]) => `${esc(m)} ×${n}`).join(', ')}${r.mats.length > 3 ? ` 외 ${r.mats.length - 3}` : ''}</span>` : '';
+  const focus = ms === 'scout' ? [mapT, gotT, matT] : ms === 'hunt' ? [matT, gotT, mapT] : [gotT, matT, mapT];
+  return `<li class="bk ${dead.length ? 'die' : r.ok ? 'ok' : 'no'}"><div class="bk-h"><b>${(r.t ?? i) + 1}조</b> ${FLOORS[r.f].name} <span class="ms-tag ${ms}">${MISSION_NAME[ms]}</span> <span class="dim">${T.fd ?? D.length}일 · 구간 ${D.length} · ${wins}번 해냄 · ${TRIP_END[T.end]}</span>
     <button type="button" class="sc-open" data-act="scene" data-src="${src}" data-i="${i}" aria-label="${(r.t ?? i) + 1}조 탐사 재생">▶ 보기</button></div>
     <div class="bk-d"><span class="days">${days || '<i class="dk"></i>'}</span>${packBar(T.slots, T.torch - T.tu, Math.max(0, (r.potC || 0) - (r.pots || 0)), T.pack, (T.food || 0) - (T.fu || 0), (T.tools || 0) - (T.tk || 0))}</div>
-    <div class="bk-r">${r.got != null ? `<span>${esc(ITEMS[r.f].name)} <b>${fmt(r.got)}</b>개 → 창고</span>` : ''}${dead.length ? `<b class="dead-n">† ${dead.map(z => esc(z.n)).join(', ')}</b>` : ''}${r.mats.length ? `<span>${r.mats.slice(0, 3).map(([m, n]) => `${esc(m)} ×${n}`).join(', ')}${r.mats.length > 3 ? ` 외 ${r.mats.length - 3}` : ''}</span>` : ''}${r.hurt ? `<span class="neg">부상 ${r.hurt}</span>` : ''}</div></li>`;
+    <div class="bk-r">${focus[0]}${dead.length ? `<b class="dead-n">† ${dead.map(z => esc(z.n)).join(', ')}</b>` : ''}${focus[1]}${focus[2]}${r.hurt ? `<span class="neg">부상 ${r.hurt}</span>` : ''}</div></li>`;
 }
 
 // 날 띠: 이번 달 열흘. 지난 날 · 오늘 · 돌아올 조가 있는 날(예정)
@@ -185,18 +191,18 @@ export function hallHtml(W: World, raw: Plan) {
       ${back.length ? `<div class="panel backs"><header><h2>오늘 아침 돌아온 조</h2></header><ol class="bks">${back.map(s => backLine(s.rep!, (W.back || []).indexOf(s), 'back')).join('')}</ol></div>` : ''}
       <div class="panel aways"><header><h2>미궁에 나간 조</h2><span class="right">${away.length}조</span></header>${away.length ? `<ol class="aws">${away.map(s => awayCard(W, P, s)).join('')}</ol>` : '<p class="note">나가 있는 조가 없어요</p>'}</div>
       <div class="panel readys"><header><h2>나갈 수 있는 조</h2>${ready.length > 1 ? '<button type="button" class="ghost sm" data-act="send-all">모두 보내기</button>' : ''}</header>
-        ${ready.length ? `<ul class="rds">${ready.map(({ T, t }) => `<li><b>${t + 1}조</b> ${FLOORS[T.f].name} <span class="dim">${T.m.filter(x => x != null).length}명 · ${CO.TRIP_DAYS[T.f]}일 길</span><button type="button" class="send" data-act="send" data-t="${t}">보내기</button></li>`).join('')}</ul>` : '<p class="note">본부에 짐을 다 싼 조가 없어요 (편성은 출정에서)</p>'}
+        ${ready.length ? `<ul class="rds">${ready.map(({ T, t }) => `<li><b>${t + 1}조</b> ${FLOORS[T.f].name} <span class="ms-tag ${T.mission || 'gather'}">${MISSION_NAME[T.mission || 'gather']}</span> <span class="dim">${T.m.filter(x => x != null).length}명 · ${CO.TRIP_DAYS[T.f]}일 길</span><button type="button" class="send" data-act="send" data-t="${t}">보내기</button></li>`).join('')}</ul>` : '<p class="note">본부에 짐을 다 싼 조가 없어요 (편성은 출정에서)</p>'}
         <button type="button" class="link" data-act="exp">출정 편성 →</button></div>
       <div class="panel month"><header><h2>제${W.month}월 장부</h2><span class="right">${W.day || 1}일 / ${CO.MONTH_DAYS}일</span></header>
         <dl class="fc-line"><div><dt>돌아온 조</dt><dd>${monthBack}</dd></div><div><dt>짐 어림</dt><dd>${fmt(haul)}G</dd></div><div><dt>바로 쓴 돈</dt><dd>${fmt(spent)}G</dd></div></dl>
         ${adminBar(W, P)}
-        <p class="note">전리품은 창고에서 팔 날을 고른다 (시세는 날마다) · 소재 · 급여 · 본부 유지비는 그믐에</p></div>
+        <p class="note">채집품은 창고에서 팔 날을 고른다 (시세는 날마다) · 전리품 · 급여 · 본부 유지비는 그믐에</p></div>
       ${nextDayBtn(W, 'big')}
     </aside></div>`;
 }
 
-// ---------- 창고의 전리품과 시장 소식 ----------
-// 창고의 전리품 칸: 층마다 캐 온 전리품, 오늘 값(어제 · 기준 값과 견줘), 지금 팔면 얼마, 하루에 상하는 몫. 팔기 · 반 팔기 · 모두 팔기, 돌아오면 바로 팔기
+// ---------- 창고의 채집품과 시장 소식 ----------
+// 창고의 채집품 칸: 층마다 캐 온 채집품, 오늘 값(어제 · 기준 값과 견줘), 지금 팔면 얼마, 하루에 상하는 몫. 팔기 · 반 팔기 · 모두 팔기, 돌아오면 바로 팔기
 // (채비 칸과 함께 창고 창 하나에 든다. desk.ts의 storeHtml)
 export function lootStock(W: World, P: Plan) {
   const st = W.stock || [], rows = ITEMS.map((it, j) => ({ it, j, n: Math.floor((st[j] || 0) + 1e-9) })).filter(x => x.n > 0 || x.j < W.unlocked);
@@ -207,7 +213,7 @@ export function lootStock(W: World, P: Plan) {
       <td class="n">${p.toFixed(1)}G<small class="${vs > 0.02 ? 'pos' : vs < -0.02 ? 'neg' : 'dim'}">기준 ${vs >= 0 ? '+' : '−'}${Math.round(Math.abs(vs) * 100)}%${Math.abs(d) >= 0.05 ? ` · 어제 ${d > 0 ? '+' : '−'}${Math.abs(d).toFixed(1)}` : ''}</small></td>
       <td class="n">${n ? `<button type="button" class="send sm" data-act="sell" data-j="${j}" data-n="all" title="${fmt(n * p)}G">${fmt(n * p)}G</button>${n > 1 ? `<button type="button" class="link" data-act="sell" data-j="${j}" data-n="half">반만</button>` : ''}` : '<span class="dim">-</span>'}</td></tr>`;
   };
-  return `<section class="stockp"><header><h3>전리품</h3><span class="right">지금 팔면 <b>${fmt(total)}G</b></span></header>
+  return `<section class="stockp"><header><h3>채집품</h3><span class="right">지금 팔면 <b>${fmt(total)}G</b></span></header>
     <table class="grid slim stk"><thead><tr><th>물품</th><th class="n">개수</th><th class="n">오늘 값</th><th class="n">팔기</th></tr></thead><tbody>${rows.map(row).join('')}</tbody></table>
     <div class="buybar"><button type="button" class="tog" data-act="auto-sell" aria-pressed="${P.autoSell !== false}" title="돌아온 날 캐 온 것을 그날 시세로 바로 판다">돌아오면 바로 팔기</button><span class="sp"></span>${total ? '<button type="button" class="ghost sm" data-act="sell-all">모두 팔기</button>' : ''}</div>
     ${marketNews(W)}</section>`;

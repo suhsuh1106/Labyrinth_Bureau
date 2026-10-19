@@ -2,7 +2,7 @@
 import './ui/co/base.css';
 import './ui/co/co.css';
 import { setSeed } from './core/rng';
-import { sellStock, setClerks, buyNow, fireNow, nextDay, sendReady, sendTeam, CO, FILE_KEYS, teamPots, teamTorch, teamMend, carryOf, foodDays, mendOf, FLOORS, type Plan, SRCS, type World, carryPlan, closeBooks, fileFix, fillTeams, formTeams, newWorld, probe, rankOf, roomOf, sanitize, awayIds, us } from './core/company';
+import { sellStock, setClerks, buyNow, fireNow, nextDay, sendReady, sendTeam, CO, FILE_KEYS, teamPots, teamTorch, teamMend, carryOf, foodDays, mendOf, FLOORS, type Plan, SRCS, type World, carryPlan, closeBooks, fileFix, fillTeams, formTeams, newWorld, probe, rankOf, roomOf, sanitize, awayIds, us, MISSIONS, type Mission } from './core/company';
 import { DESC_FIRST, packBar } from './ui/co/roster';
 import { CLASSES, GEARS } from './core/data';
 import { plaqueHtml } from './ui/co/view';
@@ -13,7 +13,7 @@ import { closeScene, openScene } from './ui/co/scene';
 import { advanceArrival, arrivalOpen, closeArrival, playArrival } from './ui/co/arrival';
 
 const $ = (id: string): any => document.getElementById(id);
-const KEY = 'lb-co', VERSION = 28, MONTHS = 36;   // 28: 하루 네 번 마주침 · 돌아온 날 지도 (이전 판은 새 게임으로)
+const KEY = 'lb-co', VERSION = 29, MONTHS = 36;   // 29: 구간과 임무 (채집 지점 · 조우 · 흔적, 채집품 · 전리품) (이전 판은 새 게임으로)
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
 let W: World, plan: Plan, ui: DeskUi;
 // 도장을 막 찍은 결과 화면이면 귀환 장부를 한 줄씩 띄운다 (저장하지 않는 화면 상태)
@@ -95,7 +95,7 @@ function teamAct(a: string, b: HTMLElement) {
   else if (a === 'to-bench') { if (pick && pick.t != null && T[pick.t]) T[pick.t].m[pick.s!] = null; ui.pick = null; }
   else if (a === 'assign') assignTo(+(b.dataset.id || 0), b.dataset.t || '-1');
   else if (a === 'tfloor') { const x = T[+(b.dataset.t || 0)]; if (x) x.f = +(b.dataset.f || 0); }
-  else if (a === 'scout') { const x = T[+(b.dataset.t || 0)]; if (x) { if (x.scout) delete x.scout; else x.scout = true; } }
+  else if (a === 'tmission') { const x = T[+(b.dataset.t || 0)], m = b.dataset.m as Mission; if (x && MISSIONS.includes(m)) { if (m === 'gather') delete x.mission; else x.mission = m; } }
   else if (a === 'slot') {
     const t = +(b.dataset.t || 0), s = +(b.dataset.s || 0);
     if (pick && pick.id != null) { T[t].m[s] = pick.id; ui.pick = null; }   // 대기 인원을 넣는다 (있던 사람은 대기로)
@@ -172,7 +172,7 @@ function act(b: HTMLElement) {
     const d = ck === k ? -(+cd || 1) : DESC_FIRST.includes(k) ? -1 : 1;
     ui.sort = { ...(ui.sort || {}), [sc]: `${k}:${d}` }; render(); save(); return;
   }
-  if (a === 'refill' || a === 'fill-rest' || a === 'bench' || a === 'to-bench' || a === 'slot' || a === 'assign' || a === 'tfloor' || a === 'scout') return teamAct(a, b);
+  if (a === 'refill' || a === 'fill-rest' || a === 'bench' || a === 'to-bench' || a === 'slot' || a === 'assign' || a === 'tfloor' || a === 'tmission') return teamAct(a, b);
   if (a === 'auto-pot') { plan.buy = { ...(plan.buy || {}) }; delete plan.buy.pot; render(); save(); return; }
   if (a === 'auto-torch') { plan.buy = { ...(plan.buy || {}) }; delete plan.buy.torch; render(); save(); return; }
   if (a === 'auto-food') { plan.buy = { ...(plan.buy || {}) }; delete plan.buy.food; render(); save(); return; }
@@ -197,7 +197,7 @@ function act(b: HTMLElement) {
   if (a === 'sell' || a === 'sell-all') {
     const js = a === 'sell-all' ? FLOORS.map((_, j) => j) : [+(b.dataset.j || 0)];
     let v = 0; js.forEach(j => { const n = Math.floor(((W.stock || [])[j] || 0) + 1e-9); v += sellStock(W, j, b.dataset.n === 'half' ? Math.ceil(n / 2) : n); });
-    render(); save(); say(v ? `전리품 ${Math.round(v).toLocaleString('ko-KR')}G어치를 팔았어요` : '팔 것이 없어요'); return;
+    render(); save(); say(v ? `채집품 ${Math.round(v).toLocaleString('ko-KR')}G어치를 팔았어요` : '팔 것이 없어요'); return;
   }
   if (a === 'auto-sell') { if (plan.autoSell === false) delete plan.autoSell; else plan.autoSell = false; render(); save(); return; }
   if (a === 'auto-buy') { if (plan.autoBuy === false) delete plan.autoBuy; else plan.autoBuy = false; render(); save(); return; }

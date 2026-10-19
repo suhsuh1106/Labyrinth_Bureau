@@ -1293,3 +1293,16 @@ table.grid.stk td .link { display: block; font-size: 11px; }
 .store2 .buybar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .store2 .buybar .sp { flex: 1; }
 @media (max-width: 900px) { .store2 { grid-template-columns: minmax(0, 1fr); } }
+
+/* 탐사 구간 칸: 사건으로 색 (채집 지점 금빛 · 조우 붉은빛 · 흔적 푸른빛). 해냈으면 채운 칸, 못 해냈으면 빈 칸(테두리만) */
+.run .days i.eg.w, .run .legend-d i.eg, .bk-d .days i.eg.w, .sc-days i.eg.w { background: #8a6d1c; border-color: #e0b43a; }
+.run .days i.ef.w, .run .legend-d i.ef, .bk-d .days i.ef.w, .sc-days i.ef.w { background: #8a3a2a; border-color: #d0674e; }
+.run .days i.et.w, .run .legend-d i.et, .bk-d .days i.et.w, .sc-days i.et.w { background: #2c5684; border-color: #5d95d4; }
+.run .days i.eg.x, .bk-d .days i.eg.x, .sc-days i.eg.x { background: #1d1a10; border-color: #8a6d1c; color: #e0b43a; }
+.run .days i.ef.x, .bk-d .days i.ef.x, .sc-days i.ef.x { background: #1f1311; border-color: #a5432f; color: #ff9b85; }
+.run .days i.et.x, .bk-d .days i.et.x, .sc-days i.et.x { background: #111a24; border-color: #2c5684; color: #8fbff2; }
+.run .days i.dead, .bk-d .days i.dead, .sc-days i.dead { background: #a3312a; border-color: #ff8a7a; color: #fff; }
+.tsum .seg.ms { margin-top: 3px; }
+/* 임무 꼬리표 (채집 · 사냥 · 탐색) */
+.ms-tag { display: inline-block; padding: 0 5px; border-radius: 3px; font-size: 11px; line-height: 16px; border: 1px solid; vertical-align: 1px; }
+.ms-tag.gather { color: #e0b43a; border-color: #8a6d1c; } .ms-tag.hunt { color: #ff9b85; border-color: #a5432f; } .ms-tag.scout { color: #8fbff2; border-color: #2c5684; }

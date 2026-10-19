@@ -28,6 +28,8 @@ import { needOf, tripOdds, potShock, profitOf, drillGain, weakShare, badShare, c
 import { WEAK_KEYS } from '../src/core/data';
 import { DEX, askable, badSure } from '../src/core/dex';
 import { dayAbs, nextDay, openMonth, sellStock, sendReady, stateOf, stockValue } from '../src/core/company';
+import { MISSIONS } from '../src/core/company';
+import { evOf } from '../src/core/expedition';
 
 describe('용병단 장부', () => {
   it('매달 모든 용병단의 금고 변화가 판매 수입에서 지출을 뺀 값과 같다', async () => {
@@ -370,20 +372,26 @@ describe('전리품 비율과 몬스터 적응', () => {
     expect(supOf(c).torch! + out).toBe(bought - burnt - nx);
     expect(W.draft!.truth.torch).toBe(burnt);
   });
-  it('탐사는 하루에 ENC_DAY번 몬스터를 만난다: 이긴 날은 갈무리까지, 진 날은 해낸 몫의 일부만 싣고, 횃불이 떨어지거나 짐이 차면 돌아선다', () => {
-    let pack = 0, torch = 0;
+  it('탐사는 층마다 정한 구간만큼: 구간마다 채집 지점 · 조우 · 흔적 중 하나, 채집 지점만 짐을 싣고 조우만 갈무리하며, 횃불이 떨어지거나 짐이 차면 돌아선다', () => {
+    let pack = 0, torch = 0; const seen: Record<string, Record<string, number>> = { gather: {}, hunt: {}, scout: {} };
     for (let g = 1; g <= 8; g++) {
       setSeed(g); const W = newWorld(); W.unlocked = 3;
       for (let m = 0; m < 4; m++) {
-        const P = sanitize(W, us(W), defaultPlan(W)); P.teams!.forEach((T, t) => { T.f = t % 3; }); P.torch = FLOORS.map(() => 1); P.pots = FLOORS.map(() => 3);
+        const P = sanitize(W, us(W), defaultPlan(W)); P.teams!.forEach((T, t) => { T.f = t % 3; T.mission = MISSIONS[(t + m) % 3]; }); P.torch = FLOORS.map(() => 1); P.pots = FLOORS.map(() => 3);
         const M = runMonth(W, P), names = (f: number) => floorMons(W, f).map(x => x.name);
         M.ours.forEach(o => {
-          const T = o.trip!, D = o.days!;
-          expect(T.fd!).toBeLessThanOrEqual(CO.TRIP_DAYS[o.f]); expect(D.length).toBeLessThanOrEqual(T.fd! * CO.ENC_DAY); D.forEach(d => expect(d.dd!).toBeLessThanOrEqual(T.fd!)); expect(T.tu).toBeLessThanOrEqual(T.torch);
-          D.forEach(d => { expect(names(o.f)).toContain(d.mon); expect(d.win).toBe(d.k >= Math.min(2, d.n)); if (!d.win) expect(d.mats).toEqual([]); if (!d.k) expect(d.loot || 0).toBe(0); });   // 진 날은 갈무리 없이 해낸 몫의 일부만
+          const T = o.trip!, D = o.days!, ms = seen[o.mission || 'gather'];
+          expect(T.fd!).toBeLessThanOrEqual(CO.TRIP_DAYS[o.f]); expect(D.length).toBeLessThanOrEqual(CO.SEGS[o.f]); D.forEach(d => expect(d.dd!).toBeLessThanOrEqual(T.fd!)); expect(T.tu).toBeLessThanOrEqual(T.torch);
+          D.forEach(d => {
+            const ev = evOf(d); ms[ev] = (ms[ev] || 0) + 1;
+            expect(d.win).toBe(d.k >= Math.min(2, d.n));
+            if (ev === 'f') { expect(names(o.f)).toContain(d.mon); expect(d.loot || 0).toBe(0); if (!d.k) expect(d.mats).toEqual([]); }   // 조우: 짐(채집품)은 싣지 않고, 해낸 사람이 있어야 갈무리
+            else { expect(d.mon).toBeUndefined(); expect(d.mats).toEqual([]); expect(d.am).toBeUndefined(); }
+            if (ev === 't' || !d.k) expect(d.loot || 0).toBe(0);
+          });
           if (T.end === 'torch') { expect(T.tu).toBe(T.torch); torch++; }
           if (T.end === 'pack') pack++;
-          if (T.end === 'done') { expect(T.fd).toBe(CO.TRIP_DAYS[o.f]); expect(D.length).toBe(CO.TRIP_DAYS[o.f] * CO.ENC_DAY); }   // 층마다 정해진 날을 다 다니고 돌아온다
+          if (T.end === 'done') { expect(T.fd).toBe(CO.TRIP_DAYS[o.f]); expect(D.length).toBe(CO.SEGS[o.f]); }   // 층마다 정해진 날 · 구간을 다 다니고 돌아온다
           expect(T.pack).toBeLessThanOrEqual(T.slots + 1e-9);
           // 그 조가 갈무리한 것 = 날마다 갈무리한 것의 합
           const sum: Record<string, number> = {}; D.forEach(d => d.mats.forEach(([n, k]) => { sum[n] = (sum[n] || 0) + k; }));
@@ -393,6 +401,28 @@ describe('전리품 비율과 몬스터 적응', () => {
       }
     }
     expect(torch).toBeGreaterThan(0);
+    expect(pack).toBeGreaterThan(0);
+    // 임무가 사건의 비중을 바꾼다: 채집은 채집 지점, 사냥은 조우, 탐색은 흔적이 가장 많다
+    const top = (x: Record<string, number>) => Object.entries(x).sort((a, b) => b[1] - a[1])[0][0];
+    expect(top(seen.gather)).toBe('g'); expect(top(seen.hunt)).toBe('f'); expect(top(seen.scout)).toBe('t');
+  });
+  it('임무: 채집은 채집품이 많고 덜 다치며, 사냥은 전리품이 많고, 탐색은 지도를 가장 많이 그린다', () => {
+    const sum: Record<string, { got: number; mats: number; map: number; cr: number; n: number }> = {};
+    for (const ms of MISSIONS) {
+      const x = sum[ms] = { got: 0, mats: 0, map: 0, cr: 0, n: 0 };
+      for (let g = 1; g <= 6; g++) {
+        setSeed(g); const W = newWorld(); W.unlocked = 2;
+        for (let m = 0; m < 2; m++) {
+          const P = sanitize(W, us(W), defaultPlan(W)); P.teams!.forEach((T, t) => { T.f = t % 2; T.mission = ms; });
+          const M = runMonth(W, P); closeBooks(W);
+          M.ours.forEach(o => { x.got += o.got || 0; x.mats += o.mats.reduce((a, [, k]) => a + k, 0); x.map += o.mp || 0; x.cr += o.crisis || 0; x.n++; expect(o.mission || 'gather').toBe(ms); });
+        }
+      }
+    }
+    expect(sum.gather.got).toBeGreaterThan(sum.hunt.got * 2); expect(sum.gather.got).toBeGreaterThan(sum.scout.got * 2);
+    expect(sum.hunt.mats).toBeGreaterThan(sum.gather.mats * 2);
+    expect(sum.scout.map).toBeGreaterThan(sum.gather.map * 2); expect(sum.scout.map).toBeGreaterThan(sum.hunt.map);
+    expect(sum.gather.cr / sum.gather.n).toBeLessThan(sum.hunt.cr / sum.hunt.n);
   });
   it('편성표에서 조마다 포션 · 횃불을 정하고, 죽은 단원은 이름과 날이 기록된다', () => {
     setSeed(6); const W = newWorld(), c = us(W);
@@ -511,7 +541,7 @@ describe('갈무리 소재와 미궁 도감', () => {
     for (const on of [false, true]) for (let g = 1; g <= 16; g++) {
       setSeed(g); const W: World = newWorld();
       const rare = floorMons(W, 0)[0].mats.find(m => m.b && m.p < 0.1)!, kit = rare.b![0][0];
-      for (let m = 0; m < 6; m++) { const P = BOT.even(W); if (on) P.guide[0] = kit; const M = runMonth(W, P); const n = M.res[0].matSold[rare.n] || 0; if (on) b += n; else a += n; }
+      for (let m = 0; m < 6; m++) { const P0 = BOT.even(W); if (on) P0.guide[0] = kit; const P = sanitize(W, us(W), P0); P.teams!.forEach(T => { T.mission = 'hunt'; }); const M = runMonth(W, P); const n = M.res[0].matSold[rare.n] || 0; if (on) b += n; else a += n; }   // 조우가 많은 사냥 임무로
     }
     expect(b).toBeGreaterThan(a * 1.2);   // (주 몬스터를 만나 이긴 날만 갈무리라 차이가 예전보다 작다)
   });
@@ -640,12 +670,13 @@ describe('보급 창고 · 전리품 보관 기한 · 조사 의뢰 · 편성 �
 });
 
 describe('층의 성격', () => {
-  it('시세는 수요와 공급으로 정해지고, 공급이 수요의 두 배가 되면 깊은 층 전리품일수록 크게 떨어진다', () => {
+  it('시세는 수요와 공급으로 정해지고, 공급이 수요의 두 배가 되면 깊은 층 채집품일수록 더 떨어지지만 기본 소재라 크게 무너지지 않는다', () => {
     const drop = ITEMS.map(it => priceOf(it, it.D * 2) / priceOf(it, it.D));
     ITEMS.forEach(it => expect(priceOf(it, it.D)).toBe(it.P0));
     for (let j = 1; j < ITEMS.length; j++) expect(drop[j]).toBeLessThan(drop[j - 1]);
     expect(drop[0]).toBeGreaterThan(0.75);
-    expect(drop[ITEMS.length - 1]).toBeLessThan(0.5);
+    expect(drop[ITEMS.length - 1]).toBeGreaterThanOrEqual(0.6);
+    expect(drop[ITEMS.length - 1]).toBeLessThan(0.75);
   });
   it('공급과 수요는 상단 장부 1단계부터 시세판에 보인다', () => {
     setSeed(71); const W: World = newWorld();
@@ -655,7 +686,7 @@ describe('층의 성격', () => {
     W.intel!.lv.mkt = 1;
     expect(resultsHtml(W)).toContain(`${W.last!.Q[0]} / ${ITEMS[0].D}</small>`);
   });
-  it('얕은 층 전리품은 시세 폭이 좁고 깊은 층 전리품은 넓다', () => {
+  it('얕은 층 채집품은 시세 폭이 좁고 깊은 층 채집품은 넓다', () => {
     for (let j = 1; j < ITEMS.length; j++) expect(ITEMS[j].hi / ITEMS[j].lo).toBeGreaterThan(ITEMS[j - 1].hi / ITEMS[j - 1].lo);
   });
   it('1층은 첫 달에 모두가 몰려도 대부분 성공하고 거의 죽지 않으며, 깊을수록 성공이 어렵고 포션으로 막지 못하는 사망이 커진다', () => {
@@ -954,7 +985,7 @@ describe('층 이해도 · 지도 완성도', () => {
     let lo = 0, hi = 0, dLo = 0, dHi = 0;
     for (let g = 1; g <= 30; g++) for (const m of [0, 100]) {
       setSeed(g); const W = newWorld(), c = us(W); W.unlocked = 3; c.map![2] = m; c.crew!.forEach(p => { delete p.tr; });
-      const P = sanitize(W, c, defaultPlan(W)); P.teams!.forEach(T => { T.f = 2; }); P.parties = [0, 0, P.teams!.length, 0, 0];
+      const P = sanitize(W, c, defaultPlan(W)); P.teams!.forEach(T => { T.f = 2; T.mission = 'hunt'; T.pots = 0; }); P.parties = [0, 0, P.teams!.length, 0, 0];   // 조우가 많은 사냥 임무로, 포션 없이 (위기가 사망으로 이어지게)
       const r = runMonth(W, P).res[0]; if (m) { hi += r.win[2]; dHi += r.deaths; } else { lo += r.win[2]; dLo += r.deaths; }
     }
     expect(hi).toBeGreaterThan(lo * 1.15); expect(dLo).toBeGreaterThan(dHi);
@@ -1150,7 +1181,8 @@ describe('미궁 도감 · 단장 · 지정 탐사', () => {
   it('만날 때마다 그 몬스터의 기록과 이해도가 쌓인다 (우리 조만)', () => {
     setSeed(11); const W = newWorld();
     const M = runMonth(W, defaultPlan(W)), met: Record<string, number> = {};
-    M.ours.forEach(o => o.days!.forEach(d => { met[d.mon] = (met[d.mon] || 0) + 1; }));
+    M.ours.forEach(o => o.days!.forEach(d => { if (d.mon) met[d.mon] = (met[d.mon] || 0) + 1; }));   // 조우만 (채집 지점 · 흔적은 몬스터를 만나지 않는다)
+    expect(Object.keys(met).length).toBeGreaterThan(0);
     Object.entries(met).forEach(([name, n]) => {
       const D = W.dex![name]; expect(D.n).toBe(n); expect(D.u).toBeGreaterThan(0); expect(D.u).toBeLessThanOrEqual(100);
       expect([0, 1, 2].reduce((a, v) => a + (D.rec['c:전사:' + v]?.n || 0), 0)).toBe(n);   // 직업마다 칸 셋을 더하면 마주침
@@ -1213,13 +1245,13 @@ describe('미궁 도감 · 단장 · 지정 탐사', () => {
   });
   it('지정 탐사: 이해도가 차야 노릴 수 있고, 노린 몬스터를 더 자주 만난다', () => {
     setSeed(9); const W = newWorld(), c = us(W), fauna = floorMons(W, 0)[1].name;
-    const P = sanitize(W, c, defaultPlan(W)); P.teams!.forEach(T => { T.target = fauna; });
+    const P = sanitize(W, c, defaultPlan(W)); P.teams!.forEach(T => { T.target = fauna; T.mission = 'hunt'; });   // 노리는 것은 사냥 임무만
     expect(sanitize(W, c, P).teams!.every(T => !T.target)).toBe(true);
     W.dex = { [fauna]: { n: 0, w: 0, cr: 0, u: DEX.TARGET_AT, at: 1, rec: {}, mats: {}, key: {}, mat: {} } };
     expect(sanitize(W, c, P).teams!.every(T => T.target === fauna)).toBe(true);
     let aim = 0, all = 0;
-    for (let m = 0; m < 10; m++) { const Q = carryPlan(W, P); const M = runMonth(W, Q); closeBooks(W); M.ours.forEach(o => o.days!.forEach(d => { all++; if (d.mon === fauna) aim++; })); }
-    expect(aim / all).toBeGreaterThan(0.4);   // 섞여 만나면 0.3
+    for (let m = 0; m < 10; m++) { const Q = carryPlan(W, P); const M = runMonth(W, Q); closeBooks(W); M.ours.forEach(o => o.days!.forEach(d => { if (!d.mon) return; all++; if (d.mon === fauna) aim++; })); }
+    expect(aim / all).toBeGreaterThan(0.4);   // 섞여 만나면 0.3 (조우만 센다)
   });
 });
 
