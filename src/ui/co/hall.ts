@@ -1,5 +1,5 @@
 // 길드 홀: 본부에 남은 단원들이 탁자 · 훈련 마당 · 출정 대기 · 의무실에 모여 있고, 몇몇이 서로 말을 주고받는다.
-// 옆 판에는 미궁에 나가 있는 조(며칠째 · 언제 돌아올지 · 어림), 오늘 아침 돌아온 조, 나갈 수 있는 조가 있다.
+// 옆 판에는 미궁에 나가 있는 조(며칠째 · 언제 돌아올지 · 예측), 오늘 아침 돌아온 조, 나갈 수 있는 조가 있다.
 // 대화는 기록(오늘 돌아온 조 · 다친 사람 · 시세 · 소문 · 특성)에서 고르고, 고르는 데 난수 대신 날짜와 사람 번호의 해시를 쓴다.
 // 상태를 쓰지 않고 난수도 쓰지 않는다
 import { MISSION_NAME, priceNow, CO, FLOORS, ITEMS, type Ours, type Person, type Plan, type Sortie, type World, awayIds, boughtOf, dayAbs, dayOf, floorMons, forecastTrips, jo, potShock, sanitize, stateOf, teamReady, us } from '../../core/company';
@@ -117,7 +117,7 @@ function bubbles(talks: Talk[], W: World, near: Map<number, number[]>) {
 const fig = (p: Person, say?: string, sub = '') => `<div class="mc ${CLS_TAG[p.c] || ''}${p.lead ? ' lead' : ''}${say ? ' talk' : ''}" title="${esc(`${nameOf(p)} · ${p.c}${p.tr ? ' · ' + p.tr : ''}`)}">
   ${say ? `<span class="bub">${esc(say)}</span>` : ''}<span class="body" aria-hidden="true">${ICON[p.c] || '·'}</span><b>${p.lead ? '★' : ''}${esc(nameOf(p))}</b>${sub ? `<small>${sub}</small>` : ''}</div>`;
 
-// 나가 있는 조 하나: 며칠째(예정 날까지 칸), 언제 돌아올지(예정), 조원, 들고 간 채비, 수입 어림
+// 나가 있는 조 하나: 며칠째(예정 날까지 칸), 언제 돌아올지(예정), 조원, 들고 간 채비, 수입 예측
 function awayCard(W: World, P: Plan, s: Sortie) {
   const L = CO.TRIP_DAYS[s.f], gone = Math.min(L, dayAbs(W) - s.d0), back = s.d0 + L;
   const fc = forecastTrips(W, P, [s]).mean;
@@ -126,7 +126,7 @@ function awayCard(W: World, P: Plan, s: Sortie) {
   return `<li class="aw"><div class="aw-h"><b>${s.t + 1}조</b> ${FLOORS[s.f].name} <span class="ms-tag ${s.mission || 'gather'}">${MISSION_NAME[s.mission || 'gather']}</span> <span class="dim">${dayOf(s.d0)}일 출발</span><span class="when">귀환 ${when}${back > CO.MONTH_DAYS * W.month ? ' · 다음 달' : ''}</span></div>
     <div class="aw-d" role="img" aria-label="${L}일 중 ${gone}일째">${cells}</div>
     <div class="aw-m">${s.who.map(p => `<span class="${CLS_TAG[p.c] || ''}">${p.lead ? '★' : ''}${esc(nameOf(p))}</span>`).join('')}</div>
-    <div class="aw-k">${packBar(s.who.length * CO.SLOT_PP, s.kit.torch, s.kit.pots, 0, s.kit.food, s.kit.mend)}<span class="dim">어림 <b>${fmt(fc)}G</b></span></div></li>`;
+    <div class="aw-k">${packBar(s.who.length * CO.SLOT_PP, s.kit.torch, s.kit.pots, 0, s.kit.food, s.kit.mend)}<span class="dim">예측 <b>${fmt(fc)}G</b></span></div></li>`;
 }
 // 오늘 아침 돌아온 조 하나: 해냈나 · 다닌 날 · 짐 · 잃은 사람. ▶ 보기는 탐사 재생 장면
 export function backLine(r: Ours, i: number, src: string) {
@@ -137,7 +137,7 @@ export function backLine(r: Ours, i: number, src: string) {
   const ms = r.mission || 'gather', mapT = r.mp ? `<span>지도 <b>+${r.mp}</b>%p</span>` : '';
   const gotT = r.got != null ? `<span>${esc(ITEMS[r.f].name)} <b>${fmt(r.got)}</b>개 → 창고</span>` : '', matT = r.mats.length ? `<span>${r.mats.slice(0, 3).map(([m, n]) => `${esc(m)} ×${n}`).join(', ')}${r.mats.length > 3 ? ` 외 ${r.mats.length - 3}` : ''}</span>` : '';
   const focus = ms === 'scout' ? [mapT, gotT, matT] : ms === 'hunt' ? [matT, gotT, mapT] : [gotT, matT, mapT];
-  return `<li class="bk ${dead.length ? 'die' : r.ok ? 'ok' : 'no'}"><div class="bk-h"><b>${(r.t ?? i) + 1}조</b> ${FLOORS[r.f].name} <span class="ms-tag ${ms}">${MISSION_NAME[ms]}</span> <span class="dim">${T.fd ?? D.length}일 · 구간 ${D.length} · ${wins}번 해냄 · ${TRIP_END[T.end]}</span>
+  return `<li class="bk ${dead.length ? 'die' : r.ok ? 'ok' : 'no'}"><div class="bk-h"><b>${(r.t ?? i) + 1}조</b> ${FLOORS[r.f].name} <span class="ms-tag ${ms}">${MISSION_NAME[ms]}</span> <span class="dim">${T.fd ?? D.length}일 · 구간 ${D.length} · 성공 ${wins} · ${TRIP_END[T.end]}</span>
     <button type="button" class="sc-open" data-act="scene" data-src="${src}" data-i="${i}" aria-label="${(r.t ?? i) + 1}조 탐사 재생">▶ 보기</button></div>
     <div class="bk-d"><span class="days">${days || '<i class="dk"></i>'}</span>${packBar(T.slots, T.torch - T.tu, Math.max(0, (r.potC || 0) - (r.pots || 0)), T.pack, (T.food || 0) - (T.fu || 0), (T.tools || 0) - (T.tk || 0), T.pm || 0, T.pt || 0)}</div>
     <div class="bk-r">${focus[0]}${dead.length ? `<b class="dead-n">† ${dead.map(z => esc(z.n)).join(', ')}</b>` : ''}${focus[1]}${focus[2]}${r.hurt ? `<span class="neg">부상 ${r.hurt}</span>` : ''}</div></li>`;
@@ -194,7 +194,7 @@ export function hallHtml(W: World, raw: Plan) {
         ${ready.length ? `<ul class="rds">${ready.map(({ T, t }) => `<li><b>${t + 1}조</b> ${FLOORS[T.f].name} <span class="ms-tag ${T.mission || 'gather'}">${MISSION_NAME[T.mission || 'gather']}</span> <span class="dim">${T.m.filter(x => x != null).length}명 · ${CO.TRIP_DAYS[T.f]}일 길</span>${sendBtn(T, t)}</li>`).join('')}</ul>` : '<p class="note">본부에 짐을 다 싼 조가 없어요 (편성은 출정에서)</p>'}
         <button type="button" class="link" data-act="exp">출정 편성 →</button></div>
       <div class="panel month"><header><h2>제${W.month}월 장부</h2><span class="right">${W.day || 1}일 / ${CO.MONTH_DAYS}일</span></header>
-        <dl class="fc-line"><div><dt>돌아온 조</dt><dd>${monthBack}</dd></div><div><dt>짐 어림</dt><dd>${fmt(haul)}G</dd></div><div><dt>바로 쓴 돈</dt><dd>${fmt(spent)}G</dd></div></dl>
+        <dl class="fc-line"><div><dt>돌아온 조</dt><dd>${monthBack}</dd></div><div><dt>짐 예측</dt><dd>${fmt(haul)}G</dd></div><div><dt>바로 쓴 돈</dt><dd>${fmt(spent)}G</dd></div></dl>
         ${adminBar(W, P)}
         <p class="note">채집품은 창고에서 팔 날을 고른다 (시세는 날마다) · 전리품 · 급여 · 본부 유지비는 그믐에</p></div>
       ${nextDayBtn(W, 'big', ready.filter(x => x.T.go).length)}

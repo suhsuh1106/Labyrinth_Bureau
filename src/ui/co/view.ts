@@ -49,7 +49,7 @@ export function resultsHtml(W: World) {
       <td class="n">${i === 0 || seeGate ? `${r.sent.reduce((a, b) => a + b, 0) + r.hired.reduce((a, b) => a + b, 0)}조` : '?'}</td><td class="n">${fmt(worth(W, c))}</td></tr>`;
   };
   const r = L.res[0];
-  const mine = `<div class="tw"><table class="grid"><thead><tr><th>층</th><th class="n">조</th><th class="n">탐사</th><th class="n">해냄</th><th class="n">캐 온 양</th></tr></thead><tbody>${FLOORS.map((F, f) => (r.sent[f] ? `<tr><td>${F.name}</td><td class="n">${r.sent[f]}</td><td class="n">${L.ours.filter(o => o.f === f).length}</td><td class="n">${r.ok[f]}</td><td class="n">${r.got[f]}</td></tr>` : '')).join('')}</tbody></table></div>
+  const mine = `<div class="tw"><table class="grid"><thead><tr><th>층</th><th class="n">조</th><th class="n">탐사</th><th class="n">성공</th><th class="n">캐 온 양</th></tr></thead><tbody>${FLOORS.map((F, f) => (r.sent[f] ? `<tr><td>${F.name}</td><td class="n">${r.sent[f]}</td><td class="n">${L.ours.filter(o => o.f === f).length}</td><td class="n">${r.ok[f]}</td><td class="n">${r.got[f]}</td></tr>` : '')).join('')}</tbody></table></div>
     <div class="tw"><table class="grid"><thead><tr><th>정산</th><th class="n">금액</th></tr></thead><tbody>${ITEMS.map((it, j) => (r.sold[j] ? `<tr><td>${it.name} ${fmt(r.sold[j])}개 <span class="dim">개당 ${fmtG((r.soldV ? r.soldV[j] : r.sold[j] * L.price[j]) / r.sold[j])}G</span></td><td class="n">${fmt(r.soldV ? r.soldV[j] : r.sold[j] * L.price[j])}</td></tr>` : '')).join('')}
       ${r.stockLeft && r.stockLeft.some(n => n > 0) ? `<tr><td class="dim">창고에 남긴 채집품 ${r.stockLeft.map((n, j) => (n ? `${ITEMS[j].name} ${fmt(n)}` : '')).filter(Boolean).join(' · ')}</td><td class="n dim">-</td></tr>` : ''}
       ${r.jobPay ? `<tr><td>의뢰 (납품 웃돈 · 포상)</td><td class="n">${fmt(r.jobPay)}</td></tr>` : ''}
@@ -118,16 +118,16 @@ export function resultsHtml(W: World) {
     <details class="fold"><summary>우리 정산 자세히</summary><div class="mine">${mine}</div></details>`;
 }
 
-// 어림과 실제: 결재 직전 어림의 분포 위에 실제 수입을 긋고, 지난 몇 달의 어림과 실제를 나란히 둔다
+// 예측과 실제: 결재 직전 예측의 분포 위에 실제 수입을 긋고, 지난 몇 달의 예측과 실제를 나란히 둔다
 function fcVsHtml(W: World) {
   const L = W.last; if (!L || !L.fc || !L.fc.mean) return '';
   const fc = L.fc, a = L.res[0].sales, rk = fcRank(fc, a), cost = a - L.res[0].net;
-  const say = rk < 0.1 ? '어림의 아래쪽 끝이에요. 운이 나빴거나, 편성에 역효과가 있었을 수 있어요.' : rk > 0.9 ? '어림의 위쪽 끝이에요. 운이 좋았거나, 편성이 약점을 맞혔을 수 있어요.' : '어림 안쪽이에요.';
+  const say = rk < 0.1 ? '예측의 아래쪽 끝이에요. 운이 나빴거나, 편성에 역효과가 있었을 수 있어요.' : rk > 0.9 ? '예측의 위쪽 끝이에요. 운이 좋았거나, 편성이 약점을 맞혔을 수 있어요.' : '예측 안쪽이에요.';
   const past = W.history.slice(-6).filter(M => M.fc && M.fc.mean);
-  return `<section class="rp"><h3>어림과 실제</h3>
-    ${fcChart(fc, cost, a, `제${L.month}월 수입 어림 기대 ${fmt(fc.mean)}G, 실제 ${fmt(a)}G`)}
-    <p class="note">어림 기대 <b>${fmt(fc.mean)}G</b> (열에 여덟은 ${fmt(fc.p10)} ~ ${fmt(fc.p90)}G) → 실제 <b>${fmt(a)}G</b>, 어림의 아래에서 ${Math.round(rk * 100)}%. ${say}</p>
-    ${past.length > 1 ? `<div class="tw"><table class="grid slim fcv"><thead><tr><th>달</th><th class="n">어림 기대</th><th class="n">열에 여덟</th><th class="n">실제</th><th class="n">차이</th></tr></thead><tbody>${past.map(M => { const x = M.res[0].sales, d = x - M.fc!.mean; return `<tr><td>제${M.month}월</td><td class="n">${fmt(M.fc!.mean)}</td><td class="n dim">${fmt(M.fc!.p10)} ~ ${fmt(M.fc!.p90)}</td><td class="n">${fmt(x)}</td><td class="n ${d < 0 ? 'neg' : 'pos'}">${sgn(d)}</td></tr>`; }).join('')}</tbody></table></div>` : ''}
+  return `<section class="rp"><h3>예측과 실제</h3>
+    ${fcChart(fc, cost, a, `제${L.month}월 수입 예측 기대 ${fmt(fc.mean)}G, 실제 ${fmt(a)}G`)}
+    <p class="note">예측 기대 <b>${fmt(fc.mean)}G</b> (열에 여덟은 ${fmt(fc.p10)} ~ ${fmt(fc.p90)}G) → 실제 <b>${fmt(a)}G</b>, 예측의 아래에서 ${Math.round(rk * 100)}%. ${say}</p>
+    ${past.length > 1 ? `<div class="tw"><table class="grid slim fcv"><thead><tr><th>달</th><th class="n">예측 기대</th><th class="n">열에 여덟</th><th class="n">실제</th><th class="n">차이</th></tr></thead><tbody>${past.map(M => { const x = M.res[0].sales, d = x - M.fc!.mean; return `<tr><td>제${M.month}월</td><td class="n">${fmt(M.fc!.mean)}</td><td class="n dim">${fmt(M.fc!.p10)} ~ ${fmt(M.fc!.p90)}</td><td class="n">${fmt(x)}</td><td class="n ${d < 0 ? 'neg' : 'pos'}">${sgn(d)}</td></tr>`; }).join('')}</tbody></table></div>` : ''}
   </section>`;
 }
 
@@ -228,7 +228,7 @@ export function returnHtml(W: World) {
       const cls = (x.cls || x.keys.map(CLS_SHORT).filter(Boolean)).join('·'), gear = x.keys.find(k => k.startsWith('g:'));
       const got = (x.mats || []).map(([m, n]) => `${(x.first || []).includes(m) ? `<b>${m} ×${n}</b><span class="bk-new">처음</span>` : `${m} ×${n}`}`).join(', ');
       const grade = x.k != null ? `<span class="grade g${Math.min(4, Math.max(1, x.k))}">${gradeOf(x.k)} ${x.k}/${x.n || 4}</span> ` : '';
-      const trip = x.trip && x.days ? `<span class="dim">${x.days.filter(d => d.win).length}승 ${x.days.filter(d => !d.win).length}패${x.trip.end === 'torch' ? ' · 횃불 다 씀' : x.trip.end === 'pack' ? ' · 짐 다 참' : x.trip.end === 'flee' ? ' · 물러남' : ''}</span> ` : '';
+      const trip = x.trip && x.days ? `<span class="dim">${x.days.filter(d => d.win).length}승 ${x.days.filter(d => !d.win).length}패${x.trip.end === 'torch' ? ' · 횃불 소진' : x.trip.end === 'pack' ? ' · 짐 가득' : x.trip.end === 'flee' ? ' · 후퇴' : ''}</span> ` : '';
       const what = grade + trip + (x.k ? (got || '<span class="dim">갈무리한 것 없음</span>') : x.k == null && !x.ok ? `<span class="dim">실패</span>` : '') + (x.crisis ? ` <span class="dim">· 위기 ${x.crisis}${x.pots ? ` · 포션 ${x.pots}` : ''}</span>` : '');
       return `<div class="ld${(x.first || []).length ? ' first' : ''}"><span class="ld-w">${x.kit >= 0 ? `<span class="ktag">${KTAG[x.kit]}</span>` : ''}${noOf.get(x)}조 · ${cls || '혼성'}${gear ? ` · ${gear.slice(2)}` : ''}</span><span>${what}${x.hurt ? ` · <b class="hurt">${x.hurt}명 부상</b>` : ''}${x.d ? ` · <b class="neg">${x.d}명 사망</b>` : ''}</span></div>`;
     }).join('');
