@@ -783,6 +783,7 @@ th.srt:hover, th.srt:focus-visible { color: var(--ink); outline: none; text-deco
 .tier.t3 .pips i:nth-child(-n+4) { background: var(--tr3); }
 .tier.t4 .pips i:nth-child(-n+5) { background: var(--tr4); }
 .trait { display: inline-block; font-size: 12px; padding: 0 7px; border-radius: 3px; background: var(--paper-2); border: 1px solid var(--rule); cursor: help; }
+.trait.hid { margin-left: 4px; font-style: italic; } .trait.hid.up { background: #e3f1e0; border-color: #9cc596; color: #2c5a2a; } .trait.hid.dn { background: #f6e3df; border-color: #d6a49a; color: #7a2e22; }
 td.ex { font-family: var(--f-num); font-size: 12px; }
 td.ex i { display: inline-block; height: 6px; background: var(--church); border-radius: 1px; margin-right: 4px; vertical-align: middle; opacity: .8; }
 td.ex.hl { background: color-mix(in srgb, var(--church) 14%, transparent); font-weight: 600; }

@@ -1,28 +1,34 @@
 // 단원 명단과 편성표: 엑셀처럼 한 줄에 한 사람. 머리글을 누르면 정렬한다.
 // 인원 창의 명단 · 지원자 명단과, 출정의 편성표(조 요약 줄 + 배치 칸)를 그린다. 상태를 쓰지 않고 난수도 쓰지 않는다
-import { awayIds, dayAbs, sortieOf, stateOf, teamReady, CO, FLOORS, type Person, type Plan, type World, candPrice, candNow, hirePrice, boughtOf, cohesion, hqLv, mapOf, personWage, roomOf, teamOdds, teamPots, teamTorch, teamFood, teamMend, foodDays, clamp, tierOf, torchRate, torchOdds, segRate, MISSIONS, MISSION_NAME, type Mission, us, drillGain, isRook, weakShare, synTags, teamSlots, synOf, SYN } from '../../core/company';
+import { awayIds, dayAbs, sortieOf, stateOf, teamReady, CO, FLOORS, type Person, type Plan, type World, candPrice, candNow, hirePrice, boughtOf, cohesion, hqLv, mapOf, personWage, roomOf, teamOdds, teamPots, teamTorch, teamFood, teamMend, foodDays, clamp, tierOf, torchRate, torchOdds, segRate, MISSIONS, MISSION_NAME, type Mission, us, drillGain, isRook, weakShare, synTags, teamSlots, synOf, SYN, potSeen, hidSeen } from '../../core/company';
 import { stepper } from './view';
 import { type Day, evOf } from '../../core/expedition';
 import { floorMons } from '../../core/company';
 import { DEX, badSure } from '../../core/dex';
-import { GEARS, PAIR_CLASS, TIER_N, TRAITS, WEAK_KEYS } from '../../core/data';
+import { GEARS, HIDDEN, PAIR_CLASS, TIER_N, TRAITS, WEAK_KEYS } from '../../core/data';
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
 export const nameOf = (p: Person) => p.n || `${p.c} ${p.id}`;
 export const tierHtml = (p: Person) => { const t = tierOf(p); return `<span class="tier t${t}" title="실력 ${TIER_N[t]} · 성공 ${CO.TIER_B[t] >= 0 ? '+' : '−'}${Math.round(Math.abs(CO.TIER_B[t]) * 100)}%p"><span class="pips">${'<i></i>'.repeat(5)}</span><em>${TIER_N[t]}</em></span>`; };
-export const traitHtml = (p: Person) => (p.tr ? `<span class="trait" title="${esc(TRAITS[p.tr] || '')}">${p.tr}</span>` : '');
+export const traitHtml = (p: Person) => (p.tr ? `<span class="trait" title="${esc(TRAITS[p.tr] || '')}">${p.tr}</span>` : '')
+  + (hidSeen(p) && p.hd !== '무난' ? `<span class="trait hid ${(HIDDEN[p.hd!] || { v: 0 }).v > 0 ? 'up' : 'dn'}" title="숨은 기질 · ${esc((HIDDEN[p.hd!] || { t: '' }).t)}">${p.hd}</span>` : '');
+// 임무 적성 · 잠재력(함께한 지 CO.POT_SEE달 뒤에 보임) · 해낸 비율(나선 구간 중)
+export const aptHtml = (p: Person) => (p.apt ? `<span class="ms-tag ${p.apt}" title="${MISSION_NAME[p.apt]} 사건에서 성공 +${Math.round(CO.APT_SUCC * 100)}%p">${MISSION_NAME[p.apt]}</span>` : '<span class="dim">–</span>');
+export const potHtml = (p: Person) => (p.pt == null ? '<span class="dim">–</span>' : potSeen(p) ? `<span title="실력이 오를 수 있는 끝">${TIER_N[Math.min(4, Math.floor(p.pt / CO.TIER_STEP))]}까지</span>` : `<span class="dim" title="함께한 지 ${CO.POT_SEE}달이 지나면 보인다">?</span>`);
+const rateOf = (p: Person) => (p.sg && p.sg[0] ? p.sg[1] / p.sg[0] : -1);
+const rateHtml = (p: Person) => (p.sg && p.sg[0] ? `${Math.round(rateOf(p) * 100)}%<small class="dim"> · ${p.sg[0]}</small>` : '<span class="dim">–</span>');
 const exCell = (p: Person, f: number, hl: boolean) => { const v = (p.ex && p.ex[f]) || 0; return `<td class="n ex${hl ? ' hl' : ''}">${v ? `<i style="width:${Math.round(v * 0.36)}px"></i>${v}` : '<span class="dim">–</span>'}</td>`; };
 
 // 정렬: ui.sort는 "열:방향" (방향 1 오름 · -1 내림). 실력 · 경험 · 해낸 수는 처음 누르면 높은 순
-export const DESC_FIRST = ['sk', 'wins', 'ex0', 'ex1', 'ex2', 'ex3', 'ex4', 'wage', 'bond'];
+export const DESC_FIRST = ['sk', 'wins', 'pot', 'rate', 'ex0', 'ex1', 'ex2', 'ex3', 'ex4', 'wage', 'bond'];
 export function sortKey(s: string | undefined, dflt: string) { const [k, d] = (s || dflt).split(':'); return { k, d: +d || 1 }; }
 function sortRows<T extends { p: Person }>(rows: T[], k: string, d: number, val: (r: T, k: string) => number | string) {
   return [...rows].sort((a, b) => { const x = val(a, k), y = val(b, k); return (x > y ? 1 : x < y ? -1 : a.p.id - b.p.id) * d; });
 }
 const pval = (p: Person, k: string): number | string =>
-  k === 'name' ? nameOf(p) : k === 'cls' ? p.c : k === 'sk' ? p.sk ?? 40 : k === 'tr' ? p.tr || '' : k === 'wins' ? p.wins || 0 : k === 'wage' ? personWage(p) : k === 'st' ? (p.hurt ? 1 : 0)
+  k === 'name' ? nameOf(p) : k === 'cls' ? p.c : k === 'sk' ? p.sk ?? 40 : k === 'tr' ? p.tr || '' : k === 'wins' ? p.wins || 0 : k === 'apt' ? p.apt || '' : k === 'pot' ? (potSeen(p) ? p.pt ?? 0 : -1) : k === 'rate' ? rateOf(p) : k === 'wage' ? personWage(p) : k === 'st' ? (p.hurt ? 1 : 0)
     : k.startsWith('ex') ? (p.ex && p.ex[+k.slice(2)]) || 0 : 0;
 const th = (k: string, name: string, cur: { k: string; d: number }, scope: string, cls = '') =>
   `<th class="srt${cls ? ' ' + cls : ''}${cur.k === k ? (cur.d > 0 ? ' asc' : ' desc') : ''}" data-act="sort" data-scope="${scope}" data-k="${k}" aria-sort="${cur.k === k ? (cur.d > 0 ? 'ascending' : 'descending') : 'none'}" tabindex="0" role="columnheader">${name}</th>`;
@@ -34,8 +40,8 @@ export function rosterHtml(W: World, sort?: string, raw?: Plan) {
   const rows = sortRows(crew.map(p => ({ p })), cur.k, cur.d, (r, k) => pval(r.p, k));
   const tiers = TIER_N.map((_, t) => crew.filter(p => tierOf(p) === t).length);
   return `<div class="rs-sum">${TIER_N.map((n, t) => (tiers[t] ? `<span>${n} <b>${tiers[t]}</b></span>` : '')).join('')}<span>급여 합 <b>${fmt(crew.reduce((a, p) => a + personWage(p), 0))}G</b> <small class="dim">(관리비 따로)</small></span></div>
-    <div class="tw"><table class="grid crewt"><thead><tr>${th('name', '이름', cur, 'rs')}${th('cls', '직업', cur, 'rs')}${th('sk', '실력', cur, 'rs')}${th('tr', '특성', cur, 'rs')}${open.map(f => th('ex' + f, FLOORS[f].name + ' 경험', cur, 'rs', 'n')).join('')}${th('wins', '해낸 수', cur, 'rs', 'n')}${th('st', '상태', cur, 'rs')}${th('wage', '급여', cur, 'rs', 'n')}<th title="다음 날 아침 떠남 · 위로금 ${CO.FIRE_PAY}달치 급여 (탐사 중인 사람은 돌아온 뒤)">해고</th></tr></thead>
-    <tbody>${rows.map(({ p }) => `<tr${p.hurt || out.includes(p.id) ? ' class="away"' : ''}><td class="nm">${p.lead ? '<span class="lead-b" title="단장: 죽지 않고, 크게 다치면 두 달 쉰다. 단장 조사를 맡는다">단장</span>' : ''}${esc(nameOf(p))}</td><td class="cn">${p.c}</td><td>${tierHtml(p)}</td><td>${traitHtml(p)}</td>${open.map(f => exCell(p, f, false)).join('')}<td class="n">${p.wins || 0}</td><td class="st">${p.hurt ? `<span class="hurt">부상 · ${p.hurt}일 쉼</span>` : ''}</td><td class="n">${personWage(p)}</td><td>${p.lead ? '' : `<button type="button" class="tog sm" data-act="fire" data-id="${p.id}" aria-pressed="${out.includes(p.id)}" title="위로금 ${Math.round(personWage(p) * CO.FIRE_PAY)}G">${out.includes(p.id) ? '내보냄' : '해고'}</button>`}</td></tr>`).join('')}</tbody></table></div>`;
+    <div class="tw"><table class="grid crewt"><thead><tr>${th('name', '이름', cur, 'rs')}${th('cls', '직업', cur, 'rs')}${th('sk', '실력', cur, 'rs')}${th('tr', '특성', cur, 'rs')}${th('apt', '적성', cur, 'rs')}${th('pot', '잠재력', cur, 'rs')}${open.map(f => th('ex' + f, FLOORS[f].name + ' 경험', cur, 'rs', 'n')).join('')}${th('rate', '해낸 비율', cur, 'rs', 'n')}${th('st', '상태', cur, 'rs')}${th('wage', '급여', cur, 'rs', 'n')}<th title="다음 날 아침 떠남 · 위로금 ${CO.FIRE_PAY}달치 급여 (탐사 중인 사람은 돌아온 뒤)">해고</th></tr></thead>
+    <tbody>${rows.map(({ p }) => `<tr${p.hurt || out.includes(p.id) ? ' class="away"' : ''}><td class="nm">${p.lead ? '<span class="lead-b" title="단장: 죽지 않고, 크게 다치면 두 달 쉰다. 단장 조사를 맡는다">단장</span>' : ''}${esc(nameOf(p))}</td><td class="cn">${p.c}</td><td>${tierHtml(p)}</td><td>${traitHtml(p)}</td><td>${aptHtml(p)}</td><td>${potHtml(p)}</td>${open.map(f => exCell(p, f, false)).join('')}<td class="n" title="나선 구간 중 해낸 비율 · 나선 구간">${rateHtml(p)}</td><td class="st">${p.hurt ? `<span class="hurt">부상 · ${p.hurt}일 쉼</span>` : ''}</td><td class="n">${personWage(p)}</td><td>${p.lead ? '' : `<button type="button" class="tog sm" data-act="fire" data-id="${p.id}" aria-pressed="${out.includes(p.id)}" title="위로금 ${Math.round(personWage(p) * CO.FIRE_PAY)}G">${out.includes(p.id) ? '내보냄' : '해고'}</button>`}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
 // 지원자 명단: 오늘까지 찾아온 사람. 계약하면 계약금이 바로 나가고 다음 날 아침 들어온다 (그날 안에는 물릴 수 있다)
@@ -43,10 +49,10 @@ export function candHtml(W: World, _raw: Plan, sort?: string) {
   const c = us(W), Q = c.hireQ || [], room = roomOf(c), cur = sortKey(sort, 'sk:-1'), rp = hirePrice(W), day = W.day || 1;
   const rows = sortRows([...Q.map(p => ({ p, q: true })), ...candNow(W).map(p => ({ p, q: false }))], cur.k, cur.d, (r, k) => (k === 'price' ? candPrice(r.p, rp) : pval(r.p, k)));
   const B = boughtOf(W), got = (B.hired || []).length, fresh = candNow(W).filter(p => (p.ad || 1) === day).length;
-  return `<div class="tw"><table class="grid crewt cand"><thead><tr>${th('name', '이름', cur, 'cd')}${th('cls', '직업', cur, 'cd')}${th('sk', '실력', cur, 'cd')}${th('tr', '특성', cur, 'cd')}${th('price', '계약금', cur, 'cd', 'n')}${th('wage', '급여', cur, 'cd', 'n')}<th>계약</th></tr></thead>
+  return `<div class="tw"><table class="grid crewt cand"><thead><tr>${th('name', '이름', cur, 'cd')}${th('cls', '직업', cur, 'cd')}${th('sk', '실력', cur, 'cd')}${th('tr', '특성', cur, 'cd')}${th('apt', '적성', cur, 'cd')}${th('price', '계약금', cur, 'cd', 'n')}${th('wage', '급여', cur, 'cd', 'n')}<th>계약</th></tr></thead>
     <tbody>${rows.map(({ p, q }) => { const full = !q && room <= 0, nu = !q && (p.ad || 1) === day && day > 1;
-      return `<tr${q ? ' class="on"' : ''}><td class="nm">${esc(nameOf(p))}${nu ? ' <small class="new-b">오늘</small>' : ''}</td><td class="cn">${p.c}</td><td>${tierHtml(p)}</td><td>${traitHtml(p)}</td><td class="n">${fmt(candPrice(p, rp))}</td><td class="n">${personWage(p)}</td>
-        <td><button type="button" class="tog" data-act="hire" data-id="${p.id}" aria-pressed="${q}"${full ? ' disabled title="빈 침상이 모자라요"' : ''}>${q ? '내일 합류 · 물리기' : '계약'}</button></td></tr>`; }).join('') || '<tr><td colspan="7" class="dim">아직 찾아온 사람이 없어요</td></tr>'}</tbody></table></div>
+      return `<tr${q ? ' class="on"' : ''}><td class="nm">${esc(nameOf(p))}${nu ? ' <small class="new-b">오늘</small>' : ''}</td><td class="cn">${p.c}</td><td>${tierHtml(p)}</td><td>${traitHtml(p)}</td><td>${aptHtml(p)}</td><td class="n">${fmt(candPrice(p, rp))}</td><td class="n">${personWage(p)}</td>
+        <td><button type="button" class="tog" data-act="hire" data-id="${p.id}" aria-pressed="${q}"${full ? ' disabled title="빈 침상이 모자라요"' : ''}>${q ? '내일 합류 · 물리기' : '계약'}</button></td></tr>`; }).join('') || '<tr><td colspan="8" class="dim">아직 찾아온 사람이 없어요</td></tr>'}</tbody></table></div>
     <p class="note">${got ? `이번 달 계약 ${got}명 · 계약금 ${fmt(B.cost.recruit || 0)}G` : '이번 달 계약 없음'}${fresh && day > 1 ? ` · 오늘 새로 ${fresh}명` : ''} · 빈 침상 ${room}개 · 1인 ${fmt(rp)}G부터 (드문 직업 · 실력 단계만큼 더). 지원자는 그믐까지 며칠마다 찾아오고, 그달 계약하지 않은 사람은 다른 용병단으로 가요.</p>`;
 }
 

@@ -29,7 +29,9 @@ import { WEAK_KEYS } from '../src/core/data';
 import { DEX, askable, badSure } from '../src/core/dex';
 import { dayAbs, nextDay, openMonth, sellStock, sendReady, stateOf, stockValue } from '../src/core/company';
 import { MISSIONS, sendQueued } from '../src/core/company';
-import { candNow, crewOf, hireNow, hirePrice } from '../src/core/company';
+import { candNow, crewOf, hireNow, hirePrice, aptB, skUp, skCap, potSeen, hidSeen } from '../src/core/company';
+import { HIDDEN } from '../src/core/data';
+import { rosterHtml } from '../src/ui/co/roster';
 // 옛 시작(16명 · 네 조)을 전제로 한 규칙 테스트: 우리 명단을 16명으로 바꾸고 지원자는 비운다
 const big = (W: World) => { const c = us(W); c.crew = crewOf(16); c.members = 16; c.nextId = 16; c.sup!.pot = [12]; W.cand = []; return W; };
 import { evOf } from '../src/core/expedition';
@@ -430,7 +432,7 @@ describe('전리품 비율과 몬스터 적응', () => {
     for (const ms of MISSIONS) {
       const x = sum[ms] = { got: 0, mats: 0, map: 0, cr: 0, n: 0 };
       for (let g = 1; g <= 6; g++) {
-        setSeed(g); const W = newWorld(); W.unlocked = 2;
+        setSeed(g); const W = big(newWorld()); W.unlocked = 2;
         for (let m = 0; m < 2; m++) {
           const P = sanitize(W, us(W), defaultPlan(W)); P.teams!.forEach((T, t) => { T.f = t % 2; T.mission = ms; });
           const M = runMonth(W, P); closeBooks(W);
@@ -1507,5 +1509,38 @@ describe('날 단위 턴 · 길드 홀', () => {
     const cash = us(W).cash, have = Math.floor(W.stock![0] + 1e-9), v = sellStock(W, 0);
     expect(v).toBeGreaterThan(0); expect(us(W).cash).toBe(cash + v); expect(Math.floor(W.stock![0] + 1e-9)).toBe(0);
     expect(W.mo!.res[0].sold[0]).toBeGreaterThanOrEqual(have);
+  });
+});
+
+describe('단원의 깊이: 임무 적성 · 잠재력 · 숨은 기질 · 1인 시너지', () => {
+  it('시작 명단과 첫 달 지원자는 판마다 같은 적성 · 잠재력 · 숨은 기질을 갖고, 뒤에 오는 지원자도 셋을 갖는다', () => {
+    setSeed(1); const a = newWorld(); setSeed(2); const b = newWorld();
+    const pick = (W: World) => [...us(W).crew!, ...W.cand!].map(p => [p.apt, p.pt, p.hd]);
+    expect(pick(a)).toEqual(pick(b));
+    us(a).crew!.forEach(p => { expect(p.pt).toBeGreaterThanOrEqual(p.sk!); expect(HIDDEN[p.hd!]).toBeTruthy(); });
+    runMonth(a, defaultPlan(a));
+    a.cand!.forEach(p => { expect(p.pt).toBeGreaterThan(p.sk!); expect(p.pt).toBeLessThanOrEqual(100); expect(HIDDEN[p.hd!]).toBeTruthy(); });
+  });
+  it('적성은 그 사건에서만 성공을 더하고, 숨은 기질은 탐사에만 들어가 화면의 어림은 모른다', () => {
+    const p = { id: 1, c: '전사', sk: 30, apt: 'scout' as const, hd: '천운' };
+    expect(aptB(p, 'scout')).toBe(CO.APT_SUCC); expect(aptB(p, 'gather')).toBe(0);
+    expect(memberMods([p], 0, 100, true).pp[0] - memberMods([p], 0).pp[0]).toBeCloseTo(HIDDEN['천운'].v);
+  });
+  it('잠재력에 가까울수록 실력이 덜 오르고 넘지 않으며, 잠재력 · 숨은 기질은 시간이 지나야 보인다', () => {
+    setSeed(3); const W = newWorld(), c = us(W), p = c.crew![1];   // 수련 34, 잠재력 55
+    expect(skUp(c, { ...p, sk: 20 }, 3)).toBe(23);
+    expect(skUp(c, { ...p, sk: 50 }, 3)).toBeCloseTo(51.5);
+    expect(skUp(c, { ...p, sk: 55 }, 3)).toBe(55);
+    expect(potSeen(p)).toBe(false); expect(hidSeen(p)).toBe(false);
+    for (let m = 0; m < CO.POT_SEE; m++) { runMonth(W, defaultPlan(W)); closeBooks(W); }
+    expect(potSeen(c.crew!.find(x => x.id === p.id)!)).toBe(true);
+    c.crew!.forEach(x => expect(x.sk!).toBeLessThanOrEqual(skCap(c, x)));
+    expect(hidSeen({ ...p, sg: [CO.HID_SEE, 20] })).toBe(true);
+    expect(rosterHtml(W)).toContain('까지');
+  });
+  it('궁수 · 마법사는 혼자서도 시너지가 켜진다', () => {
+    const who = [{ id: 1, c: '궁수' }, { id: 2, c: '마법사' }, { id: 3, c: '전사' }, { id: 4, c: '도적' }];
+    const S = synOf(who); expect(S.arc).toBe(true); expect(S.mag).toBe(true); expect(S.mag2).toBe(false);
+    const tags = synTags(who).map(t => t[0]); expect(tags).toContain('궁수 1'); expect(tags).toContain('마법사 1');
   });
 });
