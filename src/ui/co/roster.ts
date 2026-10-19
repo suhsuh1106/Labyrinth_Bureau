@@ -1,6 +1,6 @@
 // 단원 명단과 편성표: 엑셀처럼 한 줄에 한 사람. 머리글을 누르면 정렬한다.
 // 인원 창의 명단 · 지원자 명단과, 출정의 편성표(조 요약 줄 + 배치 칸)를 그린다. 상태를 쓰지 않고 난수도 쓰지 않는다
-import { awayIds, dayAbs, sortieOf, stateOf, teamReady, CO, FLOORS, type Person, type Plan, type World, candPrice, cohesion, hqLv, mapOf, personWage, recruitPrice, roomOf, teamOdds, teamPots, teamTorch, teamFood, teamMend, foodDays, clamp, tierOf, torchRate, torchOdds, segRate, MISSIONS, MISSION_NAME, type Mission, us, drillGain, isRook, weakShare, synTags, teamSlots, synOf, SYN } from '../../core/company';
+import { awayIds, dayAbs, sortieOf, stateOf, teamReady, CO, FLOORS, type Person, type Plan, type World, candPrice, candNow, hirePrice, boughtOf, cohesion, hqLv, mapOf, personWage, roomOf, teamOdds, teamPots, teamTorch, teamFood, teamMend, foodDays, clamp, tierOf, torchRate, torchOdds, segRate, MISSIONS, MISSION_NAME, type Mission, us, drillGain, isRook, weakShare, synTags, teamSlots, synOf, SYN } from '../../core/company';
 import { stepper } from './view';
 import { type Day, evOf } from '../../core/expedition';
 import { floorMons } from '../../core/company';
@@ -38,17 +38,16 @@ export function rosterHtml(W: World, sort?: string, raw?: Plan) {
     <tbody>${rows.map(({ p }) => `<tr${p.hurt || out.includes(p.id) ? ' class="away"' : ''}><td class="nm">${p.lead ? '<span class="lead-b" title="단장: 죽지 않고, 크게 다치면 두 달 쉰다. 단장 조사를 맡는다">단장</span>' : ''}${esc(nameOf(p))}</td><td class="cn">${p.c}</td><td>${tierHtml(p)}</td><td>${traitHtml(p)}</td>${open.map(f => exCell(p, f, false)).join('')}<td class="n">${p.wins || 0}</td><td class="st">${p.hurt ? `<span class="hurt">부상 · ${p.hurt}일 쉼</span>` : ''}</td><td class="n">${personWage(p)}</td><td>${p.lead ? '' : `<button type="button" class="tog sm" data-act="fire" data-id="${p.id}" aria-pressed="${out.includes(p.id)}" title="위로금 ${Math.round(personWage(p) * CO.FIRE_PAY)}G">${out.includes(p.id) ? '내보냄' : '해고'}</button>`}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
-// 지원자 명단: 누르면 고르고(빈 침상까지), 고른 순서대로 들어온다. 다른 용병단과 겹치면 명성 순으로 나뉘어 뒤에 고른 사람부터 빠진다
-export function candHtml(W: World, raw: Plan, sort?: string) {
-  const c = us(W), cand = W.cand || [], room = roomOf(c), cur = sortKey(sort, 'sk:-1');
-  const picks = raw.pick || [], rp = recruitPrice(0, 1);
-  const rows = sortRows(cand.map(p => ({ p })), cur.k, cur.d, (r, k) => (k === 'price' ? candPrice(r.p, rp) : pval(r.p, k)));
-  const total = picks.map(id => cand.find(x => x.id === id)).filter((x): x is Person => !!x).reduce((a, p) => a + candPrice(p, rp), 0);
-  return `<div class="tw"><table class="grid crewt cand"><thead><tr>${th('name', '이름', cur, 'cd')}${th('cls', '직업', cur, 'cd')}${th('sk', '실력', cur, 'cd')}${th('tr', '특성', cur, 'cd')}${th('price', '계약금', cur, 'cd', 'n')}${th('wage', '급여', cur, 'cd', 'n')}<th>뽑기</th></tr></thead>
-    <tbody>${rows.map(({ p }) => { const k = picks.indexOf(p.id), on = k >= 0, full = !on && picks.length >= room;
-      return `<tr${on ? ' class="on"' : ''}><td class="nm">${p.lead ? '<span class="lead-b" title="단장: 죽지 않고, 크게 다치면 두 달 쉰다. 단장 조사를 맡는다">단장</span>' : ''}${esc(nameOf(p))}</td><td class="cn">${p.c}</td><td>${tierHtml(p)}</td><td>${traitHtml(p)}</td><td class="n">${fmt(candPrice(p, rp))}</td><td class="n">${personWage(p)}</td>
-        <td><button type="button" class="tog" data-act="pick" data-id="${p.id}" aria-pressed="${on}"${full ? ' disabled title="빈 침상이 모자라요"' : ''}>${on ? `${k + 1}번째로 뽑기` : '뽑기'}</button></td></tr>`; }).join('') || '<tr><td colspan="7" class="dim">이번 달엔 찾아온 사람이 없어요</td></tr>'}</tbody></table></div>
-    <p class="note">${picks.length ? `고른 ${picks.length}명 · 계약금 어림 ${fmt(total)}G` : raw.pick ? '아무도 뽑지 않아요' : `고르지 않으면 빈 침상만큼 기본 편성 직업 순으로 실력 좋은 사람부터 뽑아요`} · 빈 침상 ${room}개. 다른 용병단이 같은 사람을 찾으면 명성이 높은 곳이 먼저고, 찾는 사람이 많으면 계약금이 올라요.${raw.pick ? ' <button type="button" class="link" data-act="auto-recruit">자동으로 뽑기</button>' : ''}</p>`;
+// 지원자 명단: 오늘까지 찾아온 사람. 계약하면 계약금이 바로 나가고 다음 날 아침 들어온다 (그날 안에는 물릴 수 있다)
+export function candHtml(W: World, _raw: Plan, sort?: string) {
+  const c = us(W), Q = c.hireQ || [], room = roomOf(c), cur = sortKey(sort, 'sk:-1'), rp = hirePrice(W), day = W.day || 1;
+  const rows = sortRows([...Q.map(p => ({ p, q: true })), ...candNow(W).map(p => ({ p, q: false }))], cur.k, cur.d, (r, k) => (k === 'price' ? candPrice(r.p, rp) : pval(r.p, k)));
+  const B = boughtOf(W), got = (B.hired || []).length, fresh = candNow(W).filter(p => (p.ad || 1) === day).length;
+  return `<div class="tw"><table class="grid crewt cand"><thead><tr>${th('name', '이름', cur, 'cd')}${th('cls', '직업', cur, 'cd')}${th('sk', '실력', cur, 'cd')}${th('tr', '특성', cur, 'cd')}${th('price', '계약금', cur, 'cd', 'n')}${th('wage', '급여', cur, 'cd', 'n')}<th>계약</th></tr></thead>
+    <tbody>${rows.map(({ p, q }) => { const full = !q && room <= 0, nu = !q && (p.ad || 1) === day && day > 1;
+      return `<tr${q ? ' class="on"' : ''}><td class="nm">${esc(nameOf(p))}${nu ? ' <small class="new-b">오늘</small>' : ''}</td><td class="cn">${p.c}</td><td>${tierHtml(p)}</td><td>${traitHtml(p)}</td><td class="n">${fmt(candPrice(p, rp))}</td><td class="n">${personWage(p)}</td>
+        <td><button type="button" class="tog" data-act="hire" data-id="${p.id}" aria-pressed="${q}"${full ? ' disabled title="빈 침상이 모자라요"' : ''}>${q ? '내일 합류 · 물리기' : '계약'}</button></td></tr>`; }).join('') || '<tr><td colspan="7" class="dim">아직 찾아온 사람이 없어요</td></tr>'}</tbody></table></div>
+    <p class="note">${got ? `이번 달 계약 ${got}명 · 계약금 ${fmt(B.cost.recruit || 0)}G` : '이번 달 계약 없음'}${fresh && day > 1 ? ` · 오늘 새로 ${fresh}명` : ''} · 빈 침상 ${room}개 · 1인 ${fmt(rp)}G부터 (드문 직업 · 실력 단계만큼 더). 지원자는 그믐까지 며칠마다 찾아오고, 그달 계약하지 않은 사람은 다른 용병단으로 가요.</p>`;
 }
 
 // 짐 칸: 한 사람 SLOT_PP칸. 쓰는 것(횃불 주황 · 포션 빨강 · 식량 초록 · 정비 도구 회색)이 앞에서부터, 채집품(금빛)은 뒤에서부터 찬다

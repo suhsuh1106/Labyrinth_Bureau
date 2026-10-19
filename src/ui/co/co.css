@@ -1019,6 +1019,7 @@ table.dx-mats .dx-got { font-size: 12px; }
 .dx-ask select { max-width: 100%; }
 
 .lead-b { display: inline-block; font-size: 10.5px; font-weight: 700; color: #fff; background: #8a5a1a; border-radius: 3px; padding: 0 5px; margin-right: 5px; vertical-align: 1px; }
+.new-b { font-size: 10px; font-weight: 700; color: #2a5a3a; background: #d8ecd9; border-radius: 3px; padding: 0 4px; margin-left: 4px; vertical-align: 1px; }
 .cl .lead { font-weight: 700; }
 
 .run .ask { margin: 0; padding: 6px 10px; border: 1px solid #3a5446; border-radius: 4px; font-size: 13.5px; }

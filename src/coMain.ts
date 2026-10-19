@@ -2,7 +2,7 @@
 import './ui/co/base.css';
 import './ui/co/co.css';
 import { setSeed } from './core/rng';
-import { sellStock, setClerks, buyNow, fireNow, nextDay, sendQueued, teamReady, CO, FILE_KEYS, teamPots, teamTorch, teamMend, carryOf, foodDays, mendOf, FLOORS, type Plan, SRCS, type World, carryPlan, closeBooks, fileFix, fillTeams, formTeams, newWorld, probe, rankOf, roomOf, sanitize, awayIds, us, MISSIONS, type Mission } from './core/company';
+import { sellStock, setClerks, buyNow, fireNow, hireNow, nextDay, sendQueued, teamReady, CO, FILE_KEYS, teamPots, teamTorch, teamMend, carryOf, foodDays, mendOf, FLOORS, type Plan, SRCS, type World, carryPlan, closeBooks, fileFix, fillTeams, formTeams, newWorld, probe, rankOf, roomOf, sanitize, awayIds, us, MISSIONS, type Mission } from './core/company';
 import { DESC_FIRST, packBar } from './ui/co/roster';
 import { CLASSES, GEARS } from './core/data';
 import { plaqueHtml } from './ui/co/view';
@@ -13,7 +13,7 @@ import { closeScene, openScene } from './ui/co/scene';
 import { advanceArrival, arrivalOpen, closeArrival, playArrival } from './ui/co/arrival';
 
 const $ = (id: string): any => document.getElementById(id);
-const KEY = 'lb-co', VERSION = 30, MONTHS = 36;   // 30: 전리품 · 지도 기록도 짐 칸, 보낼 예정 (이전 판은 새 게임으로)
+const KEY = 'lb-co', VERSION = 31, MONTHS = 36;   // 31: 일곱 명으로 시작, 날마다 찾아오는 지원자와 다음 날 합류 (이전 판은 새 게임으로)
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
 let W: World, plan: Plan, ui: DeskUi;
 // 도장을 막 찍은 결과 화면이면 귀환 장부를 한 줄씩 띄운다 (저장하지 않는 화면 상태)
@@ -162,11 +162,7 @@ function act(b: HTMLElement) {
     if (plan.teams) plan.teams.forEach(T => { T.m = T.m.map(x => (x === id && k < 0 ? null : x)); });
     render(); save(); return;
   }
-  if (a === 'pick') {
-    const id = +(b.dataset.id || 0), P = plan.pick ? [...plan.pick] : [], k = P.indexOf(id);
-    if (k >= 0) P.splice(k, 1); else if (P.length < roomOf(us(W))) P.push(id);
-    plan.pick = P; render(); save(); return;
-  }
+  if (a === 'hire') { hireNow(W, +(b.dataset.id || 0)); render(); save(); return; }
   if (a === 'sort') {
     const sc = b.dataset.scope || 'rs', k = b.dataset.k || 'name', cur = (ui.sort || {})[sc], [ck, cd] = (cur || '').split(':');
     const d = ck === k ? -(+cd || 1) : DESC_FIRST.includes(k) ? -1 : 1;

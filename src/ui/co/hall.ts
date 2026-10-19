@@ -2,7 +2,7 @@
 // 옆 판에는 미궁에 나가 있는 조(며칠째 · 언제 돌아올지 · 어림), 오늘 아침 돌아온 조, 나갈 수 있는 조가 있다.
 // 대화는 기록(오늘 돌아온 조 · 다친 사람 · 시세 · 소문 · 특성)에서 고르고, 고르는 데 난수 대신 날짜와 사람 번호의 해시를 쓴다.
 // 상태를 쓰지 않고 난수도 쓰지 않는다
-import { MISSION_NAME, priceNow, CO, FLOORS, ITEMS, type Ours, type Person, type Plan, type Sortie, type World, awayIds, boughtOf, dayAbs, dayOf, floorMons, forecastTrips, jo, potShock, sanitize, stateOf, teamReady, us } from '../../core/company';
+import { MISSION_NAME, priceNow, CO, FLOORS, ITEMS, type Ours, type Person, type Plan, type Sortie, type World, awayIds, boughtOf, candNow, roomOf, dayAbs, dayOf, floorMons, forecastTrips, jo, potShock, sanitize, stateOf, teamReady, us } from '../../core/company';
 import { TRIP_END } from '../../core/events';
 import { adminBar } from './desk';
 import { dayCls, dayMark, dayTip, nameOf, packBar, sendBtn } from './roster';
@@ -193,12 +193,23 @@ export function hallHtml(W: World, raw: Plan) {
       <div class="panel readys"><header><h2>나갈 수 있는 조</h2>${ready.length > 1 ? `<button type="button" class="ghost sm" data-act="send-all">${ready.every(x => x.T.go) ? '예정 모두 거두기' : '모두 보내기'}</button>` : ''}</header>
         ${ready.length ? `<ul class="rds">${ready.map(({ T, t }) => `<li><b>${t + 1}조</b> ${FLOORS[T.f].name} <span class="ms-tag ${T.mission || 'gather'}">${MISSION_NAME[T.mission || 'gather']}</span> <span class="dim">${T.m.filter(x => x != null).length}명 · ${CO.TRIP_DAYS[T.f]}일 길</span>${sendBtn(T, t)}</li>`).join('')}</ul>` : '<p class="note">본부에 짐을 다 싼 조가 없어요 (편성은 출정에서)</p>'}
         <button type="button" class="link" data-act="exp">출정 편성 →</button></div>
+      ${candPanel(W)}
       <div class="panel month"><header><h2>제${W.month}월 장부</h2><span class="right">${W.day || 1}일 / ${CO.MONTH_DAYS}일</span></header>
         <dl class="fc-line"><div><dt>돌아온 조</dt><dd>${monthBack}</dd></div><div><dt>짐 어림</dt><dd>${fmt(haul)}G</dd></div><div><dt>바로 쓴 돈</dt><dd>${fmt(spent)}G</dd></div></dl>
         ${adminBar(W, P)}
         <p class="note">채집품은 창고에서 팔 날을 고른다 (시세는 날마다) · 전리품 · 급여 · 본부 유지비는 그믐에</p></div>
       ${nextDayBtn(W, 'big', ready.filter(x => x.T.go).length)}
     </aside></div>`;
+}
+
+// 지원자: 오늘까지 찾아온 사람 · 오늘 새로 온 사람 · 내일 들어올 신입 (계약은 인원 창에서)
+function candPanel(W: World) {
+  const c = us(W), now = candNow(W), day = W.day || 1, fresh = now.filter(p => (p.ad || 1) === day).length, Q = c.hireQ || [];
+  if (!c.crew || (!now.length && !Q.length)) return '';
+  return `<div class="panel cands"><header><h2>지원자</h2><span class="right">${now.length}명${fresh && day > 1 ? ` · 오늘 ${fresh}명` : ''}</span></header>
+    ${Q.length ? `<p class="note">내일 합류 ${Q.map(p => `<b>${esc(nameOf(p))}</b> ${p.c}`).join(' · ')}</p>` : ''}
+    <p class="note">빈 침상 ${roomOf(c)}개 · ${now.length ? [...new Set(now.map(p => p.c))].join(' · ') : '기다리는 사람 없음'}</p>
+    <button type="button" class="link" data-act="place" data-place="staff">인원 · 계약 →</button></div>`;
 }
 
 // ---------- 창고의 채집품과 시장 소식 ----------
