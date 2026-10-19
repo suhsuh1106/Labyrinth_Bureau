@@ -1133,6 +1133,7 @@ table.tsum small.wkn .el { font-size: 11px; }
 /* 조 시너지 이름표 (오토체스처럼) */
 table.tsum .syn { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 3px; }
 table.tsum .syn span { font-size: 10.5px; padding: 0 6px; border-radius: 9px; background: rgba(201, 154, 30, .18); border: 1px solid #c99a1e; color: var(--ink); cursor: help; }
+table.tsum .syn span.next { background: none; border-style: dashed; border-color: color-mix(in srgb, var(--ink) 30%, transparent); color: var(--ink-soft); }
 .dx-st.bad { color: #fff; background: #5b3a8a; }
 
 /* 탐사 재생 장면 (scene.ts): 조원 카드 넷과 그날 몬스터, 아래에 날 칸 · 채비 · 짐 막대. 귀환 보고처럼 어느 테마에서나 어두운 판 */

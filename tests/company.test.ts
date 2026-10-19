@@ -24,7 +24,7 @@ import { floorMax, keyOf } from '../src/core/company';
 import { fcRank, forecast, gradeOf } from '../src/core/company';
 import { bedsOf, classCap, dormCost, dormKeep, formTeams, recruitPrice, recruitWants, rookCount, rookSlots, shareOut } from '../src/core/company';
 import { CLASSES } from '../src/core/data';
-import { needOf, tripOdds, potShock, profitOf, drillGain, weakShare, badShare, classBad, synOf, synTags, teamSlots, SYN } from '../src/core/company';
+import { needOf, tripOdds, potShock, profitOf, drillGain, weakShare, badShare, classBad, synOf, synTags, synNext, teamSlots, SYN } from '../src/core/company';
 import { WEAK_KEYS } from '../src/core/data';
 import { DEX, askable, badSure } from '../src/core/dex';
 import { dayAbs, nextDay, openMonth, sellStock, sendReady, stateOf, stockValue } from '../src/core/company';
@@ -1393,7 +1393,8 @@ describe('조 시너지 · 단장', () => {
     expect(synOf([P('사제'), P('사제')]).pri2).toBe(true);
     expect(synOf([P('마법사'), P('마법사')]).mag2).toBe(true);
     expect(synOf([P('전사', true)]).lead).toBe(true);
-    expect(synTags([P('도적'), P('궁수'), P('궁수')]).map(t => t[0])).toEqual(['도적', '궁수 2']);
+    expect(synTags([P('도적'), P('궁수'), P('궁수')]).map(t => t[1])).toEqual(['도적 1명', '궁수 2명']);
+    expect(synNext([P('전사'), P('사제'), P('도적'), P('궁수')]).map(t => t[0])).toEqual(['전사', '사제']);   // 반쯤 찬 짝이 먼저
   });
   it('도적이 끼면 그 조의 층 이해도가 오른다', () => {
     setSeed(2); const W = newWorld(), c = us(W);

@@ -643,16 +643,33 @@ export function synOf(who: Person[] | null) {
   const n = (k: string) => (who || []).filter(p => p.c === k).length;
   return { war: n('전사') >= 2, pri: n('사제') >= 1, pri2: n('사제') >= 2, rog: n('도적') >= 1, arc: n('궁수') >= 1, arc2: n('궁수') >= 2, mag2: n('마법사') >= 2, lead: !!who && who.some(p => p.lead) };
 }
-// 시너지 이름표 (화면)
+// 시너지 이름표 (화면): [효과, 조건]. 이름표엔 효과를, 조건은 title로
+const pc = (x: number) => `${x > 1 ? '+' : '−'}${Math.round(Math.abs(x - 1) * 100)}%`;
+const SYN_FX = {
+  war: `성공 +${Math.round(SYN.WAR2_SUCC * 100)}%p · 짐 +${SYN.WAR2_SLOT}칸`, pri: `부상 ${pc(SYN.PRI1_INJ)}`, pri2: '죽음 1회 막음',
+  rog: `이해도 +${SYN.ROG1_UND} · 귀한 소재 ${pc(SYN.ROG1_RARE)}`, arc: `횃불 ${pc(SYN.ARC1_TORCH)}`, arc2: `흔한 소재 ${pc(SYN.ARC2_MAT)}`, mag2: `약점 덤 ${pc(SYN.MAG2_KEY)}`,
+};
 export function synTags(who: Person[]) {
   const S = synOf(who), out: [string, string][] = [];
-  if (S.war) out.push(['전사 2', `성공 +${Math.round(SYN.WAR2_SUCC * 100)}%p · 짐 +${SYN.WAR2_SLOT}칸`]);
-  if (S.pri) out.push([S.pri2 ? '사제 2' : '사제 1', `부상 주사위 ×${SYN.PRI1_INJ}${S.pri2 ? ' · 한 번 죽음을 막음' : ''}`]);
-  if (S.rog) out.push(['도적', `이해도 +${SYN.ROG1_UND} · 귀한 소재 ×${SYN.ROG1_RARE}`]);
-  if (S.arc) out.push([S.arc2 ? '궁수 2' : '궁수 1', `횃불 ×${SYN.ARC1_TORCH}${S.arc2 ? ` · 흔한 소재 ×${SYN.ARC2_MAT}` : ''}`]);
-  if (S.mag2) out.push(['마법사 2', `약점 덤 ×${SYN.MAG2_KEY}`]);
-  if (S.lead) out.push(['단장', '역효과 없음']);
+  if (S.war) out.push([SYN_FX.war, '전사 2명']);
+  if (S.pri) out.push([S.pri2 ? `${SYN_FX.pri} · ${SYN_FX.pri2}` : SYN_FX.pri, S.pri2 ? '사제 2명' : '사제 1명']);
+  if (S.rog) out.push([SYN_FX.rog, '도적 1명']);
+  if (S.arc) out.push([S.arc2 ? `${SYN_FX.arc} · ${SYN_FX.arc2}` : SYN_FX.arc, S.arc2 ? '궁수 2명' : '궁수 1명']);
+  if (S.mag2) out.push([SYN_FX.mag2, '마법사 2명']);
+  if (S.lead) out.push(['역효과 없음', '단장']);
   return out;
+}
+// 한 사람만 더(또는 바꿔) 넣으면 켜지는 시너지: [더할 직업, 효과]. 짝이 반쯤 찬 것(둘째 사람)을 먼저, 많아야 n개
+export function synNext(who: Person[], n = 2) {
+  const S = synOf(who), has = (k: string) => who.some(p => p.c === k), out: [string, string][] = [];
+  if (!S.war && has('전사')) out.push(['전사', SYN_FX.war]);
+  if (S.pri && !S.pri2) out.push(['사제', SYN_FX.pri2]);
+  if (S.arc && !S.arc2) out.push(['궁수', SYN_FX.arc2]);
+  if (!S.mag2 && has('마법사')) out.push(['마법사', SYN_FX.mag2]);
+  if (!S.pri) out.push(['사제', SYN_FX.pri]);
+  if (!S.rog) out.push(['도적', SYN_FX.rog]);
+  if (!S.arc) out.push(['궁수', SYN_FX.arc]);
+  return out.slice(0, n);
 }
 export const teamSlots = (who: Person[]) => who.length * CO.SLOT_PP + (synOf(who).war ? SYN.WAR2_SLOT : 0);
 export function teamUnd(c: Company, f: number, who: Person[] | null) {
