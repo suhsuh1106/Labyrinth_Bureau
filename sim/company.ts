@@ -4,7 +4,7 @@
 // 성향: even(고르게) · deep(깊은 층 위주) · smart(시장을 읽는 숙련자, 근원에는 채굴장)
 //       smartNoGuide · smartSeal · smartNoRoot: 숙련 봇에서 지침을 빼거나 근원을 달리 다룬 것
 import { setSeed } from '../src/core/rng';
-import { type Mission, type Team, type Person, grOf, forecast, CO, TAX, FLOORS, potShock, cashK, aidAt, jobsExplore, churchPrice, ITEMS, type Filing, type Plan, type World, closeBooks, preview, setClerks, defaultPlan, dormCost, jobsSign, partyMargin, roomOf, demandMul, potsOf, probe, floorMons, mapOf, maxParties, newWorld, torchRate, torchOdds, sanitize, canTarget, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
+import { type Mission, type Team, type Person, grOf, sqCost, sqLv, upgradeSquad, forecast, CO, TAX, FLOORS, potShock, cashK, aidAt, jobsExplore, churchPrice, ITEMS, type Filing, type Plan, type World, closeBooks, preview, setClerks, defaultPlan, dormCost, jobsSign, partyMargin, roomOf, demandMul, potsOf, probe, floorMons, mapOf, maxParties, newWorld, torchRate, torchOdds, sanitize, canTarget, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
 import { demandSeen } from '../src/ui/co/book';
 import { ASK_KEYS, DEX, MAT_KEYS, type Dex, askable, badSure, keySure } from '../src/core/dex';
 import { CLASSES, PAIR_CLASS, classWeaks } from '../src/core/data';
@@ -41,7 +41,7 @@ if (process.env.SEGS) CO.SEGS = process.env.SEGS.split(',').map(Number);
 if (process.env.MAT_SLOT) CO.MAT_SLOT = FLOORS.map(() => +process.env.MAT_SLOT!);
 if (process.env.TRAIL_SLOT) CO.TRAIL_SLOT = +process.env.TRAIL_SLOT;
 if (process.env.TIER_DEEP) CO.TIER_DEEP = process.env.TIER_DEEP.split(',').map(Number);
-for (const k of ['A_MEMBER_K', 'A_K', 'A_CLERK', 'CLERK_WAGE', 'A_TRIP', 'A_BASE', 'A_MEMBER', 'A_FLOOR', 'A_FREE'] as const) if (process.env[k]) (CO as any)[k] = +process.env[k]!;
+for (const k of ['SQ_SUCC', 'SQ_KEEP', 'SQ_INJ', 'SMALL_SUCC', 'SMALL_STEALTH', 'LEAD_GR_PEN', 'A_MEMBER_K', 'A_K', 'A_CLERK', 'CLERK_WAGE', 'A_TRIP', 'A_BASE', 'A_MEMBER', 'A_FLOOR', 'A_FREE'] as const) if (process.env[k]) (CO as any)[k] = +process.env[k]!;
 const arg = (k: string, d: string) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
 const games = +arg('games', '200'), seed0 = +arg('seed', '1'), only = arg('style', '');
 const MONTHS = 36;
@@ -65,9 +65,9 @@ export const BOT: Record<string, (W: World) => Plan> = {
   },
   // 몸집을 불리지 않는 숙련 봇 (숙소·모집이 순위에 얼마나 보태는지 재는 기준)
   smartStay: W => { const P = smartPlan(W); P.dorm = false; return P; },
-  smart: W => smartPlan(W),
+  smart: W => gearUp(W, smartPlan(W)),
   // 소수 정예: 숙련 봇과 같되 단원을 ELITE_CAP명(기본 24)까지만 뽑는다 (다수 길드인 숙련 봇과 견준다)
-  smartElite: W => { const P = smartPlan(W), c = us(W); if (P.pick) P.pick = P.pick.slice(0, Math.max(0, ELITE_CAP - c.members - (c.hireQ || []).length)); return P; },
+  smartElite: W => { const P = smartPlan(W), c = us(W); if (P.pick) P.pick = P.pick.slice(0, Math.max(0, ELITE_CAP - c.members - (c.hireQ || []).length)); return gearUp(W, P, ELITE_GEAR_RATE, 5); },
   // 숙련 봇이 전리품을 창고에 두고 지정가(기준 값의 SELL_AT배)를 넘으면 파는 것 (창고 보관이 이득인지 재는 기준)
   smartHold: W => { const P = smartPlan(W); P.autoSell = false; P.sellAt = +(process.env.SELL_AT || 1); return P; },
   // 숙련 봇에서 추리만 뺀 것 (편성 지침이 순위에 얼마나 보태는지 재는 기준)
@@ -121,6 +121,17 @@ const HIRE_SKIP = +(process.env.HIRE_SKIP || 0);
 // 인원 상한(SIZE_CAP=24면 단원을 24명까지만 뽑는다): 작게 굴리는 봇과 크게 굴리는 봇을 견주는 기준
 const SIZE_CAP = +(process.env.SIZE_CAP || 99);
 const ELITE_CAP = +(process.env.ELITE_CAP || 24);
+// 조 장비(docs/teams.md): 금고가 GEAR_KEEP을 넘는 몫의 rate만큼으로, 깊은 층에 가는 조부터 한 단계씩 max단계까지 (정예는 5단계까지. 60판: 정예가 금고 몫 0.35로 몰면 4.22위, 0.15면 3.72위, 안 사면 3.98위)
+const GEAR_RATE = +(process.env.GEAR_RATE || 0.15), GEAR_MAX = +(process.env.GEAR_MAX || 3), ELITE_GEAR_RATE = +(process.env.ELITE_GEAR_RATE || 0.15), GEAR_KEEP = +(process.env.GEAR_KEEP || 1500);
+export function gearUp(W: World, Q: Plan, rate = GEAR_RATE, max = GEAR_MAX) {
+  const c = us(W); if (!c.crew || !Q.teams) return Q;
+  let budget = Math.max(0, c.cash - GEAR_KEEP) * rate;
+  Q.teams.map((T, t) => ({ T, t })).sort((a, b) => b.T.f - a.T.f || b.T.m.length - a.T.m.length).forEach(({ T, t }) => {
+    const v = sqCost(c, T); if (!v || sqLv(c, T) >= max || v > budget) return;
+    budget -= upgradeSquad(W, Q, t);
+  });
+  return Q;
+}
 let BIAS: { c: string; mode: 'pre' | 'avoid' | 'thin' } | null = null;   // thin: 직업과 상관없이 지원자 다섯에 하나를 거른다 (빼기가 직업 탓인지 덜 뽑은 탓인지 가르는 기준)
 const DEATH_V = +(process.env.DEATH_V || 300), HUNT_EDGE = +(process.env.HUNT_EDGE || 0.05), HUNT_MAX = +(process.env.HUNT_MAX || 0.5);
 export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine', kit = true, scout = false, guide = true, askAll = ASK_ALL, missions = MISSION): Plan {

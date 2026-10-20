@@ -71,6 +71,8 @@ export function resultsHtml(W: World) {
       ${r.spend.job ? `<tr><td class="neg">의뢰 위약금 (못 채운 납품)</td><td class="n">−${fmt(r.spend.job)}</td></tr>` : ''}
       ${r.spend.torch ? `<tr><td>횃불 ${fmt(r.spend.torch / CO.TORCH_PRICE)}개${r.torchShort ? ` <span class="neg">· 횃불 없이 간 조 ${r.torchShort}</span>` : ''}</td><td class="n">−${fmt(r.spend.torch)}</td></tr>` : ''}
       ${r.spend.hq ? `<tr><td>본부 공사 · 유지비</td><td class="n">−${fmt(r.spend.hq)}</td></tr>` : ''}
+      ${r.spend.sq ? `<tr><td>조 장비 올림</td><td class="n">−${fmt(r.spend.sq)}</td></tr>` : ''}
+      ${r.spend.sqKeep ? `<tr><td>조 장비 유지비 (장부가의 ${Math.round(CO.SQ_KEEP * 100)}%)</td><td class="n">−${fmt(r.spend.sqKeep)}</td></tr>` : ''}
       ${r.recruitWant ? `<tr><td>신입 ${r.recruited}명 × ${fmt(r.recruitPrice)}G${r.recruited < r.recruitWant ? ` <span class="dim">(찾은 ${r.recruitWant}명 · 지원자가 모자람)</span>` : ''}</td><td class="n">−${fmt(r.spend.recruit)}</td></tr>` : ''}
       ${r.drilled ? `<tr><td class="dim">대기 · 본부 훈련 ${r.drilled}명 (실력이 오름)</td><td class="n dim">-</td></tr>` : ''}
       ${r.rookDone || r.rookDead ? `<tr><td class="dim">수습${r.rookDone ? ` ${r.rookDone}명이 대원이 됨` : ''}${r.rookDead ? `${r.rookDone ? ',' : ''} ${r.rookDead}명 사망` : ''}</td><td class="n dim">-</td></tr>` : ''}
@@ -84,8 +86,9 @@ export function resultsHtml(W: World) {
       ${r.spend.tax ? `<tr><td>영주세${r.file && r.file.bill.refund ? ' · 선금 반납' : ''}</td><td class="n">−${fmt(r.spend.tax)}</td></tr>` : ''}
       ${r.spend.fine ? `<tr><td class="neg">추징금 (영주청 감사)</td><td class="n">−${fmt(r.spend.fine)}</td></tr>` : ''}
       ${r.potSpoil ? `<tr><td class="neg">보급 창고에서 상해 버린 포션 ${r.potSpoil}병</td><td class="n dim">-</td></tr>` : ''}
-      ${r.capex || r.dep ? `<tr class="sub"><td>금고 변화</td><td class="n ${r.net < 0 ? 'neg' : ''}">${sgn(r.net)}</td></tr>
+      ${r.capex || r.dep || r.sqCap ? `<tr class="sub"><td>금고 변화</td><td class="n ${r.net < 0 ? 'neg' : ''}">${sgn(r.net)}</td></tr>
       ${r.capex ? `<tr><td class="dim">공사비는 건물 자산으로 (장부가 +${fmt(r.capex)})</td><td class="n">+${fmt(r.capex)}</td></tr>` : ''}
+      ${r.sqCap ? `<tr><td class="dim">조 장비는 자산으로 (장부가 +${fmt(r.sqCap)})</td><td class="n">+${fmt(r.sqCap)}</td></tr>` : ''}
       ${r.dep ? `<tr><td class="dim">건물 감가상각 (월 ${Math.round(CO.DEP * 100)}%)</td><td class="n">−${fmt(r.dep)}</td></tr>` : ''}` : ''}
       <tr class="tot"><td>순이익</td><td class="n ${profitOf(r) < 0 ? 'neg' : 'pos'}">${sgn(profitOf(r))}</td></tr></tbody></table></div>`;
   const r0 = L.res[0], S = moneySeries(W), k = S.months.length - 1;
