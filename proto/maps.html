@@ -42,6 +42,9 @@ button.main { background: var(--brass); color: #221e18; border-color: var(--bras
 @keyframes lit { from { filter: brightness(2.2); } to { filter: none; } }
 @media (prefers-reduced-motion: reduce) { .c.new { animation: none; } }
 .c .tm { position: absolute; right: 1px; top: 0; font: 700 9px var(--f-num); color: #221e18; background: var(--brass); border-radius: 2px; padding: 0 2px; line-height: 1.3; }
+.c .via { position: absolute; left: 1px; bottom: 0; font: 700 9px var(--f-num); color: var(--brass); background: #221e18; border: 1px solid var(--brass); border-radius: 50%; width: 13px; height: 13px; display: grid; place-items: center; line-height: 1; }
+.seg { display: inline-flex; } .seg button { border-radius: 0; } .seg button:first-child { border-radius: 3px 0 0 3px; } .seg button:last-child { border-radius: 0 3px 3px 0; margin-left: -1px; }
+button[aria-pressed="true"]:not(.tm-card) { background: #3a3220; border-color: var(--brass); color: var(--brass); }
 .c .v { font: 500 9px var(--f-num); color: rgba(255,255,255,.55); }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--soft); margin-top: 8px; }
 .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -2px; margin-right: 4px; font-style: normal; }
@@ -81,7 +84,7 @@ button.main { background: var(--brass); color: #221e18; border-color: var(--bras
     <span class="stat">시드 <b id="seed">-</b></span>
     <button type="button" id="reseed">새 층</button>
   </header>
-  <p class="lead">조를 고르고 지도에서 칸을 누르면 그 칸까지의 길과 값이 나온다. 안개를 누르면 그쪽 안개를 밀러 간다. 횃불 하나는 값 6. 가는 값과 돌아오는 값을 빼고 남는 횃불만큼 안개를 밝힌다. 밝힌 칸은 조가 돌아온 아침에 지도에 그려진다.</p>
+  <p class="lead">조를 고르고 지도에서 칸을 누르면 그 칸까지의 길과 값이 나온다. 안개를 누르면 그쪽 안개를 밀러 간다. 길은 최단 · 안전(아는 위험 칸을 피해 돌아감) 중에 고르고, 경유지를 찍어 지날 칸을 정할 수 있다. 횃불 하나는 값 6. 가는 값과 돌아오는 값을 빼고 남는 횃불만큼 안개를 밝힌다. 밝힌 칸은 조가 돌아온 아침에 지도에 그려진다.</p>
   <div class="cols">
     <section aria-label="1층 지도">
       <div class="map" id="map" role="grid" aria-label="1층 모눈 지도"></div>
@@ -215,8 +218,8 @@ button.main { background: var(--brass); color: #221e18; border-color: var(--bras
   // ---------- 상태 ----------
   let seed, day, gold, sel, teams, log, fresh, aimAt, showV = false;
   const mkTeams = () => [
-    { n: '1조', torch: 6, st: 'home', aim: null, fogAim: null, back: 0, trip: null, hurtDays: 0 },
-    { n: '2조', torch: 5, st: 'home', aim: null, fogAim: null, back: 0, trip: null, hurtDays: 0 },
+    { n: '1조', torch: 6, st: 'home', aim: null, fogAim: null, via: [], route: 'short', mode: 'aim', back: 0, trip: null },
+    { n: '2조', torch: 5, st: 'home', aim: null, fogAim: null, via: [], route: 'short', mode: 'aim', back: 0, trip: null },
   ];
   function reset(s) { seed = s; gen(seed); day = 1; gold = 0; sel = 0; teams = mkTeams(); log = []; fresh = new Set(); aimAt = null; render(); }
 
@@ -232,13 +235,18 @@ button.main { background: var(--brass); color: #221e18; border-color: var(--bras
   const kind = (i, fogAim) => (fogAim != null || isEdge(i) && !F[i] ? 'scout' : F[i] === 'vein' ? 'gather' : F[i] === 'nest' || zone[i] && F[i] !== 'vein' ? 'hunt' : 'scout');
   const KIND = { scout: '탐색', gather: '채집', hunt: '사냥' };
 
+  // 길 고르기: 최단(지나는 값만) · 안전(아는 위험 칸 · 둥지 둘레를 값 +6으로 여겨 돌아간다), 경유지를 차례로 지난다
+  const dangerAt = (K, i) => K[i] && (T[i] === HAZ || (zone[i] && nests.some(n => K[n] && md(n, i) <= 2)));
+  const weightOf = (route, K) => i => costOf(i) + (route === 'safe' && dangerAt(K, i) ? 6 : 0);
+  function routePath(from, to, K, route) { const R = dij(from, passK(K), weightOf(route, K)); return R.d[to] === Infinity ? null : trace(R.pv, to); }
+  const pathCost = p => p.slice(1).reduce((a, i) => a + costOf(i), 0);
   function planOf(t) {
     if (t.aim == null) return null;
-    const R = dij(E, passK(known), costOf), c1 = R.d[t.aim];
-    if (c1 === Infinity) return null;
-    const path = trace(R.pv, t.aim), budget = t.torch * TORCH, spare = budget - 2 * c1;
-    const danger = path.filter(i => known[i] && (T[i] === HAZ || (zone[i] && nests.some(n => known[n])))).length;
-    return { c1, path, budget, spare, ok: spare >= 0, k: kind(t.aim, t.fogAim), days: Math.max(1, Math.ceil(Math.max(2 * c1, Math.min(budget, 2 * c1 + 6)) / PER_DAY)), danger };
+    const pts = [E, ...t.via, t.aim]; let path = [E];
+    for (let k = 1; k < pts.length; k++) { const seg = routePath(pts[k - 1], pts[k], known, t.route); if (!seg) return null; path = path.concat(seg.slice(1)); }
+    const c1 = pathCost(path), budget = t.torch * TORCH, spare = budget - 2 * c1;
+    const danger = path.filter(i => dangerAt(known, i)).length;
+    return { c1, path, budget, spare, ok: spare >= 0, k: kind(t.aim, t.fogAim), days: Math.max(1, Math.ceil(Math.max(2 * c1, Math.min(budget, 2 * c1 + 6)) / PER_DAY)), danger, route: t.route };
   }
 
   // ---------- 탐사 굴림 (보낼 때 굴리고, 돌아온 아침에 지도에 그린다) ----------
@@ -252,7 +260,7 @@ button.main { background: var(--brass); color: #221e18; border-color: var(--bras
       if (zone[i] && rnd() < 0.22) { const sv = nests.some(n => studied[n] && md(n, i) <= 2) ? 0.2 : 0.38; if (rnd() < sv) { hurt.n++; notes.push('둥지 둘레에서 습격 · 다침'); } else notes.push('둥지 둘레에서 조우'); }
     };
     P.path.slice(1).forEach(step);
-    const back = () => dij(pos, passK(K), costOf).d[E];
+    const retPath = q => routePath(q, E, K, P.route) || [q];
     if (P.k === 'gather') {
       const v = veins.find(x => x.cells.includes(t.aim)), rounds = Math.min(3, 1 + Math.floor(P.spare / 3));
       for (let r = 0; r < rounds && v && v.left > 0; r++) { const g = Math.min(v.left, 6 + ri(7)); v.left -= g; loot += g; spent += 2; }
@@ -272,12 +280,14 @@ button.main { background: var(--brass); color: #221e18; border-color: var(--bras
         const score = q => nb4(q).filter(r => !K[r]).length * 2 + (t.fogAim != null ? -md(q, t.fogAim) * 0.8 : 0) + (q === prev ? -3 : 0) + rnd() * 1.5;
         const q = cand.sort((a, b) => score(b) - score(a))[0];
         const K2 = K.slice(); K2[q] = true;
-        const ret = dij(q, passK(K2), costOf).d[E];
+        const rp = routePath(q, E, K2, P.route), ret = rp ? pathCost(rp) : Infinity;
         if (spent + costOf(q) + ret > P.budget) break;
         prev = pos; step(q);
       }
     }
-    const used = spent + back();
+    // 돌아오는 길: 채집 · 사냥은 온 길을 거꾸로, 탐색은 지금 자리에서 같은 길 고르기로 (돌아오는 길에도 위험을 만난다)
+    (P.k === 'scout' ? retPath(pos) : P.path.slice().reverse()).slice(1).forEach(step);
+    const used = spent;
     return { K, seen, notes, hurt: hurt.n, loot, mats, days: Math.max(1, Math.ceil(used / PER_DAY)), torch: Math.ceil(used / TORCH) };
   }
 
@@ -286,7 +296,7 @@ button.main { background: var(--brass); color: #221e18; border-color: var(--bras
     const before = dij(E, passK(known), costOf).d;
     const r = runTrip(t, P);
     t.trip = { ...r, k: P.k, aim: t.aim, before, d0: day }; t.st = 'away'; t.back = day + r.days;
-    t.aim = null; t.fogAim = null; render();
+    t.aim = null; t.fogAim = null; t.via = []; t.mode = 'aim'; render();
   }
 
   function nextDay() {
@@ -323,7 +333,8 @@ button.main { background: var(--brass); color: #221e18; border-color: var(--bras
       if (k && zone[i] && nests.some(n => known[n] && md(n, i) <= 2)) cls.push('zone');
       if (onPath.has(i)) cls.push('path'); if (P && i === t.aim) cls.push('aim'); if (fresh.has(i)) cls.push('new');
       const g = k ? glyph(i) : '', v = showV && k && tt !== WALL && !g ? `<span class="v">${COST[tt]}</span>` : '';
-      const mk = awayAim.has(i) ? `<span class="tm">${awayAim.get(i)}</span>` : '';
+      const vk = t.st === 'home' ? t.via.indexOf(i) : -1;
+      const mk = (awayAim.has(i) ? `<span class="tm">${awayAim.get(i)}</span>` : '') + (vk >= 0 ? `<span class="via">${vk + 1}</span>` : '');
       const [x, y] = xy(i);
       return `<button type="button" class="${cls.join(' ')}" data-i="${i}" aria-label="${x + 1}열 ${y + 1}행${k ? '' : ' 안개'}">${g}${v}${mk}</button>`;
     }).join('');
@@ -337,7 +348,7 @@ button.main { background: var(--brass); color: #221e18; border-color: var(--bras
     else {
       h += `<div class="row"><span>횃불</span><span class="step"><button type="button" data-tq="-1" aria-label="횃불 줄이기">−</button><output>${t.torch}</output><button type="button" data-tq="1" aria-label="횃불 늘리기">+</button></span><small class="note">값 ${t.torch * TORCH}까지</small></div>`;
       if (!P) h += `<p class="note">지도에서 행선지 칸을 누르세요. 안개를 누르면 그쪽 가장자리로 가서 밀고 들어갑니다.</p>`;
-      else h += `<dl><dt>임무</dt><dd>${KIND[P.k]}${t.fogAim != null ? ' (안개 쪽)' : ''}</dd><dt>가는 값</dt><dd>${P.c1}</dd><dt>왕복 값</dt><dd>${2 * P.c1} / ${P.budget}</dd><dt>남는 값</dt><dd>${P.spare}${P.k === 'scout' ? ' → 안개 밝히기' : P.spare >= 0 ? ` → ${Math.min(3, 1 + Math.floor(P.spare / 3))}번 ${P.k === 'gather' ? '캐기' : '사냥'}` : ''}</dd><dt>날 예측</dt><dd>${P.days}일</dd></dl>${P.danger ? `<p class="warn">길에 위험 칸 ${P.danger}개 (둥지 둘레 · 위험 지형)</p>` : ''}${P.ok ? '' : `<p class="warn">횃불이 모자라요 (왕복 ${2 * P.c1} > ${P.budget})</p>`}<button type="button" class="main" id="send"${P.ok ? '' : ' disabled'}>${t.n} 보내기</button>`;
+      else h += `<div class="row"><span>길</span><span class="seg"><button type="button" data-route="short" aria-pressed="${t.route === 'short'}">최단</button><button type="button" data-route="safe" aria-pressed="${t.route === 'safe'}">안전</button></span><button type="button" data-mode="1" aria-pressed="${t.mode === 'via'}">${t.mode === 'via' ? '경유지 찍는 중 · 끝' : '경유지 찍기'}</button>${t.via.length ? `<button type="button" data-clearvia="1">경유지 ${t.via.length} 지우기</button>` : ''}</div><dl><dt>임무</dt><dd>${KIND[P.k]}${t.fogAim != null ? ' (안개 쪽)' : ''}</dd><dt>가는 값</dt><dd>${P.c1}</dd><dt>왕복 값</dt><dd>${2 * P.c1} / ${P.budget}</dd><dt>남는 값</dt><dd>${P.spare}${P.k === 'scout' ? ' → 안개 밝히기' : P.spare >= 0 ? ` → ${Math.min(3, 1 + Math.floor(P.spare / 3))}번 ${P.k === 'gather' ? '캐기' : '사냥'}` : ''}</dd><dt>날 예측</dt><dd>${P.days}일</dd></dl>${P.danger ? `<p class="warn">길에 위험 칸 ${P.danger}개 (둥지 둘레 · 위험 지형)</p>` : ''}${P.ok ? '' : `<p class="warn">횃불이 모자라요 (왕복 ${2 * P.c1} > ${P.budget})</p>`}<button type="button" class="main" id="send"${P.ok ? '' : ' disabled'}>${t.n} 보내기</button>`;
     }
     $('plan').innerHTML = h;
     $('log').innerHTML = log.length ? log.map(l => `<li>${l.t}</li>`).join('') : '<li class="note">아직 돌아온 조가 없어요. 1조를 안개 쪽으로 보내 보세요.</li>';
@@ -348,11 +359,15 @@ button.main { background: var(--brass); color: #221e18; border-color: var(--bras
     const b = e.target.closest('button'); if (!b) return;
     if (b.dataset.i != null) {
       const i = +b.dataset.i, t = teams[sel]; if (t.st !== 'home') return;
-      if (known[i] && T[i] !== WALL) { t.aim = i; t.fogAim = null; }
+      if (t.mode === 'via' && t.aim != null && known[i] && T[i] !== WALL) { if (i !== E && i !== t.aim) { const k = t.via.indexOf(i); if (k >= 0) t.via.splice(k, 1); else t.via.push(i); } }
+      else if (known[i] && T[i] !== WALL) { t.aim = i; t.fogAim = null; }
       else if (!known[i]) { const g = nearEdge(i); if (g >= 0) { t.aim = g; t.fogAim = i; } }
       render(); return;
     }
     if (b.dataset.t != null) { sel = +b.dataset.t; render(); return; }
+    if (b.dataset.route) { teams[sel].route = b.dataset.route; render(); return; }
+    if (b.dataset.mode) { const t = teams[sel]; t.mode = t.mode === 'via' ? 'aim' : 'via'; render(); return; }
+    if (b.dataset.clearvia) { teams[sel].via = []; render(); return; }
     if (b.dataset.tq) { const t = teams[sel]; t.torch = Math.max(1, Math.min(14, t.torch + +b.dataset.tq)); render(); return; }
     if (b.id === 'send') return send(sel);
     if (b.id === 'next') return nextDay();
