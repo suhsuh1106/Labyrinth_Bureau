@@ -6,6 +6,7 @@ import { BUYERS, FAUNA, MONSTERS, SRC_NAME } from '../../core/data';
 import { ecoOf } from '../../core/monsters';
 import { ASK_KEYS, CLASS_KEYS, DEX, type Dex, GEAR_KEYS, MAT_KEYS, askable, keyName, keySure, weakName } from '../../core/dex';
 import { classWeaks } from '../../core/data';
+import { el, gearTag } from './icons';
 
 const lvOf = (W: World, k: keyof typeof INTEL.BASE) => (W.intel ? W.intel.lv[k] : INTEL.BASE[k]);
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
@@ -16,7 +17,9 @@ export const demandSeen = (W: World, who: number) => {
   return B.src === 'board' || (B.src === 'mkt' ? lvOf(W, 'mkt') : lvOf(W, 'chu')) >= B.lv;
 };
 // 갖춘 것의 이름: "궁수", "냉기 장비", "사제 + 은 장비"
-export const condLabel = (k: string) => guideParts(k).map(p => (p.startsWith('c:') ? p.slice(2) : `${p.slice(2)} 장비`)).join(' + ');
+export const condLabel = (k: string) => guideParts(k).map(p => (p.startsWith('c:') ? p.slice(2) : gearTag(p))).join(' + ');
+// 직업 · 장비 칸 이름: 직업은 글, 장비는 속성 아이콘
+const keyTag = (k: string) => (k.startsWith('c:') ? k.slice(2) : gearTag(k));
 // 지금 나와 있는 찾는 곳 (보이는 것과 안 보이는 수)
 export function demandsNow(W: World) {
   const ds = W.mat ? W.mat.dem.filter(d => d.until >= W.month) : [];
@@ -39,16 +42,16 @@ export function kitHint(W: World, f: number, guide: string) {
 const pctOf = (w: number, n: number) => (n ? `${Math.round(w / n * 100)}%` : '-');
 const badStamp = '<span class="dx-st bad" title="단장 조사로 확정한 역효과">역효과</span>';
 const stamp = (a: string | undefined) => (a === 'yes' ? '<span class="dx-st yes">확정</span>' : a === 'no' ? '<span class="dx-st no">아님</span>' : '');
-// 전적표 한 칸: 그 조우에서 해낸 사람 비율 (작은 글씨는 마주친 수). 마주침이 적으면 흐리게. 기록이 없어도 칸은 그대로 둔다
+// 전적표 한 칸: 그 조우에서 성공 비율 (작은 글씨는 마주친 수). 마주침이 적으면 흐리게. 기록이 없어도 칸은 그대로 둔다
 const cell = (r: { n: number; w: number; k?: number; p?: number } | undefined) => (r && r.n ? `<td class="n${r.n < 3 ? ' thin' : ''}" title="마주침 ${r.n} · 승 ${r.w}">${pctOf(r.k || 0, r.p || 0)}<small>${r.n}번</small></td>` : '<td class="n dim">·<small>&nbsp;</small></td>');
 
 function recTable(D: Dex, open: boolean) {
-  const cls = CLASS_KEYS.map(k => `<tr><th>${keyName(k)}${stamp(classWeaks(k).map(w => D.key[w]).find(a => a === 'yes') || (classWeaks(k).every(w => D.key[w] === 'no') ? 'no' : undefined))}${classWeaks(k).some(w => D.bad && D.bad[w] === 'yes') ? badStamp : ''}</th>${[0, 1, 2].map(v => cell(open ? D.rec[`${k}:${v}`] : undefined)).join('')}</tr>`).join('');
-  const gear = GEAR_KEYS.map(k => `<tr><th>${keyName(k)}${stamp(D.key[k])}${D.bad && D.bad[k] === 'yes' ? badStamp : ''}</th>${[0, 1].map(v => cell(open ? D.rec[`${k}:${v}`] : undefined)).join('')}<td class="n dim"></td></tr>`).join('');
-  return `<div class="nb-rec${open ? '' : ' locked'}"><table class="grid slim dx-rec"><thead><tr><th>갖춘 것</th><th class="n">없음</th><th class="n">하나 · 있음</th><th class="n">둘 이상</th></tr></thead><tbody>${cls}${gear}</tbody></table>
+  const cls = CLASS_KEYS.map(k => `<tr><th>${keyName(k)} <span class="els">${classWeaks(k).map(w => el(w)).join('')}</span>${stamp(classWeaks(k).map(w => D.key[w]).find(a => a === 'yes') || (classWeaks(k).every(w => D.key[w] === 'no') ? 'no' : undefined))}${classWeaks(k).some(w => D.bad && D.bad[w] === 'yes') ? badStamp : ''}</th>${[0, 1, 2].map(v => cell(open ? D.rec[`${k}:${v}`] : undefined)).join('')}</tr>`).join('');
+  const gear = GEAR_KEYS.map(k => `<tr><th>${gearTag(k)}${stamp(D.key[k])}${D.bad && D.bad[k] === 'yes' ? badStamp : ''}</th>${[0, 1].map(v => cell(open ? D.rec[`${k}:${v}`] : undefined)).join('')}<td class="n dim"></td></tr>`).join('');
+  return `<div class="nb-rec${open ? '' : ' locked'}"><table class="grid slim dx-rec"><thead><tr><th>직업 · 장비</th><th class="n">없음</th><th class="n">하나 · 있음</th><th class="n">둘 이상</th></tr></thead><tbody>${cls}${gear}</tbody></table>
     ${open ? '' : `<span class="nb-lock">이해도 ${DEX.REC_AT}에서</span>`}</div>`;
 }
-// 소재: 그 몬스터의 소재 칸을 모두 두고(얻지 못한 것은 ???), 얻은 것은 이긴 날 중 나온 비율 막대 · 잘 나온 갖춤 둘 · 단장 답
+// 소재: 그 몬스터의 소재 칸을 모두 두고(얻지 못한 것은 ???), 얻은 것은 이긴 조우 중 얻은 비율(획득률) 막대 · 획득률이 높았던 직업 · 장비 둘 · 단장 답
 function matsHtml(W: World, D: Dex, mats: { n: string; val: number }[]) {
   const ref = (n: string, v: number) => (W.mat && W.mat.ref[n]) || v;
   const rows = mats.map(x => {
@@ -58,13 +61,13 @@ function matsHtml(W: World, D: Dex, mats: { n: string; val: number }[]) {
     const all = [0, 1, 2].reduce((a, v) => ({ n: a.n + r(`c:전사:${v}`).n, g: a.g + r(`c:전사:${v}`).g }), { n: 0, g: 0 });
     const by = MAT_KEYS.map(k => { const on = k.startsWith('c:') ? [r(`${k}:1`), r(`${k}:2`)] : [r(`${k}:1`)]; const n = on.reduce((a, y) => a + y.n, 0), g = on.reduce((a, y) => a + y.g, 0); return { k, n, g }; })
       .filter(y => y.n >= 3 && y.g > 0).sort((a, b) => b.g / b.n - a.g / a.n).slice(0, 2);
-    const asked = Object.entries(D.mat[x.n] || {}).map(([k, a]) => `<span class="nb-chip">${keyName(k)}${stamp(a)}</span>`).join('');
+    const asked = Object.entries(D.mat[x.n] || {}).map(([k, a]) => `<span class="nb-chip">${keyTag(k)}${stamp(a)}</span>`).join('');
     const pc = all.n ? Math.round(all.g / all.n * 100) : 0;
     return `<tr><td><b>${x.n}</b><small>${ref(x.n, x.val)}G 안팎 · ${X.got}개 얻음</small></td>
-      <td class="n"><span class="nb-rate" title="이긴 날 ${all.n}번 중 ${all.g}번"><i style="width:${pc}%"></i></span><small>${all.g}/${all.n}</small></td>
-      <td>${by.map(y => `<span class="nb-chip" title="${keyName(y.k)} 갖춘 날 ${y.n}번 중 ${y.g}번">${keyName(y.k)} ${y.g}/${y.n}</span>`).join('') || '<span class="dim">-</span>'}</td><td>${asked}</td></tr>`;
+      <td class="n"><span class="nb-rate" title="이긴 조우 ${all.n}번 중 ${all.g}번 얻음"><i style="width:${pc}%"></i></span><small>${all.g}/${all.n}</small></td>
+      <td>${by.map(y => `<span class="nb-chip" title="${keyName(y.k)}: 이긴 조우 ${y.n}번 중 ${y.g}번 얻음">${keyTag(y.k)} ${y.g}/${y.n}</span>`).join('') || '<span class="dim">-</span>'}</td><td>${asked}</td></tr>`;
   }).join('');
-  return `<table class="grid slim dx-mats"><thead><tr><th>소재</th><th class="n">이긴 날 나옴</th><th>잘 나온 갖춤</th><th>단장 답</th></tr></thead><tbody>${rows}</tbody></table>`;
+  return `<table class="grid slim dx-mats"><thead><tr><th>소재</th><th class="n">획득률</th><th>잘 나온 직업 · 장비</th><th>단장 답</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 // 단장 조사 고르기: 약점(확정 전까지) · 얻은 소재의 조건. 이미 답을 받은 것은 뺀다
 // 단장 조사 고르기 (출정 화면): 열린 층의 몬스터 중 이해도 ASK_AT 이상인 것에 물을 것 하나. 이미 답을 받은 것은 뺀다
@@ -94,7 +97,7 @@ function monPage(W: World, P: Plan | undefined, f: number, j: number) {
   const marks = [DEX.REC_AT, DEX.TARGET_AT, ...(j ? [] : [DEX.ROOT_AT])].map(v => `<i style="left:${v}%" title="${v}"></i>`).join('');
   const target = D.u >= DEX.TARGET_AT ? '<span class="pos">사냥 임무로 노릴 수 있음</span>' : `사냥 임무로 노리기: 이해도 ${DEX.TARGET_AT}부터`;
   const root = j ? '' : ` · 근원: ${(W.roots && W.roots[f] && W.roots[f].found) ? '<span class="pos">찾음</span>' : `이해도 ${DEX.ROOT_AT} + 약점 확정`}`;
-  const asking = P && P.ask && P.ask.mon === M.name ? `<p class="note"><b>이번 달 단장 조사</b> · ${P.ask.m ? `${P.ask.m}: ${keyName(P.ask.k)}` : `${P.ask.b ? '역효과' : '약점'}: ${weakName(P.ask.k)}`}</p>` : '';
+  const asking = P && P.ask && P.ask.mon === M.name ? `<p class="note"><b>이번 달 단장 조사</b> · ${P.ask.m ? `${P.ask.m}: ${keyTag(P.ask.k)}` : `${P.ask.b ? '역효과' : '약점'} ${el(P.ask.k)}`}</p>` : '';
   return `<div class="nb-pages"><section class="nb-page">
       <div class="nb-img" aria-hidden="true">그림</div>
       <h4>${M.name}</h4>${tag}
@@ -103,7 +106,7 @@ function monPage(W: World, P: Plan | undefined, f: number, j: number) {
       <h5>생태</h5><ul class="dx-eco">${eco}</ul>
       <p class="note">${target}${root}${D.u < DEX.ASK_AT ? ` · 단장 조사: 이해도 ${DEX.ASK_AT}부터` : ''}</p>${asking}
     </section><section class="nb-page">
-      <h5>전적 <small class="dim">그 몬스터를 만난 날 해낸 사람 비율 · 아래는 마주친 수</small></h5>${recTable(D, D.u >= DEX.REC_AT)}
+      <h5>전적 <small class="dim">그 몬스터를 만난 날 성공 비율 · 아래는 마주친 수</small></h5>${recTable(D, D.u >= DEX.REC_AT)}
       <h5>소재</h5>${matsHtml(W, D, M.mats)}
     </section></div>`;
 }
@@ -125,6 +128,6 @@ export function bookHtml(W: World, P?: Plan, sel?: string) {
     <div class="tw"><table class="grid bk-sold"><thead><tr><th>찾는 곳</th><th>소재</th><th class="n">값</th><th>기한</th><th>들은 곳</th></tr></thead>
       <tbody>${news || (hidden ? '' : '<tr><td colspan="5" class="dim">지금 들려오는 소식이 없어요</td></tr>')}${lock}</tbody></table></div>
     <h3>몬스터</h3>
-    <p class="note">약점은 다섯 가지 — ${ASK_KEYS.map(weakName).join(' · ')}. 장비만 들면 절반, 맡는 직업만 있으면 ¼, 둘 다면 다 찌른다. 역효과는 그 장비를 들었을 때만. 만날수록 이해도가 찹니다. 이해도 ${DEX.REC_AT} 전적 · ${DEX.TARGET_AT} 사냥 임무로 노리기(편성표) · 단장 조사는 출정에서 한 달에 하나${ask ? ` · 지난달 단장 조사: ${ask.mon} — ${ask.m ? `${ask.m}, ${keyName(ask.k)}` : `${ask.b ? '역효과 ' : ''}${weakName(ask.k)}`} ${ask.ans === 'yes' ? '확정' : ask.ans === 'no' ? '아님' : ask.ans === 'miss' ? '만나지 못함' : '단장이 나가지 않음'}` : ''}</p>
+    <p class="note">약점 <span class="els">${ASK_KEYS.map(k => el(k, { tip: weakName(k) })).join('')}</span> · 장비 ½ · 맡는 직업 ¼ · 둘 다 전부 · 이해도 ${DEX.REC_AT} 전적 · ${DEX.TARGET_AT} 사냥 노리기${ask ? ` · 지난달 단장 조사: ${ask.mon} — ${ask.m ? `${ask.m}, ${keyTag(ask.k)}` : `${ask.b ? '역효과 ' : ''}${el(ask.k)}`} ${ask.ans === 'yes' ? '확정' : ask.ans === 'no' ? '아님' : ask.ans === 'miss' ? '만나지 못함' : '단장이 나가지 않음'}` : ''}</p>
     ${floors}`;
 }

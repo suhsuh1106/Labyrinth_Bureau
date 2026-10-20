@@ -22,13 +22,13 @@ let live = false, runTimer: any = null;
 function save() { try { localStorage.setItem(KEY, JSON.stringify({ v: VERSION, W, plan, ui })); } catch { /* 저장이 막혀도 판은 계속된다 */ } }
 function load() { try { const d = JSON.parse(localStorage.getItem(KEY) || 'null'); return d && d.v === VERSION ? d : null; } catch { return null; } }
 
-// 다시 그려도 보던 자리를 지킨다: 창(장소 창 · 자료함 등) 안의 스크롤과 페이지 스크롤을 기억했다가 되돌린다
+// 다시 그려도 보던 자리를 지킨다: 창(장소 창 · 자료함 등) 안의 스크롤과 책상의 스크롤을 기억했다가 되돌린다 (페이지는 화면 크기에 고정이라 스크롤이 없다)
 function pathOf(e: Element) { const out: string[] = []; for (let x: Element | null = e; x && x.id !== 'desk'; x = x.parentElement) out.unshift(`${x.tagName}.${x.className}:${x.parentElement ? [...x.parentElement.children].indexOf(x) : 0}`); return out.join('>'); }
 function render() {
-  const y = window.scrollY, keep = [...document.querySelectorAll('#desk *')].filter(e => e.scrollTop > 0).map(e => [pathOf(e), e.scrollTop] as const);
+  const y = $('desk').scrollTop, keep = [...document.querySelectorAll('#desk *')].filter(e => e.scrollTop > 0).map(e => [pathOf(e), e.scrollTop] as const);
   draw();
   if (keep.length) { const m = new Map(keep); document.querySelectorAll('#desk *').forEach(e => { const t = m.get(pathOf(e)); if (t) e.scrollTop = t; }); }
-  if (window.scrollY !== y) window.scrollTo({ top: y });
+  if ($('desk').scrollTop !== y) $('desk').scrollTop = y;
 }
 function draw() {
   $('stats').innerHTML = plaqueHtml(W);
@@ -40,10 +40,12 @@ function draw() {
   const over = W.month > MONTHS && !W.draft;
   if (over) ui.phase = 3;
   $('weeks').innerHTML = weeksHtml(W, ui.phase);
+  $('desk').className = `co-desk ph${ui.phase}`;
   $('desk').innerHTML = ui.phase === 0 ? infoWeekHtml(W, plan, ui) : ui.phase === 2 ? draftHtml(W, ui.file || {}, live) : resultWeekHtml(W, live, !!ui.mute);
   if (over) { const b = document.querySelector('#desk .resultwrap .btn-next') as HTMLButtonElement | null; if (b) { b.disabled = true; b.textContent = `임기가 끝났어요. 최종 ${rankOf(W)}위`; } }
 }
-function setPhase(p: number) { stopRun(); closeScene(); ui.phase = p; ui.open = false; ui.place = undefined; render(); save(); window.scrollTo({ top: 0 }); }
+function setPhase(p: number) { stopRun(); closeScene(); ui.phase = p; ui.open = false; ui.place = undefined; ui.store = false; render(); save(); toTop(); }
+const toTop = () => { $('desk').scrollTop = 0; };
 
 function start(fresh = false) {
   const d = fresh ? null : load();
@@ -53,7 +55,7 @@ function start(fresh = false) {
   plan.intelUp = plan.intelUp || {};   // 정보망은 유지비를 저절로 내고, 넓히는 돈만 따로 정한다
   tidyTeams();
   render(); save();
-  if (!d) { window.scrollTo(0, 0); playArrival(() => window.scrollTo(0, 0)); }
+  if (!d) { toTop(); playArrival(toTop); }
 }
 
 // 첫날 장면: 화면을 누르거나 다음 단추로 넘기고, 건너뛰기나 Esc로 닫는다
@@ -74,6 +76,7 @@ document.addEventListener('keydown', e => {
   if (arrivalOpen()) closeArrival();
   else if (ui && ui.open) { ui.open = false; render(); save(); }
   else if (ui && ui.place) { ui.place = undefined; render(); save(); }
+  else if (ui && ui.store) { ui.store = false; render(); save(); }
   else if (ui && ui.exp) { ui.exp = false; ui.pick = null; render(); save(); }
 });
 
@@ -205,6 +208,8 @@ function act(b: HTMLElement) {
   if (a === 'auto-sell') { if (plan.autoSell === false) delete plan.autoSell; else plan.autoSell = false; render(); save(); return; }
   if (a === 'auto-buy') { if (plan.autoBuy === false) delete plan.autoBuy; else plan.autoBuy = false; render(); save(); return; }
   if (a === 'town') { ui.town = !ui.town; ui.place = undefined; ui.open = false; render(); save(); return; }
+  if (a === 'store') { ui.store = true; ui.place = undefined; ui.open = false; render(); save(); (document.querySelector('.reader.store-w .close') as HTMLElement | null)?.focus(); return; }
+  if (a === 'close-store') { ui.store = false; render(); save(); return; }
   if (a === 'file') return file();
   if (a === 'file-reset') { ui.file = W.draft ? { ...W.draft.truth } : {}; render(); save(); return; }
   if (a === 'skip-run') return finishRun();
@@ -225,7 +230,7 @@ function advance() {
   if (M) {
     plan = carryPlan(W, plan); ui.pick = null; tidyTeams();
     ui.file = W.draft ? { ...W.draft.truth } : {};
-    ui.phase = 2; live = true; render(); save(); window.scrollTo({ top: 0 });
+    ui.phase = 2; live = true; render(); save(); toTop();
     playRun();
     say(`제${M.month}월 그믐 정산${M.opened != null ? ` · ${M.opened + 1}층이 열렸어요` : ''}${M.overflow ? ' · 미궁이 넘쳤어요' : ''} · 영주청에 낼 신고서를 꾸며요`);
     return;
@@ -241,7 +246,7 @@ function file() {
   if (!W.draft) return;
   clearTimeout(runTimer); runTimer = null;   // 가정산의 귀환 연출이 아직 돌고 있으면 멈춘다
   const m = W.draft.m, F = closeBooks(W, ui.file || {});
-  ui.file = undefined; ui.phase = 3; live = true; render(); save(); window.scrollTo({ top: 0 });
+  ui.file = undefined; ui.phase = 3; live = true; render(); save(); toTop();
   playRun();
   const M = W.history.find(x => x.month === m)!, r = M.res[0];
   say(`제${m}월 결재 · 순이익 ${r.net >= 0 ? '+' : '−'}${Math.abs(Math.round(r.net)).toLocaleString('ko-KR')}G · ${rankOf(W)}위${F && F.audit ? (F.audit.fine ? ` · 감사로 추징금 ${F.audit.fine.toLocaleString('ko-KR')}G` : ' · 감사가 다녀갔어요') : ''}${W.log.some(l => l.m === m && /근원 발견/.test(l.t)) ? ' · 근원을 찾았어요' : ''}`);

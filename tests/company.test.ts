@@ -11,7 +11,7 @@ import { candPrice, candWants, churchPrice, cohesion, hqCost, hqLv, mapOf, roomO
 import { MONSTERS, TRAITS } from '../src/core/data';
 import { depthsHtml, newsLines, plaqueHtml, resultsHtml, returnHtml } from '../src/ui/co/view';
 import { DOC_TABS, expWeekHtml, infoWeekHtml, resultWeekHtml } from '../src/ui/co/desk';
-const planHtml = (W: World, P: Plan) => (W.draft ? draftHtml(W, {}) : '') + DOC_TABS.map(([tab]) => infoWeekHtml(W, P, { phase: 0, tab, pins: DOC_TABS.map(t => t[0]), open: true })).join('') + Object.keys(PLACES).map(place => infoWeekHtml(W, P, { phase: 0, tab: 'report', pins: [], place })).join('') + expWeekHtml(W, P, { phase: 1, tab: 'report', pins: DOC_TABS.map(t => t[0]) }) + (W.last ? resultWeekHtml(W) + resultWeekHtml(W, true) : '');
+const planHtml = (W: World, P: Plan) => (W.draft ? draftHtml(W, {}) : '') + DOC_TABS.map(([tab]) => infoWeekHtml(W, P, { phase: 0, tab, pins: DOC_TABS.map(t => t[0]), open: true, store: true })).join('') + Object.keys(PLACES).map(place => infoWeekHtml(W, P, { phase: 0, tab: 'report', pins: [], place })).join('') + expWeekHtml(W, P, { phase: 1, tab: 'report', pins: DOC_TABS.map(t => t[0]) }) + (W.last ? resultWeekHtml(W) + resultWeekHtml(W, true) : '');
 import { coIssue, paperHtml } from '../src/ui/co/paper';
 import { intelHtml } from '../src/ui/co/intel';
 import { PLACES } from '../src/ui/co/town';
@@ -497,7 +497,7 @@ describe('전리품 비율과 몬스터 적응', () => {
     }
     expect(darkC).toBeGreaterThan(litC); expect(darkMap).toBeLessThan(litMap);
   });
-  it('수입 어림: 횃불을 적게 들수록 다닐 날이 줄어 어림이 준다', () => {
+  it('수입 예측: 횃불을 적게 들수록 다닐 날이 줄어 예측이 준다', () => {
     expect(tripOdds(0, 0.3)).toEqual({ days: 0, dark: 1, burn: 0 });
     expect(tripOdds(CO.DAYS, 0.9).dark).toBe(0);
     const a = tripOdds(2, 0.5), b = tripOdds(4, 0.5);
@@ -865,7 +865,7 @@ describe('숙소 · 신입 모집 · 수습 · 명성', () => {
   });
 });
 
-describe('성공 정도 · 부상 · 수입 어림', () => {
+describe('성공 정도 · 부상 · 수입 예측', () => {
   it('조원마다 굴려 해낸 사람 수가 조의 결과가 되고, 둘 이상 해내면 해낸 조로 센다', () => {
     setSeed(71); const W = newWorld();
     for (let m = 0; m < 6; m++) {
@@ -898,7 +898,7 @@ describe('성공 정도 · 부상 · 수입 어림', () => {
     }
     expect(seen).toBeGreaterThan(0);
   });
-  it('수입 어림은 상태를 바꾸지 않고 난수도 쓰지 않으며, 결재 때 그 어림이 그달 기록에 남는다', () => {
+  it('수입 예측은 상태를 바꾸지 않고 난수도 쓰지 않으며, 결재 때 그 예측이 그달 기록에 남는다', () => {
     setSeed(72); const W = newWorld();
     runMonth(W, BOT.even(W));
     const P = sanitize(W, us(W), BOT.even(W)), before = JSON.stringify(W);
@@ -908,12 +908,12 @@ describe('성공 정도 · 부상 · 수입 어림', () => {
     expect(fc.bins.reduce((a, b) => a + b, 0)).toBeCloseTo(1, 2);
     expect(fc.p10).toBeLessThanOrEqual(fc.p50); expect(fc.p50).toBeLessThanOrEqual(fc.p90);
     expect(fc.mean).toBeGreaterThan(fc.p10); expect(fc.mean).toBeLessThan(fc.p90);
-    // 결재 때 그달 다녀온 조들의 어림이 남는다 (조마다 여러 번 다녀왔으니 한 번씩 보낸 어림보다 크다)
+    // 결재 때 그달 다녀온 조들의 예측이 남는다 (조마다 여러 번 다녀왔으니 한 번씩 보낸 예측보다 크다)
     const M = runMonth(W, P);
     expect(M.fc!.mean).toBeGreaterThan(fc.mean);
     expect(fcRank(fc, 0)).toBe(0); expect(fcRank(fc, fc.p90 * 3)).toBe(1);
   });
-  it('기본 운영이면 수입 어림이 실제와 크게 어긋나지 않는다', () => {
+  it('기본 운영이면 수입 예측이 실제와 크게 어긋나지 않는다', () => {
     let a = 0, f = 0, inside = 0, n = 0;
     for (let g = 1; g <= 12; g++) {
       const W = playGame(g, BOT.even);
@@ -922,12 +922,12 @@ describe('성공 정도 · 부상 · 수입 어림', () => {
     expect(a / f).toBeGreaterThan(0.85); expect(a / f).toBeLessThan(1.15);
     expect(inside / n).toBeGreaterThan(0.5);
   });
-  it('출정에 이번 달 어림이, 정산에 어림과 실제가 나온다', () => {
+  it('출정에 이번 달 예측이, 정산에 예측과 실제가 나온다', () => {
     setSeed(73); const W = newWorld();
     runMonth(W, BOT.even(W)); runMonth(W, BOT.even(W));
     const P = carryPlan(W, W.last!.plans[0]);
     const h = expWeekHtml(W, P, { phase: 1, tab: 'report', pins: [] }) + resultsHtml(W) + resultWeekHtml(W, true);
-    expect(h).toContain('수입 분포'); expect(h).toContain('어림과 실제'); expect(h).toContain('지난달');
+    expect(h).toContain('수입 분포'); expect(h).toContain('예측과 실제'); expect(h).toContain('지난달');
     expect(h).not.toMatch(/undefined|NaN|Infinity|\[object/);
   });
 });
@@ -1358,7 +1358,7 @@ describe('#46 피드백: 조 번호 · 약초 흉년 · 건물 자산', () => {
   });
 });
 
-describe('훈련 배치 · 채비 어림', () => {
+describe('훈련 배치 · 채비 예측', () => {
   it('대기 = 본부 훈련: 조에 들지 않은 사람은 그달 실력이 교관 단계만큼 오른다', () => {
     setSeed(8); const W = newWorld(), c = us(W);
     const x = c.crew!.filter(p => !p.lead)[0], sk0 = x.sk ?? 40;

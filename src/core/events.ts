@@ -19,7 +19,7 @@ export const ANOMALIES = [
 ];
 
 // 탐사에서 돌아선 까닭
-export const TRIP_END: Record<'done' | 'torch' | 'pack' | 'flee', string> = { done: '다 돌고 귀환', torch: '횃불 다 씀', pack: '짐 다 참', flee: '둘을 잃고 물러남' };
+export const TRIP_END: Record<'done' | 'torch' | 'pack' | 'flee', string> = { done: '완주', torch: '횃불 소진', pack: '짐 가득', flee: '후퇴' };
 
 // 단장 조사의 답 (몬스터 이름, 물은 것의 이름, 소재 이름)
 export const ASK_SAY = {
