@@ -1,7 +1,7 @@
 <title>구역 지도 탁자</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Nanum+Pen+Script&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 /* 레이아웃: 행정실 책상. 왼쪽은 구역 지도(구역 카드를 길로 이은 그물)와 그 아래 떠도는 지도 조각, 오른쪽은 고른 구역의 기록 · 명령서 · 보고. 본편의 짙은 초록 판 · 놋쇠 색 */
 :root {
@@ -36,22 +36,33 @@ button[aria-pressed="true"] { background: #3a3220; border-color: var(--brass); c
 .note { margin: 0; color: var(--soft); font-size: 12.5px; }
 .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 /* 지도: 양피지 위에 구역 카드 */
-.board { background: radial-gradient(ellipse at 50% 40%, #efe7d2, #ddd2b6 75%); border: 1px solid var(--paper-line); border-radius: 4px; padding: 4px; }
+.board { position: relative; border-radius: 6px; padding: 6px; border: 1px solid #8a6f45;
+  background:
+    radial-gradient(circle at 18% 22%, rgba(120,80,30,.14) 0 7%, transparent 8%),
+    radial-gradient(circle at 82% 74%, rgba(120,80,30,.12) 0 9%, transparent 10%),
+    radial-gradient(circle at 64% 12%, rgba(120,80,30,.08) 0 5%, transparent 6%),
+    radial-gradient(ellipse at 50% 45%, #f1e4c2 0%, #e6d3a6 62%, #c9ad74 100%);
+  box-shadow: inset 0 0 28px rgba(90,55,20,.45), 0 6px 18px rgba(0,0,0,.4); }
 .board svg { display: block; width: 100%; height: auto; touch-action: manipulation; }
-.e { stroke: #8a7a5c; stroke-width: .5; }
-.e.hid { stroke: #b07a1c; stroke-width: .7; stroke-dasharray: 1.4 .9; }
-.e.stub { stroke: #9a8e74; stroke-dasharray: .8 .8; }
-.e.route { stroke: #a8332a; stroke-width: 1.1; }
-.ec { font: 500 2.6px var(--f-num); fill: #6b5d43; }
-.z circle { fill: #f6f0de; stroke: #6b5d43; stroke-width: .45; }
-.z.l2 circle { fill: #fffaf0; stroke: #2a2418; stroke-width: .6; }
-.z.stub circle { fill: rgba(246,240,222,.35); stroke: #8a7a5c; stroke-dasharray: 1 .7; }
-.z.sel circle { stroke: #a8332a; stroke-width: 1; }
-.z.camp circle { fill: #f3e2b0; }
-.z text.nm { font: 600 2.6px var(--f-body); fill: var(--paper-ink); text-anchor: middle; }
-.z text.ic { font: 700 2.8px var(--f-num); fill: #6b4a12; text-anchor: middle; }
-.z text.q { font: 700 4px var(--f-num); fill: #6b5d43; text-anchor: middle; }
-.z .tm { fill: #a8332a; } .z .tmt { font: 700 2.4px var(--f-num); fill: #fff; text-anchor: middle; }
+/* 길: 꼬불꼬불한 잉크 점선 (보물 지도) */
+.e { fill: none; stroke: #5a4630; stroke-width: .55; stroke-dasharray: 1.5 .9; stroke-linecap: round; }
+.e.hid { stroke: #a8332a; stroke-width: .6; stroke-dasharray: .2 1.1; stroke-width: .8; }
+.e.stub { stroke: #8a7350; stroke-width: .4; stroke-dasharray: .3 .9; }
+.e.route { stroke: #a8332a; stroke-width: 1; stroke-dasharray: 2 .7; }
+.ec { font: 600 2.6px var(--f-num); fill: #5a4630; paint-order: stroke; stroke: #ecdcb6; stroke-width: .9; }
+/* 구역: 잉크 얼룩 위에 그림 하나 (+ 작은 그림), 이름은 손글씨 */
+.z .blob { fill: #f6ead0; stroke: #5a4630; stroke-width: .45; }
+.z.l1 .blob { fill: #efe2c2; }
+.z.l1 .pic { opacity: .55; }
+.z.stub .blob { fill: rgba(239,226,194,.35); stroke: #8a7350; stroke-dasharray: .8 .6; }
+.z.sel .blob { stroke: #a8332a; stroke-width: 1; }
+.z.camp .blob { fill: #f3dfa6; }
+.z text.nm { font: 400 3.7px "Nanum Pen Script", var(--f-display); fill: #2a1d0e; text-anchor: middle; paint-order: stroke; stroke: #ecdcb6; stroke-width: .9; }
+.z text.q { font: 400 6px "Nanum Pen Script", var(--f-display); fill: #6b5432; text-anchor: middle; }
+.z .tm { fill: #a8332a; stroke: #5a1a14; stroke-width: .2; } .z .tmt { font: 700 2.2px var(--f-num); fill: #fff; text-anchor: middle; }
+.z .x { stroke: #a8332a; stroke-width: 1.1; stroke-linecap: round; }
+.deco text { font: 400 5px "Nanum Pen Script", var(--f-display); fill: #4a3520; }
+.deco .rose { fill: #5a4630; } .deco .rose2 { fill: #c9ad74; stroke: #5a4630; stroke-width: .2; }
 .z { cursor: pointer; }
 .z:focus-visible circle { stroke: #a8332a; stroke-width: 1.2; }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--soft); }
@@ -97,7 +108,7 @@ button[aria-pressed="true"] { background: #3a3220; border-color: var(--brass); c
   <div class="cols">
     <div style="display:grid;gap:12px;min-width:0">
       <section class="board" aria-label="1층 구역 지도"><svg id="map" viewBox="0 0 100 100" role="img" aria-label="구역 지도"></svg></section>
-      <div class="legend"><span>◯ 아는 구역 (굵은 테: 조사함) · 점선 ◯ ? 아직 안 그린 구역 · 금빛 점선: 숨은 길 · 붉은 선: 고른 명령의 길 · 길 위 숫자: 지나는 값</span><span>⛏ 광맥 · ✶ 몬스터 · ⌂ 야영 · ≈ 물 · ! 위험 · ▼ 계단</span></div>
+      <div class="legend"><span>흐린 그림: 지도만 (흔적) · 짙은 그림: 조사함 · ? 아직 안 그린 구역 · 붉은 점선: 숨은 길 · 붉은 줄: 고른 명령의 길 · 길 위 숫자: 지나는 값 · 붉은 X: 우리가 찾은 계단</span><span>보석 광맥 · 뿔 머리 몬스터 · 천막 넓은 공간(야영) · 물방울 샘 · 바위 위험 · 계단 아래층 · 굴 입구 빈 구역</span></div>
     </div>
     <div style="display:grid;gap:12px;min-width:0">
       <div class="panel zc" id="zone"></div>
@@ -298,23 +309,43 @@ button[aria-pressed="true"] { background: #3a3220; border-color: var(--brass); c
     $('stair').textContent = stairBy === 'us' ? '계단 · 우리가 먼저' : stairBy === 'rival' ? '계단 · 붉은매가 먼저' : '계단 미발견';
     const t = teams[selT], sk = t.order && t.st === 'home' ? t.order : null;
     const R = sk ? route(sk.i) : null, onR = new Set(); if (R) for (let k = 1; k < R.p.length; k++) onR.add([R.p[k - 1], R.p[k]].sort().join('-'));
-    // 길
-    let svg = '';
+    // 그림 (기호): 가운데 -5 ~ 5
+    const DEFS = `<defs>
+      <filter id="ink" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="3"/><feDisplacementMap in="SourceGraphic" scale=".7"/></filter>
+      <symbol id="i-vein" viewBox="-5 -5 10 10"><polygon points="-3.4,-1 -1.7,-3.3 1.7,-3.3 3.4,-1 0,3.8" fill="#4f9bb5" stroke="#2a1d0e" stroke-width=".45"/><polyline points="-3.4,-1 3.4,-1 M-1.7,-3.3 -1,-1 0,3.8 1,-1 1.7,-3.3" fill="none" stroke="#2a1d0e" stroke-width=".3"/><path d="M-1 -2.6 L-.4 -1.6" stroke="#e8f6fb" stroke-width=".4"/></symbol>
+      <symbol id="i-mon" viewBox="-5 -5 10 10"><path d="M-2.3 -1.4 Q-4.6 -3.4 -3 -4.8 Q-2.9 -3.2 -1.2 -2.4 Z M2.3 -1.4 Q4.6 -3.4 3 -4.8 Q2.9 -3.2 1.2 -2.4 Z" fill="#e9dcc0" stroke="#2a1d0e" stroke-width=".35"/><path d="M-3 0 Q-3 -3 0 -3 Q3 -3 3 0 Q3 2.4 1.4 3 L1.2 4 L-1.2 4 L-1.4 3 Q-3 2.4 -3 0 Z" fill="#6b4a2a" stroke="#2a1d0e" stroke-width=".4"/><circle cx="-1.1" cy="-.2" r=".55" fill="#d8402f"/><circle cx="1.1" cy="-.2" r=".55" fill="#d8402f"/><path d="M-1 2.2 h2" stroke="#2a1d0e" stroke-width=".35"/></symbol>
+      <symbol id="i-stair" viewBox="-5 -5 10 10"><path d="M-3.8 3.4 V1.8 H-1.9 V.2 H0 V-1.4 H1.9 V-3 H3.8 V3.4 Z" fill="#7a5a36" stroke="#2a1d0e" stroke-width=".4"/><path d="M-3.8 1.8 H3.8 M-1.9 .2 H3.8 M0 -1.4 H3.8" stroke="#2a1d0e" stroke-width=".2"/></symbol>
+      <symbol id="i-wide" viewBox="-5 -5 10 10"><polygon points="-3.8,3.2 0,-3.4 3.8,3.2" fill="#c9a46a" stroke="#2a1d0e" stroke-width=".4"/><polygon points="-1,3.2 0,.6 1,3.2" fill="#3a2a18"/><path d="M0 -3.4 V-4.6" stroke="#2a1d0e" stroke-width=".35"/></symbol>
+      <symbol id="i-water" viewBox="-5 -5 10 10"><path d="M0 -3.8 C2.1 -.9 2.8 .5 2.8 1.5 A2.8 2.8 0 0 1 -2.8 1.5 C-2.8 .5 -2.1 -.9 0 -3.8 Z" fill="#5d93b6" stroke="#2a1d0e" stroke-width=".4"/><path d="M-1.2 1.2 Q-1.2 2.4 0 2.6" fill="none" stroke="#e8f2f8" stroke-width=".35"/></symbol>
+      <symbol id="i-haz" viewBox="-5 -5 10 10"><polygon points="-3.6,3.4 -2.6,1.2 -.6,1.6 0,3.4" fill="#8a7a66" stroke="#2a1d0e" stroke-width=".35"/><polygon points=".4,3.4 1.4,.8 3.4,1.4 3.8,3.4" fill="#9a8a74" stroke="#2a1d0e" stroke-width=".35"/><polygon points="-1.2,-1 0,-3.4 1.6,-2.2 .8,-.6" fill="#7a6a56" stroke="#2a1d0e" stroke-width=".35"/><path d="M-2 -2.6 l-.6 -.8 M2.6 -1 l.8 -.6" stroke="#2a1d0e" stroke-width=".3"/></symbol>
+      <symbol id="i-cave" viewBox="-5 -5 10 10"><path d="M-3.6 3 V.2 A3.6 3.6 0 0 1 3.6 .2 V3 Z" fill="#8a6c48" stroke="#2a1d0e" stroke-width=".4"/><path d="M-1.8 3 V1 A1.8 1.8 0 0 1 1.8 1 V3 Z" fill="#2a1d0e"/></symbol>
+      <symbol id="i-gate" viewBox="-5 -5 10 10"><path d="M-3.6 3.4 V.4 A3.6 3.6 0 0 1 3.6 .4 V3.4 Z" fill="#6b5236" stroke="#2a1d0e" stroke-width=".4"/><path d="M-1.8 3.4 V1.2 A1.8 1.8 0 0 1 1.8 1.2 V3.4 Z" fill="#2a1d0e"/><path d="M2.6 -2.4 V-5" stroke="#2a1d0e" stroke-width=".35"/><path d="M2.6 -5 L4.6 -4.3 L2.6 -3.6 Z" fill="#a8332a"/></symbol>
+    </defs>`;
+    const PRI = ['stair', 'vein', 'mon', 'water', 'wide', 'haz'];
+    const hsh = n => { let x = n * 2654435761 >>> 0; x ^= x >>> 13; return x >>> 0; };
+    // 꼬불길: 두 구역 사이를 S자로 (길마다 같은 모양)
+    const curve = e => { const A = Z[e.a], B = Z[e.b], dx = B.x - A.x, dy = B.y - A.y, L = Math.hypot(dx, dy) || 1, nx = -dy / L, ny = dx / L, h = hsh(e.a * 31 + e.b), amp = (1.4 + (h % 4) * 0.5) * (h & 1 ? 1 : -1);
+      return { d: `M${A.x} ${A.y} C${A.x + dx * 0.3 + nx * amp} ${A.y + dy * 0.3 + ny * amp} ${A.x + dx * 0.7 - nx * amp} ${A.y + dy * 0.7 - ny * amp} ${B.x} ${B.y}`, mx: (A.x + B.x) / 2 + nx * 1.6, my: (A.y + B.y) / 2 + ny * 1.6 }; };
+    let svg = DEFS + `<g class="deco" aria-hidden="true"><text x="3" y="98">1층 · 회색늑대 측량도</text><g transform="translate(91 91)"><polygon class="rose" points="0,-6 1.1,-1.1 6,0 1.1,1.1 0,6 -1.1,1.1 -6,0 -1.1,-1.1"/><polygon class="rose2" points="0,-3.6 .7,-.7 3.6,0 .7,.7 0,3.6 -.7,.7 -3.6,0 -.7,-.7"/><text x="-1.4" y="-6.8" style="font-size:3.6px">N</text></g></g>`;
+    let paths = '';
     EG.forEach(e => {
-      const A = Z[e.a], B = Z[e.b], ka = lv[e.a] >= 1, kb = lv[e.b] >= 1;
-      if (!edgeKnown(e)) return;
-      if (!ka && !kb) return;
-      const stub = !(ka && kb), key = [e.a, e.b].sort().join('-');
-      svg += `<line class="e${e.hid ? ' hid' : ''}${stub ? ' stub' : ''}${onR.has(key) ? ' route' : ''}" x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}"/>`;
-      if (ka || kb) svg += `<text class="ec" x="${(A.x + B.x) / 2 + 1}" y="${(A.y + B.y) / 2 - 0.6}">${e.c}</text>`;
+      const ka = lv[e.a] >= 1, kb = lv[e.b] >= 1;
+      if (!edgeKnown(e) || (!ka && !kb)) return;
+      const stub = !(ka && kb), key = [e.a, e.b].sort().join('-'), c = curve(e);
+      paths += `<path class="e${e.hid ? ' hid' : ''}${stub ? ' stub' : ''}${onR.has(key) ? ' route' : ''}" d="${c.d}"/>`;
+      if (!stub) paths += `<text class="ec" x="${c.mx}" y="${c.my}">${e.c}</text>`;
     });
+    svg += `<g filter="url(#ink)">${paths}</g>`;
     // 구역
     const marks = {}; teams.forEach((x, k) => { const o = x.st === 'away' ? x.trip : x.order; if (o) (marks[o.i] = marks[o.i] || []).push(k + 1); });
     Z.forEach(z => {
       const st = lv[z.id] >= 2 ? 'l2' : lv[z.id] ? 'l1' : isStub(z.id) ? 'stub' : ''; if (!st) return;
-      const ic = st === 'stub' ? '' : z.tr.map(k => TR[k].ic).join(' ');
-      const mk = marks[z.id] ? `<circle class="tm" cx="${z.x + 4.4}" cy="${z.y - 3.4}" r="1.9"/><text class="tmt" x="${z.x + 4.4}" y="${z.y - 2.6}">${marks[z.id].join('')}</text>` : '';
-      svg += `<g class="z ${st}${z.id === sel ? ' sel' : ''}${camp[z.id] ? ' camp' : ''}" data-z="${z.id}" tabindex="0" role="button" aria-label="${st === 'stub' ? '아직 안 그린 구역' : z.name}"><circle cx="${z.x}" cy="${z.y}" r="4.2"/>${st === 'stub' ? `<text class="q" x="${z.x}" y="${z.y + 1.4}">?</text>` : `<text class="ic" x="${z.x}" y="${z.y + 0.9}">${ic}</text><text class="nm" x="${z.x}" y="${z.y + 7.2}">${z.name}</text>`}${mk}${fresh.has(z.id) ? `<circle cx="${z.x}" cy="${z.y}" r="5.4" fill="none" stroke="#a8332a" stroke-width=".4"><animate attributeName="r" from="4.2" to="7" dur="1.2s" repeatCount="2"/></circle>` : ''}</g>`;
+      const trs = PRI.filter(k => z.tr.includes(k)), main = z.id === E ? 'gate' : trs[0] || 'cave', sub = trs.slice(1, 3);
+      const rx = 4.4 + (hsh(z.id) % 3) * 0.2, ry = 3.8 + (hsh(z.id + 7) % 3) * 0.2;
+      const mk = marks[z.id] ? `<path class="tm" d="M${z.x + 3.6} ${z.y - 2.2} v-3.4 l2.6 .9 -2.6 .9 z"/><text class="tmt" x="${z.x + 4.6}" y="${z.y - 4.1}">${marks[z.id].join('')}</text>` : '';
+      const pic = st === 'stub' ? `<text class="q" x="${z.x}" y="${z.y + 2}">?</text>` : `<g class="pic"><use href="#i-${main}" x="${z.x - 3.2}" y="${z.y - 3.4}" width="6.4" height="6.4"/>${sub.map((k, j) => `<use href="#i-${k}" x="${z.x + 1.4 + j * 2.6}" y="${z.y + 1}" width="3" height="3"/>`).join('')}</g>`;
+      const x = z.tr.includes('stair') && stairBy === 'us' && lv[z.id] ? `<path class="x" d="M${z.x - 3} ${z.y - 3} L${z.x + 3} ${z.y + 3} M${z.x + 3} ${z.y - 3} L${z.x - 3} ${z.y + 3}"/>` : '';
+      svg += `<g class="z ${st}${z.id === sel ? ' sel' : ''}${camp[z.id] ? ' camp' : ''}" data-z="${z.id}" tabindex="0" role="button" aria-label="${st === 'stub' ? '아직 안 그린 구역' : z.name}"><ellipse class="blob" cx="${z.x}" cy="${z.y}" rx="${rx}" ry="${ry}" filter="url(#ink)"/>${pic}${x}${st === 'stub' ? '' : `<text class="nm" x="${z.x}" y="${z.y + 7.6}">${z.name}${camp[z.id] ? ' ⛺' : ''}</text>`}${mk}${fresh.has(z.id) ? `<ellipse cx="${z.x}" cy="${z.y}" rx="${rx}" ry="${ry}" fill="none" stroke="#a8332a" stroke-width=".4"><animate attributeName="rx" from="${rx}" to="${rx + 3}" dur="1.2s" repeatCount="2"/><animate attributeName="ry" from="${ry}" to="${ry + 3}" dur="1.2s" repeatCount="2"/><animate attributeName="opacity" from="1" to="0" begin="2.2s" dur=".3s" fill="freeze"/></ellipse>` : ''}</g>`;
     });
     $('map').innerHTML = svg;
     // 구역 기록
