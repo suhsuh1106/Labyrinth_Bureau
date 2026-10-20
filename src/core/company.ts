@@ -423,6 +423,7 @@ export type Plan = { parties: number[]; pots: number[]; train: number; base: { f
   sellAt?: number;   // 지정가: 창고의 전리품을 오늘 시세가 기준 값의 이만큼 배를 넘으면 판다 (autoSell을 끈 때)
   autoSell?: boolean;   // 돌아온 날 캐 온 전리품을 바로 판다 (비워 두면 판다. 끄면 창고에 두고 팔 날을 고른다)
   autoBuy?: boolean;   // 조를 보낼 때 창고에 모자란 채비를 상단에서 바로 산다 (비워 두면 켬)
+  matSell?: Record<string, number>;   // 이번 그믐에 창고에서 팔 전리품 (이름마다 개수). 비워 두면 모두 판다(봇). 화면의 새 판은 {}로 시작해 모두 보관
   ask?: Ask };   // 이번 달 단장 조사 (몬스터 하나에 물을 것 하나)
 // 조사 의뢰 한 건: 시장 조사는 지금 나와 있는 찾는 곳 전부, 타 용병단 조사는 그 용병단의 이번 달 층별 파티 수
 export type Probe = { m: number; k: 'mkt' | 'riv'; id?: string; cost: number; dem?: Demand[]; parties?: number[]; hire?: number[]; guide?: string[] };
@@ -505,6 +506,7 @@ export type World = {
   bought?: Bought; idle?: Record<number, number>; askNow?: AskRes; leadNow?: string; today?: number[];
   // 날 단위 시장: 이번 달 경쟁 용병단의 출정 (달 첫날 굴린 것), 시장에 풀린 양(시세), 우리 창고의 전리품(층마다 개수), 시장 소식(최근 판매)
   mo?: MonthOpen; mq?: number[]; stock?: number[]; sales?: Sale[]; pp?: number[];   // pp: 어제 시세
+  mbox?: Record<string, number>;   // 우리 창고의 전리품 (돌아온 날 들어오고, 그믐에 팔 양 plan.matSell만큼 판다. 상하지 않는다)
 };
 // 이번 달 바로 산 것과 그 값 (금고에서 이미 나갔다. 정산의 지출 줄에 그대로 든다). fired: 이번 달 내보낸 사람, spoil: 들고 나갔다가 기한이 지나 버린 포션
 // (cost.sq: 이번 달 조 장비를 올린 값, 자산)
@@ -1517,6 +1519,8 @@ function takeBack(W: World, s: Sortie) {
   back(S.holy, s.kit.holy - o.h, CO.HOLY_KEEP); back(S.pot, s.kit.pots - s.kit.holy - (o.pu - o.h), CO.POT_KEEP);
   S.torch = (S.torch || 0) + s.kit.torch - o.tu; S.food = (S.food || 0) + o.foodLeft; S.mend = (S.mend || 0) + o.toolsLeft;
   if (s.kit.gear && !o.broke) S.gear[s.kit.gear] = (S.gear[s.kit.gear] || 0) + 1;
+  // 갈무리한 전리품: 창고에 넣는다 (팔 양은 그믐에 plan.matSell)
+  { const B = W.mbox || (W.mbox = {}); o.mats.forEach(([m, k]) => { B[m] = (B[m] || 0) + k; }); }
   // 캐 온 짐: 그 층에 남은 양에서 캐 와 창고에 넣는다 (먼저 온 쪽이 더 캔다. 파는 날은 고른다)
   const got = W.mo ? dig(W, s.f, o.loot * takeOf(W, c, s.f)) : 0, st = W.stock || (W.stock = zeros());
   st[s.f] += got; s.got = got; if (W.mo) W.mo.res[0].got[s.f] += got;
@@ -1783,7 +1787,10 @@ export function sellStock(W: World, j: number, n = Infinity) {
   return v;
 }
 // 창고의 전리품 값 (오늘 시세로, 평가액에 든다)
-export const stockValue = (W: World) => (W.stock || []).reduce((a, n, j) => a + Math.floor(n + 1e-9) * priceNow(W, j), 0);
+export const stockValue = (W: World) => (W.stock || []).reduce((a, n, j) => a + Math.floor(n + 1e-9) * priceNow(W, j), 0) + mboxValue(W);
+// 창고 전리품의 값: 소재마다 평균 시세(없으면 기준 값)
+export const matRefOf = (W: World, n: string) => (W.mat && W.mat.ref[n]) || (allMats(W).find(x => x.n === n)?.val ?? 0);
+export const mboxValue = (W: World) => Object.entries(W.mbox || {}).reduce((a, [n, k]) => a + k * matRefOf(W, n), 0);
 
 // 한 달 정산: 경쟁 용병단 · 계약 조를 굴리고, 이번 달 돌아온 우리 조와 함께 층을 나눠 캐고 모두가 같은 시세에 판다. 급여 · 본부 · 신입 · 영주청 가정산까지
 function settleMonth(W: World, playerPlan: Plan): MonthResult {
@@ -1829,7 +1836,6 @@ function settleMonth(W: World, playerPlan: Plan): MonthResult {
         const o = s.out, r = res[i];
         w += o.w; if (o.ok) okN++; d += o.dq; h += o.hq;
         Object.entries(o.mapBy).forEach(([id, v]) => { mapBy[+id] = (mapBy[+id] || 0) + v; });
-        o.mats.forEach(([m, k]) => { r.matSold[m] = (r.matSold[m] || 0) + k; });
         r.potUsed += o.pu; r.torchUsed = (r.torchUsed || 0) + o.tu;
         if (s.kit.gear) { r.gearUsed[s.kit.gear] = (r.gearUsed[s.kit.gear] || 0) + 1; if (o.broke) r.gearLost[s.kit.gear] = (r.gearLost[s.kit.gear] || 0) + 1; }
         if (W.keyUse && o.hasKey) W.keyUse[f] += o.fd / CO.DAYS;
@@ -1858,6 +1864,9 @@ function settleMonth(W: World, playerPlan: Plan): MonthResult {
   const sold = res.map(r => [...r.sold]);
   const Q = ITEMS.map((_, j) => sold.reduce((a, x) => a + x[j], 0));
   const price = ITEMS.map((_, j) => priceNow(W, j));
+  // 우리 창고의 전리품: 이번 그믐에 팔 양만 내놓는다 (matSell을 비워 두면 모두)
+  if (W.mbox) { const B = W.mbox, ms = playerPlan.matSell, r = res[0];
+    Object.keys(B).forEach(m => { const n = Math.min(B[m], ms ? Math.max(0, Math.floor(ms[m] || 0)) : B[m]); if (n > 0) { r.matSold[m] = (r.matSold[m] || 0) + n; B[m] -= n; } if (B[m] <= 0) delete B[m]; }); }
   // 소재: 모두 정산 때 판다. 시세는 기준 값 × 찾는 곳 웃돈 × 물량
   const MT = W.mat, mats = allMats(W), matP: Record<string, number> = {}, matRef: Record<string, number> = {};
   mats.forEach(x => {
@@ -2687,7 +2696,7 @@ export const rankOf = (W: World, id = 'us') => (W.last ? W.last.rank.indexOf(id)
 export function carryPlan(W: World, prev: Plan | null): Plan {
   if (!prev) return defaultPlan(W);
   const c = us(W), P: Plan = JSON.parse(JSON.stringify(prev));
-  P.base = null; P.donate = 0; P.root = null; P.proc = 0; P.buy = {}; P.dorm = false; delete P.fire; delete P.build; delete P.take; delete P.sellMap; delete P.ask;
+  P.base = null; P.donate = 0; P.root = null; P.proc = 0; P.buy = {}; P.dorm = false; delete P.fire; delete P.build; delete P.take; delete P.sellMap; delete P.ask; if (P.matSell) P.matSell = {};   // (그믐에 팔 전리품은 달마다 새로 정한다)
   if (c.crew) P.pick = [];   // 신입은 이번 달 지원자 중 고른 사람만 (고르지 않으면 아무도 들이지 않는다)
   // 짜 둔 조는 그대로 두고 바뀐 것만 고친다: 없어진 사람의 자리는 비우고, 대기 중인 사람(새로 들어온 신입 등) 중 그 자리의 기본 편성 직업이 있으면 넣는다
   if (P.teams && c.crew) {

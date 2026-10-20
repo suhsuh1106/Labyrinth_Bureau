@@ -6,14 +6,14 @@ import { kitShort, sellStock, setClerks, buyNow, fireNow, hireNow, promote, upgr
 import { DESC_FIRST, packBar } from './ui/co/roster';
 import { CLASSES, GEARS } from './core/data';
 import { plaqueHtml } from './ui/co/view';
-import { type DeskUi, DOC_KEYS, PLACE_KEYS, infoWeekHtml, orderOf, resultWeekHtml, weeksHtml } from './ui/co/desk';
+import { type DeskUi, DOC_KEYS, PLACE_KEYS, fillOf, infoWeekHtml, orderOf, resultWeekHtml, weeksHtml } from './ui/co/desk';
 import { todayBack } from './ui/co/hall';
 import { draftHtml } from './ui/co/draft';
 import { closeScene, openScene } from './ui/co/scene';
 import { advanceArrival, arrivalOpen, closeArrival, playArrival } from './ui/co/arrival';
 
 const $ = (id: string): any => document.getElementById(id);
-const KEY = 'lb-co', VERSION = 36, MONTHS = 36;   // 36: 조장 · 조 장비 · 조 크기 (이전 판은 새 게임으로)
+const KEY = 'lb-co', VERSION = 37, MONTHS = 36;   // 37: 창고 전리품 · 그믐에 팔 양 (이전 판은 새 게임으로)
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
 let W: World, plan: Plan, ui: DeskUi;
 // 도장을 막 찍은 결과 화면이면 귀환 장부를 한 줄씩 띄운다 (저장하지 않는 화면 상태)
@@ -51,7 +51,7 @@ function start(fresh = false) {
   const d = fresh ? null : load();
   if (d) { W = d.W; plan = d.plan; ui = d.ui || { phase: 0, tab: 'report', pins: [] }; }
   // 첫 결정표: 포션 상한 0병(처음 받은 포션은 창고에), 신입 없음, 교관 없음. 돈 드는 것은 모두 고르는 것
-  else { setSeed((Date.now() ^ 0x5bd1e995) >>> 0); W = newWorld(); plan = carryPlan(W, null); plan.pots = plan.pots.map(() => 0); plan.pick = []; plan.train = 0; plan.coach = 0; plan.autoSell = false; plan.autoBuy = false; ui = { phase: 0, tab: 'report', pins: [] }; }
+  else { setSeed((Date.now() ^ 0x5bd1e995) >>> 0); W = newWorld(); plan = carryPlan(W, null); plan.pots = plan.pots.map(() => 0); plan.pick = []; plan.train = 0; plan.coach = 0; plan.autoSell = false; plan.autoBuy = false; plan.matSell = {}; ui = { phase: 0, tab: 'report', pins: [] }; }
   plan.intelUp = plan.intelUp || {};   // 정보망은 유지비를 저절로 내고, 넓히는 돈만 따로 정한다
   tidyTeams();
   render(); save();
@@ -179,6 +179,17 @@ function act(b: HTMLElement) {
     ui.sort = { ...(ui.sort || {}), [sc]: `${k}:${d}` }; render(); save(); return;
   }
   if (a === 'refill' || a === 'fill-rest' || a === 'bench' || a === 'to-bench' || a === 'slot' || a === 'assign' || a === 'tfloor' || a === 'tmission') return teamAct(a, b);
+  // 한 달 몫: 구매 칸에 이번 달 쓸 만큼(창고를 뺀 것)을 담는다 (사는 것은 '지금 사기')
+  if (a === 'fill' || a === 'fill-all') {
+    const F = fillOf(W, plan), B = plan.buy = { ...(plan.buy || {}) }, k = b.dataset.k as 'pot' | 'torch' | 'food' | 'mend' | 'gear' | undefined;
+    if (a === 'fill-all') { B.pot = F.pot; B.torch = F.torch; B.food = F.food; B.mend = F.mend; B.gear = { ...(B.gear || {}), ...F.gear }; }
+    else if (k === 'gear') { const g = b.dataset.g || ''; B.gear = { ...(B.gear || {}), [g]: F.gear[g] || 0 }; }
+    else if (k) B[k] = F[k];
+    render(); save(); return;
+  }
+  // 그믐에 팔 전리품: 모두 / 모두 보관
+  if (a === 'mat-all') { plan.matSell = { ...(W.mbox || {}) }; render(); save(); return; }
+  if (a === 'mat-keep') { plan.matSell = {}; render(); save(); return; }
   if (a === 'auto-pot') { plan.buy = { ...(plan.buy || {}) }; delete plan.buy.pot; render(); save(); return; }
   if (a === 'auto-torch') { plan.buy = { ...(plan.buy || {}) }; delete plan.buy.torch; render(); save(); return; }
   if (a === 'auto-food') { plan.buy = { ...(plan.buy || {}) }; delete plan.buy.food; render(); save(); return; }
@@ -339,6 +350,7 @@ function edit(k: string, i: number, fn: (v: number) => number, j = 0) {
   else if (k === 'parties' && us(W).crew) setTeams(i, Math.max(0, fn((plan.teams || []).filter(x => x.f === i).length)));
   else if (k === 'recruit') { const cur = +(document.querySelector('input[data-k="recruit"]') as HTMLInputElement)?.value || 0; plan.recruit = Math.max(0, fn(plan.recruit != null ? plan.recruit : cur)); }
   else if (k === 'buyPot') { const cur = +(document.querySelector('input[data-k="buyPot"]') as HTMLInputElement)?.value || 0; buy().pot = Math.max(0, fn(plan.buy && plan.buy.pot != null ? plan.buy.pot : cur)); }
+  else if (k === 'matSell') { const names = Object.keys(W.mbox || {}).sort(), n = names[i]; if (n) { plan.matSell = { ...(plan.matSell || {}) }; plan.matSell[n] = Math.max(0, Math.min(W.mbox![n], fn(plan.matSell[n] || 0))); } }
   else if (k === 'buyHoly') buy().holy = Math.max(0, fn((plan.buy && plan.buy.holy) || 0));
   else if (k === 'buyTorch') { const cur = +(document.querySelector('input[data-k="buyTorch"]') as HTMLInputElement)?.value || 0; buy().torch = Math.max(0, fn(plan.buy && plan.buy.torch != null ? plan.buy.torch : cur)); }
   else if (k === 'buyFood') { const cur = +(document.querySelector('input[data-k="buyFood"]') as HTMLInputElement)?.value || 0; buy().food = Math.max(0, fn(plan.buy && plan.buy.food != null ? plan.buy.food : cur)); }

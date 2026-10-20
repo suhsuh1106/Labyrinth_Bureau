@@ -1670,3 +1670,20 @@ describe('보급: 정가는 달 첫날, 그 뒤는 긴급 구매', () => {
     expect(monthNeed(W, S).food).toBeGreaterThan(needOf(S).food);
   });
 });
+
+describe('창고 전리품', () => {
+  it('matSell을 비워 두면 그믐에 모두 팔고, {}이면 모두 창고에 남는다', async () => {
+    const { sanitize } = await import('../src/core/company');
+    const run = (keep: boolean) => {
+      setSeed(11); const W = newWorld();
+      for (let m = 0; m < 3; m++) { const P = BOT.smart(W); if (keep) P.matSell = {}; P.teams = sanitize(W, us(W), P).teams; P.teams!.forEach(T => { T.mission = 'hunt'; }); runMonth(W, P); closeBooks(W); }
+      return W;
+    };
+    const A = run(false), B = run(true);
+    const sold = (W: World) => W.history.reduce((a, M) => a + Object.values(M.res[0].matSold).reduce((x, y) => x + y, 0), 0);
+    expect(Object.keys(A.mbox || {}).length).toBe(0);
+    expect(sold(A)).toBeGreaterThan(0);
+    expect(sold(B)).toBe(0);
+    expect(Object.values(B.mbox || {}).reduce((a, b) => a + b, 0)).toBeGreaterThan(0);
+  });
+});

@@ -1380,3 +1380,11 @@ table.grid.stk td .link { display: block; font-size: 11px; }
 .el svg { width: 68%; height: 68%; display: block; }
 .el.bad { box-shadow: 0 0 0 2px var(--bad, #e0675c); }
 .els { display: inline-flex; gap: 2px; align-items: center; }
+
+/* 출정 편성 창의 채비 경고 */
+.kitwarn { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; margin: 8px 0 0; padding: 8px 12px; border: 1px solid var(--bl-bad); border-left-width: 4px; border-radius: 3px; background: rgba(160, 50, 40, .14); font-size: 13px; }
+.kitwarn b { color: #f2a593; }
+.kitwarn span { color: #e8dcc6; }
+.kitwarn .send { margin-left: auto; }
+/* 창고 창: 채집품과 전리품을 한 칸에 위아래로 */
+.stk2 { display: grid; gap: 14px; align-content: start; min-width: 0; }
