@@ -30,7 +30,7 @@ button.main { background: var(--brass); color: #221e18; border-color: var(--bras
 .cols { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 14px; align-items: start; }
 @media (max-width: 820px) { .cols { grid-template-columns: minmax(0, 1fr); } }
 /* 지도: 모눈 칸 하나가 버튼 하나 */
-.map { position: relative; display: grid; grid-template-columns: repeat(16, 1fr); gap: 1px; background: #0a100d; border: 1px solid var(--line); border-radius: 4px; padding: 1px; touch-action: manipulation; }
+.map { position: relative; display: grid; grid-template-columns: repeat(var(--cols, 18), 1fr); gap: 1px; background: #0a100d; border: 1px solid var(--line); border-radius: 4px; padding: 1px; touch-action: manipulation; }
 .c { position: relative; aspect-ratio: 1; border: 0; border-radius: 0; padding: 0; display: grid; place-items: center; font: 700 clamp(9px, 1.9vw, 14px) var(--f-num); color: rgba(255,255,255,.85); background: var(--fog); min-width: 0; }
 .c.fog { background: repeating-linear-gradient(45deg, var(--fog) 0 4px, #0f1813 4px 6px); }
 .c.edge { background: repeating-linear-gradient(45deg, #142019 0 4px, #1a2a21 4px 6px); }
@@ -81,7 +81,7 @@ button.main { background: var(--brass); color: #221e18; border-color: var(--bras
     <span class="stat">시드 <b id="seed">-</b></span>
     <button type="button" id="reseed">새 층</button>
   </header>
-  <p class="lead">조를 고르고 지도에서 칸을 누르면 그 칸까지의 길과 값이 나온다. 안개를 누르면 그쪽 안개를 밀러 간다. 횃불 하나는 값 4. 가는 값과 돌아오는 값을 빼고 남는 횃불만큼 안개를 밝힌다. 밝힌 칸은 조가 돌아온 아침에 지도에 그려진다.</p>
+  <p class="lead">조를 고르고 지도에서 칸을 누르면 그 칸까지의 길과 값이 나온다. 안개를 누르면 그쪽 안개를 밀러 간다. 횃불 하나는 값 6. 가는 값과 돌아오는 값을 빼고 남는 횃불만큼 안개를 밝힌다. 밝힌 칸은 조가 돌아온 아침에 지도에 그려진다.</p>
   <div class="cols">
     <section aria-label="1층 지도">
       <div class="map" id="map" role="grid" aria-label="1층 모눈 지도"></div>
@@ -114,7 +114,7 @@ button.main { background: var(--brass); color: #221e18; border-color: var(--bras
 <script>
 (() => {
   'use strict';
-  const W = 16, H = 12, TORCH = 4, PER_DAY = 8;
+  const W = 18, H = 13, TORCH = 6, PER_DAY = 10;
   const WALL = 0, PATH = 1, DIRT = 2, ROUGH = 3, WATER = 4, HAZ = 5;
   const COST = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 2 };
   const KCLS = { 0: 'k0', 1: 'k1', 2: 'k2', 3: 'k3', 4: 'k4', 5: 'kh' };
@@ -140,67 +140,76 @@ button.main { background: var(--brass); color: #221e18; border-color: var(--bras
   }
   const trace = (pv, to) => { const p = []; for (let i = to; i >= 0; i = pv[i]) p.unshift(i); return p; };
 
-  // ---------- 층 만들기 ----------
+  // ---------- 층 만들기: 갱도 ----------
+  // 방(넓은 굴) 여럿을 1칸 갱도로 잇는다. 최소 신장 트리로 다 잇고, 고리 몇 개와 옛 통로(값 1)를 더해 돌아가는 길 · 지름길을 만든다. 막다른 곁굴도 판다
   let T, F, E, veins, nests, zone, known, studied;
   function gen(seed) {
     rs = seed >>> 0 || 1;
-    T = new Array(W * H).fill(WALL); F = new Array(W * H).fill(''); E = idx(8, H - 1);
-    // 굴: 입구에서 위로 기우는 술 취한 걸음 몇 개
-    let floor = 0;
-    const carve = i => { if (T[i] === WALL) { T[i] = DIRT; floor++; } };
-    carve(E);
-    for (let w = 0; w < 30 && floor < W * H * 0.52; w++) {
-      let p = w < 4 ? E : (() => { const f = T.map((t, i) => (t ? i : -1)).filter(i => i >= 0); return f[ri(f.length)]; })();
-      for (let s = 0; s < 40; s++) {
-        const [x, y] = xy(p), r = rnd(); let nx = x, ny = y;
-        if (r < 0.32) ny--; else if (r < 0.44) ny++; else if (r < 0.72) nx--; else nx++;
-        if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue;
-        p = idx(nx, ny); carve(p);
-      }
+    T = new Array(W * H).fill(WALL); F = new Array(W * H).fill(''); E = idx(Math.floor(W / 2), H - 1);
+    const dig = (i, t = DIRT) => { if (T[i] === WALL || t === PATH) T[i] = t; };
+    // 방: 입구 방 하나 + 흩어진 방들
+    const rooms = [{ x: Math.floor(W / 2) - 1, y: H - 3, w: 3, h: 2 }];
+    for (let k = 0; k < 60 && rooms.length < 13; k++) {
+      const w = 1 + ri(3), h = 1 + ri(3), x = 1 + ri(W - w - 2), y = 1 + ri(H - h - 3);
+      if (rooms.some(r => x < r.x + r.w + 1 && r.x < x + w + 1 && y < r.y + r.h + 1 && r.y < y + h + 1)) continue;
+      rooms.push({ x, y, w, h });
     }
-    // 험로 덩이 · 물길 하나 · 위험 칸
-    for (let k = 0; k < 6; k++) { const c = ri(W * H); T.forEach((t, i) => { if (t === DIRT && md(i, c) <= 1 && rnd() < 0.75) T[i] = ROUGH; }); }
-    { let p = idx(ri(W), 0); for (let s = 0; s < 18; s++) { if (T[p] !== WALL) T[p] = WATER; const n = nb4(p).filter(q => xy(q)[1] >= xy(p)[1]); p = n[ri(n.length)]; } }
+    rooms.forEach(r => { for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) dig(idx(x, y)); });
+    const ctr = r => idx(r.x + ri(r.w), r.y + ri(r.h));
+    // 갱도: 두 칸 사이를 꺾인 1칸 굴로
+    const tunnel = (a, b, t = DIRT) => {
+      let [x, y] = xy(a); const [tx, ty] = xy(b), hf = rnd() < 0.5;
+      const go = (axis) => { while (axis === 'x' ? x !== tx : y !== ty) { if (axis === 'x') x += Math.sign(tx - x); else y += Math.sign(ty - y); dig(idx(x, y), t); } };
+      if (hf) { go('x'); go('y'); } else { go('y'); go('x'); }
+    };
+    // 최소 신장 트리 (방 사이 거리)
+    const cd = rooms.map(r => idx(r.x + Math.floor(r.w / 2), r.y + Math.floor(r.h / 2)));
+    const inT = [0], edges = [];
+    while (inT.length < rooms.length) {
+      let best = null;
+      inT.forEach(a => rooms.forEach((_, b) => { if (inT.includes(b)) return; const d = md(cd[a], cd[b]); if (!best || d < best.d) best = { a, b, d }; }));
+      inT.push(best.b); edges.push([best.a, best.b]);
+    }
+    edges.forEach(([a, b]) => tunnel(ctr(rooms[a]), ctr(rooms[b])));
+    // 고리: 트리에 없는 방 짝 셋을 더 잇는다 (돌아가는 길)
+    for (let k = 0; k < 5; k++) { const a = ri(rooms.length), b = ri(rooms.length); if (a !== b) tunnel(ctr(rooms[a]), ctr(rooms[b])); }
+    // 막다른 곁굴: 갱도에서 뻗는 짧은 굴
+    for (let k = 0; k < 11; k++) {
+      const f = T.map((t, i) => (t ? i : -1)).filter(i => i >= 0); let p = f[ri(f.length)]; const dir = [1, -1, W, -W][ri(4)];
+      for (let s = 0; s < 3 + ri(4); s++) { const [x] = xy(p), q = p + dir; if (q < 0 || q >= W * H || (Math.abs(dir) === 1 && xy(q)[1] !== xy(p)[1])) break; p = q; dig(p); if (x <= 0 || x >= W - 1) break; }
+    }
+    // 험로 · 물길 · 위험: 굴 위에 얹는다
+    T.forEach((t, i) => { if (t === DIRT && rnd() < 0.16) T[i] = ROUGH; });
+    { let p = idx(ri(W), 0); for (let s = 0; s < 16; s++) { if (T[p] !== WALL) T[p] = WATER; const n = nb4(p).filter(q => xy(q)[1] >= xy(p)[1]); p = n[ri(n.length)]; } }
     // 입구 통로
-    for (let y = H - 1, k = 0; k < 3; k++, y--) { T[idx(8, y)] = PATH; }
-    // 닿지 않는 칸은 벽으로
+    for (let y = H - 1, k = 0; k < 3; k++, y--) T[idx(Math.floor(W / 2), y)] = PATH;
     let R = dij(E, i => T[i] !== WALL, i => COST[T[i]]);
     T.forEach((t, i) => { if (t !== WALL && R.d[i] === Infinity) T[i] = WALL; });
-    // 옛 통로: 입구 가까운 곳에서 가장 먼 쪽으로 값 1짜리 굴 (벽을 뚫는다)
-    {
-      const far = R.d.reduce((b, v, i) => (v < Infinity && v > R.d[b] ? i : b), E);
-      const starts = T.map((t, i) => (t !== WALL && R.d[i] >= 3 && R.d[i] <= 6 ? i : -1)).filter(i => i >= 0);
-      let p = starts.length ? starts[ri(starts.length)] : E; const [tx, ty] = xy(far);
-      for (let s = 0; s < 40 && p !== far; s++) {
-        const [x, y] = xy(p), dx = Math.sign(tx - x), dy = Math.sign(ty - y);
-        p = (dx && (rnd() < 0.5 || !dy)) ? idx(x + dx, y) : idx(x, y + dy);
-        if (T[p] !== WATER) T[p] = PATH;
-      }
+    // 옛 통로 둘: 입구 쪽 굴에서 먼 방으로 곧게 뚫린 값 1짜리 굴 (지름길)
+    for (let k = 0; k < 2; k++) {
+      const farR = rooms.map((r, j) => ({ j, d: R.d[cd[j]] })).filter(x => x.d < Infinity).sort((a, b) => b.d - a.d)[k];
+      const near = T.map((t, i) => (t !== WALL && R.d[i] >= 2 && R.d[i] <= 6 ? i : -1)).filter(i => i >= 0);
+      if (farR && near.length) tunnel(near[ri(near.length)], cd[farR.j], PATH);
     }
     R = dij(E, i => T[i] !== WALL, i => COST[T[i]]);
-    const open = () => T.map((t, i) => (t !== WALL && t !== WATER && !F[i] && i !== E ? i : -1)).filter(i => i >= 0);
-    const pickFar = (minD) => { const o = open().filter(i => R.d[i] >= minD); return o.length ? o[ri(o.length)] : open()[ri(open().length)]; };
-    // 위험 칸 넷
-    for (let k = 0; k < 4; k++) { const c = pickFar(5); if (c != null) T[c] = HAZ; }
-    // 계단: 가장 먼 칸 근처
-    { const o = open().sort((a, b) => R.d[b] - R.d[a]); F[o[ri(Math.min(4, o.length))]] = 'stair'; }
-    // 광맥 셋 (덩어리마다 캘 양)
+    // 발견물은 방 안에
+    const roomCells = j => { const r = rooms[j], o = []; for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) { const i = idx(x, y); if (T[i] !== WALL && T[i] !== WATER && !F[i] && i !== E) o.push(i); } return o; };
+    const order = rooms.map((_, j) => j).filter(j => j && R.d[cd[j]] < Infinity).sort((a, b) => R.d[cd[b]] - R.d[cd[a]]);
+    const take = () => order.splice(ri(order.length), 1)[0];
+    // 계단: 가장 먼 방 둘 중 하나
+    { const j = order.splice(ri(Math.min(2, order.length)), 1)[0]; const c = roomCells(j); if (c.length) F[c[ri(c.length)]] = 'stair'; }
     veins = [];
-    for (let k = 0; k < 3; k++) {
-      const c = pickFar(4); if (c == null) break;
-      const cells = [c]; F[c] = 'vein';
-      for (let g = 0; g < 2; g++) { const n = nb4(cells[ri(cells.length)]).filter(q => T[q] !== WALL && T[q] !== WATER && !F[q] && q !== E); if (n.length) { const q = n[ri(n.length)]; F[q] = 'vein'; cells.push(q); } }
-      veins.push({ cells, left: 60 + ri(40) });
-    }
-    // 둥지 둘 (둘레 2칸은 조우가 잦다) · 샘 하나
+    for (let k = 0; k < 3 && order.length; k++) { const c = roomCells(take()).slice(0, 2 + ri(2)); c.forEach(i => { F[i] = 'vein'; }); if (c.length) veins.push({ cells: c, left: 60 + ri(40) }); }
     nests = [];
-    for (let k = 0; k < 2; k++) { const c = pickFar(6); if (c == null) break; F[c] = 'nest'; nests.push(c); }
+    for (let k = 0; k < 2 && order.length; k++) { const c = roomCells(take()); if (c.length) { const i = c[ri(c.length)]; F[i] = 'nest'; nests.push(i); } }
     zone = new Array(W * H).fill(false); nests.forEach(n => T.forEach((_, i) => { if (md(i, n) <= 2) zone[i] = true; }));
-    { const c = pickFar(3); if (c != null) F[c] = 'spring'; }
+    if (order.length) { const c = roomCells(take()); if (c.length) F[c[ri(c.length)]] = 'spring'; }
+    // 위험 칸 넷: 먼 갱도에
+    { const far = T.map((t, i) => (t === DIRT && R.d[i] >= 6 && !F[i] ? i : -1)).filter(i => i >= 0); for (let k = 0; k < 4 && far.length; k++) T[far.splice(ri(far.length), 1)[0]] = HAZ; }
     // 아는 칸: 입구 둘레
     known = new Array(W * H).fill(false); studied = {};
     T.forEach((_, i) => { if (md(i, E) <= 1) known[i] = true; });
-    for (let y = H - 1, k = 0; k < 3; k++, y--) known[idx(8, y)] = true;
+    for (let y = H - 1, k = 0; k < 3; k++, y--) known[idx(Math.floor(W / 2), y)] = true;
   }
 
   // ---------- 상태 ----------
@@ -308,6 +317,7 @@ button.main { background: var(--brass); color: #221e18; border-color: var(--bras
     const t = teams[sel], P = planOf(t), onPath = new Set(P ? P.path : []);
     const glyph = i => (i === E ? '⌂' : F[i] === 'vein' ? '◆' : F[i] === 'nest' ? '✶' : F[i] === 'stair' ? '▼' : F[i] === 'spring' ? '○' : '');
     const awayAim = new Map(); teams.forEach((x, k) => { if (x.st === 'away') awayAim.set(x.trip.aim, k + 1); else if (x.aim != null) awayAim.set(x.aim, k + 1); });
+    $('map').style.setProperty('--cols', W);
     $('map').innerHTML = T.map((tt, i) => {
       const k = known[i], cls = ['c', k ? KCLS[tt] : (nb4(i).some(q => known[q] && T[q] !== WALL) ? 'edge' : 'fog')];
       if (k && zone[i] && nests.some(n => known[n] && md(n, i) <= 2)) cls.push('zone');
