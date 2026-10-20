@@ -2,9 +2,10 @@
 // 옆 판에는 미궁에 나가 있는 조(며칠째 · 언제 돌아올지 · 예측), 오늘 아침 돌아온 조, 나갈 수 있는 조가 있다.
 // 대화는 기록(오늘 돌아온 조 · 다친 사람 · 시세 · 소문 · 특성)에서 고르고, 고르는 데 난수 대신 날짜와 사람 번호의 해시를 쓴다.
 // 상태를 쓰지 않고 난수도 쓰지 않는다
-import { MISSION_NAME, priceNow, CO, FLOORS, ITEMS, type Ours, type Person, type Plan, type Sortie, type World, awayIds, boughtOf, candNow, roomOf, grOf, dayAbs, dayOf, floorMons, forecast, forecastTrips, isLeader, jo, kitShort, potShock, potsExpiring, promoteDue, sanitize, stateOf, rushOn, teamReady, unitPrice, us } from '../../core/company';
+import { MISSION_NAME, priceNow, CO, FLOORS, ITEMS, type Ours, type Person, type Plan, type Sortie, type World, awayIds, boughtOf, candNow, roomOf, grOf, dayAbs, dayOf, floorMons, forecast, forecastTrips, isLeader, jo, kitShort, potShock, potsExpiring, promoteDue, sanitize, stateOf, matRefOf, rushOn, teamReady, unitPrice, us } from '../../core/company';
 import { TRIP_END } from '../../core/events';
-import { adminBar, orderCost, orderOf } from './desk';
+import { adminBar, fillOf, orderCost } from './desk';
+import { stepper } from './view';
 import { dayCls, dayMark, dayTip, luckHtml, nameOf, packBar, sendBtn, sqHtml } from './roster';
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
@@ -171,7 +172,7 @@ export function agendaOf(W: World, raw: Plan): Agenda[] {
   if (!c.crew || W.draft) return A;
   const teams = P.teams || [], ready = teams.map((T, t) => ({ T, t })).filter(x => teamReady(W, x.T));
   // 달 첫날: 한 달 몫 보급을 정가로 (2일부터는 긴급 구매)
-  if (!rushOn(W)) { const oc = orderCost(W, orderOf(W, raw)); if (oc >= 1) A.push({ k: 'buy', h: '이달 보급 · 오늘만 정가', t: `한 달 몫 ${fmt(oc)}G · 2일부터 긴급 구매 ×${CO.RUSH}`, btn: '<button type="button" class="ghost sm" data-act="place" data-place="market">보급</button>', must: true }); }
+  if (!rushOn(W)) { const oc = orderCost(W, { ...fillOf(W, raw), holy: 0 }); if (oc >= 1) A.push({ k: 'buy', h: '이달 보급 · 오늘만 정가', t: `한 달 몫 ${fmt(oc)}G · 2일부터 긴급 구매 ×${CO.RUSH}`, btn: '<button type="button" class="ghost sm" data-act="place" data-place="market">보급</button>', must: true }); }
   // 떠날 조의 채비가 창고에 모자람 (자동 구매를 끈 때)
   const go = ready.filter(x => x.T.go).map(x => x.t);
   if (raw.autoBuy === false && go.length) {
@@ -199,6 +200,10 @@ export function agendaOf(W: World, raw: Plan): Agenda[] {
     if (v >= 1) { const hi = js.map(j => ({ j, d: priceNow(W, j) / ITEMS[j].P0 - 1 })).sort((a, b) => b.d - a.d)[0];
       A.push({ k: 'sell', h: '창고 채집품', t: `오늘 팔면 ${fmt(v)}G · ${esc(ITEMS[hi.j].name)} 기준 ${hi.d >= 0 ? '+' : '−'}${Math.round(Math.abs(hi.d) * 100)}%`, btn: '<button type="button" class="ghost sm" data-act="store">창고</button>', must: false }); }
   }
+  // 그믐에 팔 전리품 (마지막 날)
+  const mb = W.mbox || {}, mN = Object.values(mb).reduce((a, b) => a + b, 0);
+  if (mN && (W.day || 1) >= CO.MONTH_DAYS) { const ms = raw.matSell, sN = Object.keys(mb).reduce((a, n) => a + (ms ? Math.min(mb[n], ms[n] || 0) : mb[n]), 0);
+    A.push({ k: 'mats', h: '그믐 · 전리품', t: `창고 ${fmt(mN)}점 · 팔 양 ${fmt(sN)}점`, btn: '<button type="button" class="ghost sm" data-act="store">창고</button>', must: false }); }
   // 그믐에 버릴 포션
   const ex = potsExpiring(c);
   if (ex.pot + ex.holy) A.push({ k: 'pot', h: `포션 ${ex.pot + ex.holy}병 보관 끝`, t: `그믐에 버림 · ${fmt((ex.pot + ex.holy) * unitPrice(W, 'pot'))}G어치`, btn: '<button type="button" class="ghost sm" data-act="exp">편성</button>', must: false });
@@ -292,6 +297,18 @@ export function lootStock(W: World, P: Plan) {
     <table class="grid slim stk"><thead><tr><th>물품</th><th class="n">개수</th><th class="n">오늘 값</th><th class="n">팔기</th></tr></thead><tbody>${rows.map(row).join('')}</tbody></table>
     <div class="buybar"><button type="button" class="tog" data-act="auto-sell" aria-pressed="${P.autoSell !== false}" title="돌아온 날 캐 온 것을 그날 시세로 바로 판다">돌아오면 바로 팔기</button><span class="sp"></span>${total ? '<button type="button" class="ghost sm" data-act="sell-all">모두 팔기</button>' : ''}</div>
     ${marketNews(W)}</section>`;
+}
+// 창고의 전리품: 갈무리해 온 소재 (상하지 않는다). 시세는 그믐에 모두가 판 양으로 정해지니, 팔 양을 그믐 전에 정한다 (지난 그믐 값 · 평균 값을 보고)
+export function matStock(W: World, P: Plan) {
+  const B = W.mbox || {}, names = Object.keys(B).sort(), ms = P.matSell;
+  const sellN = (n: string) => (ms ? Math.min(B[n], ms[n] || 0) : B[n]);
+  const last = W.last ? W.last.matPrice : {};
+  const rows = names.map((n, i) => { const ref = matRefOf(W, n), lp = last[n];
+    return `<tr><td><b>${esc(n)}</b></td><td class="n">${fmt(B[n])}</td><td class="n">${fmt(ref)}G${lp ? `<small class="${lp > ref * 1.02 ? 'pos' : lp < ref * 0.98 ? 'neg' : 'dim'}">지난 그믐 ${fmt(lp)}G</small>` : ''}</td><td>${stepper('matSell', i, sellN(n), `${n} 그믐에 팔 양`)}</td></tr>`; });
+  const v = names.reduce((a, n) => a + B[n] * matRefOf(W, n), 0), sv = names.reduce((a, n) => a + sellN(n) * matRefOf(W, n), 0);
+  return `<section class="stockp mats"><header><h3>전리품</h3><span class="right">${names.length ? `평균 시세로 <b>${fmt(v)}G</b>` : ''}</span></header>
+    ${names.length ? `<table class="grid slim stk"><thead><tr><th>소재</th><th class="n">개수</th><th class="n">평균 시세</th><th>그믐에 팔 양</th></tr></thead><tbody>${rows.join('')}</tbody></table>
+    <div class="buybar"><span class="dim">그믐에 ${fmt(sv)}G어치 · 값은 그달 모두가 판 양으로</span><span class="sp"></span><button type="button" class="ghost sm" data-act="mat-keep">모두 보관</button><button type="button" class="ghost sm" data-act="mat-all">모두 팔기</button></div>` : '<p class="note">갈무리해 온 전리품이 없어요 (사냥 임무 · 조우에서)</p>'}</section>`;
 }
 // 시장 소식: 최근 사흘의 큰 판매. 값이 움직인 것은 누구나 보고, 판 양은 상단 장부 1단계부터, 누가 팔았는지는 2단계부터
 export function marketNews(W: World) {
