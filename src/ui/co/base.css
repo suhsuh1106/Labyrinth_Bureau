@@ -60,8 +60,9 @@ body {
 .pos { color: var(--good); }
 
 /* ---------- 책상 장면 ---------- */
+/* 화면에 붙인다 (position: fixed): 100dvh와 body 높이가 주소창 오르내림에 따라 어긋나 아래가 잘리던 것을 막는다 */
 .room {
-  height: 100vh; height: 100dvh; overflow: hidden;
+  position: fixed; inset: 0; overflow: hidden;
   padding: calc(10px + env(safe-area-inset-top, 0px)) calc(12px + env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) calc(12px + env(safe-area-inset-left, 0px));
   background:
     radial-gradient(ellipse 70% 55% at 50% 38%, var(--lamp), transparent 70%),

@@ -145,6 +145,19 @@ export function backLine(r: Ours, i: number, src: string) {
     <div class="bk-r">${luckHtml(r)}${focus[0]}${dead.length ? `<b class="dead-n">† ${dead.map(z => esc(z.n)).join(', ')}</b>` : ''}${focus[1]}${focus[2]}${r.hurt ? `<span class="neg">부상 ${r.hurt}</span>` : ''}</div></li>`;
 }
 
+// 귀환 보고 창: 다음 날 아침 돌아온 조가 있으면 저절로 뜬다. 오늘 돌아온 조(조 장비 올리기)와 이달 앞서 돌아온 조
+export function backWinHtml(W: World, raw: Plan) {
+  const P = sanitize(W, us(W), raw), all = W.back || [], today = todayBack(W), before = all.filter(s => !today.includes(s)).reverse();
+  const line = (s: Sortie, up: boolean) => backLine(s.rep!, all.indexOf(s), 'back').replace(/<\/li>$/, `${up ? upBtn(W, P, s) : ''}</li>`);
+  return `<div class="reader back-w" role="dialog" aria-modal="true" aria-label="귀환 보고"><div class="reader-in">
+    <div class="reader-bar"><h2 class="exp-h">귀환 보고 <small>제${W.month}월 ${W.day || 1}일 아침</small></h2><span class="sp"></span><button type="button" class="close" data-act="close-backs" aria-label="창 닫기">×</button></div>
+    <div class="hall-side back-body">
+      ${today.length ? `<div class="panel backs"><header><h2>오늘 아침 돌아온 조</h2><span class="right">${today.length}조</span></header><ol class="bks">${today.map(s => line(s, true)).join('')}</ol></div>` : ''}
+      ${before.length ? `<details class="panel backs"${today.length ? '' : ' open'}><summary><h2>이달 앞서 돌아온 조</h2><span class="right">${before.length}조</span></summary><ol class="bks">${before.map(s => line(s, false)).join('')}</ol></details>` : ''}
+      ${all.length ? '' : '<p class="note">이달 돌아온 조가 없어요</p>'}
+      <button type="button" class="nextday" data-act="close-backs">확인</button>
+    </div></div></div>`;
+}
 // 돌아온 조의 성과급 자리: 그 조의 장비 올리기 (편성표의 같은 조가 같은 조(남는 단위)를 쓰고 있을 때)
 function upBtn(W: World, P: Plan, s: Sortie) {
   const T = (P.teams || [])[s.t]; if (!T || (s.sq != null && T.sq !== s.sq)) return '';
@@ -196,14 +209,14 @@ export function hallHtml(W: World, raw: Plan) {
       <div class="hall-zones">${zones}</div>
     </div>
     <aside class="hall-side">
-      ${back.length ? `<div class="panel backs"><header><h2>오늘 아침 돌아온 조</h2></header><ol class="bks">${back.map(s => backLine(s.rep!, (W.back || []).indexOf(s), 'back').replace(/<\/li>$/, `${upBtn(W, P, s)}</li>`)).join('')}</ol></div>` : ''}
+      ${back.length ? `<button type="button" class="backs-open" data-act="backs">오늘 아침 귀환 <b>${back.length}조</b>${back.some(s => (s.rep!.dead || []).length) ? ' <span class="dead-n">†</span>' : ''} <small>보고 ▶</small></button>` : ''}
       <div class="panel aways"><header><h2>미궁에 나간 조</h2><span class="right">${away.length}조</span></header>${away.length ? `<ol class="aws">${away.map(s => awayCard(W, P, s)).join('')}</ol>` : '<p class="note">나가 있는 조가 없어요</p>'}</div>
       <div class="panel readys"><header><h2>나갈 수 있는 조</h2>${ready.length > 1 ? `<button type="button" class="ghost sm" data-act="send-all">${ready.every(x => x.T.go) ? '예정 모두 거두기' : '모두 보내기'}</button>` : ''}</header>
         ${ready.length ? `<ul class="rds">${ready.map(({ T, t }) => `<li><b>${t + 1}조</b> ${FLOORS[T.f].name} <span class="ms-tag ${T.mission || 'gather'}">${MISSION_NAME[T.mission || 'gather']}</span> <span class="dim">${T.m.filter(x => x != null).length}명 · ${CO.TRIP_DAYS[T.f]}일 길</span>${sendBtn(T, t)}</li>`).join('')}</ul>` : '<p class="note">본부에 짐을 다 싼 조가 없어요 (편성은 출정에서)</p>'}
         <button type="button" class="link" data-act="exp">출정 편성 →</button></div>
       ${candPanel(W)}
       <div class="panel month"><header><h2>제${W.month}월 장부</h2><span class="right">${W.day || 1}일 / ${CO.MONTH_DAYS}일</span></header>
-        <dl class="fc-line"><div><dt>돌아온 조</dt><dd>${monthBack}</dd></div><div><dt>짐 예측</dt><dd>${fmt(haul)}G</dd></div><div><dt>바로 쓴 돈</dt><dd>${fmt(spent)}G</dd></div></dl>
+        <dl class="fc-line"><div><dt>돌아온 조</dt><dd>${monthBack ? `<button type="button" class="link" data-act="backs" title="이달 귀환 보고">${monthBack}</button>` : 0}</dd></div><div><dt>짐 예측</dt><dd>${fmt(haul)}G</dd></div><div><dt>바로 쓴 돈</dt><dd>${fmt(spent)}G</dd></div></dl>
         ${adminBar(W, P)}
         <p class="note">채집품은 창고에서 팔 날을 고른다 (시세는 날마다) · 전리품 · 급여 · 본부 유지비는 그믐에</p></div>
       ${nextDayBtn(W, 'big', ready.filter(x => x.T.go).length)}

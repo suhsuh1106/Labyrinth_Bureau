@@ -12,7 +12,7 @@ import { fcChart, fmtG } from './charts';
 import { PLACES, townSceneHtml } from './town';
 import { lawsHtml } from './books';
 import { el, gearTag } from './icons';
-import { dayStrip, hallHtml, lootStock, nextDayBtn } from './hall';
+import { backWinHtml, dayStrip, hallHtml, lootStock, nextDayBtn } from './hall';
 import { assignHtml, candHtml, packBar, rosterHtml } from './roster';
 import { KTAG, depthsHtml, fmt, newsLines, pct, resultsHtml, sgn, stepper } from './view';
 
@@ -21,7 +21,7 @@ export type DeskUi = { phase: number; tab: string; seen?: number; dexMon?: strin
   file?: Partial<Filing>;   // 가정산에서 고치는 신고서
   pick?: { t?: number; s?: number; id?: number } | null;
   sort?: Record<string, string>;   // 명단 정렬 (rs 인원 명단 · cd 지원자 · as 편성표): "열:방향"
-  place?: string; town?: boolean; exp?: boolean; store?: boolean; who?: number };   // who: 인원 창에서 기록 카드를 펼친 단원   // store: 창고 창   // exp: 출정 편성 창   // town: 길드 홀 대신 마을 지도와 결재안을 펼쳐 둔다   // 내정에서 열어 둔 장소 창 (인원 · 건물 · 상단 거리 · 교회 · 정보망)   // 편성판에서 집어 든 사람 (조의 자리, 또는 대기 인원)
+  place?: string; town?: boolean; exp?: boolean; store?: boolean; who?: number; backs?: boolean };   // backs: 귀환 보고 창   // who: 인원 창에서 기록 카드를 펼친 단원   // store: 창고 창   // exp: 출정 편성 창   // town: 길드 홀 대신 마을 지도와 결재안을 펼쳐 둔다   // 내정에서 열어 둔 장소 창 (인원 · 건물 · 상단 거리 · 교회 · 정보망)   // 편성판에서 집어 든 사람 (조의 자리, 또는 대기 인원)
 const lvOf = (W: World, k: keyof typeof INTEL.BASE) => (W.intel ? W.intel.lv[k] : INTEL.BASE[k]);
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
@@ -499,7 +499,7 @@ export function infoWeekHtml(W: World, raw: Plan, ui: DeskUi) {
   const seals = sealsOf(W, raw);
   const main = ui.town ? `<div class="town">${townSceneHtml(fmt(townOf(W)), seals)}${ledgerHtml(W, raw)}</div>` : hallHtml(W, raw);
   return `${noticeHtml(W, ui)}${placeBar({ ...seals, ...(ui.town ? { __town: '1' } : {}) })}${main}
-    ${ui.store ? storeWin(W, raw) : ''}${ui.exp ? expHtml(W, raw, ui) : ''}${readerHtml(W, ui, raw)}${placeHtml(W, raw, ui)}`;
+    ${ui.store ? storeWin(W, raw) : ''}${ui.exp ? expHtml(W, raw, ui) : ''}${readerHtml(W, ui, raw)}${placeHtml(W, raw, ui)}${ui.backs ? backWinHtml(W, raw) : ''}`;
 }
 // 창고 창: 채집품(팔기) · 채비
 function storeWin(W: World, raw: Plan) {

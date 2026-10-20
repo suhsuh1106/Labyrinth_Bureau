@@ -44,7 +44,7 @@ function draw() {
   $('desk').innerHTML = ui.phase === 0 ? infoWeekHtml(W, plan, ui) : ui.phase === 2 ? draftHtml(W, ui.file || {}, live) : resultWeekHtml(W, live, !!ui.mute);
   if (over) { const b = document.querySelector('#desk .resultwrap .btn-next') as HTMLButtonElement | null; if (b) { b.disabled = true; b.textContent = `임기가 끝났어요. 최종 ${rankOf(W)}위`; } }
 }
-function setPhase(p: number) { stopRun(); closeScene(); ui.phase = p; ui.open = false; ui.place = undefined; ui.store = false; render(); save(); toTop(); }
+function setPhase(p: number) { stopRun(); closeScene(); ui.phase = p; ui.open = false; ui.place = undefined; ui.store = false; ui.backs = false; render(); save(); toTop(); }
 const toTop = () => { $('desk').scrollTop = 0; };
 
 function start(fresh = false) {
@@ -74,6 +74,8 @@ document.addEventListener('keydown', e => {
   if ((e.key === 'n' || e.key === 'N') && ui && ui.phase <= 1 && !arrivalOpen() && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement || e.target instanceof HTMLTextAreaElement) && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); advance(); return; }
   if (e.key !== 'Escape') return;
   if (arrivalOpen()) closeArrival();
+  else if (document.querySelector('.sc-wrap')) return;   // 탐사 재생 장면은 제 손으로 닫는다
+  else if (ui && ui.backs) { ui.backs = false; render(); save(); }
   else if (ui && ui.open) { ui.open = false; render(); save(); }
   else if (ui && ui.place) { ui.place = undefined; render(); save(); }
   else if (ui && ui.store) { ui.store = false; render(); save(); }
@@ -140,6 +142,8 @@ function act(b: HTMLElement) {
   const a = b.dataset.act;
   if (a === 'phase') return setPhase(+(b.dataset.phase || 0));
   if (a === 'exp') { ui.exp = true; ui.place = undefined; ui.open = false; render(); save(); (document.querySelector('.reader.exp .close') as HTMLElement | null)?.focus(); return; }
+  if (a === 'backs') { ui.backs = true; render(); save(); (document.querySelector('.reader.back-w .close') as HTMLElement | null)?.focus(); return; }
+  if (a === 'close-backs') { ui.backs = false; render(); save(); return; }
   if (a === 'close-exp') { ui.exp = false; ui.pick = null; render(); save(); return; }
   if (a === 'probe-mkt' || a === 'probe-riv') {
     const r = probe(W, a === 'probe-mkt' ? 'mkt' : 'riv', ui.rival || ($('probe-rival') && $('probe-rival').value) || '');
@@ -236,7 +240,10 @@ function advance() {
     say(`제${M.month}월 그믐 정산${M.opened != null ? ` · ${M.opened + 1}층이 열렸어요` : ''}${M.overflow ? ' · 미궁이 넘쳤어요' : ''} · 영주청에 낼 신고서를 꾸며요`);
     return;
   }
+  // 아침에 돌아온 조가 있으면 귀환 보고 창을 띄운다 (없으면 지난 창은 닫는다)
+  ui.backs = todayBack(W).length > 0;
   render(); save();
+  if (ui.backs) (document.querySelector('.reader.back-w .close') as HTMLElement | null)?.focus();
   // 오늘 아침 돌아온 조: 몇 조가 해냈고, 누가 다치고 누구를 잃었나
   const back = todayBack(W).map(x => x.rep!).filter(Boolean), dead = back.reduce((a, r) => a + (r.dead || []).length, 0);
   if (back.length) { SOUND[dead ? 'die' : back.some(r => r.ok) ? 'win' : 'lose']?.(0); say(`${gone}${W.day}일 아침 · ${back.map(r => `${(r.t ?? 0) + 1}조`).join(' · ')} 귀환 · ${back.filter(r => r.ok).length}조 해냄${dead ? ` · ${dead}명을 잃었어요` : ''}`); }
