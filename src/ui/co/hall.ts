@@ -2,7 +2,7 @@
 // 옆 판에는 미궁에 나가 있는 조(며칠째 · 언제 돌아올지 · 어림), 오늘 아침 돌아온 조, 나갈 수 있는 조가 있다.
 // 대화는 기록(오늘 돌아온 조 · 다친 사람 · 시세 · 소문 · 특성)에서 고르고, 고르는 데 난수 대신 날짜와 사람 번호의 해시를 쓴다.
 // 상태를 쓰지 않고 난수도 쓰지 않는다
-import { MISSION_NAME, priceNow, CO, FLOORS, ITEMS, type Ours, type Person, type Plan, type Sortie, type World, awayIds, boughtOf, candNow, roomOf, dayAbs, dayOf, floorMons, forecastTrips, jo, potShock, sanitize, stateOf, teamReady, us } from '../../core/company';
+import { MISSION_NAME, priceNow, CO, FLOORS, ITEMS, type Ours, type Person, type Plan, type Sortie, type World, awayIds, boughtOf, candNow, roomOf, grOf, dayAbs, dayOf, floorMons, forecastTrips, jo, potShock, sanitize, stateOf, teamReady, us } from '../../core/company';
 import { TRIP_END } from '../../core/events';
 import { adminBar } from './desk';
 import { dayCls, dayMark, dayTip, luckHtml, nameOf, packBar, sendBtn } from './roster';
@@ -57,8 +57,10 @@ function talksOf(W: World, P: Plan, here: Person[], zone: Map<number, Zone>) {
   here.forEach(p => {
     const z = zone.get(p.id)!;
     if (z === 'ward') say(p.id, 'hurt', [`${p.hurt}일만 더 누워 있으래.`, '의무실 죽은 맛이 없어.', '누워만 있으니 몸이 근질거려.'], 5, anyone(p, 'hurt'), ['빨리 나아. 네 자리 비워 둘게.', '푹 쉬어. 미궁은 안 도망가.']);
+    // 진급을 오래 기다린 사람은 예를 갖춰 돌려 말한다 (불만 두 칸부터)
+    if ((p.gd || 0) >= 2) say(p.id, 'grudge', ['자격 심사는 언제쯤일지, 여쭤봐도 될까요.', '기록은 장부에 다 있을 텐데요.', '다른 데서 기별이 왔는데, 아직 답은 안 했어요.'], 6, anyone(p, 'grudge'), ['행정관님도 사정이 있으시겠지.', '조금만 더 기다려 봐.']);
     if (z === 'yard') {
-      const tier = Math.min(4, Math.floor((p.sk ?? 40) / CO.TIER_STEP));
+      const tier = grOf(p);   // (말풍선도 행정관이 아는 등급으로)
       if (tier === 0) say(p.id, 'rook', ['교관님 목검이 진검보다 무서워.', '언제쯤 나도 내려가 보려나.'], 3, mate(p, 'rook'), ['때가 되면 행정관님이 부르실 거야.', '서두르지 마. 살아남는 게 먼저야.']);
       else say(p.id, 'drill', [(P.coach || 0) ? '오늘도 마당 열 바퀴.' : '교관도 없이 허수아비만 치니 팔만 아파.', '쉬는 것도 일이야.', '몸이 굳기 전에 한 번 내려가고 싶은데.'], 2, mate(p, 'drill'), REPLY);
     }

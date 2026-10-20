@@ -775,6 +775,14 @@ th.srt.desc::after { content: " ▼"; opacity: 1; }
 th.srt:hover, th.srt:focus-visible { color: var(--ink); outline: none; text-decoration: underline; }
 .tier { display: inline-flex; align-items: center; gap: 5px; }
 .tier .pips { display: inline-flex; gap: 2px; }
+.gd { display: inline-flex; gap: 2px; cursor: help; } .gd i { width: 7px; height: 7px; border-radius: 50%; border: 1px solid #b0786a; } .gd i.on { background: #b0503a; border-color: #b0503a; }
+.tog.due { margin-left: 4px; border-color: #c08a2a; color: #8a5a10; font-weight: 700; }
+.due-n b { color: #8a5a10; }
+.crewt td.rsm { font-size: 11.5px; color: var(--ink-soft); max-width: 180px; }
+.crewt .link.who { font: inherit; font-weight: 600; padding: 0; text-align: left; background: none; border: 0; color: inherit; text-decoration: underline dotted; text-underline-offset: 3px; cursor: pointer; }
+.crewt tr.card td { background: var(--paper-2); }
+.pcard { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px 16px; padding: 6px 2px; }
+.pcard > div { display: flex; flex-direction: column; gap: 2px; } .pcard small { color: var(--ink-soft); font-size: 11px; } .pcard span { font-size: 12px; color: var(--ink-soft); }
 .tier .pips i { width: 7px; height: 7px; border-radius: 50%; background: var(--rule); }
 .tier em { font-style: normal; font-size: 12px; }
 .tier.t0 .pips i:nth-child(-n+1) { background: var(--tr0); }

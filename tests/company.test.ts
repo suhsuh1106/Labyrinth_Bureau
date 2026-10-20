@@ -29,7 +29,7 @@ import { WEAK_KEYS } from '../src/core/data';
 import { DEX, askable, badSure } from '../src/core/dex';
 import { dayAbs, nextDay, openMonth, sellStock, sendReady, stateOf, stockValue } from '../src/core/company';
 import { MISSIONS, sendQueued } from '../src/core/company';
-import { candNow, crewOf, hireNow, hirePrice, aptB, skUp, skCap, potSeen, hidSeen } from '../src/core/company';
+import { candNow, crewOf, hireNow, hirePrice, aptB, skUp, skCap, hidSeen, grOf, eligible, promoteDue, promote, winsFrom, personWage } from '../src/core/company';
 import { HIDDEN } from '../src/core/data';
 import { rosterHtml } from '../src/ui/co/roster';
 import { returnsHtml } from '../src/ui/co/reveal';
@@ -1319,7 +1319,7 @@ describe('채비: 식량 · 정비 도구 · 해고', () => {
     const n0 = c.crew!.length, M = runMonth(W, P);
     expect(c.crew!.some(p => out.some(x => x.id === p.id))).toBe(false);
     expect(c.crew!.some(p => p.id === lead.id)).toBe(true);
-    expect(M.res[0].spend.fire).toBe(Math.round(out.reduce((a, p) => a + (CO.TIER_WAGE[tierOf(p)] - (p.tr === '새가슴' ? CO.CHICKEN_WAGE : 0)), 0) * CO.FIRE_PAY));
+    expect(M.res[0].spend.fire).toBe(Math.round(out.reduce((a, p) => a + personWage(p), 0) * CO.FIRE_PAY));   // (급여는 등급으로)
     expect(c.crew!.length).toBeLessThanOrEqual(n0 - 2 + M.res[0].recruited);
     expect(carryPlan(W, P).fire).toBeUndefined();
   });
@@ -1522,17 +1522,16 @@ describe('단원의 깊이: 임무 적성 · 잠재력 · 숨은 기질 · 1인 
     expect(aptB(p, 'scout')).toBe(CO.APT_SUCC); expect(aptB(p, 'gather')).toBe(0);
     expect(memberMods([p], 0, 100, true).pp[0] - memberMods([p], 0).pp[0]).toBeCloseTo(HIDDEN['천운'].v);
   });
-  it('잠재력에 가까울수록 실력이 덜 오르고 넘지 않으며, 잠재력 · 숨은 기질은 시간이 지나야 보인다', () => {
+  it('잠재력에 가까울수록 실력이 덜 오르고 넘지 않으며, 잠재력은 끝까지 숨고 숨은 기질은 시간이 지나야 보인다', () => {
     setSeed(3); const W = newWorld(), c = us(W), p = c.crew![1];   // 수련 34, 잠재력 55
     expect(skUp(c, { ...p, sk: 20 }, 3)).toBe(23);
     expect(skUp(c, { ...p, sk: 50 }, 3)).toBeCloseTo(51.5);
     expect(skUp(c, { ...p, sk: 55 }, 3)).toBe(55);
-    expect(potSeen(p)).toBe(false); expect(hidSeen(p)).toBe(false);
-    for (let m = 0; m < CO.POT_SEE; m++) { runMonth(W, defaultPlan(W)); closeBooks(W); }
-    expect(potSeen(c.crew!.find(x => x.id === p.id)!)).toBe(true);
+    expect(hidSeen(p)).toBe(false);
+    for (let m = 0; m < 3; m++) { runMonth(W, defaultPlan(W)); closeBooks(W); }
     c.crew!.forEach(x => expect(x.sk!).toBeLessThanOrEqual(skCap(c, x)));
     expect(hidSeen({ ...p, sg: [CO.HID_SEE, 20] })).toBe(true);
-    expect(rosterHtml(W)).toContain('까지');
+    expect(rosterHtml(W)).not.toMatch(/잠재력|까지/);
   });
 });
 
@@ -1563,5 +1562,48 @@ describe('귀환 줄', () => {
     const o = { ...M.ours[0], got: 0, mission: 'scout' as const };
     expect(backLine(o, 0, 'back')).not.toContain('→ 창고');
     expect(backLine({ ...o, got: 5 }, 0, 'back')).toContain('5</b>개 → 창고');
+  });
+});
+
+describe('등급과 이력서', () => {
+  it('시작 인원은 견습 · 정식, 단장만 고참이고 급여는 등급으로 매긴다. 첫 달 지원자는 미궁 이력이 없다', () => {
+    setSeed(1); const W = newWorld(), c = us(W);
+    c.crew!.forEach(p => { expect(p.lead ? grOf(p) === 2 : grOf(p) <= 1).toBe(true); expect(personWage(p)).toBe(CO.TIER_WAGE[grOf(p)] - (p.tr === '새가슴' ? CO.CHICKEN_WAGE : 0)); expect(p.job).toBeTruthy(); });
+    W.cand!.forEach(p => { expect(grOf(p)).toBe(0); expect((p.pn || []).some(Boolean)).toBe(false); });
+  });
+  it('뒤에 오는 지원자는 열린 층까지의 이력서를 들고 오고, 자격 등급은 그 기록에서 나온다', () => {
+    setSeed(2); const W = newWorld(); W.unlocked = 3;
+    for (let m = 0; m < 3; m++) { runMonth(W, defaultPlan(W)); closeBooks(W); }
+    const all = W.cand!; expect(all.some(p => (p.pn || []).some(Boolean))).toBe(true);
+    all.forEach(p => { expect(grOf(p)).toBe(eligible(p)); (p.pn || []).forEach((n, f) => { if (f >= W.unlocked) expect(n).toBe(0); expect((p.pw || [])[f] || 0).toBeLessThanOrEqual(n); }); });
+  });
+  it('기록이 자격을 채우면 진급 예정자가 되고, 자격증을 주면 그 등급이 되며, 미루면 불만이 쌓여 떠난다 (위로금 없이)', () => {
+    const p = { id: 1, c: '전사', sk: 40, gr: 0, rw: [6, 0, 0, 0, 0] } as any;
+    expect(winsFrom(p, 0)).toBe(6); expect(eligible(p)).toBe(1); expect(promoteDue(p)).toBe(true);
+    expect(eligible({ ...p, rw: [6, 0, 10, 0, 0] })).toBe(2);
+    setSeed(5); const W = newWorld(), c = us(W), x = c.crew!.find(y => !y.lead)!;
+    x.rw = [9, 0, 0, 0, 0]; x.gr = 0;
+    expect(promote(W, x.id)).toBe(true); expect(x.gr).toBe(1); expect(x.gh!.at(-1)).toEqual([W.month, 1]); expect(promoteDue(x)).toBe(false);
+    x.gr = 0; const cash0 = c.cash;
+    // (탐사 중인 그믐엔 떠나지 않는다: 돌아온 뒤 첫 그믐에)
+    for (let m = 0; m < CO.GRUDGE_MAX + 4 && c.crew!.some(y => y.id === x.id); m++) { const P = defaultPlan(W); P.promote = false; const M = runMonth(W, P); closeBooks(W); expect(M.res[0].spend.fire || 0).toBe(0); }
+    expect(c.crew!.some(y => y.id === x.id)).toBe(false); expect(x.gd || 0).toBeGreaterThanOrEqual(CO.GRUDGE_MAX);
+    expect(W.log.some(l => /자격을 기다리다/.test(l.t))).toBe(true);
+    void cash0;
+  });
+  it('화면의 기대는 등급으로 셈한다: 실제 실력이 등급보다 높으면 그 차가 숨은 몫이다', () => {
+    const p = { id: 1, c: '전사', sk: 62, gr: 1 } as any;
+    expect(memberMods([p], 0, 100, true).pp[0] - memberMods([p], 0).pp[0]).toBeCloseTo(CO.TIER_B[3] - CO.TIER_B[1]);
+  });
+  it('자격보다 한 단계 낮춰 계약하면 싸지만 들어오자마자 진급 예정자다. 이름을 누르면 기록 카드가 열린다', () => {
+    setSeed(2); const W = newWorld(); W.unlocked = 3; let p: any;
+    for (let m = 0; m < 8 && !p; m++) { const P = defaultPlan(W); P.pick = []; runMonth(W, P); closeBooks(W); p = W.cand!.find(x => eligible(x) > 0); }
+    const c = us(W); W.day = CO.MONTH_DAYS;
+    expect(p).toBeTruthy(); if (!p) return;
+    const full = candPrice({ ...p, gr: eligible(p) }, hirePrice(W)), v = hireNow(W, p.id, true);
+    expect(v).toBeLessThan(full); expect(grOf(c.hireQ![0])).toBe(eligible(p) - 1);
+    nextDay(W, defaultPlan(W));
+    const y = c.crew!.find(z => z.n === p.n)!; expect(promoteDue(y)).toBe(true);
+    expect(rosterHtml(W, undefined, undefined, y.id)).toContain('이력서');
   });
 });

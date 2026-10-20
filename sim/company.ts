@@ -4,7 +4,7 @@
 // 성향: even(고르게) · deep(깊은 층 위주) · smart(시장을 읽는 숙련자, 근원에는 채굴장)
 //       smartNoGuide · smartSeal · smartNoRoot: 숙련 봇에서 지침을 빼거나 근원을 달리 다룬 것
 import { setSeed } from '../src/core/rng';
-import { type Mission, type Team, forecast, CO, TAX, FLOORS, potShock, cashK, aidAt, jobsExplore, churchPrice, ITEMS, type Filing, type Plan, type World, closeBooks, preview, setClerks, defaultPlan, dormCost, jobsSign, partyMargin, roomOf, demandMul, potsOf, probe, floorMons, mapOf, maxParties, newWorld, torchRate, torchOdds, sanitize, canTarget, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
+import { type Mission, type Team, type Person, grOf, forecast, CO, TAX, FLOORS, potShock, cashK, aidAt, jobsExplore, churchPrice, ITEMS, type Filing, type Plan, type World, closeBooks, preview, setClerks, defaultPlan, dormCost, jobsSign, partyMargin, roomOf, demandMul, potsOf, probe, floorMons, mapOf, maxParties, newWorld, torchRate, torchOdds, sanitize, canTarget, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
 import { demandSeen } from '../src/ui/co/book';
 import { ASK_KEYS, DEX, MAT_KEYS, type Dex, askable, badSure, keySure } from '../src/core/dex';
 import { CLASSES, PAIR_CLASS, classWeaks } from '../src/core/data';
@@ -178,8 +178,10 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
   // (넘친 만큼 한 번에: 지난달 부하가 CLERK_HI 밑이 되는 데 모자란 역량을 서기로. 단원 부하는 머릿수가 늘수록 가팔라 한 명씩으론 늦다)
   const A = L && L.res[0].admin; if (c.crew && A) { const r = A.load / A.cap; if (r > CLERK_HI && roomOf(c) > 0) setClerks(W, (c.clerks || 0) + Math.max(1, Math.ceil((A.load / CLERK_HI - A.cap) / CO.A_CLERK))); else if (r < CLERK_LO && c.clerks) setClerks(W, c.clerks - 1); }
   // 신입: 지원자 명단에서 실력 좋은 사람부터 빈 침상만큼 (그달 찾아오는 날에 계약한다)
+  // (실제 실력은 숨어 있어 보이는 것으로 고른다: 자격 등급, 이력서의 해낸 비율)
+  const seen = (x: Person) => grOf(x) + (x.pn && x.pn.some(Boolean) ? (x.pw || []).reduce((t, w) => t + w, 0) / Math.max(1, x.pn.reduce((t, n) => t + n, 0)) : 0.5);
   const B = BIAS, fav = (x: { c: string }) => (B && B.mode === 'pre' && x.c === B.c ? 1 : 0);
-  if (c.crew && W.cand) P.pick = [...W.cand].filter(x => !(B && B.mode === 'avoid' && x.c === B.c) && !(B && B.mode === 'thin' && x.id % 5 === 0) && !(HIRE_SKIP && (x.id * 2654435761 >>> 0) % 100 < HIRE_SKIP)).sort((a, b) => fav(b) - fav(a) || (b.sk || 0) - (a.sk || 0)).slice(0, Math.min(roomOf(c), Math.max(0, SIZE_CAP - c.members - (c.hireQ || []).length))).map(x => x.id);
+  if (c.crew && W.cand) P.pick = [...W.cand].filter(x => !(B && B.mode === 'avoid' && x.c === B.c) && !(B && B.mode === 'thin' && x.id % 5 === 0) && !(HIRE_SKIP && (x.id * 2654435761 >>> 0) % 100 < HIRE_SKIP)).sort((a, b) => fav(b) - fav(a) || seen(b) - seen(a)).slice(0, Math.min(roomOf(c), Math.max(0, SIZE_CAP - c.members - (c.hireQ || []).length))).map(x => x.id);
   // 몸집: 조당 남는 돈이 급여보다 넉넉하면 숙소를 늘린다. 본부의 질(훈련장 · 의무실)은 올리지 않는다:
   // 공사가 숙소 증축을 한 달씩 미루는 값이 커서 이 봇의 운영에선 손해였다 (의무실 1단계만 본전 근처)
   // 횃불: 지도만큼 헤맬 것을 셈해, 돌아설 확률이 TORCH_RISK 밑이 되는 데까지 들고 간다
