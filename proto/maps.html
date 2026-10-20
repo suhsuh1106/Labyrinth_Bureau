@@ -1,0 +1,354 @@
+<title>미궁 지도 탁자</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* 레이아웃: 행정실 책상 위 모눈 지도(왼쪽) + 조 카드 · 경로 어림 · 귀환 기록(오른쪽, 좁으면 아래로). 게임 본편의 짙은 초록 판 · 놋쇠 색을 따른다 */
+:root {
+  color-scheme: dark;
+  --desk: #121b16; --board: #1f3329; --board-2: #172720; --line: #3a5446;
+  --ink: #e1e9df; --soft: #a5b8aa; --brass: #d9b45a; --bad: #f08a7e; --good: #86cf9f; --fog: #0b120e;
+  --t1: #8a7a5c; --t2: #5d5a4c; --t3: #6b5240; --t4: #2f5a6e; --tw: #3b3d36; --th: #7a3d4a;
+  --f-display: "Gowun Batang", "Nanum Myeongjo", "Batang", serif;
+  --f-body: "IBM Plex Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+  --f-num: "IBM Plex Mono", ui-monospace, "Consolas", monospace;
+}
+html, body { background: var(--desk); color: var(--ink); }
+body { font-family: var(--f-body); font-size: 14px; line-height: 1.5; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 14px 28px; }
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 12px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; }
+h1 { font: 700 22px var(--f-display); margin: 0; letter-spacing: .02em; text-wrap: balance; }
+.stat { font: 500 13px var(--f-num); color: var(--soft); font-variant-numeric: tabular-nums; }
+.stat b { color: var(--ink); font-weight: 500; }
+.sp { flex: 1; }
+button { font: 600 13px var(--f-body); color: var(--ink); background: var(--board); border: 1px solid var(--line); border-radius: 3px; padding: 6px 12px; cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--brass); }
+button:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+button:disabled { opacity: .45; cursor: default; }
+button.main { background: var(--brass); color: #221e18; border-color: var(--brass); }
+.lead { margin: 0; color: var(--soft); font-size: 13px; max-width: 70ch; }
+.cols { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+@media (max-width: 820px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+/* 지도: 모눈 칸 하나가 버튼 하나 */
+.map { position: relative; display: grid; grid-template-columns: repeat(16, 1fr); gap: 1px; background: #0a100d; border: 1px solid var(--line); border-radius: 4px; padding: 1px; touch-action: manipulation; }
+.c { position: relative; aspect-ratio: 1; border: 0; border-radius: 0; padding: 0; display: grid; place-items: center; font: 700 clamp(9px, 1.9vw, 14px) var(--f-num); color: rgba(255,255,255,.85); background: var(--fog); min-width: 0; }
+.c.fog { background: repeating-linear-gradient(45deg, var(--fog) 0 4px, #0f1813 4px 6px); }
+.c.edge { background: repeating-linear-gradient(45deg, #142019 0 4px, #1a2a21 4px 6px); }
+.c.k1 { background: var(--t1); } .c.k2 { background: var(--t2); } .c.k3 { background: var(--t3); } .c.k4 { background: var(--t4); } .c.k0 { background: radial-gradient(circle at 30% 30%, #4a4c44 0 18%, transparent 19%), radial-gradient(circle at 70% 65%, #44463e 0 14%, transparent 15%), var(--tw); } .c.kh { background: var(--th); }
+.c.zone::after { content: ""; position: absolute; inset: 0; box-shadow: inset 0 0 0 2px rgba(240,138,126,.45); }
+.c.path { box-shadow: inset 0 0 0 2px var(--brass); }
+.c.aim { box-shadow: inset 0 0 0 3px var(--brass); }
+.c.new { animation: lit 1.4s ease-out 1; }
+@keyframes lit { from { filter: brightness(2.2); } to { filter: none; } }
+@media (prefers-reduced-motion: reduce) { .c.new { animation: none; } }
+.c .tm { position: absolute; right: 1px; top: 0; font: 700 9px var(--f-num); color: #221e18; background: var(--brass); border-radius: 2px; padding: 0 2px; line-height: 1.3; }
+.c .v { font: 500 9px var(--f-num); color: rgba(255,255,255,.55); }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--soft); margin-top: 8px; }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -2px; margin-right: 4px; font-style: normal; }
+/* 옆판 */
+.side { display: grid; gap: 12px; min-width: 0; }
+.panel { background: var(--board); border: 1px solid var(--line); border-radius: 4px; padding: 10px 12px; display: grid; gap: 8px; min-width: 0; }
+.panel h2 { font: 700 15px var(--f-display); margin: 0; }
+.teams { display: grid; gap: 8px; }
+.tm-card { text-align: left; display: grid; gap: 4px; padding: 8px 10px; background: var(--board-2); }
+.tm-card[aria-pressed="true"] { border-color: var(--brass); box-shadow: inset 3px 0 0 var(--brass); }
+.tm-card .h { display: flex; gap: 8px; align-items: baseline; }
+.tm-card small { color: var(--soft); font-weight: 400; }
+.pill { font: 600 11px var(--f-body); padding: 0 6px; border-radius: 9px; border: 1px solid var(--line); color: var(--soft); }
+.pill.home { color: var(--good); border-color: var(--good); } .pill.away { color: var(--brass); border-color: var(--brass); } .pill.rest { color: var(--bad); border-color: var(--bad); }
+.plan dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 0; font-size: 13px; }
+.plan dt { color: var(--soft); } .plan dd { margin: 0; font: 500 13px var(--f-num); font-variant-numeric: tabular-nums; }
+.plan .warn { color: var(--bad); font-size: 12.5px; }
+.step { display: inline-flex; align-items: center; gap: 4px; }
+.step output { min-width: 2ch; text-align: center; font: 500 14px var(--f-num); }
+.step button { padding: 2px 9px; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.log { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 360px; overflow-y: auto; }
+.log li { background: var(--board-2); border: 1px solid var(--line); border-radius: 3px; padding: 6px 8px; font-size: 13px; }
+.log li b.f { color: var(--brass); font-weight: 600; }
+.log li .bad { color: var(--bad); } .log li .good { color: var(--good); }
+.log .d { font: 500 11px var(--f-num); color: var(--soft); margin-right: 6px; }
+.note { margin: 0; color: var(--soft); font-size: 12.5px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>미궁 지도 탁자</h1>
+    <span class="stat">날 <b id="day">1</b></span>
+    <span class="stat">벌이 <b id="gold">0</b>G</span>
+    <span class="stat">아는 칸 <b id="known">0</b>%</span>
+    <span class="sp"></span>
+    <span class="stat">시드 <b id="seed">-</b></span>
+    <button type="button" id="reseed">새 층</button>
+  </header>
+  <p class="lead">조를 고르고 지도에서 칸을 누르면 그 칸까지의 길과 값이 나온다. 안개를 누르면 그쪽 안개를 밀러 간다. 횃불 하나는 값 4. 가는 값과 돌아오는 값을 빼고 남는 횃불만큼 안개를 밝힌다. 밝힌 칸은 조가 돌아온 아침에 지도에 그려진다.</p>
+  <div class="cols">
+    <section aria-label="1층 지도">
+      <div class="map" id="map" role="grid" aria-label="1층 모눈 지도"></div>
+      <div class="legend">
+        <span><i style="background:var(--t1)"></i>통로 1</span>
+        <span><i style="background:var(--t2)"></i>동굴 2</span>
+        <span><i style="background:var(--t3)"></i>험로 3</span>
+        <span><i style="background:var(--t4)"></i>물길 4</span>
+        <span><i style="background:var(--th)"></i>위험 2 · 부상</span>
+        <span><i style="background:var(--tw);border:1px solid var(--line)"></i>벽</span>
+        <span>⌂ 입구 · ◆ 광맥 · ✶ 둥지(붉은 테 둘레) · ▼ 계단 · ○ 샘</span>
+        <label class="row" style="gap:4px"><input type="checkbox" id="showv"> 값 보기</label>
+      </div>
+    </section>
+    <div class="side">
+      <div class="panel">
+        <h2>조</h2>
+        <div class="teams" id="teams"></div>
+      </div>
+      <div class="panel plan" id="plan"></div>
+      <button type="button" class="main" id="next">다음 날 ▶</button>
+      <div class="panel">
+        <h2>귀환 보고</h2>
+        <ul class="log" id="log"></ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const W = 16, H = 12, TORCH = 4, PER_DAY = 8;
+  const WALL = 0, PATH = 1, DIRT = 2, ROUGH = 3, WATER = 4, HAZ = 5;
+  const COST = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 2 };
+  const KCLS = { 0: 'k0', 1: 'k1', 2: 'k2', 3: 'k3', 4: 'k4', 5: 'kh' };
+  const idx = (x, y) => y * W + x, xy = i => [i % W, Math.floor(i / W)];
+  const nb4 = i => { const [x, y] = xy(i), o = []; if (x > 0) o.push(i - 1); if (x < W - 1) o.push(i + 1); if (y > 0) o.push(i - W); if (y < H - 1) o.push(i + W); return o; };
+  const md = (a, b) => { const [ax, ay] = xy(a), [bx, by] = xy(b); return Math.abs(ax - bx) + Math.abs(ay - by); };
+
+  // 시드 난수 (mulberry32): 같은 시드면 같은 층
+  let rs = 1; const rnd = () => { rs |= 0; rs = rs + 0x6D2B79F5 | 0; let t = Math.imul(rs ^ rs >>> 15, 1 | rs); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const ri = n => Math.floor(rnd() * n);
+
+  // 최단 경로 (다익스트라): 들어가는 칸의 값. ok(i)로 지날 수 있는 칸을 정한다
+  function dij(from, ok, cost) {
+    const N = W * H, d = new Array(N).fill(Infinity), pv = new Array(N).fill(-1), done = new Array(N).fill(false);
+    d[from] = 0;
+    for (;;) {
+      let u = -1, best = Infinity;
+      for (let i = 0; i < N; i++) if (!done[i] && d[i] < best) { best = d[i]; u = i; }
+      if (u < 0) break; done[u] = true;
+      for (const v of nb4(u)) { if (!ok(v)) continue; const nd = d[u] + cost(v); if (nd < d[v]) { d[v] = nd; pv[v] = u; } }
+    }
+    return { d, pv };
+  }
+  const trace = (pv, to) => { const p = []; for (let i = to; i >= 0; i = pv[i]) p.unshift(i); return p; };
+
+  // ---------- 층 만들기 ----------
+  let T, F, E, veins, nests, zone, known, studied;
+  function gen(seed) {
+    rs = seed >>> 0 || 1;
+    T = new Array(W * H).fill(WALL); F = new Array(W * H).fill(''); E = idx(8, H - 1);
+    // 굴: 입구에서 위로 기우는 술 취한 걸음 몇 개
+    let floor = 0;
+    const carve = i => { if (T[i] === WALL) { T[i] = DIRT; floor++; } };
+    carve(E);
+    for (let w = 0; w < 30 && floor < W * H * 0.52; w++) {
+      let p = w < 4 ? E : (() => { const f = T.map((t, i) => (t ? i : -1)).filter(i => i >= 0); return f[ri(f.length)]; })();
+      for (let s = 0; s < 40; s++) {
+        const [x, y] = xy(p), r = rnd(); let nx = x, ny = y;
+        if (r < 0.32) ny--; else if (r < 0.44) ny++; else if (r < 0.72) nx--; else nx++;
+        if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue;
+        p = idx(nx, ny); carve(p);
+      }
+    }
+    // 험로 덩이 · 물길 하나 · 위험 칸
+    for (let k = 0; k < 6; k++) { const c = ri(W * H); T.forEach((t, i) => { if (t === DIRT && md(i, c) <= 1 && rnd() < 0.75) T[i] = ROUGH; }); }
+    { let p = idx(ri(W), 0); for (let s = 0; s < 18; s++) { if (T[p] !== WALL) T[p] = WATER; const n = nb4(p).filter(q => xy(q)[1] >= xy(p)[1]); p = n[ri(n.length)]; } }
+    // 입구 통로
+    for (let y = H - 1, k = 0; k < 3; k++, y--) { T[idx(8, y)] = PATH; }
+    // 닿지 않는 칸은 벽으로
+    let R = dij(E, i => T[i] !== WALL, i => COST[T[i]]);
+    T.forEach((t, i) => { if (t !== WALL && R.d[i] === Infinity) T[i] = WALL; });
+    // 옛 통로: 입구 가까운 곳에서 가장 먼 쪽으로 값 1짜리 굴 (벽을 뚫는다)
+    {
+      const far = R.d.reduce((b, v, i) => (v < Infinity && v > R.d[b] ? i : b), E);
+      const starts = T.map((t, i) => (t !== WALL && R.d[i] >= 3 && R.d[i] <= 6 ? i : -1)).filter(i => i >= 0);
+      let p = starts.length ? starts[ri(starts.length)] : E; const [tx, ty] = xy(far);
+      for (let s = 0; s < 40 && p !== far; s++) {
+        const [x, y] = xy(p), dx = Math.sign(tx - x), dy = Math.sign(ty - y);
+        p = (dx && (rnd() < 0.5 || !dy)) ? idx(x + dx, y) : idx(x, y + dy);
+        if (T[p] !== WATER) T[p] = PATH;
+      }
+    }
+    R = dij(E, i => T[i] !== WALL, i => COST[T[i]]);
+    const open = () => T.map((t, i) => (t !== WALL && t !== WATER && !F[i] && i !== E ? i : -1)).filter(i => i >= 0);
+    const pickFar = (minD) => { const o = open().filter(i => R.d[i] >= minD); return o.length ? o[ri(o.length)] : open()[ri(open().length)]; };
+    // 위험 칸 넷
+    for (let k = 0; k < 4; k++) { const c = pickFar(5); if (c != null) T[c] = HAZ; }
+    // 계단: 가장 먼 칸 근처
+    { const o = open().sort((a, b) => R.d[b] - R.d[a]); F[o[ri(Math.min(4, o.length))]] = 'stair'; }
+    // 광맥 셋 (덩어리마다 캘 양)
+    veins = [];
+    for (let k = 0; k < 3; k++) {
+      const c = pickFar(4); if (c == null) break;
+      const cells = [c]; F[c] = 'vein';
+      for (let g = 0; g < 2; g++) { const n = nb4(cells[ri(cells.length)]).filter(q => T[q] !== WALL && T[q] !== WATER && !F[q] && q !== E); if (n.length) { const q = n[ri(n.length)]; F[q] = 'vein'; cells.push(q); } }
+      veins.push({ cells, left: 60 + ri(40) });
+    }
+    // 둥지 둘 (둘레 2칸은 조우가 잦다) · 샘 하나
+    nests = [];
+    for (let k = 0; k < 2; k++) { const c = pickFar(6); if (c == null) break; F[c] = 'nest'; nests.push(c); }
+    zone = new Array(W * H).fill(false); nests.forEach(n => T.forEach((_, i) => { if (md(i, n) <= 2) zone[i] = true; }));
+    { const c = pickFar(3); if (c != null) F[c] = 'spring'; }
+    // 아는 칸: 입구 둘레
+    known = new Array(W * H).fill(false); studied = {};
+    T.forEach((_, i) => { if (md(i, E) <= 1) known[i] = true; });
+    for (let y = H - 1, k = 0; k < 3; k++, y--) known[idx(8, y)] = true;
+  }
+
+  // ---------- 상태 ----------
+  let seed, day, gold, sel, teams, log, fresh, aimAt, showV = false;
+  const mkTeams = () => [
+    { n: '1조', torch: 6, st: 'home', aim: null, fogAim: null, back: 0, trip: null, hurtDays: 0 },
+    { n: '2조', torch: 5, st: 'home', aim: null, fogAim: null, back: 0, trip: null, hurtDays: 0 },
+  ];
+  function reset(s) { seed = s; gen(seed); day = 1; gold = 0; sel = 0; teams = mkTeams(); log = []; fresh = new Set(); aimAt = null; render(); }
+
+  const passK = (K) => i => K[i] && T[i] !== WALL;
+  const costOf = i => COST[T[i]];
+  const isEdge = i => known[i] && T[i] !== WALL && nb4(i).some(q => !known[q]);
+  const nearEdge = (fogCell) => {   // 안개 칸을 누르면: 그쪽을 바라보는 아는 가장자리 칸 중 가는 값이 가장 싼 곳
+    const R = dij(E, passK(known), costOf);
+    let best = -1, bv = Infinity;
+    T.forEach((_, i) => { if (!isEdge(i) || R.d[i] === Infinity) return; const v = R.d[i] + md(i, fogCell) * 2.5; if (v < bv) { bv = v; best = i; } });
+    return best;
+  };
+  const kind = (i, fogAim) => (fogAim != null || isEdge(i) && !F[i] ? 'scout' : F[i] === 'vein' ? 'gather' : F[i] === 'nest' || zone[i] && F[i] !== 'vein' ? 'hunt' : 'scout');
+  const KIND = { scout: '탐색', gather: '채집', hunt: '사냥' };
+
+  function planOf(t) {
+    if (t.aim == null) return null;
+    const R = dij(E, passK(known), costOf), c1 = R.d[t.aim];
+    if (c1 === Infinity) return null;
+    const path = trace(R.pv, t.aim), budget = t.torch * TORCH, spare = budget - 2 * c1;
+    const danger = path.filter(i => known[i] && (T[i] === HAZ || (zone[i] && nests.some(n => known[n])))).length;
+    return { c1, path, budget, spare, ok: spare >= 0, k: kind(t.aim, t.fogAim), days: Math.max(1, Math.ceil(Math.max(2 * c1, Math.min(budget, 2 * c1 + 6)) / PER_DAY)), danger };
+  }
+
+  // ---------- 탐사 굴림 (보낼 때 굴리고, 돌아온 아침에 지도에 그린다) ----------
+  function runTrip(t, P) {
+    const K = known.slice(), seen = new Set(), notes = [], hurt = { n: 0 };
+    let spent = 0, pos = E, loot = 0, mats = 0;
+    const see = (p, r) => T.forEach((_, i) => { if (md(i, p) <= r && !K[i]) { K[i] = true; seen.add(i); } });
+    const step = (i) => {
+      spent += costOf(i); pos = i; see(i, 1);
+      if (T[i] === HAZ && rnd() < 0.3) { hurt.n++; notes.push('위험 지형에서 다침'); }
+      if (zone[i] && rnd() < 0.22) { const sv = nests.some(n => studied[n] && md(n, i) <= 2) ? 0.2 : 0.38; if (rnd() < sv) { hurt.n++; notes.push('둥지 둘레에서 습격 · 다침'); } else notes.push('둥지 둘레에서 조우'); }
+    };
+    P.path.slice(1).forEach(step);
+    const back = () => dij(pos, passK(K), costOf).d[E];
+    if (P.k === 'gather') {
+      const v = veins.find(x => x.cells.includes(t.aim)), rounds = Math.min(3, 1 + Math.floor(P.spare / 3));
+      for (let r = 0; r < rounds && v && v.left > 0; r++) { const g = Math.min(v.left, 6 + ri(7)); v.left -= g; loot += g; spent += 2; }
+      notes.push(`광맥에서 ${loot}개 캠 (남은 양 ${v ? v.left : 0})`);
+    } else if (P.k === 'hunt') {
+      const nest = nests.reduce((b, n) => (md(n, t.aim) < md(b, t.aim) ? n : b), nests[0]);
+      const rounds = Math.min(3, 1 + Math.floor(P.spare / 3)), sk = studied[nest] ? 0.72 : 0.5;
+      for (let r = 0; r < rounds; r++) { spent += 2; if (rnd() < sk) mats++; else if (rnd() < 0.4) { hurt.n++; notes.push('사냥에서 다침'); } }
+      studied[nest] = (studied[nest] || 0) + 1;
+      notes.push(`사냥 ${rounds}번 · 전리품 ${mats}점${sk > 0.5 ? ' (생태를 알아 수월)' : ''}`);
+    } else {
+      // 탐색: 안개 쪽으로 밀고 들어가며 둘레를 밝힌다. 돌아올 값이 남는 동안
+      see(pos, 1); let prev = -1;
+      for (let s = 0; s < 40; s++) {
+        const cand = nb4(pos).filter(q => T[q] !== WALL);
+        if (!cand.length) break;
+        const score = q => nb4(q).filter(r => !K[r]).length * 2 + (t.fogAim != null ? -md(q, t.fogAim) * 0.8 : 0) + (q === prev ? -3 : 0) + rnd() * 1.5;
+        const q = cand.sort((a, b) => score(b) - score(a))[0];
+        const K2 = K.slice(); K2[q] = true;
+        const ret = dij(q, passK(K2), costOf).d[E];
+        if (spent + costOf(q) + ret > P.budget) break;
+        prev = pos; step(q);
+      }
+    }
+    const used = spent + back();
+    return { K, seen, notes, hurt: hurt.n, loot, mats, days: Math.max(1, Math.ceil(used / PER_DAY)), torch: Math.ceil(used / TORCH) };
+  }
+
+  function send(ti) {
+    const t = teams[ti], P = planOf(t); if (!P || !P.ok || t.st !== 'home') return;
+    const before = dij(E, passK(known), costOf).d;
+    const r = runTrip(t, P);
+    t.trip = { ...r, k: P.k, aim: t.aim, before, d0: day }; t.st = 'away'; t.back = day + r.days;
+    t.aim = null; t.fogAim = null; render();
+  }
+
+  function nextDay() {
+    day++; fresh = new Set();
+    teams.forEach(t => {
+      if (t.st === 'rest' && day >= t.back) { t.st = 'home'; }
+      if (t.st !== 'away' || day < t.back + 1) return;
+      const r = t.trip, found = []; let nNew = 0;
+      r.seen.forEach(i => { if (!known[i]) { known[i] = true; fresh.add(i); nNew++; if (F[i] === 'stair') found.push('아래층 계단'); if (F[i] === 'vein') found.push('광맥'); if (F[i] === 'nest') found.push('둥지'); if (F[i] === 'spring') found.push('샘'); } });
+      // 지름길: 아는 광맥 · 둥지 · 계단까지의 값이 줄었나
+      const after = dij(E, passK(known), costOf).d, short = [];
+      T.forEach((_, i) => { if (F[i] && known[i] && r.before[i] < Infinity && after[i] < r.before[i] - 2) short.push(`${({ vein: '광맥', nest: '둥지', stair: '계단', spring: '샘' })[F[i]]} 값 ${r.before[i]} → ${after[i]}`); });
+      const g = r.loot * 8 + r.mats * 25; gold += g;
+      const uniq = [...new Set(found)], uniqS = [...new Set(short)];
+      log.unshift({ d: day, t: `<span class="d">${day}일</span><b>${t.n}</b> ${KIND[r.k]} · ${r.days}일 · 횃불 ${r.torch}개 · 새 칸 ${nNew}${g ? ` · <span class="good">+${g}G</span>` : ''}${uniq.length ? ` · <b class="f">발견: ${uniq.join(', ')}</b>` : ''}${uniqS.length ? ` · <b class="f">지름길: ${uniqS.slice(0, 2).join(', ')}</b>` : ''}${r.hurt ? ` · <span class="bad">부상 ${r.hurt}</span>` : ''}${r.notes.length ? `<br><small>${[...new Set(r.notes)].slice(0, 4).join(' · ')}</small>` : ''}` });
+      t.trip = null;
+      if (r.hurt) { t.st = 'rest'; t.back = day + (r.hurt >= 2 ? 3 : 1); } else { t.st = 'home'; }
+    });
+    render();
+  }
+
+  // ---------- 그리기 ----------
+  const $ = id => document.getElementById(id);
+  function render() {
+    $('day').textContent = day; $('gold').textContent = gold.toLocaleString('ko-KR'); $('seed').textContent = seed;
+    const pass = T.filter(t => t !== WALL).length, kn = T.filter((t, i) => t !== WALL && known[i]).length;
+    $('known').textContent = Math.round(kn / pass * 100);
+    const t = teams[sel], P = planOf(t), onPath = new Set(P ? P.path : []);
+    const glyph = i => (i === E ? '⌂' : F[i] === 'vein' ? '◆' : F[i] === 'nest' ? '✶' : F[i] === 'stair' ? '▼' : F[i] === 'spring' ? '○' : '');
+    const awayAim = new Map(); teams.forEach((x, k) => { if (x.st === 'away') awayAim.set(x.trip.aim, k + 1); else if (x.aim != null) awayAim.set(x.aim, k + 1); });
+    $('map').innerHTML = T.map((tt, i) => {
+      const k = known[i], cls = ['c', k ? KCLS[tt] : (nb4(i).some(q => known[q] && T[q] !== WALL) ? 'edge' : 'fog')];
+      if (k && zone[i] && nests.some(n => known[n] && md(n, i) <= 2)) cls.push('zone');
+      if (onPath.has(i)) cls.push('path'); if (P && i === t.aim) cls.push('aim'); if (fresh.has(i)) cls.push('new');
+      const g = k ? glyph(i) : '', v = showV && k && tt !== WALL && !g ? `<span class="v">${COST[tt]}</span>` : '';
+      const mk = awayAim.has(i) ? `<span class="tm">${awayAim.get(i)}</span>` : '';
+      const [x, y] = xy(i);
+      return `<button type="button" class="${cls.join(' ')}" data-i="${i}" aria-label="${x + 1}열 ${y + 1}행${k ? '' : ' 안개'}">${g}${v}${mk}</button>`;
+    }).join('');
+    $('teams').innerHTML = teams.map((x, k) => {
+      const st = x.st === 'home' ? '본부' : x.st === 'away' ? `탐사 중 · ${x.back + 1}일 아침 귀환` : `부상 · ${x.back}일까지 쉼`;
+      return `<button type="button" class="tm-card" data-t="${k}" aria-pressed="${k === sel}"><span class="h"><b>${x.n}</b><span class="pill ${x.st}">${x.st === 'home' ? '본부' : x.st === 'away' ? '탐사 중' : '부상'}</span></span><small>${st} · 4명 · 횃불 ${x.torch}개</small></button>`;
+    }).join('');
+    // 결재안: 고른 조의 행선지 · 길 값 · 횃불
+    let h = `<h2>${t.n} 결재안</h2>`;
+    if (t.st !== 'home') h += `<p class="note">${t.st === 'away' ? `${KIND[t.trip.k]} 중 · ${t.back + 1}일 아침 귀환` : `부상으로 ${t.back}일까지 쉼`}</p>`;
+    else {
+      h += `<div class="row"><span>횃불</span><span class="step"><button type="button" data-tq="-1" aria-label="횃불 줄이기">−</button><output>${t.torch}</output><button type="button" data-tq="1" aria-label="횃불 늘리기">+</button></span><small class="note">값 ${t.torch * TORCH}까지</small></div>`;
+      if (!P) h += `<p class="note">지도에서 행선지 칸을 누르세요. 안개를 누르면 그쪽 가장자리로 가서 밀고 들어갑니다.</p>`;
+      else h += `<dl><dt>임무</dt><dd>${KIND[P.k]}${t.fogAim != null ? ' (안개 쪽)' : ''}</dd><dt>가는 값</dt><dd>${P.c1}</dd><dt>왕복 값</dt><dd>${2 * P.c1} / ${P.budget}</dd><dt>남는 값</dt><dd>${P.spare}${P.k === 'scout' ? ' → 안개 밝히기' : P.spare >= 0 ? ` → ${Math.min(3, 1 + Math.floor(P.spare / 3))}번 ${P.k === 'gather' ? '캐기' : '사냥'}` : ''}</dd><dt>날 예측</dt><dd>${P.days}일</dd></dl>${P.danger ? `<p class="warn">길에 위험 칸 ${P.danger}개 (둥지 둘레 · 위험 지형)</p>` : ''}${P.ok ? '' : `<p class="warn">횃불이 모자라요 (왕복 ${2 * P.c1} > ${P.budget})</p>`}<button type="button" class="main" id="send"${P.ok ? '' : ' disabled'}>${t.n} 보내기</button>`;
+    }
+    $('plan').innerHTML = h;
+    $('log').innerHTML = log.length ? log.map(l => `<li>${l.t}</li>`).join('') : '<li class="note">아직 돌아온 조가 없어요. 1조를 안개 쪽으로 보내 보세요.</li>';
+  }
+
+  // ---------- 입력 ----------
+  document.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.i != null) {
+      const i = +b.dataset.i, t = teams[sel]; if (t.st !== 'home') return;
+      if (known[i] && T[i] !== WALL) { t.aim = i; t.fogAim = null; }
+      else if (!known[i]) { const g = nearEdge(i); if (g >= 0) { t.aim = g; t.fogAim = i; } }
+      render(); return;
+    }
+    if (b.dataset.t != null) { sel = +b.dataset.t; render(); return; }
+    if (b.dataset.tq) { const t = teams[sel]; t.torch = Math.max(1, Math.min(14, t.torch + +b.dataset.tq)); render(); return; }
+    if (b.id === 'send') return send(sel);
+    if (b.id === 'next') return nextDay();
+    if (b.id === 'reseed') return reset((Math.random() * 1e9) >>> 0);
+  });
+  $('showv').addEventListener('change', e => { showV = e.target.checked; render(); });
+  reset(20261020);
+})();
+</script>
