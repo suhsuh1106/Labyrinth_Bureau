@@ -2,7 +2,7 @@
 import './ui/co/base.css';
 import './ui/co/co.css';
 import { setSeed } from './core/rng';
-import { sellStock, setClerks, buyNow, fireNow, hireNow, promote, upgradeSquad, setLeader, nextDay, sendQueued, teamReady, CO, FILE_KEYS, teamPots, teamTorch, teamMend, carryOf, foodDays, mendOf, FLOORS, type Plan, SRCS, type World, carryPlan, closeBooks, fileFix, fillTeams, formTeams, newWorld, probe, rankOf, roomOf, sanitize, awayIds, us, MISSIONS, type Mission } from './core/company';
+import { kitShort, sellStock, setClerks, buyNow, fireNow, hireNow, promote, upgradeSquad, setLeader, nextDay, sendQueued, teamReady, CO, FILE_KEYS, teamPots, teamTorch, teamMend, carryOf, foodDays, mendOf, FLOORS, type Plan, SRCS, type World, carryPlan, closeBooks, fileFix, fillTeams, formTeams, newWorld, probe, rankOf, roomOf, sanitize, awayIds, us, MISSIONS, type Mission } from './core/company';
 import { DESC_FIRST, packBar } from './ui/co/roster';
 import { CLASSES, GEARS } from './core/data';
 import { plaqueHtml } from './ui/co/view';
@@ -51,7 +51,7 @@ function start(fresh = false) {
   const d = fresh ? null : load();
   if (d) { W = d.W; plan = d.plan; ui = d.ui || { phase: 0, tab: 'report', pins: [] }; }
   // 첫 결정표: 포션 상한 0병(처음 받은 포션은 창고에), 신입 없음, 교관 없음. 돈 드는 것은 모두 고르는 것
-  else { setSeed((Date.now() ^ 0x5bd1e995) >>> 0); W = newWorld(); plan = carryPlan(W, null); plan.pots = plan.pots.map(() => 0); plan.pick = []; plan.train = 0; plan.coach = 0; plan.autoSell = false; ui = { phase: 0, tab: 'report', pins: [] }; }
+  else { setSeed((Date.now() ^ 0x5bd1e995) >>> 0); W = newWorld(); plan = carryPlan(W, null); plan.pots = plan.pots.map(() => 0); plan.pick = []; plan.train = 0; plan.coach = 0; plan.autoSell = false; plan.autoBuy = false; ui = { phase: 0, tab: 'report', pins: [] }; }
   plan.intelUp = plan.intelUp || {};   // 정보망은 유지비를 저절로 내고, 넓히는 돈만 따로 정한다
   tidyTeams();
   render(); save();
@@ -199,6 +199,13 @@ function act(b: HTMLElement) {
     say(T.go ? `${t + 1}조 보낼 예정 · ${FLOORS[T.f].name} ${CO.TRIP_DAYS[T.f]}일 길 · 다음 날을 누르면 떠나요` : `${t + 1}조 보낼 예정을 거뒀어요`); return;
   }
   if (a === 'next-day') return advance();
+  // 안건의 채비 모자람: 내일 떠날 조들에 모자란 만큼만 산다
+  if (a === 'buy-short') {
+    tidyTeams(); const T = plan.teams || [], K = kitShort(W, plan, T.map((x, t) => t).filter(t => T[t].go && teamReady(W, T[t])));
+    let v = buyNow(W, 'pot', K.pot) + buyNow(W, 'torch', K.torch) + buyNow(W, 'food', K.food) + buyNow(W, 'mend', K.mend);
+    Object.entries(K.gear).forEach(([g, n]) => { v += buyNow(W, 'gear', n, g); });
+    render(); save(); say(v ? `모자란 채비 ${Math.round(v).toLocaleString('ko-KR')}G어치를 샀어요` : '살 것이 없어요'); return;
+  }
   if (a === 'buy-now') {
     const o = orderOf(W, plan); let v = 0;
     (['pot', 'holy', 'torch', 'food', 'mend'] as const).forEach(k => { v += buyNow(W, k, o[k]); });

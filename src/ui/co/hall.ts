@@ -2,7 +2,7 @@
 // 옆 판에는 미궁에 나가 있는 조(며칠째 · 언제 돌아올지 · 예측), 오늘 아침 돌아온 조, 나갈 수 있는 조가 있다.
 // 대화는 기록(오늘 돌아온 조 · 다친 사람 · 시세 · 소문 · 특성)에서 고르고, 고르는 데 난수 대신 날짜와 사람 번호의 해시를 쓴다.
 // 상태를 쓰지 않고 난수도 쓰지 않는다
-import { MISSION_NAME, priceNow, CO, FLOORS, ITEMS, type Ours, type Person, type Plan, type Sortie, type World, awayIds, boughtOf, candNow, roomOf, grOf, dayAbs, dayOf, floorMons, forecastTrips, jo, potShock, sanitize, stateOf, teamReady, us } from '../../core/company';
+import { MISSION_NAME, priceNow, CO, FLOORS, ITEMS, type Ours, type Person, type Plan, type Sortie, type World, awayIds, boughtOf, candNow, roomOf, grOf, dayAbs, dayOf, floorMons, forecast, forecastTrips, isLeader, jo, kitShort, potShock, potsExpiring, promoteDue, sanitize, stateOf, teamReady, unitPrice, us } from '../../core/company';
 import { TRIP_END } from '../../core/events';
 import { adminBar } from './desk';
 import { dayCls, dayMark, dayTip, luckHtml, nameOf, packBar, sendBtn, sqHtml } from './roster';
@@ -164,6 +164,49 @@ function upBtn(W: World, P: Plan, s: Sortie) {
   const who = T.m.filter((x): x is number => x != null).map(id => (us(W).crew || []).find(p => p.id === id)).filter((x): x is Person => !!x);
   return `<div class="bk-up">${sqHtml(W, T, s.t, who, true)}</div>`;
 }
+// 오늘 안건: 오늘 정할 것만 한 줄씩, 그 결정의 크기(G · 명)와 바로 여는 단추. must는 다음 날 단추에 "남은 안건"으로 센다 (넘겨도 막지는 않는다)
+export type Agenda = { k: string; h: string; t: string; btn: string; must: boolean };
+export function agendaOf(W: World, raw: Plan): Agenda[] {
+  const c = us(W), P = sanitize(W, c, raw), crew = c.crew || [], A: Agenda[] = [];
+  if (!c.crew || W.draft) return A;
+  const teams = P.teams || [], ready = teams.map((T, t) => ({ T, t })).filter(x => teamReady(W, x.T));
+  // 떠날 조의 채비가 창고에 모자람 (자동 구매를 끈 때)
+  const go = ready.filter(x => x.T.go).map(x => x.t);
+  if (raw.autoBuy === false && go.length) {
+    const K = kitShort(W, raw, go), parts = [['포션', K.pot], ['횃불', K.torch], ['식량', K.food], ['정비 도구', K.mend], ...Object.entries(K.gear).map(([g, n]) => [g + ' 장비', n])].filter(x => +x[1] > 0);
+    if (parts.length) A.push({ k: 'kit', h: '채비 모자람', t: `${go.map(t => `${t + 1}조`).join(' · ')} · ${parts.map(([n, v]) => `${n} ${v}`).join(' · ')}`, btn: `<button type="button" class="send" data-act="buy-short">사기 −${fmt(K.cost)}G</button>`, must: true });
+  }
+  // 나갈 수 있는 조: 보내면 예측 (예정을 잡은 조는 내일 출발, 다시 누르면 거둠)
+  ready.forEach(({ T, t }) => {
+    const fc = forecast(W, { ...P, teams: [T], parties: FLOORS.map((_, f) => (f === T.f ? 1 : 0)) }).mean;
+    A.push({ k: T.go ? 'sent' : 'send', h: `${t + 1}조 ${T.go ? '내일 출발' : '대기'}`, t: `${FLOORS[T.f].name} ${MISSION_NAME[T.mission || 'gather']} · ${T.m.filter(x => x != null).length}명 · ${CO.TRIP_DAYS[T.f]}일 길 · 예측 +${fmt(fc)}G`, btn: sendBtn(T, t), must: !T.go });
+  });
+  // 빈자리: 조 크기 한도까지 비어 있는 자리 (본부에 있는 조만)
+  const out = awayIds(W), empty = teams.filter(T => !T.m.some(id => id != null && out.has(id))).reduce((a, T) => a + T.m.filter(x => x == null).length, 0);
+  if (empty) { const now = candNow(W), fresh = now.filter(p => (p.ad || 1) === (W.day || 1)).length; A.push({ k: 'hire', h: `빈자리 ${empty}`, t: now.length ? `지원자 ${now.length}명${fresh ? ` · 오늘 ${fresh}명` : ''} · 빈 침상 ${roomOf(c)}` : '지원자 없음 · 대기 인원으로 채울 수 있음', btn: `<button type="button" class="ghost sm" data-act="${now.length ? 'place" data-place="staff' : 'exp'}">${now.length ? '인원' : '편성'}</button>`, must: true }); }
+  // 진급 예정자: 미루면 달마다 불만
+  const due = crew.filter(promoteDue);
+  if (due.length) A.push({ k: 'grade', h: `진급 예정 ${due.length}명`, t: `${due.slice(0, 3).map(p => esc(nameOf(p))).join(' · ')}${due.length > 3 ? ` 외 ${due.length - 3}` : ''} · 미루면 불만`, btn: '<button type="button" class="ghost sm" data-act="place" data-place="staff">인원</button>', must: true });
+  // 조장 자리를 요구하는데 조장이 아닌 사람
+  const dm = crew.filter(p => p.dm === 'lead' && !isLeader(c, p.id));
+  if (dm.length) A.push({ k: 'lead', h: `조장 요구 ${dm.length}명`, t: `${dm.slice(0, 3).map(p => esc(nameOf(p))).join(' · ')} · 조장이 아니면 불만`, btn: '<button type="button" class="ghost sm" data-act="exp">편성</button>', must: false });
+  // 창고 채집품: 오늘 팔면 얼마, 기준보다 비싼 것
+  if (P.autoSell === false) {
+    const st = W.stock || [], js = ITEMS.map((_, j) => j).filter(j => Math.floor((st[j] || 0) + 1e-9) > 0);
+    const v = js.reduce((a, j) => a + Math.floor(st[j] + 1e-9) * priceNow(W, j), 0);
+    if (v >= 1) { const hi = js.map(j => ({ j, d: priceNow(W, j) / ITEMS[j].P0 - 1 })).sort((a, b) => b.d - a.d)[0];
+      A.push({ k: 'sell', h: '창고 채집품', t: `오늘 팔면 ${fmt(v)}G · ${esc(ITEMS[hi.j].name)} 기준 ${hi.d >= 0 ? '+' : '−'}${Math.round(Math.abs(hi.d) * 100)}%`, btn: '<button type="button" class="ghost sm" data-act="store">창고</button>', must: false }); }
+  }
+  // 그믐에 버릴 포션
+  const ex = potsExpiring(c);
+  if (ex.pot + ex.holy) A.push({ k: 'pot', h: `포션 ${ex.pot + ex.holy}병 보관 끝`, t: `그믐에 버림 · ${fmt((ex.pot + ex.holy) * unitPrice(W, 'pot'))}G어치`, btn: '<button type="button" class="ghost sm" data-act="exp">편성</button>', must: false });
+  return A;
+}
+function agendaHtml(A: Agenda[], W: World, ready: number) {
+  const next = (W.away || []).reduce((m, s) => Math.min(m, s.d0 + CO.TRIP_DAYS[s.f] - dayAbs(W)), Infinity);
+  return `<div class="panel agenda"><header><h2>오늘 안건</h2>${ready > 1 ? `<button type="button" class="ghost sm" data-act="send-all">${A.filter(a => a.k === 'send').length ? '모두 보내기' : '예정 모두 거두기'}</button>` : ''}<button type="button" class="link right" data-act="exp">출정 편성 →</button></header>
+    ${A.length ? `<ul class="ags">${A.map(a => `<li class="ag ag-${a.k}${a.must ? ' must' : ''}"><div><b>${a.h}</b><small>${a.t}</small></div>${a.btn}</li>`).join('')}</ul>` : `<p class="note">정할 것 없음${isFinite(next) ? ` · 다음 귀환 ${next <= 1 ? '내일 아침' : `${next}일 뒤`}` : ''}</p>`}</div>`;
+}
 // 날 띠: 이번 달 열흘. 지난 날 · 오늘 · 돌아올 조가 있는 날(예정)
 export function dayStrip(W: World) {
   const day = W.day || 1, base = (W.month - 1) * CO.MONTH_DAYS, due = new Map<number, number>();
@@ -174,8 +217,8 @@ export function dayStrip(W: World) {
   }).join('')}</span>`;
 }
 // 다음 날 단추: 마지막 날이면 그믐 정산으로. go: 보낼 예정인 조 수 (누르면 떠난다)
-export function nextDayBtn(W: World, cls = '', go = 0) {
-  const last = (W.day || 1) >= CO.MONTH_DAYS, gt = go ? ` <small class="go">${go}조 출발</small>` : '';
+export function nextDayBtn(W: World, cls = '', go = 0, left = 0) {
+  const last = (W.day || 1) >= CO.MONTH_DAYS, gt = (go ? ` <small class="go">${go}조 출발</small>` : '') + (left ? ` <small class="left">안건 ${left} 남음</small>` : '');
   return `<button type="button" class="nextday${cls ? ' ' + cls : ''}${last ? ' end' : ''}" data-act="next-day">${last ? `그믐 · 제${W.month}월 정산 ▶` : `다음 날 ▶ <small>${(W.day || 1) + 1}일</small>`}${gt}</button>`;
 }
 
@@ -201,7 +244,7 @@ export function hallHtml(W: World, raw: Plan) {
   }).join('');
   const away = W.away || [], back = todayBack(W), B = boughtOf(W);
   const ready = (P.teams || []).map((T, t) => ({ T, t })).filter(x => teamReady(W, x.T));
-  const monthBack = (W.back || []).length, spent = Object.values(B.cost).reduce((a, b) => a + b, 0);
+  const ag = agendaOf(W, P), monthBack = (W.back || []).length, spent = Object.values(B.cost).reduce((a, b) => a + b, 0);
   const haul = forecastTrips(W, P, [...(W.back || []), ...away.filter(s => s.d0 + CO.TRIP_DAYS[s.f] <= W.month * CO.MONTH_DAYS)]).mean;
   return `<div class="hall">
     <div class="hall-room" aria-label="회색늑대 숙소 · 길드 홀">
@@ -210,16 +253,14 @@ export function hallHtml(W: World, raw: Plan) {
     </div>
     <aside class="hall-side">
       ${back.length ? `<button type="button" class="backs-open" data-act="backs">오늘 아침 귀환 <b>${back.length}조</b>${back.some(s => (s.rep!.dead || []).length) ? ' <span class="dead-n">†</span>' : ''} <small>보고 ▶</small></button>` : ''}
+      ${agendaHtml(ag, W, ready.length)}
       <div class="panel aways"><header><h2>미궁에 나간 조</h2><span class="right">${away.length}조</span></header>${away.length ? `<ol class="aws">${away.map(s => awayCard(W, P, s)).join('')}</ol>` : '<p class="note">나가 있는 조가 없어요</p>'}</div>
-      <div class="panel readys"><header><h2>나갈 수 있는 조</h2>${ready.length > 1 ? `<button type="button" class="ghost sm" data-act="send-all">${ready.every(x => x.T.go) ? '예정 모두 거두기' : '모두 보내기'}</button>` : ''}</header>
-        ${ready.length ? `<ul class="rds">${ready.map(({ T, t }) => `<li><b>${t + 1}조</b> ${FLOORS[T.f].name} <span class="ms-tag ${T.mission || 'gather'}">${MISSION_NAME[T.mission || 'gather']}</span> <span class="dim">${T.m.filter(x => x != null).length}명 · ${CO.TRIP_DAYS[T.f]}일 길</span>${sendBtn(T, t)}</li>`).join('')}</ul>` : '<p class="note">본부에 짐을 다 싼 조가 없어요 (편성은 출정에서)</p>'}
-        <button type="button" class="link" data-act="exp">출정 편성 →</button></div>
       ${candPanel(W)}
       <div class="panel month"><header><h2>제${W.month}월 장부</h2><span class="right">${W.day || 1}일 / ${CO.MONTH_DAYS}일</span></header>
         <dl class="fc-line"><div><dt>돌아온 조</dt><dd>${monthBack ? `<button type="button" class="link" data-act="backs" title="이달 귀환 보고">${monthBack}</button>` : 0}</dd></div><div><dt>짐 예측</dt><dd>${fmt(haul)}G</dd></div><div><dt>바로 쓴 돈</dt><dd>${fmt(spent)}G</dd></div></dl>
         ${adminBar(W, P)}
         <p class="note">채집품은 창고에서 팔 날을 고른다 (시세는 날마다) · 전리품 · 급여 · 본부 유지비는 그믐에</p></div>
-      ${nextDayBtn(W, 'big', ready.filter(x => x.T.go).length)}
+      ${nextDayBtn(W, 'big', ready.filter(x => x.T.go).length, ag.filter(a => a.must).length)}
     </aside></div>`;
 }
 

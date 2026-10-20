@@ -1270,6 +1270,21 @@ export function kitWant(P: Plan, T: Team, who: Person[], lv = 0) {
   const slots = teamSlots(who, lv), torch = Math.min(teamTorch(P, T), slots);
   return { pots: Math.min(teamPots(P, T), slots - torch), torch, food: (T.food != null ? clamp(Math.floor(T.food), 0, CO.DAYS) : foodDays(P, T.f)) * who.length, mend: teamMend(P, T), gear: (T.g || '').startsWith('g:') ? T.g.slice(2) : '' };
 }
+// 채비 부족: 고른 조들(편성표 번호)이 지금 떠나면 창고에서 모자랄 채비와 그 값 (자동 구매를 끈 때 화면이 사라고 알린다)
+export function kitShort(W: World, raw: Plan, ts: number[]) {
+  const c = us(W), P = c.crew ? sanitize(W, c, raw) : raw, S = supOf(c), H = potsOf(c), byId = new Map((c.crew || []).map(p => [p.id, p]));
+  const need = { pot: 0, torch: 0, food: 0, mend: 0 }, gear: Record<string, number> = {};
+  ts.forEach(t => {
+    const T = (P.teams || [])[t]; if (!T) return;
+    const who = T.m.filter((x): x is number => x != null).map(id => byId.get(id)).filter((x): x is Person => !!x);
+    const w = kitWant(P, T, who, sqLv(c, T));
+    need.pot += w.pots; need.torch += w.torch; need.food += w.food; need.mend += w.mend; if (w.gear) gear[w.gear] = (gear[w.gear] || 0) + 1;
+  });
+  const out = { pot: Math.max(0, need.pot - H.pot - H.holy), torch: Math.max(0, need.torch - (S.torch || 0)), food: Math.max(0, need.food - (S.food || 0)), mend: Math.max(0, need.mend - (S.mend || 0)),
+    gear: Object.fromEntries(Object.entries(gear).map(([g, n]) => [g, Math.max(0, n - (S.gear[g] || 0))]).filter(([, n]) => +n > 0)) as Record<string, number> };
+  const cost = out.pot * unitPrice(W, 'pot') + out.torch * CO.TORCH_PRICE + out.food * CO.FOOD_PRICE + out.mend * CO.MEND_PRICE + Object.values(out.gear).reduce((a, n) => a + n * CO.GEAR_PRICE, 0);
+  return { ...out, cost };
+}
 // 창고의 포션 묶음에서 n병을 꺼낸다 (오래된 것부터). 꺼낸 것 중 가장 오래된 묶음의 나이를 돌려준다
 function takeLots(a: number[], n: number) { let left = n, age = 0; for (let i = a.length - 1; i >= 0 && left > 0; i--) { const d = Math.min(left, a[i] || 0); if (d) { a[i] -= d; left -= d; age = Math.max(age, i); } } return { n: n - left, age }; }
 
