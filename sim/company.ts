@@ -4,7 +4,7 @@
 // 성향: even(고르게) · deep(깊은 층 위주) · smart(시장을 읽는 숙련자, 근원에는 채굴장)
 //       smartNoGuide · smartSeal · smartNoRoot: 숙련 봇에서 지침을 빼거나 근원을 달리 다룬 것
 import { setSeed } from '../src/core/rng';
-import { type Mission, type Team, forecast, CO, TAX, FLOORS, potShock, cashK, aidAt, jobsExplore, churchPrice, ITEMS, type Filing, type Plan, type World, closeBooks, preview, setClerks, defaultPlan, dormCost, jobsSign, partyMargin, roomOf, demandMul, potsOf, probe, floorMons, mapOf, maxParties, newWorld, torchRate, torchOdds, sanitize, canTarget, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
+import { type Mission, type Team, type Person, grOf, forecast, CO, TAX, FLOORS, potShock, cashK, aidAt, jobsExplore, churchPrice, ITEMS, type Filing, type Plan, type World, closeBooks, preview, setClerks, defaultPlan, dormCost, jobsSign, partyMargin, roomOf, demandMul, potsOf, probe, floorMons, mapOf, maxParties, newWorld, torchRate, torchOdds, sanitize, canTarget, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
 import { demandSeen } from '../src/ui/co/book';
 import { ASK_KEYS, DEX, MAT_KEYS, type Dex, askable, badSure, keySure } from '../src/core/dex';
 import { CLASSES, PAIR_CLASS, classWeaks } from '../src/core/data';
@@ -40,7 +40,8 @@ for (const k of ['gather', 'hunt', 'scout'] as const) { const v = process.env['M
 if (process.env.SEGS) CO.SEGS = process.env.SEGS.split(',').map(Number);
 if (process.env.MAT_SLOT) CO.MAT_SLOT = FLOORS.map(() => +process.env.MAT_SLOT!);
 if (process.env.TRAIL_SLOT) CO.TRAIL_SLOT = +process.env.TRAIL_SLOT;
-for (const k of ['A_K', 'A_CLERK', 'CLERK_WAGE', 'A_TRIP', 'A_BASE', 'A_MEMBER', 'A_FLOOR', 'A_FREE'] as const) if (process.env[k]) (CO as any)[k] = +process.env[k]!;
+if (process.env.TIER_DEEP) CO.TIER_DEEP = process.env.TIER_DEEP.split(',').map(Number);
+for (const k of ['A_MEMBER_K', 'A_K', 'A_CLERK', 'CLERK_WAGE', 'A_TRIP', 'A_BASE', 'A_MEMBER', 'A_FLOOR', 'A_FREE'] as const) if (process.env[k]) (CO as any)[k] = +process.env[k]!;
 const arg = (k: string, d: string) => { const i = process.argv.indexOf('--' + k); return i > 0 ? process.argv[i + 1] : d; };
 const games = +arg('games', '200'), seed0 = +arg('seed', '1'), only = arg('style', '');
 const MONTHS = 36;
@@ -65,6 +66,8 @@ export const BOT: Record<string, (W: World) => Plan> = {
   // 몸집을 불리지 않는 숙련 봇 (숙소·모집이 순위에 얼마나 보태는지 재는 기준)
   smartStay: W => { const P = smartPlan(W); P.dorm = false; return P; },
   smart: W => smartPlan(W),
+  // 소수 정예: 숙련 봇과 같되 단원을 ELITE_CAP명(기본 24)까지만 뽑는다 (다수 길드인 숙련 봇과 견준다)
+  smartElite: W => { const P = smartPlan(W), c = us(W); if (P.pick) P.pick = P.pick.slice(0, Math.max(0, ELITE_CAP - c.members - (c.hireQ || []).length)); return P; },
   // 숙련 봇이 전리품을 창고에 두고 지정가(기준 값의 SELL_AT배)를 넘으면 파는 것 (창고 보관이 이득인지 재는 기준)
   smartHold: W => { const P = smartPlan(W); P.autoSell = false; P.sellAt = +(process.env.SELL_AT || 1); return P; },
   // 숙련 봇에서 추리만 뺀 것 (편성 지침이 순위에 얼마나 보태는지 재는 기준)
@@ -98,7 +101,7 @@ export function fileSmart(W: World, risk = FILE_RISK): Partial<Filing> {
   return fileAt(D.truth, lo);
 }
 export const FILER: Record<string, (W: World) => Partial<Filing>> = {
-  smart: W => fileSmart(W), smartNoGuide: W => fileSmart(W), smartAsk: W => fileSmart(W), smartNoKit: W => fileSmart(W), smartScout: W => fileSmart(W), smartSeal: W => fileSmart(W), smartNoRoot: W => fileSmart(W), smartStay: W => fileSmart(W), smartHold: W => fileSmart(W), smartGather: W => fileSmart(W),
+  smart: W => fileSmart(W), smartNoGuide: W => fileSmart(W), smartAsk: W => fileSmart(W), smartNoKit: W => fileSmart(W), smartScout: W => fileSmart(W), smartSeal: W => fileSmart(W), smartNoRoot: W => fileSmart(W), smartStay: W => fileSmart(W), smartHold: W => fileSmart(W), smartGather: W => fileSmart(W), smartElite: W => fileSmart(W),
   smartGreedy: W => (W.draft ? fileAt(W.draft.truth, 1) : {}),
 };
 
@@ -112,6 +115,13 @@ const CLERK_HI = +(process.env.CLERK_HI || 0.8), CLERK_LO = +(process.env.CLERK_
 // 임무: 지도가 SCOUT_UNDER 밑인 층마다 한 조는 탐색, 단장 조는 사냥(도감 · 단장 조사), 나머지는 채집. MISSION=0이면 모두 채집
 // 사냥은 조마다 수입 예측(사망 하나를 DEATH_V로 뺀)이 채집보다 HUNT_EDGE만큼 나으면, 조의 HUNT_MAX까지 (예측은 사냥을 조금 후하게 본다)
 const MISSION = process.env.MISSION !== '0', SCOUT_UNDER = +(process.env.SCOUT_UNDER || 60), LEAD_HUNT = process.env.LEAD_HUNT !== '0';
+// 직업 실험(--classes): 신입을 그 직업부터 뽑거나(pre) 그 직업은 뽑지 않는다(avoid)
+// 지원자 거르기(HIRE_SKIP=40이면 직업과 상관없이 지원자 열에 넷을 거른다): 몸집을 얼마나 키울지 재는 기준
+const HIRE_SKIP = +(process.env.HIRE_SKIP || 0);
+// 인원 상한(SIZE_CAP=24면 단원을 24명까지만 뽑는다): 작게 굴리는 봇과 크게 굴리는 봇을 견주는 기준
+const SIZE_CAP = +(process.env.SIZE_CAP || 99);
+const ELITE_CAP = +(process.env.ELITE_CAP || 24);
+let BIAS: { c: string; mode: 'pre' | 'avoid' | 'thin' } | null = null;   // thin: 직업과 상관없이 지원자 다섯에 하나를 거른다 (빼기가 직업 탓인지 덜 뽑은 탓인지 가르는 기준)
 const DEATH_V = +(process.env.DEATH_V || 300), HUNT_EDGE = +(process.env.HUNT_EDGE || 0.05), HUNT_MAX = +(process.env.HUNT_MAX || 0.5);
 export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine', kit = true, scout = false, guide = true, askAll = ASK_ALL, missions = MISSION): Plan {
   const c = us(W), P = defaultPlan(W), L = W.last, pots = 3;
@@ -165,9 +175,13 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
   // 탐사 계획서: 그 층에 보낼 조를 그대로 적어 내고 선금을 받는다
   jobsExplore(W).forEach(J => { if (P.parties[J.f]) P.take![J.id] = P.parties[J.f]; });
   // 서기: 지난달 행정 여력이 CLERK_HI를 넘었으면 한 명 더 (빈 침상을 신입보다 먼저), CLERK_LO 밑이면 한 명 줄인다
-  const A = L && L.res[0].admin; if (c.crew && A) { const r = A.load / A.cap; if (r > CLERK_HI && roomOf(c) > 0) setClerks(W, (c.clerks || 0) + 1); else if (r < CLERK_LO && c.clerks) setClerks(W, c.clerks - 1); }
-  // 신입: 지원자 명단에서 실력 좋은 사람부터 빈 침상만큼
-  if (c.crew && W.cand) P.pick = [...W.cand].sort((a, b) => (b.sk || 0) - (a.sk || 0)).slice(0, roomOf(c)).map(x => x.id);
+  // (넘친 만큼 한 번에: 지난달 부하가 CLERK_HI 밑이 되는 데 모자란 역량을 서기로. 단원 부하는 머릿수가 늘수록 가팔라 한 명씩으론 늦다)
+  const A = L && L.res[0].admin; if (c.crew && A) { const r = A.load / A.cap; if (r > CLERK_HI && roomOf(c) > 0) setClerks(W, (c.clerks || 0) + Math.max(1, Math.ceil((A.load / CLERK_HI - A.cap) / CO.A_CLERK))); else if (r < CLERK_LO && c.clerks) setClerks(W, c.clerks - 1); }
+  // 신입: 지원자 명단에서 실력 좋은 사람부터 빈 침상만큼 (그달 찾아오는 날에 계약한다)
+  // (실제 실력은 숨어 있어 보이는 것으로 고른다: 자격 등급, 이력서의 해낸 비율)
+  const seen = (x: Person) => grOf(x) + (x.pn && x.pn.some(Boolean) ? (x.pw || []).reduce((t, w) => t + w, 0) / Math.max(1, x.pn.reduce((t, n) => t + n, 0)) : 0.5);
+  const B = BIAS, fav = (x: { c: string }) => (B && B.mode === 'pre' && x.c === B.c ? 1 : 0);
+  if (c.crew && W.cand) P.pick = [...W.cand].filter(x => !(B && B.mode === 'avoid' && x.c === B.c) && !(B && B.mode === 'thin' && x.id % 5 === 0) && !(HIRE_SKIP && (x.id * 2654435761 >>> 0) % 100 < HIRE_SKIP)).sort((a, b) => fav(b) - fav(a) || seen(b) - seen(a)).slice(0, Math.min(roomOf(c), Math.max(0, SIZE_CAP - c.members - (c.hireQ || []).length))).map(x => x.id);
   // 몸집: 조당 남는 돈이 급여보다 넉넉하면 숙소를 늘린다. 본부의 질(훈련장 · 의무실)은 올리지 않는다:
   // 공사가 숙소 증축을 한 달씩 미루는 값이 커서 이 봇의 운영에선 손해였다 (의무실 1단계만 본전 근처)
   // 횃불: 지도만큼 헤맬 것을 셈해, 돌아설 확률이 TORCH_RISK 밑이 되는 데까지 들고 간다
@@ -311,15 +325,19 @@ export function addKit(W: World, f: number, g: string, n: number) {
 export function playGame(seed: number, bot: (W: World) => Plan, file: (W: World) => Partial<Filing> = () => ({}), onMonth?: (W: World, P: Plan, M: ReturnType<typeof runMonth>, before: { unlocked: number; explore: number }) => void) {
   setSeed(seed);
   const W = newWorld();
+  if (process.env.US_CASH) us(W).cash = +process.env.US_CASH;   // 우리 시작 금고만 바꿔 볼 때
   for (let m = 0; m < MONTHS; m++) {
     const P = bot(W), before = { unlocked: W.unlocked, explore: jobsExplore(W).length };
-    const M = runMonth(W, P); closeBooks(W, file(W));
+    const M = runMonth(W, P, true); closeBooks(W, file(W));
     if (onMonth) onMonth(W, P, M, before);
   }
   return W;
 }
 
-if (process.argv[1] && process.argv[1].endsWith('company.ts') && process.argv.includes('--metrics')) {
+if (process.argv[1] && process.argv[1].endsWith('company.ts') && process.argv.includes('--classes')) {
+  // npm run sim -- --classes --games 100: 직업마다 현장 기록과, 신입을 그 직업으로 몰거나 빼 본 숙련 봇의 순위
+  classes(games);
+} else if (process.argv[1] && process.argv[1].endsWith('company.ts') && process.argv.includes('--metrics')) {
   // npm run sim -- --metrics --games 100 [--style smart]: 인력 손실 · 관리 부담 · 인원 지표
   for (const name of only ? [only] : ['smart', 'even']) metrics(name, games);
 } else if (process.argv[1] && process.argv[1].endsWith('company.ts')) {
@@ -421,4 +439,63 @@ function metrics(name: string, games: number) {
   const at50 = members.filter(x => x >= 50).length, mid = members.filter(x => x >= 30 && x <= 40).length;
   const avg = (a: number[]) => a.reduce((x, y) => x + y, 0) / Math.max(1, a.length);
   console.log(`  [인원] 36개월 뒤 단원 평균 ${avg(members).toFixed(1)}명 · 50명(상한) ${pc(at50, games)} · 30~40명 ${pc(mid, games)} · 서기 ${avg(clerks).toFixed(1)}명 · 행정 여력 평균 ${Math.round(avg(adm) * 100)}% (넘친 달 ${pc(adm.filter(x => x > 1).length, adm.length)}, 70% 넘은 달 ${pc(adm.filter(x => x > CO.A_FREE).length, adm.length)})`);
+}
+
+// ---------- 직업: 어떤 직업이 값을 하나 ----------
+// (1) 숙련 봇 판의 현장 기록: 직업마다 나선 구간 · 해낸 비율 · 부상 주사위에 걸린 비율 · 죽음, 그 직업이 낀 조와 안 낀 조의 탐사 한 번 벌이(채집품 + 전리품, 그달 시세)
+// (2) 실험: 신입을 그 직업부터 뽑는 숙련 봇(몰기)과 그 직업을 뽑지 않는 숙련 봇(빼기)의 평균 순위 · 평가액 · 36개월 뒤 인원을, 그냥 숙련 봇과 견준다
+type ClsRec = { seg: number; win: number; dice: number; dead: number; trips: number; val: number; offT: number; offV: number; ppl: number };
+function classes(games: number) {
+  const R: Record<string, ClsRec> = Object.fromEntries(CLASSES.map(k => [k, { seg: 0, win: 0, dice: 0, dead: 0, trips: 0, val: 0, offT: 0, offV: 0, ppl: 0 }]));
+  // 조 구성별 벌이: 탐사 한 번마다 (구성, 층, 임무, 벌이, 죽음). 층 · 임무마다 평균이 크게 달라 같은 층 · 같은 임무의 평균 탐사를 1.00으로 둔 지수로 견준다
+  const trips: { key: string; cls: string[]; f: number; ms: string; v: number; d: number; lead: boolean }[] = [];
+  const run = (bias: typeof BIAS, rec: boolean) => {
+    BIAS = bias; let rank = 0, wsum = 0, firsts = 0, mem = 0;
+    for (let g = 0; g < games; g++) {
+      const W = playGame(seed0 + g, BOT.smart, FILER.smart, rec ? (W, P, M) => {
+        M.ours.forEach(o => {
+          const cls = o.cls || [], val = (o.got || 0) * (M.price[o.f] || 0) + o.mats.reduce((a, [m, n]) => a + n * ((M.matPrice || {})[m] || 0), 0);
+          CLASSES.forEach(k => { const x = R[k]; if (cls.includes(k)) { x.trips++; x.val += val; } else { x.offT++; x.offV += val; } });
+          const key = CLASSES.map(k => { const n = cls.filter(c => c === k).length; return n ? (n > 1 ? `${k}${n}` : k) : ''; }).filter(Boolean).join(' ') + (cls.length < CO.PARTY ? ` (${cls.length}명)` : '');
+          trips.push({ key, cls, f: o.f, ms: o.mission || 'gather', v: val, d: (o.dead || []).length, lead: (o.ld ?? -1) >= 0 });
+          cls.forEach((k, j) => {
+            const x = R[k]; if (!x) return;
+            (o.days || []).forEach(d => { const ch = (d.ms || '')[j]; if (!ch || ch === '-') return; x.seg++; if (ch === 'o') x.win++; else if (ch !== 'x') x.dice++; if (ch === 'd') x.dead++; });
+            if (o.trip && o.trip.dm && o.trip.dm[j] === 'd') x.dead++;
+          });
+        });
+        if (M.month === MONTHS) (us(W).crew || []).forEach(p => { if (R[p.c]) R[p.c].ppl++; });
+      } : undefined);
+      const r = rankOf(W); rank += r; if (r === 1) firsts++; wsum += worth(W, us(W)); mem += us(W).members;
+    }
+    BIAS = null;
+    return { rank: rank / games, first: firsts / games, worth: wsum / games, mem: mem / games };
+  };
+  const base = run(null, true), f1 = (v: number) => v.toFixed(1), p0 = (v: number) => `${Math.round(v * 100)}%`;
+  console.log(`직업 · 숙련 봇 ${games}판 · ${MONTHS}개월 · 기준 평균 순위 ${base.rank.toFixed(2)} · 1위 ${p0(base.first)} · 평가액 ${Math.round(base.worth).toLocaleString()}G`);
+  console.log('  [현장] 직업 | 나선 구간(판당) | 해낸 비율 | 주사위 걸림 | 죽음(판당) | 낀 조 벌이/탐사 | 안 낀 조 | 36개월 뒤 인원');
+  CLASSES.forEach(k => { const x = R[k]; console.log(`  ${k} | ${Math.round(x.seg / games)} | ${p0(x.win / Math.max(1, x.seg))} | ${p0(x.dice / Math.max(1, x.seg))} | ${f1(x.dead / games)} | ${Math.round(x.val / Math.max(1, x.trips))}G | ${Math.round(x.offV / Math.max(1, x.offT))}G | ${f1(x.ppl / games)}명`); });
+  // 지수: 같은 층 · 같은 임무 탐사의 평균 벌이에 견준 이 탐사의 벌이
+  const avgBy: Record<string, [number, number]> = {}; trips.forEach(t => { const a = avgBy[t.f + t.ms] || (avgBy[t.f + t.ms] = [0, 0]); a[0] += t.v; a[1]++; });
+  const idx = (t: typeof trips[number]) => { const a = avgBy[t.f + t.ms]; return a && a[0] ? t.v / (a[0] / a[1]) : 1; };
+  const MSN: Record<string, string> = { gather: '채집', hunt: '사냥', scout: '탐색' };
+  const share = (ts: typeof trips) => (['gather', 'hunt', 'scout'] as const).map(m => `${MSN[m]} ${p0(ts.filter(t => t.ms === m).length / Math.max(1, ts.length))}`).join(' · ');
+  console.log('  [직업 지수] 직업 | 낀 조 지수 | 안 낀 조 지수 | 낀 조의 임무 · 단장 조 비율 (층 · 임무를 맞춘 벌이)');
+  CLASSES.forEach(k => {
+    const on = trips.filter(t => t.cls.includes(k)), off = trips.filter(t => !t.cls.includes(k)), m = (ts: typeof trips) => ts.reduce((a, t) => a + idx(t), 0) / Math.max(1, ts.length);
+    console.log(`  ${k} | ${m(on).toFixed(2)} | ${m(off).toFixed(2)} | ${share(on)} · 단장 조 ${p0(on.filter(t => t.lead).length / Math.max(1, on.length))}`);
+  });
+  const groups: Record<string, typeof trips> = {}; trips.forEach(t => { (groups[t.key] || (groups[t.key] = [])).push(t); });
+  console.log(`  [조 구성] 구성 | 탐사(판당) | 지수 | 탐사 한 번 벌이 | 죽음(100탐사) | 임무 (전체 ${trips.length}탐사, 판당 ${Math.round(trips.length / games)})`);
+  Object.entries(groups).sort((a, b) => b[1].length - a[1].length).slice(0, +(arg('top', '18'))).forEach(([k, ts]) => {
+    console.log(`  ${k} | ${f1(ts.length / games)} | ${(ts.reduce((a, t) => a + idx(t), 0) / ts.length).toFixed(2)} | ${Math.round(ts.reduce((a, t) => a + t.v, 0) / ts.length)}G | ${f1(ts.reduce((a, t) => a + t.d, 0) / ts.length * 100)} | ${share(ts)}`);
+  });
+  if (process.argv.includes('--no-exp')) return;
+  const th = run({ c: '', mode: 'thin' }, false);
+  console.log(`  [기준] 직업과 상관없이 다섯에 하나 거르기: 순위 ${th.rank.toFixed(2)} · 1위 ${p0(th.first)} · 평가액 ${th.worth >= base.worth ? '+' : '−'}${Math.round(Math.abs(th.worth - base.worth)).toLocaleString()}G · ${f1(th.mem)}명`);
+  console.log('  [실험] 직업 | 몰기: 순위 · 1위 · 평가액 · 인원 | 빼기: 순위 · 1위 · 평가액 · 인원 (평가액은 기준과의 차)');
+  CLASSES.forEach(k => {
+    const a = run({ c: k, mode: 'pre' }, false), b = run({ c: k, mode: 'avoid' }, false), d = (v: number) => `${v >= base.worth ? '+' : '−'}${Math.round(Math.abs(v - base.worth)).toLocaleString()}G`;
+    console.log(`  ${k} | 몰기 ${a.rank.toFixed(2)} · ${p0(a.first)} · ${d(a.worth)} · ${f1(a.mem)}명 | 빼기 ${b.rank.toFixed(2)} · ${p0(b.first)} · ${d(b.worth)} · ${f1(b.mem)}명`);
+  });
 }

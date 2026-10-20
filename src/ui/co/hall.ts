@@ -2,10 +2,10 @@
 // 옆 판에는 미궁에 나가 있는 조(며칠째 · 언제 돌아올지 · 예측), 오늘 아침 돌아온 조, 나갈 수 있는 조가 있다.
 // 대화는 기록(오늘 돌아온 조 · 다친 사람 · 시세 · 소문 · 특성)에서 고르고, 고르는 데 난수 대신 날짜와 사람 번호의 해시를 쓴다.
 // 상태를 쓰지 않고 난수도 쓰지 않는다
-import { MISSION_NAME, priceNow, CO, FLOORS, ITEMS, type Ours, type Person, type Plan, type Sortie, type World, awayIds, boughtOf, dayAbs, dayOf, floorMons, forecastTrips, jo, potShock, sanitize, stateOf, teamReady, us } from '../../core/company';
+import { MISSION_NAME, priceNow, CO, FLOORS, ITEMS, type Ours, type Person, type Plan, type Sortie, type World, awayIds, boughtOf, candNow, roomOf, grOf, dayAbs, dayOf, floorMons, forecastTrips, jo, potShock, sanitize, stateOf, teamReady, us } from '../../core/company';
 import { TRIP_END } from '../../core/events';
 import { adminBar } from './desk';
-import { dayCls, dayMark, dayTip, nameOf, packBar, sendBtn } from './roster';
+import { dayCls, dayMark, dayTip, luckHtml, nameOf, packBar, sendBtn } from './roster';
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
@@ -57,8 +57,10 @@ function talksOf(W: World, P: Plan, here: Person[], zone: Map<number, Zone>) {
   here.forEach(p => {
     const z = zone.get(p.id)!;
     if (z === 'ward') say(p.id, 'hurt', [`${p.hurt}일만 더 누워 있으래.`, '의무실 죽은 맛이 없어.', '누워만 있으니 몸이 근질거려.'], 5, anyone(p, 'hurt'), ['빨리 나아. 네 자리 비워 둘게.', '푹 쉬어. 미궁은 안 도망가.']);
+    // 진급을 오래 기다린 사람은 예를 갖춰 돌려 말한다 (불만 두 칸부터)
+    if ((p.gd || 0) >= 2) say(p.id, 'grudge', ['자격 심사는 언제쯤일지, 여쭤봐도 될까요.', '기록은 장부에 다 있을 텐데요.', '다른 데서 기별이 왔는데, 아직 답은 안 했어요.'], 6, anyone(p, 'grudge'), ['행정관님도 사정이 있으시겠지.', '조금만 더 기다려 봐.']);
     if (z === 'yard') {
-      const tier = Math.min(4, Math.floor((p.sk ?? 40) / CO.TIER_STEP));
+      const tier = grOf(p);   // (말풍선도 행정관이 아는 등급으로)
       if (tier === 0) say(p.id, 'rook', ['교관님 목검이 진검보다 무서워.', '언제쯤 나도 내려가 보려나.'], 3, mate(p, 'rook'), ['때가 되면 행정관님이 부르실 거야.', '서두르지 마. 살아남는 게 먼저야.']);
       else say(p.id, 'drill', [(P.coach || 0) ? '오늘도 마당 열 바퀴.' : '교관도 없이 허수아비만 치니 팔만 아파.', '쉬는 것도 일이야.', '몸이 굳기 전에 한 번 내려가고 싶은데.'], 2, mate(p, 'drill'), REPLY);
     }
@@ -126,7 +128,7 @@ function awayCard(W: World, P: Plan, s: Sortie) {
   return `<li class="aw"><div class="aw-h"><b>${s.t + 1}조</b> ${FLOORS[s.f].name} <span class="ms-tag ${s.mission || 'gather'}">${MISSION_NAME[s.mission || 'gather']}</span> <span class="dim">${dayOf(s.d0)}일 출발</span><span class="when">귀환 ${when}${back > CO.MONTH_DAYS * W.month ? ' · 다음 달' : ''}</span></div>
     <div class="aw-d" role="img" aria-label="${L}일 중 ${gone}일째">${cells}</div>
     <div class="aw-m">${s.who.map(p => `<span class="${CLS_TAG[p.c] || ''}">${p.lead ? '★' : ''}${esc(nameOf(p))}</span>`).join('')}</div>
-    <div class="aw-k">${packBar(s.who.length * CO.SLOT_PP, s.kit.torch, s.kit.pots, 0, s.kit.food, s.kit.mend)}<span class="dim">예측 <b>${fmt(fc)}G</b></span></div></li>`;
+    <div class="aw-k">${packBar(Math.round(s.who.length * CO.SLOT_PP), s.kit.torch, s.kit.pots, 0, s.kit.food, s.kit.mend)}<span class="dim">예측 <b>${fmt(fc)}G</b></span></div></li>`;
 }
 // 오늘 아침 돌아온 조 하나: 해냈나 · 다닌 날 · 짐 · 잃은 사람. ▶ 보기는 탐사 재생 장면
 export function backLine(r: Ours, i: number, src: string) {
@@ -135,12 +137,12 @@ export function backLine(r: Ours, i: number, src: string) {
   const days = D.map((d, j) => `<i class="${dayCls(d)}${j && d.dd !== D[j - 1].dd ? ' nd' : ''}" title="${esc(dayTip(d, j))}">${dayMark(d)}</i>`).join('');
   // 임무마다 초점 하나를 앞에: 채집은 캐 온 채집품, 사냥은 전리품, 탐색은 그려 온 지도
   const ms = r.mission || 'gather', mapT = r.mp ? `<span>지도 <b>+${r.mp}</b>%p</span>` : '';
-  const gotT = r.got != null ? `<span>${esc(ITEMS[r.f].name)} <b>${fmt(r.got)}</b>개 → 창고</span>` : '', matT = r.mats.length ? `<span>${r.mats.slice(0, 3).map(([m, n]) => `${esc(m)} ×${n}`).join(', ')}${r.mats.length > 3 ? ` 외 ${r.mats.length - 3}` : ''}</span>` : '';
+  const gotT = r.got ? `<span>${esc(ITEMS[r.f].name)} <b>${fmt(r.got)}</b>개 → 창고</span>` : '', matT = r.mats.length ? `<span>${r.mats.slice(0, 3).map(([m, n]) => `${esc(m)} ×${n}`).join(', ')}${r.mats.length > 3 ? ` 외 ${r.mats.length - 3}` : ''}</span>` : '';
   const focus = ms === 'scout' ? [mapT, gotT, matT] : ms === 'hunt' ? [matT, gotT, mapT] : [gotT, matT, mapT];
   return `<li class="bk ${dead.length ? 'die' : r.ok ? 'ok' : 'no'}"><div class="bk-h"><b>${(r.t ?? i) + 1}조</b> ${FLOORS[r.f].name} <span class="ms-tag ${ms}">${MISSION_NAME[ms]}</span> <span class="dim">${T.fd ?? D.length}일 · 구간 ${D.length} · 성공 ${wins} · ${TRIP_END[T.end]}</span>
     <button type="button" class="sc-open" data-act="scene" data-src="${src}" data-i="${i}" aria-label="${(r.t ?? i) + 1}조 탐사 재생">▶ 보기</button></div>
     <div class="bk-d"><span class="days">${days || '<i class="dk"></i>'}</span>${packBar(T.slots, T.torch - T.tu, Math.max(0, (r.potC || 0) - (r.pots || 0)), T.pack, (T.food || 0) - (T.fu || 0), (T.tools || 0) - (T.tk || 0), T.pm || 0, T.pt || 0)}</div>
-    <div class="bk-r">${focus[0]}${dead.length ? `<b class="dead-n">† ${dead.map(z => esc(z.n)).join(', ')}</b>` : ''}${focus[1]}${focus[2]}${r.hurt ? `<span class="neg">부상 ${r.hurt}</span>` : ''}</div></li>`;
+    <div class="bk-r">${luckHtml(r)}${focus[0]}${dead.length ? `<b class="dead-n">† ${dead.map(z => esc(z.n)).join(', ')}</b>` : ''}${focus[1]}${focus[2]}${r.hurt ? `<span class="neg">부상 ${r.hurt}</span>` : ''}</div></li>`;
 }
 
 // 날 띠: 이번 달 열흘. 지난 날 · 오늘 · 돌아올 조가 있는 날(예정)
@@ -193,12 +195,23 @@ export function hallHtml(W: World, raw: Plan) {
       <div class="panel readys"><header><h2>나갈 수 있는 조</h2>${ready.length > 1 ? `<button type="button" class="ghost sm" data-act="send-all">${ready.every(x => x.T.go) ? '예정 모두 거두기' : '모두 보내기'}</button>` : ''}</header>
         ${ready.length ? `<ul class="rds">${ready.map(({ T, t }) => `<li><b>${t + 1}조</b> ${FLOORS[T.f].name} <span class="ms-tag ${T.mission || 'gather'}">${MISSION_NAME[T.mission || 'gather']}</span> <span class="dim">${T.m.filter(x => x != null).length}명 · ${CO.TRIP_DAYS[T.f]}일 길</span>${sendBtn(T, t)}</li>`).join('')}</ul>` : '<p class="note">본부에 짐을 다 싼 조가 없어요 (편성은 출정에서)</p>'}
         <button type="button" class="link" data-act="exp">출정 편성 →</button></div>
+      ${candPanel(W)}
       <div class="panel month"><header><h2>제${W.month}월 장부</h2><span class="right">${W.day || 1}일 / ${CO.MONTH_DAYS}일</span></header>
         <dl class="fc-line"><div><dt>돌아온 조</dt><dd>${monthBack}</dd></div><div><dt>짐 예측</dt><dd>${fmt(haul)}G</dd></div><div><dt>바로 쓴 돈</dt><dd>${fmt(spent)}G</dd></div></dl>
         ${adminBar(W, P)}
         <p class="note">채집품은 창고에서 팔 날을 고른다 (시세는 날마다) · 전리품 · 급여 · 본부 유지비는 그믐에</p></div>
       ${nextDayBtn(W, 'big', ready.filter(x => x.T.go).length)}
     </aside></div>`;
+}
+
+// 지원자: 오늘까지 찾아온 사람 · 오늘 새로 온 사람 · 내일 들어올 신입 (계약은 인원 창에서)
+function candPanel(W: World) {
+  const c = us(W), now = candNow(W), day = W.day || 1, fresh = now.filter(p => (p.ad || 1) === day).length, Q = c.hireQ || [];
+  if (!c.crew || (!now.length && !Q.length)) return '';
+  return `<div class="panel cands"><header><h2>지원자</h2><span class="right">${now.length}명${fresh && day > 1 ? ` · 오늘 ${fresh}명` : ''}</span></header>
+    ${Q.length ? `<p class="note">내일 합류 ${Q.map(p => `<b>${esc(nameOf(p))}</b> ${p.c}`).join(' · ')}</p>` : ''}
+    <p class="note">빈 침상 ${roomOf(c)}개 · ${now.length ? [...new Set(now.map(p => p.c))].join(' · ') : '기다리는 사람 없음'}</p>
+    <button type="button" class="link" data-act="place" data-place="staff">인원 · 계약 →</button></div>`;
 }
 
 // ---------- 창고의 채집품과 시장 소식 ----------

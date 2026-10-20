@@ -2,7 +2,7 @@
 // 정보 주차 — 자료함(보고서·신문·도감·조사 결과)을 열어 읽고, 조사 의뢰를 걸고, 정보망과 내정(건물·보급·창고·세력)을 정한다.
 // 탐험 주차 — 이번 달 조사를 옆에 두고 층마다 몇 조를 무엇을 챙겨 보낼지 정하고 도장을 찍는다. 결과는 다음 달 보고서가 된다.
 // 화면은 HTML 문자열만 만든다. 상태를 쓰지 않고 난수도 쓰지 않는다
-import { adminFee, adminOf, setClerks, awayIds, boughtOf, holyRoom, teamReady, forecastTrips, type Team, floorMons, CO, FLOORS, INTEL, ITEMS, TAX, type Filing, type Job, type Person, clamp, jobsExplore, mapOf, torchOf, undMods, jobsOpen, jobsSign, taxGuess, torchBuy, fireCost, potShock, potionNow, foodBuy, mendBuy, carryOf, foodDays, mendOf, torchRate, torchOdds, wageCo, candPrice, candWants, hqCost, hqKeep, hqLv, fcRank, forecast, townOf, type Plan, SRCS, type World, bedsOf, isRook, rookCount, churchPrice, dormCost, dormKeep, roomOf, wageOf, gearBuy, intelBlock, intelCost, lootMul, maxParties, needOf, potsExpiring, potsOf, probeCost, probesLeft, sanitize, sortieCost, succRate, supOf, toolCost, trainBonus, us } from '../../core/company';
+import { adminFee, adminOf, setClerks, awayIds, boughtOf, holyRoom, teamReady, forecastTrips, type Team, floorMons, CO, FLOORS, INTEL, ITEMS, TAX, type Filing, type Job, type Person, clamp, jobsExplore, mapOf, torchOf, undMods, jobsOpen, jobsSign, taxGuess, torchBuy, fireCost, potShock, potionNow, foodBuy, mendBuy, carryOf, foodDays, mendOf, torchRate, torchOdds, wageCo, candNow, grOf, hqCost, hqKeep, hqLv, fcRank, forecast, townOf, type Plan, SRCS, type World, bedsOf, isRook, rookCount, churchPrice, dormCost, dormKeep, roomOf, wageOf, gearBuy, intelBlock, intelCost, lootMul, maxParties, needOf, potsExpiring, potsOf, probeCost, probesLeft, sanitize, sortieCost, succRate, supOf, toolCost, trainBonus, us } from '../../core/company';
 import { CLASSES, GEARS, BUYERS, PAIR_CLASS } from '../../core/data';
 import { askPanel, bookHtml, condLabel, demandsNow, kitHint } from './book';
 import { SRC_INFO, intelHtml, rumorsHtml } from './intel';
@@ -21,7 +21,7 @@ export type DeskUi = { phase: number; tab: string; seen?: number; dexMon?: strin
   file?: Partial<Filing>;   // 가정산에서 고치는 신고서
   pick?: { t?: number; s?: number; id?: number } | null;
   sort?: Record<string, string>;   // 명단 정렬 (rs 인원 명단 · cd 지원자 · as 편성표): "열:방향"
-  place?: string; town?: boolean; exp?: boolean; store?: boolean };   // store: 창고 창   // exp: 출정 편성 창   // town: 길드 홀 대신 마을 지도와 결재안을 펼쳐 둔다   // 내정에서 열어 둔 장소 창 (인원 · 건물 · 상단 거리 · 교회 · 정보망)   // 편성판에서 집어 든 사람 (조의 자리, 또는 대기 인원)
+  place?: string; town?: boolean; exp?: boolean; store?: boolean; who?: number };   // who: 인원 창에서 기록 카드를 펼친 단원   // store: 창고 창   // exp: 출정 편성 창   // town: 길드 홀 대신 마을 지도와 결재안을 펼쳐 둔다   // 내정에서 열어 둔 장소 창 (인원 · 건물 · 상단 거리 · 교회 · 정보망)   // 편성판에서 집어 든 사람 (조의 자리, 또는 대기 인원)
 const lvOf = (W: World, k: keyof typeof INTEL.BASE) => (W.intel ? W.intel.lv[k] : INTEL.BASE[k]);
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
@@ -233,7 +233,7 @@ function buyPanel(W: World, raw: Plan, P: Plan) {
 // 조당 기본 채비: 층마다 한 조가 들고 갈 포션 · 횃불 · 식량(며칠치) · 정비 도구. 편성표에서 조마다 바꿀 수 있다
 function kitPanel(W: World, P: Plan) {
   const c = us(W), rows = FLOORS.slice(0, W.unlocked).map((F, f) => {
-    const n = (P.teams || []).filter(T => T.f === f).length, room = CO.PARTY * CO.SLOT_PP;
+    const n = (P.teams || []).filter(T => T.f === f).length, room = Math.round(CO.PARTY * CO.SLOT_PP);
     const used = (P.pots[f] || 0) + carryOf(P, f) + Math.ceil(foodDays(P, f) * CO.PARTY / CO.FOOD_SLOT) + mendOf(P, f);
     const u = Math.round(mapOf(c, f)), dark = torchOdds(f, carryOf(P, f), torchRate(f, u)).dark;
     return `<tr><td><b>${F.name}</b>${n ? `<small>이번 달 ${n}조</small>` : ''}</td><td>${stepper('pots', f, P.pots[f] || 0, `${F.name} 포션`)}</td>
@@ -312,26 +312,25 @@ function boardPanel(W: World, raw: Plan) {
 // 이번 달 찾을 신입 (비워 두면 빈 침상만큼)
 // 이번 달 지원자 예측 (가운데 값). 직업별 몫은 이것으로 예측한다
 
-// 이번 달 뽑으려는 신입: 우리는 지원자 명단에서 고른 사람(고르지 않으면 빈 침상만큼 기본 편성 순), 계약금은 사람마다
-const recruitPicks = (W: World, raw: Plan) => candWants(W, us(W), raw, roomOf(us(W)));
-const recruitOf = (W: World, raw: Plan) => (us(W).crew ? recruitPicks(W, raw).length : raw.recruit == null ? roomOf(us(W)) : Math.min(roomOf(us(W)), raw.recruit));
-const recruitCost = (W: World, raw: Plan) => (us(W).crew ? recruitPicks(W, raw).reduce((a, p) => a + candPrice(p, CO.RECRUIT), 0) : recruitOf(W, raw) * CO.RECRUIT);
+// (우리는 날마다 지원자 명단에서 계약한다: 이번 달 계약한 사람 수와 이미 낸 계약금)
+const recruitOf = (W: World, raw: Plan) => (us(W).crew ? (boughtOf(W).hired || []).length : raw.recruit == null ? roomOf(us(W)) : Math.min(roomOf(us(W)), raw.recruit));
+const recruitCost = (W: World, raw: Plan) => (us(W).crew ? boughtOf(W).cost.recruit || 0 : recruitOf(W, raw) * CO.RECRUIT);
 function staffPanel(W: World, raw: Plan, ui: DeskUi) {
   const c = us(W), beds = bedsOf(c), rook = rookCount(c), hurtN = (c.crew || []).filter(x => x.hurt).length, pend = c.pendingBeds || 0, L = W.last;
-  const want = recruitOf(W, raw), build = !!raw.dorm && !pend, est = W.intel && W.intel.est.apps;
+  const want = c.crew ? (c.hireQ || []).length : recruitOf(W, raw), build = !!raw.dorm && !pend, est = W.intel && W.intel.est.apps;
   const fames = W.cos.filter(x => x.style !== 'crowd').map(x => x.fame || 0).sort((a, b) => b - a), fr = fames.indexOf(c.fame || 0) + 1;
   // 침상 그림: 칸 하나가 침상 하나 (대원 · 수습 · 이번 달 뽑을 신입 · 빈 침상 · 공사 중)
   const cells = [...Array(c.members - rook).fill('vet'), ...Array(rook).fill('rook'), ...Array(want).fill('new'), ...Array(Math.max(0, beds - c.members - want)).fill(''), ...Array(pend || (build ? CO.DORM_ADD : 0)).fill('build')];
   const lastW = L ? L.res.reduce((a, r) => a + r.recruitWant, 0) : 0, lastG = L ? L.res.reduce((a, r) => a + r.recruited, 0) : 0;
   return `<div class="panel staff"><header><h2>인원</h2><span class="sub">명성 ${Math.round(c.fame || 0)}${L ? ` · 변경 ${fr}위` : ''}</span></header>
     <div class="st-kpi">
-      <div><small>인원</small><b>${c.members}</b><i>${rook ? `수습 ${rook}명` : c.crew ? `숙련 이상 ${c.crew.filter(x => (x.sk ?? 40) >= 2 * CO.TIER_STEP).length}명` : '모두 대원'}${hurtN ? ` · 부상 ${hurtN}명` : ''}</i></div>
+      <div><small>인원</small><b>${c.members}</b><i>${rook ? `수습 ${rook}명` : c.crew ? `고참 이상 ${c.crew.filter(x => grOf(x) >= 2).length}명` : '모두 대원'}${hurtN ? ` · 부상 ${hurtN}명` : ''}</i></div>
       <div><small>침상</small><b>${beds}</b><i>${pend ? `공사 중 +${pend}` : `빈 침상 ${roomOf(c)}${c.clerks ? ` · 서기 ${c.clerks}` : ''}`}</i></div>
       <div><small>보낼 수 있는 조</small><b>${maxParties(c)}</b><i>${hurtN ? '부상자 빼고 · ' : ''}4명이 한 조</i></div>
       <div><small>월 급여</small><b>${fmt(wage(W, raw))}G</b><i>${c.crew ? `실력 단계대로${c.clerks ? ` · 서기 ${c.clerks}명` : ''}` : want ? `신입 들면 ${fmt(wageOf(c.members + want))}G` : '1인 30G + 관리비'}</i></div>
     </div>
     <div class="beds" role="img" aria-label="침상 ${beds}개 중 대원 ${c.members - rook}, 수습 ${rook}, 이번 달 뽑을 신입 ${want}">${cells.map((k, i) => `<i class="bed ${k}${i && i % 4 === 0 ? ' gap' : ''}"></i>`).join('')}</div>
-    <div class="legend"><span><i class="bed vet"></i>대원</span><span><i class="bed rook"></i>수습</span><span><i class="bed new"></i>이번 달 신입</span><span><i class="bed"></i>빈 침상</span><span><i class="bed build"></i>공사 중</span></div>
+    <div class="legend"><span><i class="bed vet"></i>대원</span><span><i class="bed rook"></i>수습</span><span><i class="bed new"></i>${c.crew ? '내일 들어올 신입' : '이번 달 신입'}</span><span><i class="bed"></i>빈 침상</span><span><i class="bed build"></i>공사 중</span></div>
     <div class="blds">
       ${c.hq ? bldCard('house', '숙소', `${hqLv(c, 'dorm') + 1}단계 · 침상 ${beds}`, c.pendingHq === 'dorm' ? '증축 공사 중 · 다음 달 정산 때 완공' : hqCost(c, 'dorm') ? `다음 단계 침상 ${CO.HQ_BEDS[hqLv(c, 'dorm') + 1]} · 공사비 ${fmt(hqCost(c, 'dorm'))}G · 본부(건물 창)에서 올려요` : '끝까지 올렸어요 (50명)', '<button type="button" class="link" data-act="place" data-place="train">본부 보기</button>') : bldCard('house', '숙소', `침상 ${beds}${pend ? ` → ${beds + pend}` : ''}`, pend ? `증축 공사 중 · 다음 달 정산 때 침상 +${pend}` : `증축하면 다음 달 침상 +${CO.DORM_ADD} · 공사비 ${fmt(dormCost(c))}G · 침상마다 유지비 월 ${CO.DORM_KEEP}G`,
         pend ? '<span class="lvl dim">공사 중</span>' : `<button type="button" class="tog" data-act="dorm" aria-pressed="${build}">${build ? '증축 취소' : '증축하기'}</button>`)}
@@ -339,7 +338,7 @@ function staffPanel(W: World, raw: Plan, ui: DeskUi) {
       ${c.crew ? '' : bldCard('recruit', '신입 모집', `1인 ${CO.RECRUIT}G부터`, `빈 침상 ${roomOf(c)}개까지 · 다음 달부터 수습으로 조에 끼고, 낀 조가 ${CO.ROOK_WINS}번 성공하면 대원`,
         `<span class="ctl2">${stepper('recruit', 0, want, '뽑을 신입 수')}${raw.recruit == null ? '<small>빈 침상만큼</small>' : '<button type="button" class="link" data-act="auto-recruit">빈 침상만큼</button>'}</span>`)}
     </div>
-    ${c.crew ? `<h3 class="rs-h">단원 명단</h3>${rosterHtml(W, (ui.sort || {}).rs, raw)}<h3 class="rs-h">지원자 명단 <span class="dim">이번 달 우리 문을 두드린 사람</span></h3>${candHtml(W, raw, (ui.sort || {}).cd)}` : ''}
+    ${c.crew ? `<h3 class="rs-h">단원 명단</h3>${rosterHtml(W, (ui.sort || {}).rs, raw, ui.who)}<h3 class="rs-h">지원자 명단 <span class="dim">오늘까지 우리 문을 두드린 사람</span></h3>${candHtml(W, raw, (ui.sort || {}).cd)}` : ''}
     <p class="note">마을 지원자 이번 달 ${est ? (est.lo === est.hi ? `${est.lo}명` : `${est.lo}~${est.hi}명`) : '?'}${L ? (lastW ? ` · 지난달엔 모두 ${lastW}명을 찾아 ${lastG}명이 들어갔고 1인 ${fmt(L.res[0].recruitPrice || CO.RECRUIT)}G` : ' · 지난달엔 신입을 찾은 곳이 없었어요') : ''}. 찾는 사람이 더 많으면 값이 오르고, 명성이 높은 곳에 먼저 가요.</p>
   </div>`;
 }
@@ -427,7 +426,7 @@ function sealsOf(W: World, raw: Plan): Record<string, string> {
   const sign = jobsSign(W).length + jobsExplore(W).length;
   return {
     board: sign ? String(sign) : '',
-    staff: room && !rn && !P.dorm ? `빈 침상 ${room}` : hurt ? `부상 ${hurt}명 쉼` : '',
+    staff: room && c.crew && candNow(W).some(p => (p.ad || 1) === (W.day || 1)) ? '새 지원자' : room && !rn && !P.dorm ? `빈 침상 ${room}` : hurt ? `부상 ${hurt}명 쉼` : '',
     market: X.pot ? `포션 ${X.pot}병 상함` : need.pot > H.pot + H.holy + potBuy(W, raw, P) + ((raw.buy && raw.buy.holy) || 0) ? '포션 모자람' : '',
     church: R ? '근원 기금' : '',
     alley: near.length ? `${SRC_INFO[near[0]].n} 곧 다음 단계` : '',

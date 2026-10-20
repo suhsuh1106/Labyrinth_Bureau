@@ -24,11 +24,18 @@ import { floorMax, keyOf } from '../src/core/company';
 import { fcRank, forecast, gradeOf } from '../src/core/company';
 import { bedsOf, classCap, dormCost, dormKeep, formTeams, recruitPrice, recruitWants, rookCount, rookSlots, shareOut } from '../src/core/company';
 import { CLASSES } from '../src/core/data';
-import { needOf, tripOdds, potShock, profitOf, drillGain, weakShare, badShare, classBad, synOf, synTags, synNext, teamSlots, SYN } from '../src/core/company';
+import { needOf, tripOdds, potShock, profitOf, drillGain, weakShare, badShare, classBad, synOf, synTags, teamSlots } from '../src/core/company';
 import { WEAK_KEYS } from '../src/core/data';
 import { DEX, askable, badSure } from '../src/core/dex';
 import { dayAbs, nextDay, openMonth, sellStock, sendReady, stateOf, stockValue } from '../src/core/company';
 import { MISSIONS, sendQueued } from '../src/core/company';
+import { candNow, crewOf, hireNow, hirePrice, aptB, skUp, skCap, hidSeen, grOf, eligible, promoteDue, promote, winsFrom, personWage } from '../src/core/company';
+import { HIDDEN } from '../src/core/data';
+import { rosterHtml } from '../src/ui/co/roster';
+import { returnsHtml } from '../src/ui/co/reveal';
+import { backLine } from '../src/ui/co/hall';
+// 옛 시작(16명 · 네 조)을 전제로 한 규칙 테스트: 우리 명단을 16명으로 바꾸고 지원자는 비운다
+const big = (W: World) => { const c = us(W); c.crew = crewOf(16); c.members = 16; c.nextId = 16; c.sup!.pot = [12]; W.cand = []; return W; };
 import { evOf } from '../src/core/expedition';
 
 describe('용병단 장부', () => {
@@ -94,10 +101,10 @@ describe('용병단 시장', () => {
     });
   });
   it('플레이어가 단원보다 많이 보내도 규칙 안으로 맞춰지고, 캐 온 전리품은 그달에 모두 판다', () => {
-    setSeed(5); const W = newWorld();
+    setSeed(5); const W = big(newWorld());
     const P = emptyPlan(); P.parties = [99, 99, 0, 0, 0];
     const M = runMonth(W, P);
-    expect(M.res[0].sent.reduce((a, b) => a + b, 0)).toBe(Math.floor(CO.START_SIZE / CO.PARTY));
+    expect(M.res[0].sent.reduce((a, b) => a + b, 0)).toBe(Math.floor(16 / CO.PARTY));
     expect(M.res[0].sent[1]).toBe(0);        // 2층은 아직 닫혀 있다
     M.res.forEach((r, i) => { if (W.cos[i].style !== 'crowd') expect(r.sold).toEqual(r.got); });
     expect(M.Q[0]).toBe(M.res.reduce((a, r) => a + r.sold[0], 0));
@@ -185,9 +192,9 @@ describe('상단·교회와 포션 담합', () => {
 describe('교회 성수 포션', () => {
   it('같은 병 수라도 교회 포션을 쓰면 사망이 줄어든다', () => {
     let a = 0, b = 0;
-    for (let g = 1; g <= 30; g++) {
+    for (let g = 1; g <= 60; g++) {
       for (const church of [0, 9999]) {
-        setSeed(g); const W = newWorld(); W.unlocked = 4;
+        setSeed(g); const W = big(newWorld()); W.unlocked = 4;
         // 깊은 층에 포션 한 병씩만 들려 보내 포션이 모자라게 한다 (성수는 HOLY의 확률로 병을 비우지 않고 막는다)
         for (let m = 0; m < 6; m++) { const P = sanitize(W, us(W), BOT.even(W)); P.teams!.forEach(T => { T.f = 3; T.pots = 1; }); P.buy = { holy: church }; const M = runMonth(W, P); if (church) a += M.res[0].deaths; else b += M.res[0].deaths; }
       }
@@ -409,7 +416,7 @@ describe('전리품 비율과 몬스터 적응', () => {
     expect(top(seen.gather)).toBe('g'); expect(top(seen.hunt)).toBe('f'); expect(top(seen.scout)).toBe('t');
   });
   it('보내기는 예정만 잡고, 다음 날 단추를 누르면 그날 떠난다 (나갈 수 없게 된 조는 예정을 지운다)', () => {
-    setSeed(5); const W = newWorld(), c = us(W);
+    setSeed(5); const W = big(newWorld()), c = us(W);
     const P = sanitize(W, c, defaultPlan(W)); P.teams![0].go = true; P.teams![1].go = true;
     const Q = sanitize(W, c, P);
     expect(Q.teams![0].go).toBe(true); expect(Q.teams![2].go).toBeUndefined();
@@ -427,7 +434,7 @@ describe('전리품 비율과 몬스터 적응', () => {
     for (const ms of MISSIONS) {
       const x = sum[ms] = { got: 0, mats: 0, map: 0, cr: 0, n: 0 };
       for (let g = 1; g <= 6; g++) {
-        setSeed(g); const W = newWorld(); W.unlocked = 2;
+        setSeed(g); const W = big(newWorld()); W.unlocked = 2;
         for (let m = 0; m < 2; m++) {
           const P = sanitize(W, us(W), defaultPlan(W)); P.teams!.forEach((T, t) => { T.f = t % 2; T.mission = ms; });
           const M = runMonth(W, P); closeBooks(W);
@@ -441,7 +448,7 @@ describe('전리품 비율과 몬스터 적응', () => {
     expect(sum.gather.cr / sum.gather.n).toBeLessThan(sum.hunt.cr / sum.hunt.n);
   });
   it('편성표에서 조마다 포션 · 횃불을 정하고, 죽은 단원은 이름과 날이 기록된다', () => {
-    setSeed(6); const W = newWorld(), c = us(W);
+    setSeed(6); const W = big(newWorld()), c = us(W);
     const P = sanitize(W, c, defaultPlan(W)); P.teams![0].pots = 2; P.teams![0].torch = 5; P.teams![1].pots = 0; P.teams![1].torch = 1;
     const Q = sanitize(W, c, P), need = needOf(Q);
     expect(need.torch).toBe(5 + 1 + Q.teams!.slice(2).reduce((a, T) => a + CO.TORCH0[T.f], 0));
@@ -501,11 +508,11 @@ describe('전리품 비율과 몬스터 적응', () => {
   });
   it('신입은 고른 지원자만 들어오고(빈 침상까지), 처음 숙소는 18자리라 바로 고를 수 있다', () => {
     setSeed(4); const W = newWorld(), c = us(W);
-    expect(bedsOf(c)).toBe(18); expect(roomOf(c)).toBe(2);
+    expect(bedsOf(c)).toBe(18); expect(roomOf(c)).toBe(18 - CO.US0);
     const none = carryPlan(W, defaultPlan(W)); expect(none.pick).toEqual([]);
-    runMonth(W, none); expect(c.crew!.length).toBeLessThanOrEqual(16);
-    const P = carryPlan(W, none); P.pick = (W.cand || []).slice(0, 2).map(x => x.id);
-    const r = runMonth(W, P).res[0]; expect(r.recruited).toBeLessThanOrEqual(2); expect(r.recruited).toBeGreaterThan(0);
+    runMonth(W, none); expect(c.crew!.length).toBeLessThanOrEqual(CO.US0);
+    const P = carryPlan(W, none); P.pick = candNow(W).slice(0, 2).map(x => x.id);
+    const r = runMonth(W, P).res[0]; expect(r.recruited).toBe(2); expect(c.crew!.length).toBe(CO.US0 - r.deaths + 2);
   });
   it('약점대로 들어간 파티가 몰리면 몬스터가 적응해 약점이 바뀌고, 경쟁자는 다시 깨쳐야 한다', () => {
     setSeed(36); const W: World = newWorld();
@@ -596,7 +603,7 @@ describe('갈무리 소재와 미궁 도감', () => {
 
 describe('보급 창고 · 전리품 보관 기한 · 조사 의뢰 · 편성 줄', () => {
   it('포션은 사 둔 것에서 쓴 만큼 줄고, 모자라면 조당 포션을 줄여 보낸다', () => {
-    setSeed(61); const W: World = newWorld(); us(W).sup = { pot: [], holy: [], gear: {} };   // 처음 챙겨 온 포션 없이
+    setSeed(61); const W: World = big(newWorld()); us(W).sup = { pot: [], holy: [], gear: {} };   // 처음 챙겨 온 포션 없이
     // 보낼 때 모자란 채비를 사지 않게 하면 사 둔 10병을 조들이 나눠 들고 간다 (창고가 비면 포션 없이)
     const P = BOT.even(W); P.buy = { pot: 10 }; P.autoBuy = false;
     const M = runMonth(W, P), r = M.res[0], out = (W.away || []).reduce((a, s) => a + s.kit.pots, 0);
@@ -610,7 +617,7 @@ describe('보급 창고 · 전리품 보관 기한 · 조사 의뢰 · 편성 �
     expect(potsOf(us(W)).pot).toBeGreaterThan(400);
   });
   it('장비는 한 벌을 조 하나가 들고 가고, 모자라면 그만큼은 장비 없이 가며, 망가진 만큼 창고에서 빠진다', () => {
-    setSeed(62); const W: World = newWorld();
+    setSeed(62); const W: World = big(newWorld());
     const P = sanitize(W, us(W), BOT.even(W)); P.teams!.forEach(T => { T.g = 'g:냉기'; }); P.buy = { gear: { 냉기: 2 } }; P.autoBuy = false;
     expect(P.teams!.length).toBe(4);
     const M = runMonth(W, P), r = M.res[0], out = (W.away || []).filter(s => s.kit.gear === '냉기').length;
@@ -647,7 +654,7 @@ describe('보급 창고 · 전리품 보관 기한 · 조사 의뢰 · 편성 �
     expect(probe(W, 'mkt')).toBeTruthy();
   });
   it('우리 조는 기본 편성대로 짜고, 모자란 자리는 비우거나 남은 사람으로 채운다', () => {
-    setSeed(65); const W: World = newWorld(), c = us(W);
+    setSeed(65); const W: World = big(newWorld()), c = us(W);
     expect(CLASSES.map(k => c.crew!.filter(x => x.c === k).length)).toEqual([6, 3, 2, 2, 3]);   // 전사 궁수 마법사 사제 도적
     const bare = formTeams(c, [4, 0, 0, 0, 0], CO.TPL0, false);
     expect(bare.map(T => T.m.filter(x => x != null).length)).toEqual([4, 4, 3, 1]);   // 마법사가 둘, 궁수·도적이 셋뿐이다
@@ -673,7 +680,7 @@ describe('보급 창고 · 전리품 보관 기한 · 조사 의뢰 · 편성 �
     expect(a).toBeGreaterThan(b); expect(ga).toBeGreaterThan(gb * 1.5);
   });
   it('다음 달엔 짜 둔 조를 그대로 두고, 죽은 자리만 비우고 새로 온 사람을 그 자리 직업에 맞춰 넣는다', () => {
-    setSeed(66); const W: World = newWorld(), c = us(W);
+    setSeed(66); const W: World = big(newWorld()), c = us(W);
     const P = sanitize(W, c, defaultPlan(W));
     const gone = P.teams![1].m[1]!;   // 둘째 조의 궁수
     c.crew = c.crew!.filter(x => x.id !== gone).concat([{ id: 99, c: '궁수', rk: 0 }]); c.members = c.crew.length;
@@ -752,31 +759,42 @@ describe('위기와 포션', () => {
 describe('숙소 · 신입 모집 · 수습 · 명성', () => {
   it('모두 작게 시작하고, 침상은 처음 인원만큼이다 (우리 숙소는 여유 둘)', () => {
     setSeed(1); const W = newWorld();
-    expect(us(W).members).toBe(CO.START_SIZE);
+    expect(us(W).members).toBe(CO.US0); expect(us(W).crew!.filter(x => x.lead)).toHaveLength(1);
     W.cos.forEach(c => { if (c.style !== 'crowd') expect(bedsOf(c)).toBe(c.crew ? CO.HQ_BEDS[0] : c.members); });
     expect(us(W).cash).toBe(CO.START_CASH);
   });
-  it('신입은 지원자 명단에서 빈 침상까지만 뽑히고, 고른 사람이 이름 · 실력 · 특성 그대로 들어온다', () => {
-    setSeed(3); const W = newWorld(); us(W).hq!.dorm = 1; W.apps = 99;   // 숙소 2단계: 침상 24
-    const cand = W.cand!; expect(cand.length).toBe(Math.min(CO.CAND_MAX, CO.APP0));
+  it('지원자는 그달 며칠에 걸쳐 찾아오고, 계약하면 계약금이 바로 나가고 다음 날 아침 이름 · 실력 · 특성 그대로 들어온다 (그날 안엔 물릴 수 있다)', () => {
+    setSeed(3); const W = newWorld(), c = us(W);
+    const cand = [...W.cand!]; expect(cand.length).toBe(10);
     cand.forEach(p => { expect(p.n).toBeTruthy(); expect(TRAITS[p.tr!]).toBeTruthy(); });
-    const P = defaultPlan(W); P.pick = cand.map(p => p.id).reverse();
-    const M = runMonth(W, P), r = M.res[0], room = CO.HQ_BEDS[1] - (CO.START_SIZE - r.deaths);
-    expect(r.recruitWant).toBe(Math.min(room, cand.length));
-    expect(us(W).members).toBeLessThanOrEqual(bedsOf(us(W)));
-    const got = [...cand].reverse().slice(0, r.recruited);   // 고른 순서대로 들어온다
-    got.forEach(p => expect(us(W).crew!.some(x => x.n === p.n && x.sk === p.sk && x.tr === p.tr && x.c === p.c)).toBe(true));
-    expect(r.spend.recruit).toBe(got.reduce((a, p) => a + candPrice(p, r.recruitPrice), 0));
-    expect(W.cand!.length).toBeGreaterThan(0); expect(W.cand![0].id).not.toBe(cand[0].id);   // 다음 달 명단은 새로 온다
+    const now = candNow(W); expect(now.length).toBeGreaterThan(1); expect(now.length).toBeLessThan(cand.length);   // 첫날엔 몇 명만
+    const cash = c.cash, p = now[0], q = now[1], v = hireNow(W, p.id);
+    expect(v).toBe(candPrice(p, CO.RECRUIT)); expect(c.cash).toBe(cash - v);
+    expect(roomOf(c)).toBe(18 - CO.US0 - 1); expect(c.crew!.length).toBe(CO.US0);   // 내일 들어온다 (침상은 잡아 둔다)
+    expect(hireNow(W, p.id)).toBe(-v); expect(c.cash).toBe(cash); expect(candNow(W).some(x => x.id === p.id)).toBe(true);   // 물리기
+    hireNow(W, p.id); hireNow(W, q.id);
+    const P = emptyPlan(); nextDay(W, P);
+    expect(c.crew!.length).toBe(CO.US0 + 2); expect(c.hireQ).toBeUndefined();
+    [p, q].forEach(x => expect(c.crew!.some(y => y.n === x.n && y.sk === x.sk && y.tr === x.tr && y.c === x.c && y.ad == null)).toBe(true));
+    expect(new Set(c.crew!.map(x => x.id)).size).toBe(c.crew!.length);
+    const later = cand.filter(x => x.ad! > 2); expect(later.length).toBeGreaterThan(0);
+    later.forEach(x => expect(candNow(W).some(y => y.id === x.id)).toBe(false));   // 뒤에 오는 사람은 그날이 돼야 보인다
+    // 그믐 정산: 계약금이 신입 줄에 들고, 다음 달 명단은 새로 온다
+    let M = null; while (!M) M = nextDay(W, P);
+    expect(M.res[0].recruited).toBe(2); expect(M.res[0].spend.recruit).toBe(candPrice(p, CO.RECRUIT) + candPrice(q, CO.RECRUIT));
+    expect(W.cand!.length).toBeGreaterThan(0); expect(W.cand!.some(x => cand.some(y => y.id === x.id))).toBe(false);
   });
   it('고르지 않으면 직업별로 찾는 만큼 그 직업 지원자 중 실력 좋은 사람부터 뽑고, 드문 직업 · 높은 실력은 비싸다', () => {
     setSeed(5); const W = newWorld(), c = us(W); c.hq!.dorm = 2; W.apps = 20;
     const P = defaultPlan(W); P.recruitC = { 마법사: 9, 사제: 1 };
-    const want = candWants(W, c, sanitize(W, c, P), 14), mages = W.cand!.filter(p => p.c === '마법사');
+    const want = candWants(W, c, sanitize(W, c, P), 14), mages = candNow(W).filter(p => p.c === '마법사');
     expect(want.filter(p => p.c === '마법사').length).toBe(Math.min(mages.length, classCap(20, '마법사')));
     expect(want.filter(p => p.c === '마법사').map(p => p.sk)).toEqual(mages.map(p => p.sk!).sort((a, b) => b - a).slice(0, want.filter(p => p.c === '마법사').length));
-    const r = runMonth(W, P).res[0];
-    expect(r.spend.recruit).toBe(want.slice(0, r.recruited).reduce((a, p) => a + candPrice(p, r.recruitPrice), 0));
+    // 한 달 몫이라 사제는 하나만, 마법사는 그달 찾아온 둘 모두 (첫날 하나 · 닷새째 하나)
+    const all = [...W.cand!], r = runMonth(W, P).res[0];
+    expect(r.recruitC).toEqual({ 마법사: 2, 사제: 1 });
+    const got = all.filter(p => r.newP!.includes(p.id));
+    expect(r.spend.recruit).toBe(got.reduce((a, p) => a + candPrice(p, r.recruitPrice), 0));
     const lo = { id: 1, c: '전사', sk: 5 }, hi = { id: 2, c: '마법사', sk: 50 };
     expect(candPrice(hi, 80)).toBeGreaterThan(candPrice(lo, 80));
   });
@@ -822,8 +840,9 @@ describe('숙소 · 신입 모집 · 수습 · 명성', () => {
     setSeed(8); const W = newWorld(); W.cos.forEach(c => { c.beds = c.members + 8; }); W.apps = 5;
     openMonth(W);   // 경쟁 용병단은 달 첫날 계획을 세운다 (늘린 침상을 보고 다시)
     const M = runMonth(W, defaultPlan(W));
-    expect(M.res.reduce((a, r) => a + r.recruited, 0)).toBe(5);
-    expect(M.res[0].recruitPrice).toBeGreaterThan(CO.RECRUIT);
+    expect(M.res.reduce((a, r) => a + r.recruited, 0) - M.res[0].recruited).toBe(Math.max(0, 5 - M.res[0].recruited));   // 우리 문을 두드린 사람을 뺀 나머지를 나눈다
+    expect(M.res[1].recruitPrice).toBeGreaterThan(CO.RECRUIT);
+    expect(hirePrice(W)).toBe(M.res[1].recruitPrice);   // 우리 계약금은 지난달 값을 따른다
   });
   it('명성은 성공한 층만큼 오르고, 다음 달 지원자는 판매 수입을 따라 정해진다', () => {
     setSeed(2); const W = newWorld();
@@ -1092,7 +1111,7 @@ describe('영주청: 영주세 · 법령 · 가정산 · 감사', () => {
     FILE_KEYS.forEach(k => expect(Number.isInteger(F[k])).toBe(true));
   });
   it('미리보기는 상태를 바꾸지 않고, 덜 적은 만큼 이득과 의심이 늘고 감사 확률이 오른다', () => {
-    setSeed(7); const W = newWorld(); runMonth(W, defaultPlan(W)); const D = W.draft!;
+    setSeed(7); const W = big(newWorld()); runMonth(W, defaultPlan(W)); const D = W.draft!;
     const snap = JSON.stringify(W);
     const a = preview(W, D, {}), b = preview(W, D, { loot: Math.round(D.truth.loot * 0.7), pot: D.truth.pot + 6 }), c = preview(W, D, { loot: 0 });
     expect(JSON.stringify(W)).toBe(snap);
@@ -1105,7 +1124,7 @@ describe('영주청: 영주세 · 법령 · 가정산 · 감사', () => {
   });
   it('한도까지 부풀리면 감사가 오고, 걸린 이득의 세 배를 추징한다. 감사가 끝나면 의심과 장부는 지워진다', () => {
     let audits = 0;
-    for (let seed = 1; seed <= 6; seed++) {
+    for (let seed = 1; seed <= 10; seed++) {
       setSeed(seed); const W = newWorld();
       for (let m = 0; m < 18; m++) {
         runMonth(W, BOT.smart(W)); const D = W.draft!;
@@ -1209,7 +1228,7 @@ describe('미궁 도감 · 단장 · 지정 탐사', () => {
   });
   it('단장은 처음부터 가장 숙련된 사람이고, 죽지 않는다 (크게 다쳐 두 달 쉰다)', () => {
     let hurt = 0;
-    for (let g = 1; g <= 12; g++) {
+    for (let g = 1; g <= 30; g++) {
       setSeed(g); const W = newWorld(), c = us(W), lead = c.crew!.find(x => x.lead)!;
       expect(c.crew!.filter(x => x.lead).length).toBe(1);
       expect(lead.sk).toBe(Math.max(...c.crew!.map(x => x.sk || 0)));
@@ -1300,7 +1319,7 @@ describe('채비: 식량 · 정비 도구 · 해고', () => {
     const n0 = c.crew!.length, M = runMonth(W, P);
     expect(c.crew!.some(p => out.some(x => x.id === p.id))).toBe(false);
     expect(c.crew!.some(p => p.id === lead.id)).toBe(true);
-    expect(M.res[0].spend.fire).toBe(Math.round(out.reduce((a, p) => a + (CO.TIER_WAGE[tierOf(p)] - (p.tr === '새가슴' ? CO.CHICKEN_WAGE : 0)), 0) * CO.FIRE_PAY));
+    expect(M.res[0].spend.fire).toBe(Math.round(out.reduce((a, p) => a + personWage(p), 0) * CO.FIRE_PAY));   // (급여는 등급으로)
     expect(c.crew!.length).toBeLessThanOrEqual(n0 - 2 + M.res[0].recruited);
     expect(carryPlan(W, P).fire).toBeUndefined();
   });
@@ -1308,7 +1327,7 @@ describe('채비: 식량 · 정비 도구 · 해고', () => {
 
 describe('#46 피드백: 조 번호 · 약초 흉년 · 건물 자산', () => {
   it('귀환 기록의 조 번호는 편성표의 조 번호다 (뒤 조가 앞 층에 가도 그대로)', () => {
-    setSeed(6); const W = newWorld(), c = us(W);
+    setSeed(6); const W = big(newWorld()), c = us(W);
     W.unlocked = 2;
     const P = sanitize(W, c, defaultPlan(W));
     expect(P.teams!.length).toBe(4);
@@ -1384,21 +1403,14 @@ describe('약점 짝', () => {
   });
 });
 
-describe('조 시너지 · 단장', () => {
+describe('조 · 단장', () => {
   const P = (c: string, lead = false) => ({ id: 0, c, sk: 40, ...(lead ? { lead: true } : {}) }) as any;
-  it('직업 수로 시너지가 켜진다: 전사 둘이면 짐 한 칸 더, 단장이 있으면 역효과 없음', () => {
-    expect(synOf([P('전사'), P('궁수')]).war).toBe(false);
-    expect(synOf([P('전사'), P('전사')]).war).toBe(true);
-    expect(teamSlots([P('전사'), P('전사'), P('궁수'), P('도적')])).toBe(4 * CO.SLOT_PP + SYN.WAR2_SLOT);
-    expect(synOf([P('사제'), P('사제')]).pri2).toBe(true);
-    expect(synOf([P('마법사'), P('마법사')]).mag2).toBe(true);
-    expect(synOf([P('전사', true)]).lead).toBe(true);
-    expect(synTags([P('도적'), P('궁수'), P('궁수')]).map(t => t[1])).toEqual(['도적 1명', '궁수 2명']);
-    expect(synNext([P('전사'), P('사제'), P('도적'), P('궁수')]).map(t => t[0])).toEqual(['전사', '사제']);   // 반쯤 찬 짝이 먼저
-  });
-  it('도적이 끼면 그 조의 층 이해도가 오른다', () => {
+  it('직업 시너지는 없다: 짐 칸은 사람 수만큼, 단장이 있으면 역효과 없음', () => {
+    expect(teamSlots([P('전사'), P('전사'), P('궁수'), P('도적')])).toBe(Math.round(4 * CO.SLOT_PP));
+    expect(synOf([P('전사', true)]).lead).toBe(true); expect(synOf([P('전사')]).lead).toBe(false);
+    expect(synTags([P('도적'), P('궁수'), P('궁수')])).toEqual([]);
     setSeed(2); const W = newWorld(), c = us(W);
-    expect(teamUnd(c, 0, [P('도적'), P('전사')])).toBe(teamUnd(c, 0, [P('궁수'), P('전사')]) + SYN.ROG1_UND);
+    expect(teamUnd(c, 0, [P('도적'), P('전사')])).toBe(teamUnd(c, 0, [P('궁수'), P('전사')]));
   });
 });
 
@@ -1493,5 +1505,105 @@ describe('날 단위 턴 · 길드 홀', () => {
     const cash = us(W).cash, have = Math.floor(W.stock![0] + 1e-9), v = sellStock(W, 0);
     expect(v).toBeGreaterThan(0); expect(us(W).cash).toBe(cash + v); expect(Math.floor(W.stock![0] + 1e-9)).toBe(0);
     expect(W.mo!.res[0].sold[0]).toBeGreaterThanOrEqual(have);
+  });
+});
+
+describe('단원의 깊이: 임무 적성 · 잠재력 · 숨은 기질 · 1인 시너지', () => {
+  it('시작 명단과 첫 달 지원자는 판마다 같은 적성 · 잠재력 · 숨은 기질을 갖고, 뒤에 오는 지원자도 셋을 갖는다', () => {
+    setSeed(1); const a = newWorld(); setSeed(2); const b = newWorld();
+    const pick = (W: World) => [...us(W).crew!, ...W.cand!].map(p => [p.apt, p.pt, p.hd]);
+    expect(pick(a)).toEqual(pick(b));
+    us(a).crew!.forEach(p => { expect(p.pt).toBeGreaterThanOrEqual(p.sk!); expect(HIDDEN[p.hd!]).toBeTruthy(); });
+    runMonth(a, defaultPlan(a));
+    a.cand!.forEach(p => { expect(p.pt).toBeGreaterThan(p.sk!); expect(p.pt).toBeLessThanOrEqual(100); expect(HIDDEN[p.hd!]).toBeTruthy(); });
+  });
+  it('적성은 그 사건에서만 성공을 더하고, 숨은 기질은 탐사에만 들어가 화면의 어림은 모른다', () => {
+    const p = { id: 1, c: '전사', sk: 30, apt: 'scout' as const, hd: '천운' };
+    expect(aptB(p, 'scout')).toBe(CO.APT_SUCC); expect(aptB(p, 'gather')).toBe(0);
+    expect(memberMods([p], 0, 100, true).pp[0] - memberMods([p], 0).pp[0]).toBeCloseTo(HIDDEN['천운'].v);
+  });
+  it('잠재력에 가까울수록 실력이 덜 오르고 넘지 않으며, 잠재력은 끝까지 숨고 숨은 기질은 시간이 지나야 보인다', () => {
+    setSeed(3); const W = newWorld(), c = us(W), p = c.crew![1];   // 수련 34, 잠재력 55
+    expect(skUp(c, { ...p, sk: 20 }, 3)).toBe(23);
+    expect(skUp(c, { ...p, sk: 50 }, 3)).toBeCloseTo(51.5);
+    expect(skUp(c, { ...p, sk: 55 }, 3)).toBe(55);
+    expect(hidSeen(p)).toBe(false);
+    for (let m = 0; m < 3; m++) { runMonth(W, defaultPlan(W)); closeBooks(W); }
+    c.crew!.forEach(x => expect(x.sk!).toBeLessThanOrEqual(skCap(c, x)));
+    expect(hidSeen({ ...p, sg: [CO.HID_SEE, 20] })).toBe(true);
+    expect(rosterHtml(W)).not.toMatch(/잠재력|까지/);
+  });
+});
+
+describe('귀환 기록: 기대 대비', () => {
+  it('조원마다 나선 구간 · 해낸 구간 · 기대를 적고, 기대는 숨은 기질을 빼고 셈하며, 명단에 누적된다', () => {
+    let sumW = 0, sumE = 0, lucky = 0, luckyE = 0;
+    for (let g = 1; g <= 8; g++) {
+      setSeed(g); const W = newWorld(), c = us(W);
+      c.crew!.forEach(p => { p.hd = '천운'; });   // 모두 천운이면 기대보다 잘 해낸다
+      for (let m = 0; m < 2; m++) {
+        const M = runMonth(W, defaultPlan(W)); closeBooks(W);
+        M.ours.forEach(o => {
+          expect(o.sn!.length).toBe(o.nm!.length);
+          o.sn!.forEach((k, j) => { expect(o.sw![j]).toBeLessThanOrEqual(k); expect(o.se![j]).toBeLessThanOrEqual(k); });
+          lucky += o.sw!.reduce((a, b) => a + b, 0); luckyE += o.se!.reduce((a, b) => a + b, 0);
+        });
+      }
+      c.crew!.filter(p => p.sg && p.sg[0]).forEach(p => { sumW += p.sg![1]; sumE += p.sg![2]; expect(p.sg![2]).toBeLessThanOrEqual(p.sg![0]); });
+      expect(returnsHtml(W)).toContain('기대');
+    }
+    expect(lucky).toBeGreaterThan(luckyE); expect(sumW).toBeGreaterThan(sumE);
+  });
+});
+
+describe('귀환 줄', () => {
+  it('채집품을 못 캐 온 조(탐색 등)는 "0개 → 창고"를 적지 않는다', () => {
+    setSeed(4); const W = newWorld(); const M = runMonth(W, defaultPlan(W));
+    const o = { ...M.ours[0], got: 0, mission: 'scout' as const };
+    expect(backLine(o, 0, 'back')).not.toContain('→ 창고');
+    expect(backLine({ ...o, got: 5 }, 0, 'back')).toContain('5</b>개 → 창고');
+  });
+});
+
+describe('등급과 이력서', () => {
+  it('시작 인원은 견습 · 정식, 단장만 고참이고 급여는 등급으로 매긴다. 첫 달 지원자는 미궁 이력이 없다', () => {
+    setSeed(1); const W = newWorld(), c = us(W);
+    c.crew!.forEach(p => { expect(p.lead ? grOf(p) === 2 : grOf(p) <= 1).toBe(true); expect(personWage(p)).toBe(CO.TIER_WAGE[grOf(p)] - (p.tr === '새가슴' ? CO.CHICKEN_WAGE : 0)); expect(p.job).toBeTruthy(); });
+    W.cand!.forEach(p => { expect(grOf(p)).toBe(0); expect((p.pn || []).some(Boolean)).toBe(false); });
+  });
+  it('뒤에 오는 지원자는 열린 층까지의 이력서를 들고 오고, 자격 등급은 그 기록에서 나온다', () => {
+    setSeed(2); const W = newWorld(); W.unlocked = 3;
+    for (let m = 0; m < 3; m++) { runMonth(W, defaultPlan(W)); closeBooks(W); }
+    const all = W.cand!; expect(all.some(p => (p.pn || []).some(Boolean))).toBe(true);
+    all.forEach(p => { expect(grOf(p)).toBe(eligible(p)); (p.pn || []).forEach((n, f) => { if (f >= W.unlocked) expect(n).toBe(0); expect((p.pw || [])[f] || 0).toBeLessThanOrEqual(n); }); });
+  });
+  it('기록이 자격을 채우면 진급 예정자가 되고, 자격증을 주면 그 등급이 되며, 미루면 불만이 쌓여 떠난다 (위로금 없이)', () => {
+    const p = { id: 1, c: '전사', sk: 40, gr: 0, rw: [6, 0, 0, 0, 0] } as any;
+    expect(winsFrom(p, 0)).toBe(6); expect(eligible(p)).toBe(1); expect(promoteDue(p)).toBe(true);
+    expect(eligible({ ...p, rw: [6, 0, 10, 0, 0] })).toBe(2);
+    setSeed(5); const W = newWorld(), c = us(W), x = c.crew!.find(y => !y.lead)!;
+    x.rw = [9, 0, 0, 0, 0]; x.gr = 0;
+    expect(promote(W, x.id)).toBe(true); expect(x.gr).toBe(1); expect(x.gh!.at(-1)).toEqual([W.month, 1]); expect(promoteDue(x)).toBe(false);
+    x.gr = 0; const cash0 = c.cash;
+    // (탐사 중인 그믐엔 떠나지 않는다: 돌아온 뒤 첫 그믐에)
+    for (let m = 0; m < CO.GRUDGE_MAX + 4 && c.crew!.some(y => y.id === x.id); m++) { const P = defaultPlan(W); P.promote = false; const M = runMonth(W, P); closeBooks(W); expect(M.res[0].spend.fire || 0).toBe(0); }
+    expect(c.crew!.some(y => y.id === x.id)).toBe(false); expect(x.gd || 0).toBeGreaterThanOrEqual(CO.GRUDGE_MAX);
+    expect(W.log.some(l => /자격을 기다리다/.test(l.t))).toBe(true);
+    void cash0;
+  });
+  it('화면의 기대는 등급으로 셈한다: 실제 실력이 등급보다 높으면 그 차가 숨은 몫이다', () => {
+    const p = { id: 1, c: '전사', sk: 62, gr: 1 } as any;
+    expect(memberMods([p], 0, 100, true).pp[0] - memberMods([p], 0).pp[0]).toBeCloseTo(CO.TIER_B[3] - CO.TIER_B[1]);
+  });
+  it('자격보다 한 단계 낮춰 계약하면 싸지만 들어오자마자 진급 예정자다. 이름을 누르면 기록 카드가 열린다', () => {
+    setSeed(2); const W = newWorld(); W.unlocked = 3; let p: any;
+    for (let m = 0; m < 8 && !p; m++) { const P = defaultPlan(W); P.pick = []; runMonth(W, P); closeBooks(W); p = W.cand!.find(x => eligible(x) > 0); }
+    const c = us(W); W.day = CO.MONTH_DAYS;
+    expect(p).toBeTruthy(); if (!p) return;
+    const full = candPrice({ ...p, gr: eligible(p) }, hirePrice(W)), v = hireNow(W, p.id, true);
+    expect(v).toBeLessThan(full); expect(grOf(c.hireQ![0])).toBe(eligible(p) - 1);
+    nextDay(W, defaultPlan(W));
+    const y = c.crew!.find(z => z.n === p.n)!; expect(promoteDue(y)).toBe(true);
+    expect(rosterHtml(W, undefined, undefined, y.id)).toContain('이력서');
   });
 });
