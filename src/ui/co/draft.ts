@@ -75,7 +75,7 @@ function plHtml(W: World, netF: number, B: ReturnType<typeof preview>['bill']) {
   const L = W.last!, r = L.res[W.draft!.i], s = r.spend;
   const loot = r.lootSales || 0, other = r.sales - loot - r.matSales;
   const cost: [string, number][] = [['급여 · 관리비', s.wage + (s.admin || 0) + (s.fire || 0)], ['신입 계약금', s.recruit], ['치료비', s.heal || 0], ['포션', s.potion], ['횃불', s.torch || 0], ['식량 · 정비 도구', (s.food || 0) + (s.mend || 0)], ['장비', s.gear],
-    ['정보 · 조사', s.intel + s.probe], ['교관', s.train], ['숙소 · 본부 유지비', (s.dorm || 0) + (s.hq || 0) - (r.capex || 0) + s.base + s.proc], ['건물 감가상각', r.dep || 0], ['교회 후원 · 근원 기금', s.donate + s.root], ['의뢰 위약금', s.job || 0]];
+    ['정보 · 조사', s.intel + s.probe], ['교관', s.train], ['숙소 · 본부 유지비', (s.dorm || 0) + (s.hq || 0) - (r.capex || 0) + s.base + s.proc], ['건물 감가상각', r.dep || 0], ['조 장비 유지비', s.sqKeep || 0], ['교회 후원 · 근원 기금', s.donate + s.root], ['의뢰 위약금', s.job || 0]];
   const row = (t: string, v: number, cls = '') => `<tr class="${cls}"><td>${t}</td><td class="n ${v < 0 ? 'neg' : ''}">${sgn(Math.round(v))}</td></tr>`;
   return `<section class="rp"><h3>손익</h3><div class="tw"><table class="grid slim pl"><tbody>
     ${row('채집품 판매', loot)}${r.matSales ? row('전리품 판매', r.matSales) : ''}${other ? row('의뢰 · 선금 · 지도 판매', other) : ''}
@@ -84,6 +84,6 @@ function plHtml(W: World, netF: number, B: ReturnType<typeof preview>['bill']) {
     ${row('순이익 (세금 전)', profitOf(r), 'sub')}
     ${B.tax ? row('영주세 (이 신고서)', -B.tax) : ''}${B.sub + B.aid ? row('보급 · 층 지원금', B.sub + B.aid) : ''}${B.refund ? row('선금 반납', -B.refund) : ''}
     ${row('순이익', netF, 'tot')}
-    ${r.capex || r.dep ? row(`금고 변화 <small class="dim">순이익${r.capex ? ` − 공사비 ${fmt(r.capex)} (건물 자산)` : ''}${r.dep ? ` + 감가상각 ${fmt(r.dep)}` : ''}</small>`, netF - (r.capex || 0) + (r.dep || 0)) : ''}
+    ${r.capex || r.dep || r.sqCap ? row(`금고 변화 <small class="dim">순이익${r.capex ? ` − 공사비 ${fmt(r.capex)} (건물 자산)` : ''}${r.sqCap ? ` − 조 장비 ${fmt(r.sqCap)} (자산)` : ''}${r.dep ? ` + 감가상각 ${fmt(r.dep)}` : ''}</small>`, netF - (r.capex || 0) - (r.sqCap || 0) + (r.dep || 0)) : ''}
   </tbody></table></div></section>`;
 }

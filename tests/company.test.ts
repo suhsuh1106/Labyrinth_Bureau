@@ -32,6 +32,7 @@ import { MISSIONS, sendQueued } from '../src/core/company';
 import { candNow, crewOf, hireNow, hirePrice, aptB, skUp, skCap, hidSeen, grOf, eligible, promoteDue, promote, winsFrom, personWage } from '../src/core/company';
 import { HIDDEN } from '../src/core/data';
 import { rosterHtml } from '../src/ui/co/roster';
+import { chOf, capOf, teamFx, missionW, upgradeSquad, sqLv, sqBook, sqOf, leaderGone, setLeader } from '../src/core/company';
 import { returnsHtml } from '../src/ui/co/reveal';
 import { backLine } from '../src/ui/co/hall';
 // 옛 시작(16명 · 네 조)을 전제로 한 규칙 테스트: 우리 명단을 16명으로 바꾸고 지원자는 비운다
@@ -391,7 +392,7 @@ describe('전리품 비율과 몬스터 적응', () => {
           expect(T.fd!).toBeLessThanOrEqual(CO.TRIP_DAYS[o.f]); expect(D.length).toBeLessThanOrEqual(CO.SEGS[o.f]); D.forEach(d => expect(d.dd!).toBeLessThanOrEqual(T.fd!)); expect(T.tu).toBeLessThanOrEqual(T.torch);
           D.forEach(d => {
             const ev = evOf(d); ms[ev] = (ms[ev] || 0) + 1;
-            expect(d.win).toBe(d.k >= Math.min(2, d.n));
+            expect(d.win).toBe(d.k >= Math.ceil(d.n / 2));   // (남은 조원의 절반 이상)
             if (ev === 'f') { expect(names(o.f)).toContain(d.mon); expect(d.loot || 0).toBe(0); if (!d.k) expect(d.mats).toEqual([]); }   // 조우: 짐(채집품)은 싣지 않고, 해낸 사람이 있어야 갈무리
             else { expect(d.mon).toBeUndefined(); expect(d.mats).toEqual([]); expect(d.am).toBeUndefined(); }
             if (ev === 't' || !d.k) expect(d.loot || 0).toBe(0);
@@ -547,6 +548,7 @@ describe('갈무리 소재와 미궁 도감', () => {
     setSeed(52); const W: World = newWorld();
     let ok = 0;
     for (let m = 0; m < 10; m++) { const M = runMonth(W, BOT.even(W)); ok += M.ours.filter(x => x.ok && x.f === 0).length; }
+    ok += (W.back || []).filter(s => s.rep && s.rep.ok && s.f === 0).length;   // (마지막 그믐 다음 날 아침 돌아온 조는 다음 달 결과에 든다)
     const B = W.mat!.book[0];
     expect(B.n['*']).toBe(ok);
     Object.values(B.got).forEach(g => Object.entries(g).forEach(([k, a]) => expect(a).toBeLessThanOrEqual(B.n[k])));
@@ -657,7 +659,8 @@ describe('보급 창고 · 전리품 보관 기한 · 조사 의뢰 · 편성 �
     setSeed(65); const W: World = big(newWorld()), c = us(W);
     expect(CLASSES.map(k => c.crew!.filter(x => x.c === k).length)).toEqual([6, 3, 2, 2, 3]);   // 전사 궁수 마법사 사제 도적
     const bare = formTeams(c, [4, 0, 0, 0, 0], CO.TPL0, false);
-    expect(bare.map(T => T.m.filter(x => x != null).length)).toEqual([4, 4, 3, 1]);   // 마법사가 둘, 궁수·도적이 셋뿐이다
+    expect(bare.map(T => T.m.filter(x => x != null).length)).toEqual([4, 4, 3, 2]);   // 조장은 직업과 상관없이 먼저 세우고, 나머지 자리에 기본 편성 직업 (마법사가 둘, 궁수·도적이 셋뿐이다)
+    bare.forEach(T => expect(T.m.length).toBe(4));   // (카리스마가 없는 옛 명단은 3: 네 명 조)
     const full = formTeams(c, [4, 0, 0, 0, 0], CO.TPL0, true);
     expect(full.every(T => T.m.every(x => x != null))).toBe(true);
     expect(new Set(full.flatMap(T => T.m)).size).toBe(16);
@@ -866,11 +869,11 @@ describe('숙소 · 신입 모집 · 수습 · 명성', () => {
 });
 
 describe('성공 정도 · 부상 · 수입 예측', () => {
-  it('조원마다 굴려 해낸 사람 수가 조의 결과가 되고, 둘 이상 해내면 해낸 조로 센다', () => {
+  it('조원마다 굴려 해낸 사람 수가 조의 결과가 되고, 절반 이상 해내면 해낸 조로 센다', () => {
     setSeed(71); const W = newWorld();
     for (let m = 0; m < 6; m++) {
       const M = runMonth(W, BOT.even(W)), r = M.res[0];
-      M.ours.forEach(x => { expect(x.k).toBeGreaterThanOrEqual(0); expect(x.k!).toBeLessThanOrEqual(x.n!); expect(x.ok).toBe(x.k! >= 2); });
+      M.ours.forEach(x => { expect(x.k).toBeGreaterThanOrEqual(0); expect(x.k!).toBeLessThanOrEqual(x.n!); expect(x.ok).toBe(x.k! >= Math.ceil(x.n! / 2)); });   // (조원의 절반 이상)
       FLOORS.forEach((_, f) => expect(r.ok[f]).toBe(M.ours.filter(x => x.f === f && x.ok).length));
       expect(gradeOf(4)).toBe('대성공'); expect(gradeOf(2)).toBe('고전'); expect(gradeOf(1)).toBe('실패');
     }
@@ -1605,5 +1608,51 @@ describe('등급과 이력서', () => {
     nextDay(W, defaultPlan(W));
     const y = c.crew!.find(z => z.n === p.n)!; expect(promoteDue(y)).toBe(true);
     expect(rosterHtml(W, undefined, undefined, y.id)).toContain('이력서');
+  });
+});
+
+describe('조장 · 조 장비 · 조 크기', () => {
+  it('조장(첫 자리)의 카리스마 + 1이 조 크기 한도이고, 넘치는 사람은 대기로 빠진다', () => {
+    setSeed(1); const W = newWorld(), c = us(W), lead = c.crew!.find(p => p.lead)!;
+    expect(chOf(lead)).toBe(4); expect(capOf(lead)).toBe(5);
+    const P = defaultPlan(W); P.teams = [{ f: 0, m: c.crew!.map(p => p.id), g: '' }];
+    const Q = sanitize(W, c, P); expect(Q.teams![0].m).toHaveLength(5); expect(Q.teams![0].m[0]).toBe(c.crew![0].id);
+    const low = c.crew!.find(p => chOf(p) === 1)!; P.teams = [{ f: 0, m: [low.id, ...c.crew!.filter(p => p !== low).map(p => p.id)], g: '' }];
+    expect(sanitize(W, c, P).teams![0].m).toHaveLength(2);   // 카리스마 1: 둘이서 깊이 뚫는 조
+  });
+  it('조의 모양: 작은 조는 은신, 카리스마 낮은 조장은 소수 조 덤, 조장 등급이 낮으면 마이너스, 조 장비는 성공 · 부상 · 짐', () => {
+    const P = (id: number, ch: number, gr = 1) => ({ id, c: '전사', ch, gr }) as any;
+    const a = teamFx([P(1, 1), P(2, 2)]), b = teamFx([P(1, 4), P(2, 2), P(3, 2), P(4, 2), P(5, 2)]);
+    expect(a.stealth).toBeLessThan(b.stealth); expect(a.easy).toBe(CO.SMALL_SUCC); expect(b.easy).toBe(0);
+    expect(teamFx([P(1, 3, 0), P(2, 3, 2)]).gap).toBe(CO.LEAD_GR_PEN);
+    const g = teamFx([P(1, 3), P(2, 3), P(3, 3), P(4, 3)], 3); expect(g.succ).toBeCloseTo(3 * CO.SQ_SUCC); expect(g.inj).toBeCloseTo(Math.pow(CO.SQ_INJ, 3));
+    expect(teamSlots([P(1, 3), P(2, 3)], 4) - teamSlots([P(1, 3), P(2, 3)], 0)).toBe(2);
+    expect(missionW('gather', 0.5)[1]).toBeLessThan(missionW('gather', 1)[1]);
+  });
+  it('조 장비는 본부에 있을 때 올리고 자산이 되며(감가상각 없음) 유지비가 붙는다. 조장이 떠나면 한 단계 떨어진다', () => {
+    setSeed(3); const W = newWorld(), c = us(W), P = sanitize(W, c, defaultPlan(W)), cash = c.cash, w0 = worth(W, c);
+    const v = upgradeSquad(W, P, 0); expect(v).toBe(Math.round(CO.GEAR_UP[0] * capOf(c.crew!.find(p => p.id === P.teams![0].m[0])) / 4));
+    expect(c.cash).toBe(cash - v); expect(worth(W, c)).toBe(w0); expect(sqLv(c, P.teams![0])).toBe(1);
+    upgradeSquad(W, P, 0); expect(sqLv(c, P.teams![0])).toBe(2);
+    const M = runMonth(W, P), r = M.res[0]; closeBooks(W);
+    expect(r.spend.sq).toBe(sqBook(c)); expect(r.sqCap).toBe(sqBook(c)); expect(r.spend.sqKeep).toBe(Math.round(sqBook(c) * CO.SQ_KEEP));
+    expect(profitOf(r)).toBe(r.net + r.sqCap!);
+    const sq = c.sq![0], book = sqBook(c); leaderGone(c, [sq.ld!]);
+    expect(sq.gear).toBe(1); expect(sq.ld).toBeUndefined(); expect(sqBook(c)).toBeLessThan(book);
+  });
+  it('조는 보낼 때 이어지고(편성표에 번호가 적힌다), 다음 달 새로 짠 조도 그 조장이 이끌면 같은 조를 쓴다. 조장을 바꾸면 한 단계를 잃는다', () => {
+    setSeed(4); const W = newWorld(), c = us(W), P = sanitize(W, c, defaultPlan(W));
+    upgradeSquad(W, P, 0); const id = P.teams![0].sq!, ld = P.teams![0].m[0]!;
+    const Q = sanitize(W, c, defaultPlan(W)); expect(Q.teams!.find(T => T.m[0] === ld)!.sq).toBe(id);
+    const t = Q.teams!.findIndex(T => T.sq === id), other = Q.teams![t].m.find(x => x != null && x !== ld)!;
+    expect(setLeader(W, Q, t, other)).toBe(true); expect(Q.teams![t].m[0]).toBe(other); expect(sqOf(c, id)!.gear).toBe(0); expect(sqOf(c, id)!.ld).toBe(other);
+  });
+  it('조장 자리를 요구한 사람은 조장이 아니면 그믐마다 불만이 쌓인다', () => {
+    setSeed(5); const W = newWorld(), c = us(W), x = c.crew!.find(p => !p.lead)!;
+    x.dm = 'lead'; x.gr = 2; x.rw = [0, 0, 0, 0, 0];
+    const P = defaultPlan(W); P.teams = [{ f: 0, m: [c.crew!.find(p => p.lead)!.id], g: '' }];
+    runMonth(W, P); closeBooks(W);
+    expect(x.gd || 0).toBe(1);
+    expect(rosterHtml(W)).toContain('조장 요구');
   });
 });

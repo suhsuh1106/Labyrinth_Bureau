@@ -791,6 +791,11 @@ th.srt:hover, th.srt:focus-visible { color: var(--ink); outline: none; text-deco
 .tier { display: inline-flex; align-items: center; gap: 5px; }
 .tier .pips { display: inline-flex; gap: 2px; }
 .gd { display: inline-flex; gap: 2px; cursor: help; } .gd i { width: 7px; height: 7px; border-radius: 50%; border: 1px solid #b0786a; } .gd i.on { background: #b0503a; border-color: #b0503a; }
+.ch, .sqlv { display: inline-flex; gap: 2px; vertical-align: middle; cursor: help; } .ch i { width: 6px; height: 6px; border-radius: 50%; border: 1px solid #8a7a5a; } .ch i.on { background: #b88a2a; border-color: #b88a2a; }
+.sqlv i { width: 8px; height: 8px; border-radius: 2px; border: 1px solid #6a7a8a; } .sqlv i.on { background: #4a7aa8; border-color: #4a7aa8; }
+.squp { margin-left: 4px; } .squp.big { font-weight: 700; } .bk-up { margin-top: 4px; }
+.ld-b, .dm-b { font-size: 10px; font-weight: 700; border-radius: 3px; padding: 0 4px; } .ld-b { background: #e6dcc0; color: #5a4210; } .dm-b { background: #f2dccf; color: #8a3a1a; }
+table.tsum td.stk select[data-k="tlead"] { max-width: 120px; font-size: 11px; }
 .tog.due { margin-left: 4px; border-color: #c08a2a; color: #8a5a10; font-weight: 700; }
 .due-n b { color: #8a5a10; }
 .crewt td.rsm { font-size: 11.5px; color: var(--ink-soft); max-width: 180px; }

@@ -1,7 +1,7 @@
 // 탐사 엔진: 우리 조 하나가 미궁에 들어가 돌아오기까지 (다키스트 던전처럼, 그 위에 몬스터 헌터의 채집과 사냥).
 //   탐사 한 번은 구간 몇 개다(segs: 날마다 구간 수, 층마다 5 · 6 · 6 · 7 · 7구간). 구간마다 사건 하나를 무게(evs)대로 뽑는다:
 //     채집 지점(g): 조원마다 채집 굴림. 해낸 몫만큼 채집품(기본 소재)을 짐에 싣는다(둘 미만이면 loseLoot배). 몬스터를 상대하지 않아 부상 주사위가 없다.
-//     조우(f): 그 층 몬스터 하나를 만나 조원마다 굴린다. 둘 이상 해내면 이긴다(혼자 남았으면 혼자 해내면). 해낸 만큼 갈무리해 전리품(사냥 소재)을 짐에 싣는다(한 점에 matSlot칸, 진 조우는 적게).
+//     조우(f): 그 층 몬스터 하나를 만나 조원마다 굴린다. 남은 조원의 절반 이상 해내면 이긴다(네 명이면 둘). 해낸 만큼 갈무리해 전리품(사냥 소재)을 짐에 싣는다(한 점에 matSlot칸, 진 조우는 적게).
 //     흔적(t): 조원마다 굴려 지도를 그린다. 그린 것(탁본 · 표식 · 측량 기록)도 짐이다(다 해내면 trailSlot칸). 못 해낸 사람은 부상 주사위(조우보다 약하게).
 //   셋 모두 짐 칸을 채운다. 칸이 모자라면 남는 것은 두고 오고 돌아선다.
 //   채집 · 흔적에서 둘 미만 해내면 ambush의 확률로 들켜, 다음 구간은 조우가 된다.
@@ -10,7 +10,7 @@
 //   부상 주사위: 해내지 못한 사람은 주사위를 굴린다. 걸리면 포션이 있으면 한 병 써서 막고, 없으면 다치고(그 탐사 동안 성공 −injPen, 다음 달 쉰다),
 //   다친 채 또 걸리면 죽는다.
 //   식량: 하루 한 사람에 하나를 먹고, 모자라면 굶은 사람은 그날 성공 −hungerPen. 정비 도구: 진 조우가 있었던 날 끝에 하나 써서 무기를 고친다. 없으면 무뎌져 그 뒤로 성공 −toolPen씩 쌓인다.
-//   짐 칸이 다 차면 돌아서고, 둘이 죽으면 물러난다.
+//   짐 칸이 다 차면 돌아서고, 조원의 절반을 잃으면 물러난다(조 크기는 조장의 카리스마로 2 ~ 6명).
 // 탐사는 구간마다 한 걸음씩 굴린다(stepTrip, 하루는 stepDay): 성공률 · 위기는 그날의 판 상태로 다시 셈한다. 이 파일은 굴리기만 한다.
 // 성공률 · 위기 · 포션 · 사망 · 갈무리 · 도감 기록은 runMonth가 넘겨 준 함수가 정한다.
 // 경쟁 용병단은 숫자로 한 번 굴리고 여기를 거치지 않는다
@@ -92,7 +92,7 @@ function rolls(C: TripCfg, S: TripState, up: number[], hungry: Set<number>, p: (
 const roomOf = (C: TripCfg, S: TripState, held: () => number) => Math.max(0, C.slots - held() - S.pack - (S.pm || 0) - (S.pt || 0));
 // 조우: 그 층 몬스터 j를 만나 조원마다 굴리고, 해낸 만큼 갈무리해 짐에 싣고(칸이 모자라면 남는 것은 두고 온다), 못 해낸 사람은 부상 주사위를 굴린다
 function fight(C: TripCfg, S: TripState, j: number, up: number[], hungry: Set<number>, held: () => number): Day {
-  const day = S.day, { dd, kd } = rolls(C, S, up, hungry, m => C.pm(m, j)), win = kd >= Math.min(2, up.length);
+  const day = S.day, { dd, kd } = rolls(C, S, up, hungry, m => C.pm(m, j)), win = kd >= Math.ceil(up.length / 2);
   const mats: [string, number][] = [];
   if (kd) {
     let fit = Math.floor(roomOf(C, S, held) / C.matSlot + 1e-9);
@@ -109,10 +109,11 @@ function fight(C: TripCfg, S: TripState, j: number, up: number[], hungry: Set<nu
 }
 // 채집 지점: 해낸 사람 몫만큼 짐 칸을 채운다 (둘 미만이면 loseLoot배만. 다 쓴 횃불 · 포션 칸도 쓴다). 칸이 모자라면 두고 온다
 function gather(C: TripCfg, S: TripState, up: number[], hungry: Set<number>, held: () => number): Day {
-  const { dd, kd } = rolls(C, S, up, hungry, C.gp), win = kd >= Math.min(2, up.length);
+  const { dd, kd } = rolls(C, S, up, hungry, C.gp), win = kd >= Math.ceil(up.length / 2);
   const D: Day = { dd: S.day + 1, ev: 'g', win, k: kd, n: up.length, mats: [], cr: 0, d: 0, ...(hungry.size ? { hg: hungry.size } : {}) };
   if (kd) {
-    const l = up.reduce((a, m, x) => a + (dd[x] ? C.loot(m) : 0), 0) / C.party * (win ? 1 : C.loseLoot), need = l * C.lootSlot;
+    // (채집 지점 하나는 party명까지만 손을 댄다: 더 해낸 사람이 있어도 그 몫을 평균으로 줄인다. 큰 조의 다섯째 · 여섯째는 조우와 짐 칸에서 값을 낸다)
+    const l = up.reduce((a, m, x) => a + (dd[x] ? C.loot(m) : 0), 0) * Math.min(1, C.party / kd) / C.party * (win ? 1 : C.loseLoot), need = l * C.lootSlot;
     const room = roomOf(C, S, held), take = Math.min(need, room);
     S.pack += take; S.lootSum += need ? l * take / need : 0; D.loot = Math.round(take * 10) / 10;
     if (take < need) S.end = 'pack';
@@ -125,7 +126,7 @@ function gather(C: TripCfg, S: TripState, up: number[], hungry: Set<number>, hel
 }
 // 흔적: 해낸 비율만큼 지도를 그리고 그 기록을 짐에 싣는다(칸이 모자라면 그린 만큼만 남는다). 못 해낸 사람은 부상 주사위 (j = −2)
 function trail(C: TripCfg, S: TripState, up: number[], hungry: Set<number>, held: () => number): Day {
-  const day = S.day, { dd, kd } = rolls(C, S, up, hungry, C.tp), win = kd >= Math.min(2, up.length);
+  const day = S.day, { dd, kd } = rolls(C, S, up, hungry, C.tp), win = kd >= Math.ceil(up.length / 2);
   const D: Day = { dd: day + 1, ev: 't', win, k: kd, n: up.length, mats: [], cr: 0, d: 0, ...(hungry.size ? { hg: hungry.size } : {}) };
   if (kd) {
     const need = kd / up.length * C.trailSlot, take = Math.min(need, roomOf(C, S, held));
@@ -147,7 +148,7 @@ export function stepTrip(C: TripCfg, S: TripState) {
   // 짐 칸: 남은 횃불 · 포션 · 정비 도구가 한 칸씩, 식량은 foodSlot개가 한 칸
   const held = () => (C.torch - S.tu) + C.pots() + S.food / C.foodSlot + S.tools;
   const up = Array.from({ length: C.size }, (_, m) => m).filter(m => !gone.has(m));
-  if (!up.length || gone.size >= 2) { S.end = 'flee'; S.done = true; return; }
+  if (!up.length || gone.size >= Math.ceil(C.size / 2)) { S.end = 'flee'; S.done = true; return; }   // (절반을 잃으면 물러난다: 네 명이면 둘)
   if ((day === 0 && e === 0) || rnd() < C.rate) { if (S.tu < C.torch) S.tu++; else { S.end = 'torch'; S.done = true; return; } }
   if (e === 0) {
     // 식량: 하루 한 사람에 하나. 모자라면 뒷사람부터 굶는다 (굶은 사람은 그날 성공 −hungerPen)

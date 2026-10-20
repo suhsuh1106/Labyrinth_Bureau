@@ -5,7 +5,7 @@
 import { MISSION_NAME, priceNow, CO, FLOORS, ITEMS, type Ours, type Person, type Plan, type Sortie, type World, awayIds, boughtOf, candNow, roomOf, grOf, dayAbs, dayOf, floorMons, forecastTrips, jo, potShock, sanitize, stateOf, teamReady, us } from '../../core/company';
 import { TRIP_END } from '../../core/events';
 import { adminBar } from './desk';
-import { dayCls, dayMark, dayTip, luckHtml, nameOf, packBar, sendBtn } from './roster';
+import { dayCls, dayMark, dayTip, luckHtml, nameOf, packBar, sendBtn, sqHtml } from './roster';
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
@@ -145,6 +145,12 @@ export function backLine(r: Ours, i: number, src: string) {
     <div class="bk-r">${luckHtml(r)}${focus[0]}${dead.length ? `<b class="dead-n">† ${dead.map(z => esc(z.n)).join(', ')}</b>` : ''}${focus[1]}${focus[2]}${r.hurt ? `<span class="neg">부상 ${r.hurt}</span>` : ''}</div></li>`;
 }
 
+// 돌아온 조의 성과급 자리: 그 조의 장비 올리기 (편성표의 같은 조가 같은 조(남는 단위)를 쓰고 있을 때)
+function upBtn(W: World, P: Plan, s: Sortie) {
+  const T = (P.teams || [])[s.t]; if (!T || (s.sq != null && T.sq !== s.sq)) return '';
+  const who = T.m.filter((x): x is number => x != null).map(id => (us(W).crew || []).find(p => p.id === id)).filter((x): x is Person => !!x);
+  return `<div class="bk-up">${sqHtml(W, T, s.t, who, true)}</div>`;
+}
 // 날 띠: 이번 달 열흘. 지난 날 · 오늘 · 돌아올 조가 있는 날(예정)
 export function dayStrip(W: World) {
   const day = W.day || 1, base = (W.month - 1) * CO.MONTH_DAYS, due = new Map<number, number>();
@@ -190,7 +196,7 @@ export function hallHtml(W: World, raw: Plan) {
       <div class="hall-zones">${zones}</div>
     </div>
     <aside class="hall-side">
-      ${back.length ? `<div class="panel backs"><header><h2>오늘 아침 돌아온 조</h2></header><ol class="bks">${back.map(s => backLine(s.rep!, (W.back || []).indexOf(s), 'back')).join('')}</ol></div>` : ''}
+      ${back.length ? `<div class="panel backs"><header><h2>오늘 아침 돌아온 조</h2></header><ol class="bks">${back.map(s => backLine(s.rep!, (W.back || []).indexOf(s), 'back').replace(/<\/li>$/, `${upBtn(W, P, s)}</li>`)).join('')}</ol></div>` : ''}
       <div class="panel aways"><header><h2>미궁에 나간 조</h2><span class="right">${away.length}조</span></header>${away.length ? `<ol class="aws">${away.map(s => awayCard(W, P, s)).join('')}</ol>` : '<p class="note">나가 있는 조가 없어요</p>'}</div>
       <div class="panel readys"><header><h2>나갈 수 있는 조</h2>${ready.length > 1 ? `<button type="button" class="ghost sm" data-act="send-all">${ready.every(x => x.T.go) ? '예정 모두 거두기' : '모두 보내기'}</button>` : ''}</header>
         ${ready.length ? `<ul class="rds">${ready.map(({ T, t }) => `<li><b>${t + 1}조</b> ${FLOORS[T.f].name} <span class="ms-tag ${T.mission || 'gather'}">${MISSION_NAME[T.mission || 'gather']}</span> <span class="dim">${T.m.filter(x => x != null).length}명 · ${CO.TRIP_DAYS[T.f]}일 길</span>${sendBtn(T, t)}</li>`).join('')}</ul>` : '<p class="note">본부에 짐을 다 싼 조가 없어요 (편성은 출정에서)</p>'}
