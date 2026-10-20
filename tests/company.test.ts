@@ -1656,3 +1656,17 @@ describe('조장 · 조 장비 · 조 크기', () => {
     expect(rosterHtml(W)).toContain('조장 요구');
   });
 });
+
+describe('보급: 정가는 달 첫날, 그 뒤는 긴급 구매', () => {
+  beforeEach(() => setSeed(7));
+  it('1일은 정가, 2일부터 RUSH배 · 한 달 몫은 다녀올 횟수만큼', async () => {
+    const { buyNow, nextDay, monthNeed, needOf, sanitize } = await import('../src/core/company');
+    const W = newWorld(), P = defaultPlan(W);
+    expect(buyNow(W, 'torch', 10)).toBeCloseTo(10 * CO.TORCH_PRICE);
+    nextDay(W, P);
+    expect(W.day).toBe(2);
+    expect(buyNow(W, 'torch', 10)).toBeCloseTo(10 * CO.TORCH_PRICE * CO.RUSH);
+    const S = sanitize(W, us(W), P);
+    expect(monthNeed(W, S).food).toBeGreaterThan(needOf(S).food);
+  });
+});

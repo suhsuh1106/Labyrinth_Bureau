@@ -2,7 +2,7 @@
 import './ui/co/base.css';
 import './ui/co/co.css';
 import { setSeed } from './core/rng';
-import { sellStock, setClerks, buyNow, fireNow, hireNow, promote, upgradeSquad, setLeader, nextDay, sendQueued, teamReady, CO, FILE_KEYS, teamPots, teamTorch, teamMend, carryOf, foodDays, mendOf, FLOORS, type Plan, SRCS, type World, carryPlan, closeBooks, fileFix, fillTeams, formTeams, newWorld, probe, rankOf, roomOf, sanitize, awayIds, us, MISSIONS, type Mission } from './core/company';
+import { kitShort, sellStock, setClerks, buyNow, fireNow, hireNow, promote, upgradeSquad, setLeader, nextDay, sendQueued, teamReady, CO, FILE_KEYS, teamPots, teamTorch, teamMend, carryOf, foodDays, mendOf, FLOORS, type Plan, SRCS, type World, carryPlan, closeBooks, fileFix, fillTeams, formTeams, newWorld, probe, rankOf, roomOf, sanitize, awayIds, us, MISSIONS, type Mission } from './core/company';
 import { DESC_FIRST, packBar } from './ui/co/roster';
 import { CLASSES, GEARS } from './core/data';
 import { plaqueHtml } from './ui/co/view';
@@ -44,14 +44,14 @@ function draw() {
   $('desk').innerHTML = ui.phase === 0 ? infoWeekHtml(W, plan, ui) : ui.phase === 2 ? draftHtml(W, ui.file || {}, live) : resultWeekHtml(W, live, !!ui.mute);
   if (over) { const b = document.querySelector('#desk .resultwrap .btn-next') as HTMLButtonElement | null; if (b) { b.disabled = true; b.textContent = `임기가 끝났어요. 최종 ${rankOf(W)}위`; } }
 }
-function setPhase(p: number) { stopRun(); closeScene(); ui.phase = p; ui.open = false; ui.place = undefined; ui.store = false; render(); save(); toTop(); }
+function setPhase(p: number) { stopRun(); closeScene(); ui.phase = p; ui.open = false; ui.place = undefined; ui.store = false; ui.backs = false; render(); save(); toTop(); }
 const toTop = () => { $('desk').scrollTop = 0; };
 
 function start(fresh = false) {
   const d = fresh ? null : load();
   if (d) { W = d.W; plan = d.plan; ui = d.ui || { phase: 0, tab: 'report', pins: [] }; }
   // 첫 결정표: 포션 상한 0병(처음 받은 포션은 창고에), 신입 없음, 교관 없음. 돈 드는 것은 모두 고르는 것
-  else { setSeed((Date.now() ^ 0x5bd1e995) >>> 0); W = newWorld(); plan = carryPlan(W, null); plan.pots = plan.pots.map(() => 0); plan.pick = []; plan.train = 0; plan.coach = 0; plan.autoSell = false; ui = { phase: 0, tab: 'report', pins: [] }; }
+  else { setSeed((Date.now() ^ 0x5bd1e995) >>> 0); W = newWorld(); plan = carryPlan(W, null); plan.pots = plan.pots.map(() => 0); plan.pick = []; plan.train = 0; plan.coach = 0; plan.autoSell = false; plan.autoBuy = false; ui = { phase: 0, tab: 'report', pins: [] }; }
   plan.intelUp = plan.intelUp || {};   // 정보망은 유지비를 저절로 내고, 넓히는 돈만 따로 정한다
   tidyTeams();
   render(); save();
@@ -74,6 +74,8 @@ document.addEventListener('keydown', e => {
   if ((e.key === 'n' || e.key === 'N') && ui && ui.phase <= 1 && !arrivalOpen() && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement || e.target instanceof HTMLTextAreaElement) && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); advance(); return; }
   if (e.key !== 'Escape') return;
   if (arrivalOpen()) closeArrival();
+  else if (document.querySelector('.sc-wrap')) return;   // 탐사 재생 장면은 제 손으로 닫는다
+  else if (ui && ui.backs) { ui.backs = false; render(); save(); }
   else if (ui && ui.open) { ui.open = false; render(); save(); }
   else if (ui && ui.place) { ui.place = undefined; render(); save(); }
   else if (ui && ui.store) { ui.store = false; render(); save(); }
@@ -140,6 +142,8 @@ function act(b: HTMLElement) {
   const a = b.dataset.act;
   if (a === 'phase') return setPhase(+(b.dataset.phase || 0));
   if (a === 'exp') { ui.exp = true; ui.place = undefined; ui.open = false; render(); save(); (document.querySelector('.reader.exp .close') as HTMLElement | null)?.focus(); return; }
+  if (a === 'backs') { ui.backs = true; render(); save(); (document.querySelector('.reader.back-w .close') as HTMLElement | null)?.focus(); return; }
+  if (a === 'close-backs') { ui.backs = false; render(); save(); return; }
   if (a === 'close-exp') { ui.exp = false; ui.pick = null; render(); save(); return; }
   if (a === 'probe-mkt' || a === 'probe-riv') {
     const r = probe(W, a === 'probe-mkt' ? 'mkt' : 'riv', ui.rival || ($('probe-rival') && $('probe-rival').value) || '');
@@ -195,11 +199,18 @@ function act(b: HTMLElement) {
     say(T.go ? `${t + 1}조 보낼 예정 · ${FLOORS[T.f].name} ${CO.TRIP_DAYS[T.f]}일 길 · 다음 날을 누르면 떠나요` : `${t + 1}조 보낼 예정을 거뒀어요`); return;
   }
   if (a === 'next-day') return advance();
+  // 안건의 채비 모자람: 내일 떠날 조들에 모자란 만큼만 산다
+  if (a === 'buy-short') {
+    tidyTeams(); const T = plan.teams || [], K = kitShort(W, plan, T.map((x, t) => t).filter(t => T[t].go && teamReady(W, T[t])));
+    let v = buyNow(W, 'pot', K.pot) + buyNow(W, 'torch', K.torch) + buyNow(W, 'food', K.food) + buyNow(W, 'mend', K.mend);
+    Object.entries(K.gear).forEach(([g, n]) => { v += buyNow(W, 'gear', n, g); });
+    render(); save(); say(v ? `모자란 채비 ${Math.round(v).toLocaleString('ko-KR')}G어치를 ${W.day && W.day > 1 ? '긴급 구매로 ' : ''}샀어요` : '살 것이 없어요'); return;
+  }
   if (a === 'buy-now') {
     const o = orderOf(W, plan); let v = 0;
     (['pot', 'holy', 'torch', 'food', 'mend'] as const).forEach(k => { v += buyNow(W, k, o[k]); });
     Object.entries(o.gear).forEach(([g, n]) => { v += buyNow(W, 'gear', n, g); });
-    plan.buy = {}; render(); save(); say(v ? `보급 ${Math.round(v).toLocaleString('ko-KR')}G어치가 창고에 들어왔어요` : '살 것이 없어요'); return;
+    plan.buy = {}; render(); save(); say(v ? `보급 ${Math.round(v).toLocaleString('ko-KR')}G어치가 창고에 들어왔어요${W.day && W.day > 1 ? ` (긴급 구매 ×${CO.RUSH})` : ''}` : '살 것이 없어요'); return;
   }
   if (a === 'sell' || a === 'sell-all') {
     const js = a === 'sell-all' ? FLOORS.map((_, j) => j) : [+(b.dataset.j || 0)];
@@ -236,7 +247,10 @@ function advance() {
     say(`제${M.month}월 그믐 정산${M.opened != null ? ` · ${M.opened + 1}층이 열렸어요` : ''}${M.overflow ? ' · 미궁이 넘쳤어요' : ''} · 영주청에 낼 신고서를 꾸며요`);
     return;
   }
+  // 아침에 돌아온 조가 있으면 귀환 보고 창을 띄운다 (없으면 지난 창은 닫는다)
+  ui.backs = todayBack(W).length > 0;
   render(); save();
+  if (ui.backs) (document.querySelector('.reader.back-w .close') as HTMLElement | null)?.focus();
   // 오늘 아침 돌아온 조: 몇 조가 해냈고, 누가 다치고 누구를 잃었나
   const back = todayBack(W).map(x => x.rep!).filter(Boolean), dead = back.reduce((a, r) => a + (r.dead || []).length, 0);
   if (back.length) { SOUND[dead ? 'die' : back.some(r => r.ok) ? 'win' : 'lose']?.(0); say(`${gone}${W.day}일 아침 · ${back.map(r => `${(r.t ?? 0) + 1}조`).join(' · ')} 귀환 · ${back.filter(r => r.ok).length}조 해냄${dead ? ` · ${dead}명을 잃었어요` : ''}`); }

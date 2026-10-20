@@ -27,7 +27,8 @@ export const CO = {
   FIRE_PAY: 1,
   FOOD_PRICE: 1, FOOD_SLOT: 8, FOOD_DAYS: 6, HUNGER_PEN: 0.1, MEND_PRICE: 8, MEND_PEN: 0.05, MEND0: [0, 1, 1, 2, 2],
   // 횃불: 창고 품목 (상하지 않는다). 경쟁 용병단은 조마다 그 층 TAX.TORCH개씩 들고 가고, 모자라면 그 조는 위기 ×DARK_CRISIS, 그려 오는 지도 ×DARK_MAP
-  TORCH_PRICE: 3, DARK_CRISIS: 1.3, DARK_MAP: 0.5,
+  TORCH_PRICE: 3, RUSH: 1.5,   // RUSH: 달 첫날이 지나 사는 보급(긴급 구매)은 정가의 이만큼 배
+  DARK_CRISIS: 1.3, DARK_MAP: 0.5,
   // 우리 조의 탐사 (다키스트 던전처럼): 층마다 TRIP_DAYS일, SEGS구간(아래 구간과 임무). 첫 구간에 횃불 하나를 켜고, 그 뒤로는 구간마다 확률로 하나를 더 태운다
   // (날마다 TORCH_F[층] + TORCH_UND × (모르는 만큼 × UND_F)를 구간에 나눈 것, segRate). 태울 횃불이 없으면 돌아서고, 남은 사람마다 DARK_MIN + 진 날 위기 × DARK_BACK의 확률로 어둠 속 위기를 맞는다.
   // 조우는 그 층 몬스터 하나(주인 · 곁 몬스터 둘, ENC_W 무게)를 만나 조원마다 굴리고, 둘 이상 해내면 이긴다. 채집 지점에서 해낸 몫만큼 채집품을 짐에 싣는다
@@ -982,6 +983,21 @@ export function needOf(P: Plan) {
   const food = P.teams ? P.teams.reduce((a, T) => a + teamFood(P, T), 0) : 0, mend = P.teams ? P.teams.reduce((a, T) => a + teamMend(P, T), 0) : 0;
   return { pot, gear, torch, food, mend };
 }
+// 한 조가 그 층을 한 달에 몇 번 다녀오나 (다닌 날 + 쉬는 날을 한 바퀴로, 달을 넘기는 탐사도 이달 채비로 떠난다)
+export const tripsOf = (f: number) => Math.ceil(CO.MONTH_DAYS / (CO.TRIP_DAYS[f] + CO.REST_DAYS));
+// 이번 달 들여놓을 포션 · 횃불 · 식량 · 정비 도구 (달 첫날 정가로): 조마다 한 번 들고 갈 몫(남은 것은 돌아온다) + 그 뒤로 다녀올 때마다 쓸 예측
+// (포션은 위기 예측만큼, 횃불 · 식량 · 정비 도구는 forecast의 사용 예측). 장비는 needOf 그대로
+export function monthNeed(W: World, P: Plan) {
+  const N = needOf(P); if (!P.teams || !P.teams.length) return N;
+  const out = { ...N };
+  FLOORS.forEach((_, f) => {
+    const ts = P.teams!.filter(T => T.f === f), more = tripsOf(f) - 1; if (!ts.length || more <= 0) return;
+    const fc = forecast(W, { ...P, teams: ts, parties: FLOORS.map((__, g) => (g === f ? ts.length : 0)) });
+    out.pot += Math.ceil(Math.min(fc.crisis || 0, ts.reduce((a, T) => a + teamPots(P, T), 0)) * more);
+    out.torch += Math.ceil((fc.torch || 0) * more); out.food += Math.ceil((fc.food || 0) * more); out.mend += Math.ceil((fc.mend || 0) * more);
+  });
+  return out;
+}
 // 사냥 임무가 노릴 몬스터 (옛 지정 탐사): 그 층에 사는 몬스터이고 도감 이해도가 TARGET_AT 이상이면 노릴 수 있다
 export const canTarget = (W: World, f: number, name: string) => floorMons(W, f).some(M => M.name === name) && ((W.dex || {})[name]?.u || 0) >= DEX.TARGET_AT;
 // 우리 조 하나가 들고 갈 포션 · 횃불 (조에 정해 둔 것, 없으면 층 기본)
@@ -1017,11 +1033,11 @@ export function tripOdds(t: number, rate: number, max = CO.DAYS, per = 1) {
   const burn = dist.reduce((a, p, b) => a + p * b, 0) + dark * t;
   return { days: days * per / CO.DAYS, dark, burn };
 }
-// 이번 달 살 횃불 (비워 두면 모자란 만큼)
-export const torchBuy = (c: Company, P: Plan) => (P.buy && P.buy.torch != null ? Math.max(0, Math.floor(P.buy.torch)) : Math.max(0, needOf(P).torch - (supOf(c).torch || 0)));
+// 이번 달 살 횃불 (비워 두면 N(화면은 한 달 몫 monthNeed)에서 모자란 만큼)
+export const torchBuy = (c: Company, P: Plan, N: { torch: number } = needOf(P)) => (P.buy && P.buy.torch != null ? Math.max(0, Math.floor(P.buy.torch)) : Math.max(0, N.torch - (supOf(c).torch || 0)));
 // 이번 달 살 식량 · 정비 도구 (비워 두면 모자란 만큼)
-export const foodBuy = (c: Company, P: Plan) => (P.buy && P.buy.food != null ? Math.max(0, Math.floor(P.buy.food)) : Math.max(0, needOf(P).food - (supOf(c).food || 0)));
-export const mendBuy = (c: Company, P: Plan) => (P.buy && P.buy.mend != null ? Math.max(0, Math.floor(P.buy.mend)) : Math.max(0, needOf(P).mend - (supOf(c).mend || 0)));
+export const foodBuy = (c: Company, P: Plan, N: { food: number } = needOf(P)) => (P.buy && P.buy.food != null ? Math.max(0, Math.floor(P.buy.food)) : Math.max(0, N.food - (supOf(c).food || 0)));
+export const mendBuy = (c: Company, P: Plan, N: { mend: number } = needOf(P)) => (P.buy && P.buy.mend != null ? Math.max(0, Math.floor(P.buy.mend)) : Math.max(0, N.mend - (supOf(c).mend || 0)));
 // 비워 둔 장비 칸은 편성에 모자란 만큼 산다
 export function gearBuy(c: Company, P: Plan) {
   const want = needOf(P).gear, have = supOf(c).gear, out: Record<string, number> = {};
@@ -1223,12 +1239,15 @@ export const holyRoom = (W: World) => Math.max(0, Math.round(CO.CHURCH_US * (0.5
 // 보급을 바로 산다: 창고에 들어오고 금고에서 바로 나간다 (정산서의 지출 줄에 이번 달 산 것 그대로 든다)
 export type BuyKey = 'pot' | 'holy' | 'torch' | 'food' | 'mend' | 'gear';
 export const unitPrice = (W: World, k: BuyKey) => (k === 'pot' ? potionNow(W) : k === 'holy' ? churchPrice(W, 0) : k === 'torch' ? CO.TORCH_PRICE : k === 'food' ? CO.FOOD_PRICE : k === 'mend' ? CO.MEND_PRICE : CO.GEAR_PRICE);
+// 정가는 달 첫날에만: 상단 · 교회는 달마다 1일에 주문을 받고, 그 뒤로 사는 것은 긴급 구매(RUSH배)
+export const rushOn = (W: World) => (W.day || 1) > 1;
+export const buyPrice = (W: World, k: BuyKey) => unitPrice(W, k) * (rushOn(W) ? CO.RUSH : 1);
 export function buyNow(W: World, k: BuyKey, n: number, g = '') {
   const c = us(W), S = supOf(c), B = bought(W);
   n = Math.max(0, Math.floor(n)); if (k === 'holy') n = Math.min(n, holyRoom(W));
   if (k === 'gear' && (!GEARS.includes(g) || g === '일반')) return 0;
   if (!n) return 0;
-  const v = n * unitPrice(W, k);
+  const v = Math.round(n * buyPrice(W, k));   // (긴급 구매는 단가에 끝전이 생겨 묶음 값을 반올림)
   if (k === 'pot') { S.pot[0] = (S.pot[0] || 0) + n; B.pot += n; B.cost.potion += v; }
   else if (k === 'holy') { S.holy[0] = (S.holy[0] || 0) + n; B.holy += n; B.cost.potion += v; }
   else if (k === 'gear') { S.gear[g] = (S.gear[g] || 0) + n; B.gear[g] = (B.gear[g] || 0) + n; B.cost.gear += v; }
@@ -1269,6 +1288,21 @@ export function teamReady(W: World, T: Team) {
 export function kitWant(P: Plan, T: Team, who: Person[], lv = 0) {
   const slots = teamSlots(who, lv), torch = Math.min(teamTorch(P, T), slots);
   return { pots: Math.min(teamPots(P, T), slots - torch), torch, food: (T.food != null ? clamp(Math.floor(T.food), 0, CO.DAYS) : foodDays(P, T.f)) * who.length, mend: teamMend(P, T), gear: (T.g || '').startsWith('g:') ? T.g.slice(2) : '' };
+}
+// 채비 부족: 고른 조들(편성표 번호)이 지금 떠나면 창고에서 모자랄 채비와 그 값 (자동 구매를 끈 때 화면이 사라고 알린다)
+export function kitShort(W: World, raw: Plan, ts: number[]) {
+  const c = us(W), P = c.crew ? sanitize(W, c, raw) : raw, S = supOf(c), H = potsOf(c), byId = new Map((c.crew || []).map(p => [p.id, p]));
+  const need = { pot: 0, torch: 0, food: 0, mend: 0 }, gear: Record<string, number> = {};
+  ts.forEach(t => {
+    const T = (P.teams || [])[t]; if (!T) return;
+    const who = T.m.filter((x): x is number => x != null).map(id => byId.get(id)).filter((x): x is Person => !!x);
+    const w = kitWant(P, T, who, sqLv(c, T));
+    need.pot += w.pots; need.torch += w.torch; need.food += w.food; need.mend += w.mend; if (w.gear) gear[w.gear] = (gear[w.gear] || 0) + 1;
+  });
+  const out = { pot: Math.max(0, need.pot - H.pot - H.holy), torch: Math.max(0, need.torch - (S.torch || 0)), food: Math.max(0, need.food - (S.food || 0)), mend: Math.max(0, need.mend - (S.mend || 0)),
+    gear: Object.fromEntries(Object.entries(gear).map(([g, n]) => [g, Math.max(0, n - (S.gear[g] || 0))]).filter(([, n]) => +n > 0)) as Record<string, number> };
+  const cost = out.pot * buyPrice(W, 'pot') + out.torch * buyPrice(W, 'torch') + out.food * buyPrice(W, 'food') + out.mend * buyPrice(W, 'mend') + Object.values(out.gear).reduce((a, n) => a + n * buyPrice(W, 'gear'), 0);
+  return { ...out, cost };
 }
 // 창고의 포션 묶음에서 n병을 꺼낸다 (오래된 것부터). 꺼낸 것 중 가장 오래된 묶음의 나이를 돌려준다
 function takeLots(a: number[], n: number) { let left = n, age = 0; for (let i = a.length - 1; i >= 0 && left > 0; i--) { const d = Math.min(left, a[i] || 0); if (d) { a[i] -= d; left -= d; age = Math.max(age, i); } } return { n: n - left, age }; }
@@ -1550,6 +1584,7 @@ export function runMonth(W: World, playerPlan: Plan, grow = false): MonthResult 
   // (한 달 결재: 진급 예정자에게 모두 자격증을 준다. 미루기는 화면에서)
   if (plan.promote !== false) (us(W).crew || []).forEach(p => promote(W, p.id));
   buyOrder(W, plan);
+  if (plan.autoBuy !== false) stockUp(W, plan);
   for (let n0 = us(W).members; ;) {
     const c = us(W);
     if (c.crew) { hireAuto(W, plan); if (!plan.teams) plan.teams = sanitize(W, c, plan).teams; if (grow && c.members > n0) growTeams(W, plan); n0 = c.members; sendReady(W, plan); }
@@ -1558,6 +1593,14 @@ export function runMonth(W: World, playerPlan: Plan, grow = false): MonthResult 
   }
 }
 
+// 달 첫날 한 달 몫을 정가로 들여놓는다 (봇: 화면의 보급 창 "자동" 칸과 같은 양). 모자라면 보낼 때 긴급 구매
+function stockUp(W: World, raw: Plan) {
+  const c = us(W); if (!c.crew) return;
+  const P = sanitize(W, c, raw), N = monthNeed(W, P), H = potsOf(c), S = supOf(c);
+  buyNow(W, 'pot', N.pot - H.pot - H.holy);
+  (['torch', 'food', 'mend'] as const).forEach(k => buyNow(W, k, N[k] - (S[k] || 0)));
+  Object.entries(gearBuy(c, P)).forEach(([g, n]) => buyNow(W, 'gear', n, g));
+}
 // 신입이 들어온 날: 조에 들지 않은 사람으로 조를 하나 더 짤 수 있으면, 가장 많이 보내는 층에 기본 편성대로 한 조를 더한다 (한 달 결재: 신입이 그달 바로 나간다)
 function growTeams(W: World, plan: Plan) {
   const c = us(W), T = plan.teams || (plan.teams = []), on = new Set(T.flatMap(t => t.m));

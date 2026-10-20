@@ -117,7 +117,7 @@ export function packBar(slots: number, torch: number, pots: number, loot = 0, fo
 }
 
 // 보내기 단추: 누르면 보낼 예정(다음 날 단추를 누르면 떠난다), 다시 누르면 거둔다
-export const sendBtn = (T: { f: number; go?: boolean }, t: number) => `<button type="button" class="send${T.go ? ' on' : ''}" data-act="send" data-t="${t}" aria-pressed="${!!T.go}" title="${T.go ? '다음 날 아침 떠남 · 다시 누르면 거둠' : `${FLOORS[T.f].name}까지 ${CO.TRIP_DAYS[T.f]}일 · 다음 날을 누르면 떠난다 · 모자란 채비는 떠날 때 상단에서 산다`}">${T.go ? '보낼 예정 ✓' : '보내기'}</button>`;
+export const sendBtn = (T: { f: number; go?: boolean }, t: number) => `<button type="button" class="send${T.go ? ' on' : ''}" data-act="send" data-t="${t}" aria-pressed="${!!T.go}" title="${T.go ? '다음 날 아침 떠남 · 다시 누르면 거둠' : `${FLOORS[T.f].name}까지 ${CO.TRIP_DAYS[T.f]}일 · 다음 날을 누르면 떠난다`}">${T.go ? '보낼 예정 ✓' : '보내기'}</button>`;
 // ---------- 출정 편성표 ----------
 // 조 장비: 단계 칸(0 ~ 5)과 올리기 단추 (조가 본부에 있을 때. 값은 조장의 조 크기 한도에 비례, 그믐마다 장부가의 SQ_KEEP가 유지비)
 export function sqHtml(W: World, T: Team, t: number, who: Person[], big = false) {

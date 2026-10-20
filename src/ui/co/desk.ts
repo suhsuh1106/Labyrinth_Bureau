@@ -2,7 +2,7 @@
 // 정보 주차 — 자료함(보고서·신문·도감·조사 결과)을 열어 읽고, 조사 의뢰를 걸고, 정보망과 내정(건물·보급·창고·세력)을 정한다.
 // 탐험 주차 — 이번 달 조사를 옆에 두고 층마다 몇 조를 무엇을 챙겨 보낼지 정하고 도장을 찍는다. 결과는 다음 달 보고서가 된다.
 // 화면은 HTML 문자열만 만든다. 상태를 쓰지 않고 난수도 쓰지 않는다
-import { adminFee, adminOf, setClerks, awayIds, boughtOf, holyRoom, teamReady, forecastTrips, type Team, floorMons, CO, FLOORS, INTEL, ITEMS, TAX, type Filing, type Job, type Person, clamp, jobsExplore, mapOf, torchOf, undMods, jobsOpen, jobsSign, taxGuess, torchBuy, fireCost, potShock, potionNow, foodBuy, mendBuy, carryOf, foodDays, mendOf, torchRate, torchOdds, wageCo, candNow, grOf, hqCost, hqKeep, hqLv, fcRank, forecast, townOf, type Plan, SRCS, type World, bedsOf, isRook, rookCount, churchPrice, dormCost, dormKeep, roomOf, wageOf, gearBuy, intelBlock, intelCost, lootMul, maxParties, needOf, potsExpiring, potsOf, probeCost, probesLeft, sanitize, sortieCost, succRate, supOf, toolCost, trainBonus, us } from '../../core/company';
+import { buyPrice, monthNeed, rushOn, adminFee, adminOf, setClerks, awayIds, boughtOf, holyRoom, teamReady, forecastTrips, type Team, floorMons, CO, FLOORS, INTEL, ITEMS, TAX, type Filing, type Job, type Person, clamp, jobsExplore, mapOf, torchOf, undMods, jobsOpen, jobsSign, taxGuess, torchBuy, fireCost, potShock, potionNow, foodBuy, mendBuy, carryOf, foodDays, mendOf, torchRate, torchOdds, wageCo, candNow, grOf, hqCost, hqKeep, hqLv, fcRank, forecast, townOf, type Plan, SRCS, type World, bedsOf, isRook, rookCount, churchPrice, dormCost, dormKeep, roomOf, wageOf, gearBuy, intelBlock, intelCost, lootMul, maxParties, needOf, potsExpiring, potsOf, probeCost, probesLeft, sanitize, sortieCost, succRate, supOf, toolCost, trainBonus, us } from '../../core/company';
 import { CLASSES, GEARS, BUYERS, PAIR_CLASS } from '../../core/data';
 import { askPanel, bookHtml, condLabel, demandsNow, kitHint } from './book';
 import { SRC_INFO, intelHtml, rumorsHtml } from './intel';
@@ -12,7 +12,7 @@ import { fcChart, fmtG } from './charts';
 import { PLACES, townSceneHtml } from './town';
 import { lawsHtml } from './books';
 import { el, gearTag } from './icons';
-import { dayStrip, hallHtml, lootStock, nextDayBtn } from './hall';
+import { backWinHtml, dayStrip, hallHtml, lootStock, nextDayBtn } from './hall';
 import { assignHtml, candHtml, packBar, rosterHtml } from './roster';
 import { KTAG, depthsHtml, fmt, newsLines, pct, resultsHtml, sgn, stepper } from './view';
 
@@ -21,7 +21,7 @@ export type DeskUi = { phase: number; tab: string; seen?: number; dexMon?: strin
   file?: Partial<Filing>;   // 가정산에서 고치는 신고서
   pick?: { t?: number; s?: number; id?: number } | null;
   sort?: Record<string, string>;   // 명단 정렬 (rs 인원 명단 · cd 지원자 · as 편성표): "열:방향"
-  place?: string; town?: boolean; exp?: boolean; store?: boolean; who?: number };   // who: 인원 창에서 기록 카드를 펼친 단원   // store: 창고 창   // exp: 출정 편성 창   // town: 길드 홀 대신 마을 지도와 결재안을 펼쳐 둔다   // 내정에서 열어 둔 장소 창 (인원 · 건물 · 상단 거리 · 교회 · 정보망)   // 편성판에서 집어 든 사람 (조의 자리, 또는 대기 인원)
+  place?: string; town?: boolean; exp?: boolean; store?: boolean; who?: number; backs?: boolean };   // backs: 귀환 보고 창   // who: 인원 창에서 기록 카드를 펼친 단원   // store: 창고 창   // exp: 출정 편성 창   // town: 길드 홀 대신 마을 지도와 결재안을 펼쳐 둔다   // 내정에서 열어 둔 장소 창 (인원 · 건물 · 상단 거리 · 교회 · 정보망)   // 편성판에서 집어 든 사람 (조의 자리, 또는 대기 인원)
 const lvOf = (W: World, k: keyof typeof INTEL.BASE) => (W.intel ? W.intel.lv[k] : INTEL.BASE[k]);
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
@@ -170,19 +170,20 @@ function trainPanel(W: World, raw: Plan) {
 // 본부에 있는 조만 (나가 있는 조는 채비를 이미 들고 갔다). 보급 창의 "필요"는 이 조들이 한 번씩 나갈 채비다
 export const homePlan = (W: World, P: Plan): Plan => { const out = awayIds(W); if (!P.teams) return P; const teams = P.teams.filter((T: Team) => !T.m.some(x => x != null && out.has(x))); return { ...P, teams, parties: FLOORS.map((_, f) => teams.filter(T => T.f === f).length) }; };
 // 이번 달 살 포션 (비워 두면 편성에 모자란 만큼)
-const potBuy = (W: World, raw: Plan, P: Plan) => { const H = potsOf(us(W)), need = needOf(homePlan(W, P)); return raw.buy && raw.buy.pot != null ? raw.buy.pot : Math.max(0, need.pot - H.pot - H.holy - ((raw.buy && raw.buy.holy) || 0)); };
+const potBuy = (W: World, raw: Plan, P: Plan) => { const H = potsOf(us(W)), need = monthNeed(W, homePlan(W, P)); return raw.buy && raw.buy.pot != null ? raw.buy.pot : Math.max(0, need.pot - H.pot - H.holy - ((raw.buy && raw.buy.holy) || 0)); };
 // 보급 창의 주문: 칸마다 적은 수 (비워 둔 칸은 본부의 조가 한 번씩 나갈 만큼에서 창고를 뺀 것). "지금 사기"가 이대로 산다
 export function orderOf(W: World, raw: Plan) {
-  const c = us(W), P = homePlan(W, sanitize(W, c, raw)), gear: Record<string, number> = {};
+  const c = us(W), P = homePlan(W, sanitize(W, c, raw)), gear: Record<string, number> = {}, MN = monthNeed(W, P);
   GEAR_NAMES.forEach(g => { const n = gearOf(W, raw, P, g); if (n > 0) gear[g] = n; });
-  return { pot: potBuy(W, raw, P), holy: Math.min(holyRoom(W), (raw.buy && raw.buy.holy) || 0), torch: torchBuy(c, P), food: foodBuy(c, P), mend: mendBuy(c, P), gear };
+  return { pot: potBuy(W, raw, P), holy: Math.min(holyRoom(W), (raw.buy && raw.buy.holy) || 0), torch: torchBuy(c, P, MN), food: foodBuy(c, P, MN), mend: mendBuy(c, P, MN), gear };
 }
-const orderCost = (W: World, o: ReturnType<typeof orderOf>) => o.pot * potionNow(W) + o.holy * churchPrice(W, 0) + o.torch * CO.TORCH_PRICE + o.food * CO.FOOD_PRICE + o.mend * CO.MEND_PRICE + Object.values(o.gear).reduce((a, b) => a + b, 0) * CO.GEAR_PRICE;
+export const orderCost = (W: World, o: ReturnType<typeof orderOf>) => o.pot * buyPrice(W, 'pot') + o.holy * buyPrice(W, 'holy') + o.torch * buyPrice(W, 'torch') + o.food * buyPrice(W, 'food') + o.mend * buyPrice(W, 'mend') + Object.values(o.gear).reduce((a, b) => a + b, 0) * buyPrice(W, 'gear');
+const pz = (v: number) => (Math.round(v * 10) / 10).toLocaleString('ko-KR');
 const gearOf = (W: World, raw: Plan, P: Plan, g: string) => (raw.buy && raw.buy.gear && raw.buy.gear[g] != null ? raw.buy.gear[g] : gearBuy(us(W), homePlan(W, P))[g] || 0);
 // 창고: 왼쪽은 캐 온 채집품(팔 날을 고른다), 오른쪽은 채비. 채비는 품목마다 보유 · 이번 달 구매 · 사용 예측 · 상할 것 · 다음 달 남음. 막대는 (보유 + 구매)를 쓸 것 · 남을 것 · 상할 것으로 나눈다.
 // 포션은 위기에 쓴 만큼만 빠지고(성수부터, 오래된 것부터), 사용 예측은 수입 예측의 위기 기대값이다
 export function storeHtml(W: World, raw: Plan, P: Plan) {
-  const c = us(W), S = supOf(c), H = potsOf(c), X = potsExpiring(c), need = needOf(P), fc = forecast(W, P);
+  const c = us(W), S = supOf(c), H = potsOf(c), X = potsExpiring(c), need = needOf(P), fc = forecast(W, P), O = orderOf(W, raw);
   const potN = potBuy(W, raw, P), holyN = (raw.buy && raw.buy.holy) || 0, use = Math.min(Math.round(fc.crisis || 0), need.pot);
   const useH = Math.min(H.holy + holyN, use), useP = Math.max(0, use - useH);
   const spoilH = Math.max(0, X.holy - useH), spoilP = Math.max(0, X.pot - useP);
@@ -202,32 +203,32 @@ export function storeHtml(W: World, raw: Plan, P: Plan) {
       ${row('상단 포션', H.pot, potN, need.pot - Math.min(need.pot, H.holy + holyN), useP, spoilP)}
       ${H.holy || holyN ? row('교회 성수', H.holy, holyN, Math.min(need.pot, H.holy + holyN), useH, spoilH) : ''}
       ${gears.join('')}
-      ${row('횃불', S.torch || 0, torchBuy(c, P), tor, Math.min(tor, (S.torch || 0) + torchBuy(c, P), fc.torch || 0), 0, '상하지 않음 · 남은 것은 돌아옴')}
-      ${row('식량', S.food || 0, foodBuy(c, P), need.food, Math.min(need.food, Math.round(fc.food || 0)), 0, '먹은 만큼 빠짐 · 남은 것은 돌아옴')}
-      ${row('정비 도구', S.mend || 0, mendBuy(c, P), need.mend, Math.min(need.mend, Math.round(fc.mend || 0)), 0, '진 날 쓴 만큼 빠짐')}
+      ${row('횃불', S.torch || 0, O.torch, tor, Math.min(tor, (S.torch || 0) + O.torch, fc.torch || 0), 0, '상하지 않음 · 남은 것은 돌아옴')}
+      ${row('식량', S.food || 0, O.food, need.food, Math.min(need.food, Math.round(fc.food || 0)), 0, '먹은 만큼 빠짐 · 남은 것은 돌아옴')}
+      ${row('정비 도구', S.mend || 0, O.mend, need.mend, Math.min(need.mend, Math.round(fc.mend || 0)), 0, '진 날 쓴 만큼 빠짐')}
     </tbody></table></div>
     <div class="legend"><span><i class="sw use"></i>사용 예측</span><span><i class="sw keep"></i>다음 달 남음</span><span><i class="sw rot"></i>상함</span></div></section></div></div>`;
 }
 // 보급 구매: 상단 포션 · 교회 성수 · 횃불 · 장비를 한 표에서. 비워 둔 칸은 편성에 모자란 만큼
 function buyPanel(W: World, raw: Plan, P: Plan) {
-  const c = us(W), S = supOf(c), H = potsOf(c), need = needOf(homePlan(W, P));
-  const HP = homePlan(W, P), potN = potBuy(W, raw, P), holyN = (raw.buy && raw.buy.holy) || 0, auto = !(raw.buy && raw.buy.pot != null), tN = torchBuy(c, HP), tAuto = !(raw.buy && raw.buy.torch != null);
-  const fN = foodBuy(c, HP), fAuto = !(raw.buy && raw.buy.food != null), mN = mendBuy(c, HP), mAuto = !(raw.buy && raw.buy.mend != null);
+  const c = us(W), S = supOf(c), H = potsOf(c), need = monthNeed(W, homePlan(W, P)), rush = rushOn(W);
+  const HP = homePlan(W, P), potN = potBuy(W, raw, P), holyN = (raw.buy && raw.buy.holy) || 0, auto = !(raw.buy && raw.buy.pot != null), tN = torchBuy(c, HP, need), tAuto = !(raw.buy && raw.buy.torch != null);
+  const fN = foodBuy(c, HP, need), fAuto = !(raw.buy && raw.buy.food != null), mN = mendBuy(c, HP, need), mAuto = !(raw.buy && raw.buy.mend != null);
   const autoBtn = (on: boolean, act: string) => (on ? '<small>자동</small>' : `<button type="button" class="link" data-act="${act}">자동</button>`);
   const rows = [
-    `<tr><td><b>상단 포션</b>${potShock(W.month) > 1 ? `<small class="neg">약초 흉년 · 값 ×${CO.POT_SHOCK}</small>` : potShock(W.month + 1) > 1 ? `<small class="neg">다음 달부터 ${CO.POT_SHOCK_LEN}달 값 ×${CO.POT_SHOCK} 소문 · 보관 ${CO.POT_KEEP}달</small>` : ''}</td><td class="n">${potionNow(W)}G</td><td class="n">${H.pot}</td><td class="n">${need.pot}</td><td>${stepper('buyPot', 0, potN, '상단 포션 구매', 5)}${autoBtn(auto, 'auto-pot')}</td><td class="n">${fmt(potN * potionNow(W))}G</td></tr>`,
-    `<tr><td><b>교회 성수</b><small>${Math.round(CO.HOLY * 100)}% 확률로 병을 비우지 않고 막음 · 보관 ${CO.HOLY_KEEP}달 · 한 달 ${holyRoom(W) + boughtOf(W).holy}병까지</small></td><td class="n">${churchPrice(W, 0)}G</td><td class="n">${H.holy}</td><td class="n dim">-</td><td>${stepper('buyHoly', 0, holyN, '교회 성수 구매', 5)}</td><td class="n">${fmt(holyN * churchPrice(W, 0))}G</td></tr>`,
-    `<tr><td><b>횃불</b><small>조당 개수는 출정 표에서 · 남으면 창고로</small></td><td class="n">${CO.TORCH_PRICE}G</td><td class="n">${S.torch || 0}</td><td class="n">${need.torch}</td><td>${stepper('buyTorch', 0, tN, '횃불 구매', 5)}${autoBtn(tAuto, 'auto-torch')}</td><td class="n">${fmt(tN * CO.TORCH_PRICE)}G</td></tr>`,
-    `<tr><td><b>식량</b><small>한 사람 하루 하나 · 짐 한 칸에 ${CO.FOOD_SLOT}개 · 남으면 창고로</small></td><td class="n">${CO.FOOD_PRICE}G</td><td class="n">${S.food || 0}</td><td class="n">${need.food}</td><td>${stepper('buyFood', 0, fN, '식량 구매', 10)}${autoBtn(fAuto, 'auto-food')}</td><td class="n">${fmt(fN * CO.FOOD_PRICE)}G</td></tr>`,
-    `<tr><td><b>정비 도구</b><small>진 날 하나 써서 무기를 고침 · 남으면 창고로</small></td><td class="n">${CO.MEND_PRICE}G</td><td class="n">${S.mend || 0}</td><td class="n">${need.mend}</td><td>${stepper('buyMend', 0, mN, '정비 도구 구매', 5)}${autoBtn(mAuto, 'auto-mend')}</td><td class="n">${fmt(mN * CO.MEND_PRICE)}G</td></tr>`,
-    ...GEAR_NAMES.map((g, i) => { const b = gearOf(W, raw, P, g); return `<tr><td><b>${gearTag(g)}</b><small>${PAIR_CLASS[g]} 둘 몫 · 탐사마다 파손 확률 (실패 · 역효과면 높음)</small></td><td class="n">${CO.GEAR_PRICE}G</td><td class="n">${S.gear[g] || 0}</td><td class="n">${need.gear[g] || '-'}</td><td>${stepper('buyGear', i, b, `${g} 장비 구매`)}</td><td class="n">${fmt(b * CO.GEAR_PRICE)}G</td></tr>`; }),
+    `<tr><td><b>상단 포션</b>${potShock(W.month) > 1 ? `<small class="neg">약초 흉년 · 값 ×${CO.POT_SHOCK}</small>` : potShock(W.month + 1) > 1 ? `<small class="neg">다음 달부터 ${CO.POT_SHOCK_LEN}달 값 ×${CO.POT_SHOCK} 소문 · 보관 ${CO.POT_KEEP}달</small>` : ''}</td><td class="n">${pz(buyPrice(W, 'pot'))}G</td><td class="n">${H.pot}</td><td class="n">${need.pot}</td><td>${stepper('buyPot', 0, potN, '상단 포션 구매', 5)}${autoBtn(auto, 'auto-pot')}</td><td class="n">${fmt(potN * buyPrice(W, 'pot'))}G</td></tr>`,
+    `<tr><td><b>교회 성수</b><small>${Math.round(CO.HOLY * 100)}% 확률로 병을 비우지 않고 막음 · 보관 ${CO.HOLY_KEEP}달 · 한 달 ${holyRoom(W) + boughtOf(W).holy}병까지</small></td><td class="n">${pz(buyPrice(W, 'holy'))}G</td><td class="n">${H.holy}</td><td class="n dim">-</td><td>${stepper('buyHoly', 0, holyN, '교회 성수 구매', 5)}</td><td class="n">${fmt(holyN * buyPrice(W, 'holy'))}G</td></tr>`,
+    `<tr><td><b>횃불</b><small>조당 개수는 출정 표에서 · 남으면 창고로</small></td><td class="n">${pz(buyPrice(W, 'torch'))}G</td><td class="n">${S.torch || 0}</td><td class="n">${need.torch}</td><td>${stepper('buyTorch', 0, tN, '횃불 구매', 5)}${autoBtn(tAuto, 'auto-torch')}</td><td class="n">${fmt(tN * buyPrice(W, 'torch'))}G</td></tr>`,
+    `<tr><td><b>식량</b><small>한 사람 하루 하나 · 짐 한 칸에 ${CO.FOOD_SLOT}개 · 남으면 창고로</small></td><td class="n">${pz(buyPrice(W, 'food'))}G</td><td class="n">${S.food || 0}</td><td class="n">${need.food}</td><td>${stepper('buyFood', 0, fN, '식량 구매', 10)}${autoBtn(fAuto, 'auto-food')}</td><td class="n">${fmt(fN * buyPrice(W, 'food'))}G</td></tr>`,
+    `<tr><td><b>정비 도구</b><small>진 날 하나 써서 무기를 고침 · 남으면 창고로</small></td><td class="n">${pz(buyPrice(W, 'mend'))}G</td><td class="n">${S.mend || 0}</td><td class="n">${need.mend}</td><td>${stepper('buyMend', 0, mN, '정비 도구 구매', 5)}${autoBtn(mAuto, 'auto-mend')}</td><td class="n">${fmt(mN * buyPrice(W, 'mend'))}G</td></tr>`,
+    ...GEAR_NAMES.map((g, i) => { const b = gearOf(W, raw, P, g); return `<tr><td><b>${gearTag(g)}</b><small>${PAIR_CLASS[g]} 둘 몫 · 탐사마다 파손 확률 (실패 · 역효과면 높음)</small></td><td class="n">${pz(buyPrice(W, 'gear'))}G</td><td class="n">${S.gear[g] || 0}</td><td class="n">${need.gear[g] || '-'}</td><td>${stepper('buyGear', i, b, `${g} 장비 구매`)}</td><td class="n">${fmt(b * buyPrice(W, 'gear'))}G</td></tr>`; }),
   ];
   const o = orderOf(W, raw), oc = orderCost(W, o), B = boughtOf(W), spent = B.cost.potion + B.cost.torch + B.cost.food + B.cost.mend + B.cost.gear;
-  return `<div class="panel"><header><h2>보급 구매</h2><span class="sub">사면 바로 창고로 · 금고에서 바로 나감 · 남은 것은 다음 달로 · 포션 보관 ${CO.POT_KEEP}달</span>${spent ? `<span class="right">이번 달 산 것 <b>${fmt(spent)}G</b></span>` : ''}</header>
+  return `<div class="panel"><header><h2>보급 구매</h2>${rush ? `<span class="neg">긴급 구매 · 정가 ×${CO.RUSH} (정가는 매달 1일)</span>` : '<span class="pos">오늘 정가 · 2일부터 긴급 구매</span>'}<span class="sub">한 달 몫 · 사면 바로 창고로 · 남은 것은 다음 달로 · 포션 보관 ${CO.POT_KEEP}달</span>${spent ? `<span class="right">이번 달 산 것 <b>${fmt(spent)}G</b></span>` : ''}</header>
     ${stockBar(W, raw, P, false)}
     <div class="tw"><table class="grid buy"><thead><tr><th>품목</th><th class="n">단가</th><th class="n">창고</th><th class="n">필요</th><th>구매</th><th class="n">금액</th></tr></thead><tbody>${rows.join('')}</tbody></table></div>
-    <div class="buybar"><button type="button" class="tog" data-act="auto-buy" aria-pressed="${raw.autoBuy !== false}" title="조를 보낼 때 창고에 모자란 포션 · 횃불 · 식량 · 정비 도구 · 장비를 상단에서 바로 산다">보낼 때 모자란 채비 자동 구매</button>
-      <span class="sp"></span><span class="dim">교회 성수 이번 달 ${holyRoom(W)}병 더</span><button type="button" class="seal sm" data-act="buy-now"${oc > 0 ? '' : ' disabled'}>지금 사기 −${fmt(oc)}G</button></div></div>
+    <div class="buybar"><button type="button" class="tog" data-act="auto-buy" aria-pressed="${raw.autoBuy !== false}" title="조를 보낼 때 창고에 모자란 포션 · 횃불 · 식량 · 정비 도구 · 장비를 상단에서 바로 산다 (1일이 지나면 긴급 구매 ×${CO.RUSH})">보낼 때 모자란 채비 자동 구매</button>
+      <span class="sp"></span><span class="dim">교회 성수 이번 달 ${holyRoom(W)}병 더</span><button type="button" class="seal sm${rush ? ' rush' : ''}" data-act="buy-now"${oc > 0 ? '' : ' disabled'} title="${rush ? `정가는 매달 1일 · 지금은 정가 ×${CO.RUSH}` : '오늘만 정가 · 2일부터는 긴급 구매'}">${rush ? '긴급 구매' : '지금 사기'} −${fmt(oc)}G</button></div></div>
     ${kitPanel(W, P)}`;
 }
 // 조당 기본 채비: 층마다 한 조가 들고 갈 포션 · 횃불 · 식량(며칠치) · 정비 도구. 편성표에서 조마다 바꿀 수 있다
@@ -499,7 +500,7 @@ export function infoWeekHtml(W: World, raw: Plan, ui: DeskUi) {
   const seals = sealsOf(W, raw);
   const main = ui.town ? `<div class="town">${townSceneHtml(fmt(townOf(W)), seals)}${ledgerHtml(W, raw)}</div>` : hallHtml(W, raw);
   return `${noticeHtml(W, ui)}${placeBar({ ...seals, ...(ui.town ? { __town: '1' } : {}) })}${main}
-    ${ui.store ? storeWin(W, raw) : ''}${ui.exp ? expHtml(W, raw, ui) : ''}${readerHtml(W, ui, raw)}${placeHtml(W, raw, ui)}`;
+    ${ui.store ? storeWin(W, raw) : ''}${ui.exp ? expHtml(W, raw, ui) : ''}${readerHtml(W, ui, raw)}${placeHtml(W, raw, ui)}${ui.backs ? backWinHtml(W, raw) : ''}`;
 }
 // 창고 창: 채집품(팔기) · 채비
 function storeWin(W: World, raw: Plan) {
@@ -525,13 +526,13 @@ const pip = (p: Person) => `<i class="cls ${CLS_TAG[p.c] || ''}" aria-hidden="tr
 // 채비 품목마다: 창고 · 이번 달 구매 · 편성대로 챙길 것 · 사용 예측 (수입 예측과 같은 셈, 난수 없이)
 // 산 것은 이번 달 창고에 바로 들어와 이번 출정에 쓰이고, 쓰지 않은 것은 다음 달 창고에 남는다
 export function kitStock(W: World, raw: Plan, P: Plan) {
-  const c = us(W), S = supOf(c), H = potsOf(c), need = needOf(P), fc = forecast(W, P);
+  const c = us(W), S = supOf(c), H = potsOf(c), need = needOf(P), fc = forecast(W, P), O = orderOf(W, raw);
   const it = (n: string, have: number, buy: number, carry: number, use: number) => ({ n, have, buy, carry: Math.min(carry, have + buy), want: carry, use: Math.min(Math.round(use), carry, have + buy) });
   return [
     it('포션', H.pot + H.holy, potBuy(W, raw, P) + ((raw.buy && raw.buy.holy) || 0), need.pot, fc.crisis || 0),
-    it('횃불', S.torch || 0, torchBuy(c, P), need.torch, fc.torch || 0),
-    it('식량', S.food || 0, foodBuy(c, P), need.food, fc.food || 0),
-    it('정비 도구', S.mend || 0, mendBuy(c, P), need.mend, fc.mend || 0),
+    it('횃불', S.torch || 0, O.torch, need.torch, fc.torch || 0),
+    it('식량', S.food || 0, O.food, need.food, fc.food || 0),
+    it('정비 도구', S.mend || 0, O.mend, need.mend, fc.mend || 0),
   ];
 }
 // 편성표 위 채비 줄: 품목마다 막대 하나 (사용 예측 · 들고 갔다 돌아올 것 · 창고에 남는 것 · 모자람)
