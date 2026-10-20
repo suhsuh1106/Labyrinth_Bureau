@@ -204,13 +204,13 @@ function act(b: HTMLElement) {
     tidyTeams(); const T = plan.teams || [], K = kitShort(W, plan, T.map((x, t) => t).filter(t => T[t].go && teamReady(W, T[t])));
     let v = buyNow(W, 'pot', K.pot) + buyNow(W, 'torch', K.torch) + buyNow(W, 'food', K.food) + buyNow(W, 'mend', K.mend);
     Object.entries(K.gear).forEach(([g, n]) => { v += buyNow(W, 'gear', n, g); });
-    render(); save(); say(v ? `모자란 채비 ${Math.round(v).toLocaleString('ko-KR')}G어치를 샀어요` : '살 것이 없어요'); return;
+    render(); save(); say(v ? `모자란 채비 ${Math.round(v).toLocaleString('ko-KR')}G어치를 ${W.day && W.day > 1 ? '긴급 구매로 ' : ''}샀어요` : '살 것이 없어요'); return;
   }
   if (a === 'buy-now') {
     const o = orderOf(W, plan); let v = 0;
     (['pot', 'holy', 'torch', 'food', 'mend'] as const).forEach(k => { v += buyNow(W, k, o[k]); });
     Object.entries(o.gear).forEach(([g, n]) => { v += buyNow(W, 'gear', n, g); });
-    plan.buy = {}; render(); save(); say(v ? `보급 ${Math.round(v).toLocaleString('ko-KR')}G어치가 창고에 들어왔어요` : '살 것이 없어요'); return;
+    plan.buy = {}; render(); save(); say(v ? `보급 ${Math.round(v).toLocaleString('ko-KR')}G어치가 창고에 들어왔어요${W.day && W.day > 1 ? ` (긴급 구매 ×${CO.RUSH})` : ''}` : '살 것이 없어요'); return;
   }
   if (a === 'sell' || a === 'sell-all') {
     const js = a === 'sell-all' ? FLOORS.map((_, j) => j) : [+(b.dataset.j || 0)];

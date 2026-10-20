@@ -2,9 +2,9 @@
 // 옆 판에는 미궁에 나가 있는 조(며칠째 · 언제 돌아올지 · 예측), 오늘 아침 돌아온 조, 나갈 수 있는 조가 있다.
 // 대화는 기록(오늘 돌아온 조 · 다친 사람 · 시세 · 소문 · 특성)에서 고르고, 고르는 데 난수 대신 날짜와 사람 번호의 해시를 쓴다.
 // 상태를 쓰지 않고 난수도 쓰지 않는다
-import { MISSION_NAME, priceNow, CO, FLOORS, ITEMS, type Ours, type Person, type Plan, type Sortie, type World, awayIds, boughtOf, candNow, roomOf, grOf, dayAbs, dayOf, floorMons, forecast, forecastTrips, isLeader, jo, kitShort, potShock, potsExpiring, promoteDue, sanitize, stateOf, teamReady, unitPrice, us } from '../../core/company';
+import { MISSION_NAME, priceNow, CO, FLOORS, ITEMS, type Ours, type Person, type Plan, type Sortie, type World, awayIds, boughtOf, candNow, roomOf, grOf, dayAbs, dayOf, floorMons, forecast, forecastTrips, isLeader, jo, kitShort, potShock, potsExpiring, promoteDue, sanitize, stateOf, rushOn, teamReady, unitPrice, us } from '../../core/company';
 import { TRIP_END } from '../../core/events';
-import { adminBar } from './desk';
+import { adminBar, orderCost, orderOf } from './desk';
 import { dayCls, dayMark, dayTip, luckHtml, nameOf, packBar, sendBtn, sqHtml } from './roster';
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
@@ -170,11 +170,13 @@ export function agendaOf(W: World, raw: Plan): Agenda[] {
   const c = us(W), P = sanitize(W, c, raw), crew = c.crew || [], A: Agenda[] = [];
   if (!c.crew || W.draft) return A;
   const teams = P.teams || [], ready = teams.map((T, t) => ({ T, t })).filter(x => teamReady(W, x.T));
+  // 달 첫날: 한 달 몫 보급을 정가로 (2일부터는 긴급 구매)
+  if (!rushOn(W)) { const oc = orderCost(W, orderOf(W, raw)); if (oc >= 1) A.push({ k: 'buy', h: '이달 보급 · 오늘만 정가', t: `한 달 몫 ${fmt(oc)}G · 2일부터 긴급 구매 ×${CO.RUSH}`, btn: '<button type="button" class="ghost sm" data-act="place" data-place="market">보급</button>', must: true }); }
   // 떠날 조의 채비가 창고에 모자람 (자동 구매를 끈 때)
   const go = ready.filter(x => x.T.go).map(x => x.t);
   if (raw.autoBuy === false && go.length) {
     const K = kitShort(W, raw, go), parts = [['포션', K.pot], ['횃불', K.torch], ['식량', K.food], ['정비 도구', K.mend], ...Object.entries(K.gear).map(([g, n]) => [g + ' 장비', n])].filter(x => +x[1] > 0);
-    if (parts.length) A.push({ k: 'kit', h: '채비 모자람', t: `${go.map(t => `${t + 1}조`).join(' · ')} · ${parts.map(([n, v]) => `${n} ${v}`).join(' · ')}`, btn: `<button type="button" class="send" data-act="buy-short">사기 −${fmt(K.cost)}G</button>`, must: true });
+    if (parts.length) A.push({ k: 'kit', h: '채비 모자람', t: `${go.map(t => `${t + 1}조`).join(' · ')} · ${parts.map(([n, v]) => `${n} ${v}`).join(' · ')}`, btn: `<button type="button" class="send" data-act="buy-short">${rushOn(W) ? '긴급 구매' : '사기'} −${fmt(K.cost)}G</button>`, must: true });
   }
   // 나갈 수 있는 조: 보내면 예측 (예정을 잡은 조는 내일 출발, 다시 누르면 거둠)
   ready.forEach(({ T, t }) => {
