@@ -1,0 +1,276 @@
+<title>깃발 아래 파티</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* 레이아웃: 길드 사무실 책상. 왼쪽은 깃발 아래 파티 카드와 마을에 온 파티, 오른쪽은 우리 조건 · 현상금 게시판 · 보고 · 장부. 본편의 짙은 초록 판 · 놋쇠 색 */
+:root {
+  color-scheme: dark;
+  --desk: #121b16; --board: #1f3329; --board-2: #172720; --line: #3a5446;
+  --ink: #e1e9df; --soft: #a5b8aa; --brass: #d9b45a; --bad: #f08a7e; --good: #86cf9f; --warn: #e6b45a;
+  --f-display: "Gowun Batang", "Nanum Myeongjo", "Batang", serif;
+  --f-body: "IBM Plex Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+  --f-num: "IBM Plex Mono", ui-monospace, "Consolas", monospace;
+}
+html, body { background: var(--desk); color: var(--ink); }
+body { font-family: var(--f-body); font-size: 14px; line-height: 1.5; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 14px 28px; }
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 12px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; }
+h1 { font: 700 22px var(--f-display); margin: 0; letter-spacing: .02em; text-wrap: balance; }
+.stat { font: 500 13px var(--f-num); color: var(--soft); font-variant-numeric: tabular-nums; }
+.stat b { color: var(--ink); font-weight: 500; }
+.sp { flex: 1; }
+button { font: 600 13px var(--f-body); color: var(--ink); background: var(--board); border: 1px solid var(--line); border-radius: 3px; padding: 6px 12px; cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--brass); }
+button:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+button:disabled { opacity: .45; cursor: default; }
+button.main { background: var(--brass); color: #221e18; border-color: var(--brass); }
+button[aria-pressed="true"] { background: #3a3220; border-color: var(--brass); color: var(--brass); }
+.lead { margin: 0; color: var(--soft); font-size: 13px; max-width: 74ch; }
+.cols { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+@media (max-width: 880px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+.col { display: grid; gap: 12px; min-width: 0; }
+.panel { background: var(--board); border: 1px solid var(--line); border-radius: 4px; padding: 10px 12px; display: grid; gap: 8px; min-width: 0; }
+.panel h2 { font: 700 15px var(--f-display); margin: 0; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.panel h2 small { font: 400 12px var(--f-body); color: var(--soft); }
+.note { margin: 0; color: var(--soft); font-size: 12.5px; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+.pc { background: var(--board-2); border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; display: grid; gap: 4px; font-size: 12.5px; }
+.pc .h { display: flex; align-items: baseline; gap: 6px; }
+.pc .h b { font: 700 14px var(--f-display); }
+.pc .st { margin-left: auto; font-size: 11.5px; padding: 0 6px; border-radius: 9px; border: 1px solid var(--line); color: var(--soft); white-space: nowrap; }
+.pc .st.out { color: var(--brass); border-color: var(--brass); } .pc .st.hurt { color: var(--bad); border-color: var(--bad); } .pc .st.home { color: var(--good); border-color: var(--good); }
+.tags { display: flex; flex-wrap: wrap; gap: 3px; }
+.tag { font-size: 11.5px; padding: 0 6px; border-radius: 9px; border: 1px solid var(--line); color: var(--soft); }
+.meter { height: 6px; background: #0f1a14; border-radius: 3px; overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--good); }
+.meter.low i { background: var(--bad); } .meter.mid i { background: var(--warn); }
+.pc dl { display: grid; grid-template-columns: auto 1fr; gap: 0 10px; margin: 0; }
+.pc dt { color: var(--soft); } .pc dd { margin: 0; font-family: var(--f-num); font-variant-numeric: tabular-nums; }
+.pc.free { border-style: dashed; }
+.step { display: inline-flex; align-items: center; gap: 4px; }
+.step output { min-width: 3.2ch; text-align: center; font: 500 14px var(--f-num); }
+.step button { padding: 2px 9px; }
+.knobs { display: grid; grid-template-columns: auto auto 1fr; gap: 6px 10px; align-items: center; font-size: 13px; }
+.knobs small { color: var(--soft); }
+.seg { display: inline-flex; } .seg button { border-radius: 0; padding: 4px 9px; } .seg button:first-child { border-radius: 3px 0 0 3px; } .seg button:last-child { border-radius: 0 3px 3px 0; } .seg button + button { margin-left: -1px; }
+.bounty { display: flex; align-items: center; gap: 8px; background: var(--board-2); border: 1px solid var(--line); border-left: 3px solid var(--brass); border-radius: 3px; padding: 5px 8px; font-size: 13px; }
+.bounty .x { margin-left: auto; padding: 1px 8px; }
+.log { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 360px; overflow-y: auto; }
+.log li { background: var(--board-2); border: 1px solid var(--line); border-radius: 3px; padding: 6px 8px; font-size: 13px; }
+.log li.mo { border-color: var(--brass); }
+.log .d { font: 500 11px var(--f-num); color: var(--soft); margin-right: 6px; }
+.f { color: var(--brass); font-weight: 600; } .good { color: var(--good); } .bad { color: var(--bad); }
+table.led { width: 100%; border-collapse: collapse; font-size: 13px; } table.led td { padding: 2px 4px; border-bottom: 1px solid var(--line); } table.led td.n { text-align: right; font-family: var(--f-num); font-variant-numeric: tabular-nums; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>깃발 아래 파티</h1>
+    <span class="stat">제<b id="mon">1</b>월 <b id="day">1</b>/10일</span>
+    <span class="stat">금고 <b id="gold">0</b>G</span>
+    <span class="stat">명성 <b id="rep">0</b></span>
+    <span class="stat">깃발 아래 <b id="nmem">0</b>파티</span>
+    <span class="sp"></span>
+    <button type="button" id="reset">새 판</button>
+  </header>
+  <p class="lead">우리는 탐사대가 돌아가게 하는 조직이다. 깃발 아래 파티는 우리가 시키지 않는다. 각자 성향대로 층과 일을 고르고, 우리 보급을 사 가고, 캐 온 것을 우리 창고로 팔고, 다치면 우리 의무실을 쓴다. 행정관은 조건과 현상금으로 그 판단을 기울인다. 수수료가 비싸면 붉은매 깃발로 옮겨 간다.</p>
+  <div class="cols">
+    <div class="col">
+      <div class="panel"><h2>깃발 아래 파티 <small>성향 · 기록 · 빚 · 만족</small></h2><div class="cards" id="mem"></div></div>
+      <div class="panel"><h2>마을에 온 파티 <small>그믐에 우리와 붉은매 중 고른다 (명성 · 조건)</small></h2><div class="cards" id="free"></div></div>
+    </div>
+    <div class="col">
+      <div class="panel"><h2>우리 조건 <small>붉은매: 수수료 15% · 보급 +20% · 외상 없음</small></h2><div class="knobs" id="knobs"></div></div>
+      <div class="panel"><h2>현상금 게시판 <small>파티가 해내면 우리가 낸다</small></h2><div id="bform"></div><div id="blist" style="display:grid;gap:6px"></div></div>
+      <div class="row"><button type="button" class="main" id="next" style="flex:1">다음 날 ▶</button><button type="button" id="run" style="flex:1">그믐까지 ▶▶</button></div>
+      <div class="panel"><h2>이달 장부</h2><div id="ledger"></div></div>
+      <div class="panel"><h2>보고</h2><ul class="log" id="log"></ul></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  let rs = 1; const rnd = () => { rs |= 0; rs = rs + 0x6D2B79F5 | 0; let t = Math.imul(rs ^ rs >>> 15, 1 | rs); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const ri = n => Math.floor(rnd() * n), pick = a => a[ri(a.length)];
+  const MD = 10;
+  const jo = (w, a, b) => { const c = w.charCodeAt(w.length - 1) - 0xAC00; return w + (c >= 0 && c <= 11171 && c % 28 ? a : b); };
+  // 층: 다닐 날 · 위험 · 채집품 값(한 사람 하루 몫) · 전리품 값 · 지도 값
+  const FL = [
+    { n: '1층', days: 1, risk: 0.05, ore: 9, item: '황동석', hunt: 12, map: 6 },
+    { n: '2층', days: 2, risk: 0.12, ore: 28, item: '철광석', hunt: 30, map: 14 },
+    { n: '3층', days: 3, risk: 0.22, ore: 40, item: '저급 마석', hunt: 55, map: 24 },
+  ];
+  const MIS = { gather: '채집', hunt: '사냥', scout: '탐색' };
+  const SUP = 4;   // 한 사람 하루의 보급 원가 (횃불 · 식량 · 포션)
+  // 한 사람 하루 벌이 (실력 1 기준): 깊을수록 크지만 위험도 크다
+  const VAL = { gather: [10, 15, 20], hunt: [8, 16, 26], scout: [5, 8, 12] };
+  const TRAITS = {
+    greedy: { n: '욕심쟁이', d: '현상금 · 돈에 크게 움직임, 수수료에 민감' },
+    careful: { n: '신중파', d: '위험한 층을 꺼림, 빚을 잘 갚음' },
+    reckless: { n: '무모함', d: '깊은 층을 좋아함, 잘 다침' },
+    loyal: { n: '의리', d: '조건이 나빠도 잘 안 떠남' },
+    lazy: { n: '느긋함', d: '자주 쉼' },
+  };
+  const STYLE = { gather: '광부 패', hunt: '사냥꾼 패', scout: '길잡이 패' };
+  const NAMES = ['검은여우 셋', '도린 형제', '늙은 곰', '잿빛 바람', '세 자매 등불', '외눈 사냥꾼들', '구리손 광부단', '방랑 기사 둘', '들개 무리', '은빛 화살', '모래 쥐', '두 번 산 자들'];
+
+  // ---------- 상태 ----------
+  let now, mon, day, gold, rep, parties, freeP, bounties, log, led, timer = null, P;
+  const setNow = n => { now = n; mon = Math.floor((now - 1) / MD) + 1; day = ((now - 1) % MD) + 1; };
+  const usedNames = new Set();
+  function mkParty() {
+    let n = pick(NAMES); for (let k = 0; usedNames.has(n) && k < 20; k++) n = pick(NAMES); usedNames.add(n);
+    const tr = Object.keys(TRAITS), style = pick(Object.keys(STYLE));
+    return { n, m: 2 + ri(3), skill: 0.35 + rnd() * 0.5, trait: pick(tr), style, cash: 40 + ri(80), debt: 0, sat: 60, st: 'home', ready: 1, back: 0, trip: null, rec: { go: 0, ok: 0, die: 0 }, guild: 'us' };
+  }
+  function reset() {
+    stop(); rs = 20261021; usedNames.clear();
+    setNow(1); gold = 600; rep = 20; log = []; led = { fee: 0, sup: 0, ward: 0, bounty: 0, bad: 0 };
+    P = { fee: 15, mark: 20, ward: 10, credit: false, limit: 60 };
+    parties = [mkParty(), mkParty(), mkParty(), mkParty()]; freeP = [mkParty(), mkParty()].map(p => ({ ...p, guild: null }));
+    bounties = [];
+    render();
+  }
+
+  // ---------- 파티의 판단 ----------
+  // 층 · 일마다 예상 이득: (벌이 × (1 − 수수료) + 현상금) − 보급값 − 위험 × 성향. 가장 큰 쪽, 작으면 쉰다
+  function bountyFor(f, k) { return bounties.filter(b => b.f === f && b.k === k).reduce((a, b) => a + b.v, 0); }
+  // 하루치로 따진다: 층이 깊으면 오래 걸리니 하루 벌이 · 하루 위험으로 견준다
+  function choose(p) {
+    const t = p.trait;
+    if (t === 'lazy' && rnd() < 0.4) return null;
+    let best = null;
+    FL.forEach((F, f) => Object.keys(MIS).forEach(k => {
+      const day1 = VAL[k][f] * p.m * p.skill;
+      const feeCut = k === 'scout' ? 0 : P.fee / 100;   // 지도 값은 수수료 없이 (관리국에 낸다고 친다)
+      const bon = bountyFor(f, k) * (t === 'greedy' ? 1.6 : 1) / F.days;
+      const sup = SUP * p.m * F.days * (1 + P.mark / 100);
+      const riskW = (t === 'careful' ? 2.2 : t === 'reckless' ? 0.4 : 1) * F.risk * 160 * (1.3 - p.skill);
+      const deep = t === 'reckless' ? f * 6 : 0, styleB = p.style === k ? 8 : 0;
+      const canPay = p.cash >= sup || (P.credit && p.debt + sup <= P.limit);
+      if (!canPay) return;
+      const v = day1 * (1 - feeCut) + bon - sup / F.days - riskW + deep + styleB + (rnd() - 0.5) * 8;
+      if (!best || v > best.v) best = { f, k, v, sup };
+    }));
+    return best && best.v > 3 ? best : null;
+  }
+  function departAll() {
+    parties.forEach(p => {
+      if (p.st !== 'home' || now < p.ready) return;
+      const c = choose(p); if (!c) { p.ready = now + 1; return; }
+      // 보급은 우리 창고에서 산다 (모자라면 외상)
+      const cost = Math.round(c.sup), margin = cost - SUP * p.m, paid = Math.min(p.cash, cost);
+      p.cash -= paid; p.debt += cost - paid;   // 모자란 만큼 외상
+      gold += paid - SUP * p.m; led.sup += margin;   // 원가는 우리가 먼저 낸다 · 외상은 갚을 때 들어온다
+      p.trip = c; p.st = 'out'; p.back = now + FL[c.f].days; p.rec.go++;
+    });
+  }
+  function returnAll() {
+    parties.forEach(p => {
+      if (p.st !== 'out' || now < p.back + 1) return;
+      const { f, k } = p.trip, F = FL[f];
+      const roll = rnd() * 0.6 + p.skill * 0.7 - F.risk;   // 0 ~ 1쯤
+      const ok = roll > 0.45, notes = [];
+      const hurtP = F.risk * (p.trait === 'reckless' ? 1.6 : 1) * (ok ? 0.6 : 1.4);
+      const dead = rnd() < hurtP * 0.18, hurt = !dead && rnd() < hurtP;
+      let earn = 0, b = 0;
+      if (!dead) {
+        earn = Math.round(VAL[k][f] * p.m * F.days * p.skill * (ok ? 1 + roll * 0.6 : 0.3));
+        if (ok) { const hit = bounties.filter(x => x.f === f && x.k === k); hit.forEach(x => { b += x.v; x.left--; }); bounties = bounties.filter(x => x.left > 0); }
+      }
+      // 우리 창고로 판다: 수수료를 떼고, 빚을 먼저 갚는다
+      const fee = k === 'scout' ? 0 : Math.round(earn * P.fee / 100), net = earn - fee + b;
+      gold += fee - b; led.fee += fee; led.bounty += b;
+      p.cash += net; const pay = Math.round(Math.min(p.debt, p.cash * (p.trait === 'careful' ? 1 : 0.7))); p.debt -= pay; p.cash -= pay; gold += pay;
+      p.rec.ok += ok ? 1 : 0;
+      if (dead) {
+        p.rec.die++; p.m--; notes.push('<span class="bad">한 사람을 잃음</span>'); rep -= 2;
+        if (bountyFor(f, k)) { rep -= 2; notes.push('현상금 건 곳에서 죽어 평판이 깎임'); }
+      }
+      if (hurt) { const wf = P.ward * p.m; if (p.cash >= wf) { p.cash -= wf; gold += wf; led.ward += wf; p.ready = now + 2; notes.push(`우리 의무실 −${wf}G`); } else { p.ready = now + 4; notes.push('의무실 값이 없어 오래 쉼'); } }
+      else p.ready = now + 1;
+      if (ok) rep += 0.5;
+      // 만족: 수수료 · 보급 값 · 외상 · 현상금 · 결과
+      p.sat += (ok ? 4 : -3) + (b ? 6 : 0) - (P.fee - 15) * 0.6 - (P.mark - 20) * 0.25 + (P.credit ? 1 : 0) - (dead ? 12 : 0);
+      p.sat = Math.max(0, Math.min(100, p.sat));
+      log.unshift(`<span class="d">${mon}월 ${day}일</span><b>${p.n}</b> ${F.n} ${MIS[k]} · ${ok ? '<span class="good">성공</span>' : '<span class="bad">실패</span>'} · 벌이 ${earn}G${fee ? ` · <span class="f">수수료 +${fee}G</span>` : ''}${b ? ` · 현상금 −${b}G` : ''}${p.debt ? ` · 빚 ${Math.round(p.debt)}G` : ''}${notes.length ? ` · ${notes.join(' · ')}` : ''}`);
+      p.st = hurt ? 'hurt' : 'home'; p.trip = null;
+      if (p.m <= 0) { log.unshift(`<span class="d">${mon}월 ${day}일</span><b>${p.n}</b> <span class="bad">전멸 · 빚 ${Math.round(p.debt)}G를 떼임</span>`); led.bad += p.debt; p.gone = true; rep -= 4; }
+    });
+    parties.forEach(p => { if (p.st === 'hurt' && now >= p.ready) p.st = 'home'; });
+    parties = parties.filter(p => !p.gone);
+  }
+  // 그믐: 만족이 낮은 파티는 붉은매로, 마을에 온 파티는 우리와 붉은매 중 고른다. 갚지 않는 빚은 떼인다
+  function settle() {
+    const notes = [];
+    parties = parties.filter(p => {
+      const leave = p.sat < (p.trait === 'loyal' ? 15 : 35) && rnd() < 0.7;
+      if (leave) { notes.push(`${jo(p.n, '이', '가')} 붉은매 깃발로 옮김${p.debt ? ` (빚 ${Math.round(p.debt)}G 떼임)` : ''}`); led.bad += p.debt; return false; }
+      if (p.debt > 0 && p.cash <= 0 && rnd() < (p.trait === 'careful' ? 0.05 : 0.25)) { notes.push(`${p.n}의 빚 ${Math.round(p.debt)}G 떼임 (도망)`); led.bad += p.debt; return false; }
+      return true;
+    });
+    freeP.forEach(p => {
+      const ours = rep * 1.2 + (15 - P.fee) * 3 + (20 - P.mark) * 1 + (P.credit ? 15 : 0) + bounties.length * 4, theirs = 30 + rnd() * 25;
+      if (ours > theirs) { p.guild = 'us'; p.sat = 60; parties.push(p); notes.push(`<span class="good">${jo(p.n, '이', '가')} 우리 깃발 아래로</span>`); } else notes.push(`${jo(p.n, '은', '는')} 붉은매로 감`);
+    });
+    freeP = Array.from({ length: 1 + ri(3) }, () => ({ ...mkParty(), guild: null }));
+    const keep = 150 + 20 * parties.length; gold -= keep; led.keep = keep;   // 사무소 유지비 · 파티마다 서류 일
+    const inc = led.fee + led.sup + led.ward, out = led.bounty + led.bad + keep;
+    log.unshift(`<span class="d">${mon}월 그믐</span><b>정산</b> 수수료 ${led.fee} · 보급 차익 ${led.sup} · 의무실 ${led.ward} − 현상금 ${led.bounty} − 떼인 빚 ${Math.round(led.bad)} − 사무소 ${keep} = <b class="${inc - out >= 0 ? 'good' : 'bad'}">${inc - out >= 0 ? '+' : '−'}${Math.abs(Math.round(inc - out))}G</b><br><small>${notes.join(' · ')}</small>`);
+    led = { fee: 0, sup: 0, ward: 0, bounty: 0, bad: 0 };
+  }
+  function nextDay() { if (day === MD) settle(); setNow(now + 1); returnAll(); departAll(); render(); return day === MD; }
+  function stop() { if (timer) { clearInterval(timer); timer = null; } }
+  function runMonth() { if (timer) { stop(); render(); return; } timer = setInterval(() => { if (nextDay()) { stop(); render(); } }, 260); render(); }
+
+  // ---------- 그리기 ----------
+  const $ = id => document.getElementById(id);
+  let bf = { f: 1, k: 'hunt', v: 30 };
+  function card(p, free) {
+    const st = p.st === 'out' ? `${FL[p.trip.f].n} ${MIS[p.trip.k]} · ${p.back + 1 - now}일 뒤` : p.st === 'hurt' ? `다침 · ${p.ready - now}일` : now < p.ready ? '쉼' : '본부';
+    const rate = p.rec.go ? Math.round(p.rec.ok / p.rec.go * 100) : null;
+    const cls = p.sat < 35 ? 'low' : p.sat < 55 ? 'mid' : '';
+    return `<div class="pc${free ? ' free' : ''}"><div class="h"><b>${p.n}</b><span class="note">${p.m}명</span>${free ? '' : `<span class="st ${p.st === 'out' ? 'out' : p.st === 'hurt' ? 'hurt' : 'home'}">${st}</span>`}</div>
+      <div class="tags"><span class="tag" title="${TRAITS[p.trait].d}">${TRAITS[p.trait].n}</span><span class="tag">${STYLE[p.style]}</span></div>
+      ${free ? `<p class="note">이력: ${p.skill > 0.65 ? '이름난 파티라는 소문' : p.skill > 0.5 ? '그럭저럭 해냈다는 소문' : '아직 이름이 없음'}</p>` : `<dl><dt>기록</dt><dd>${p.rec.go}번 · 성공 ${rate == null ? '-' : rate + '%'}${p.rec.die ? ` · 잃음 ${p.rec.die}` : ''}</dd><dt>돈 · 빚</dt><dd>${Math.round(p.cash)}G${p.debt ? ` · <span class="bad">빚 ${Math.round(p.debt)}G</span>` : ''}</dd></dl>
+      <div class="row" style="gap:6px"><span class="note">만족</span><div class="meter ${cls}" style="flex:1"><i style="width:${p.sat}%"></i></div></div>`}</div>`;
+  }
+  const stp = (k, v, unit) => `<span class="step"><button type="button" data-k="${k}" data-d="-1" aria-label="줄이기">−</button><output>${v}${unit}</output><button type="button" data-k="${k}" data-d="1" aria-label="늘리기">+</button></span>`;
+  function render() {
+    $('mon').textContent = mon; $('day').textContent = day; $('gold').textContent = Math.round(gold).toLocaleString('ko-KR'); $('rep').textContent = Math.round(rep); $('nmem').textContent = parties.length;
+    $('mem').innerHTML = parties.length ? parties.map(p => card(p, false)).join('') : '<p class="note">깃발 아래 파티가 없어요.</p>';
+    $('free').innerHTML = freeP.map(p => card(p, true)).join('');
+    $('knobs').innerHTML = `
+      <span>판매 수수료</span>${stp('fee', P.fee, '%')}<small>캐 온 것을 우리 창고로 팔 때 뗀다</small>
+      <span>보급 웃돈</span>${stp('mark', P.mark, '%')}<small>횃불 · 식량 · 포션을 원가에 얹어 판다</small>
+      <span>의무실</span>${stp('ward', P.ward, 'G')}<small>다친 파티 한 사람 값 (못 내면 오래 쉼)</small>
+      <span>외상</span><span class="seg"><button type="button" data-credit="0" aria-pressed="${!P.credit}">안 줌</button><button type="button" data-credit="1" aria-pressed="${P.credit}">줌</button></span><small>${P.credit ? `파티마다 ${stp('limit', P.limit, 'G')}까지 · 떼일 수 있음` : '돈 없는 파티는 못 나감'}</small>`;
+    $('bform').innerHTML = `<div class="row"><span class="seg">${FL.map((F, f) => `<button type="button" data-bf="${f}" aria-pressed="${bf.f === f}">${F.n}</button>`).join('')}</span><span class="seg">${Object.keys(MIS).map(k => `<button type="button" data-bk="${k}" aria-pressed="${bf.k === k}">${MIS[k]}</button>`).join('')}</span>${stp('bv', bf.v, 'G')}<button type="button" class="main" id="post">게시</button></div><p class="note">한 번 걸면 세 번 해낼 때까지 남는다. 해낸 파티에게 우리가 낸다.</p>`;
+    $('blist').innerHTML = bounties.length ? bounties.map((b, j) => `<div class="bounty"><b>${FL[b.f].n} ${MIS[b.k]}</b> · ${b.v}G · 남은 ${b.left}번<button type="button" class="x" data-del="${j}" aria-label="현상금 내리기">내리기</button></div>`).join('') : '<p class="note">걸린 현상금이 없어요.</p>';
+    const inc = led.fee + led.sup + led.ward, out = led.bounty + led.bad + 150 + 20 * parties.length;
+    $('ledger').innerHTML = `<table class="led"><tr><td>판매 수수료</td><td class="n">+${led.fee}</td></tr><tr><td>보급 차익</td><td class="n">+${led.sup}</td></tr><tr><td>의무실</td><td class="n">+${led.ward}</td></tr><tr><td>현상금</td><td class="n">−${led.bounty}</td></tr><tr><td>떼인 빚</td><td class="n">−${Math.round(led.bad)}</td></tr><tr><td>사무소 유지비 (그믐)</td><td class="n">−${150 + 20 * parties.length}</td></tr><tr><td><b>이달 차익 (예측)</b></td><td class="n"><b class="${inc - out >= 0 ? 'good' : 'bad'}">${inc - out >= 0 ? '+' : '−'}${Math.abs(Math.round(inc - out))}</b></td></tr></table>`;
+    $('next').disabled = !!timer; $('run').textContent = timer ? '멈춤 ■' : '그믐까지 ▶▶';
+    $('log').innerHTML = log.length ? log.map(l => `<li${l.includes('정산') ? ' class="mo"' : ''}>${l}</li>`).join('') : '<li class="note">날을 넘기면 파티들이 스스로 나갔다 돌아오며 보고가 쌓여요. 조건을 바꾸거나 현상금을 걸어 보세요.</li>';
+  }
+
+  // ---------- 입력 ----------
+  const LIM = { fee: [0, 40, 1], mark: [0, 60, 5], ward: [0, 40, 2], limit: [20, 300, 20], bv: [10, 200, 10] };
+  document.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.k) { const k = b.dataset.k, [lo, hi, st] = LIM[k], d = +b.dataset.d * st; if (k === 'bv') bf.v = Math.max(lo, Math.min(hi, bf.v + d)); else P[k] = Math.max(lo, Math.min(hi, P[k] + d)); render(); return; }
+    if (b.dataset.credit) { P.credit = b.dataset.credit === '1'; render(); return; }
+    if (b.dataset.bf) { bf.f = +b.dataset.bf; render(); return; }
+    if (b.dataset.bk) { bf.k = b.dataset.bk; render(); return; }
+    if (b.id === 'post') { bounties.push({ f: bf.f, k: bf.k, v: bf.v, left: 3 }); render(); return; }
+    if (b.dataset.del) { bounties.splice(+b.dataset.del, 1); render(); return; }
+    if (b.id === 'next') return nextDay();
+    if (b.id === 'run') return runMonth();
+    if (b.id === 'reset') return reset();
+  });
+  reset();
+})();
+</script>
