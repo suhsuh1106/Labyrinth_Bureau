@@ -16,6 +16,9 @@ export const CO = {
   // 탐사 하루의 벌이 · 숙련 · 지도는 옛 한 달 탐사(DAYS일)의 하루 몫이다. 경쟁 용병단 · 계약 조는 달에 한 번 숫자로 굴린다
   // 미궁에서 본 남들: 같은 층에 함께 있던 경쟁 조를 볼 확률 (탐색 임무 +SEE_SCOUT, 사냥 +⅓)
   SEE_P: 0.45, SEE_SCOUT: 0.3,
+  // 밀고: 영주청에 경쟁 용병단 하나를 일러바치면 그 쪽 의심이 TIP_SUS(+ 우리 조가 이달 본 짐 TIP_SEE G당 1까지 TIP_EV)만큼 오른다.
+  // 추징이 나오면 회계관 신뢰 +TIP_WIN, 헛걸음이면 −TIP_MISS, 장부가 깨끗했으면 −TIP_LOSE · 그쪽이 앙심을 품고 다음 달 우리를 일러바친다(+TIP_BACK). 신뢰 50에서 1마다 우리 의심이 TIP_REL씩 덜(더) 쌓인다
+  TIP_SUS: 3, TIP_EV: 35, TIP_SEE: 60, TIP_WIN: 12, TIP_MISS: 5, TIP_LOSE: 10, TIP_BACK: 15, TIP_REL: 0.15,
   MONTH_DAYS: 10, TRIP_DAYS: [1, 2, 3, 4, 5], REST_DAYS: 1, HURT_DAYS: 5,
   // 날 단위 시장: 시장에 풀린 양이 날마다 MQ_FADE씩 빠진다 (열흘쯤의 판매가 시세를 정한다). 창고의 전리품은 층마다 날마다 LOOT_ROT씩 상한다
   MQ_FADE: 0.1, LOOT_ROT: [0.03, 0.025, 0.02, 0.01, 0.005],
@@ -366,7 +369,9 @@ export type Company = {
   sq?: Squad[]; sqSeq?: number;   // 우리 조(남는 단위): 조장 · 장비 단계 · 단계마다 낸 값
   losses: number;
   know: number[]; learned: boolean[];   // 층마다 드나든 달 수와 약점을 깨쳤는지 (경쟁 용병단)
-  relM?: number; relC?: number;   // 상단·교회와의 사이 (0~100, 50이 보통)
+  relM?: number; relC?: number; relL?: number;   // relL: 영주청 회계관의 신뢰 (우리만, 밀고로 오르내림)
+  grudge?: number;   // 우리의 헛된 밀고에 앙심을 품고 우리를 일러바칠 달 (경쟁 용병단)
+  relMx?: undefined;   // 상단·교회와의 사이 (0~100, 50이 보통)
   exp?: number[]; proc?: number; pendingProc?: number;
   sup?: Supply;        // 사 둔 포션과 장비   // 층별 탐사 숙련(그 층에서 쌓은 성공), 갈무리장 단계와 공사 중인 투자
   // 판마다 조금씩 다른 성격: 지난달 벌이에 얼마나 민감한지, 포션을 더 쓰는지, 얼마나 값이 올라야 파는지
@@ -425,6 +430,7 @@ export type Plan = { parties: number[]; pots: number[]; train: number; base: { f
   sellAt?: number;   // 지정가: 창고의 전리품을 오늘 시세가 기준 값의 이만큼 배를 넘으면 판다 (autoSell을 끈 때)
   autoSell?: boolean;   // 돌아온 날 캐 온 전리품을 바로 판다 (비워 두면 판다. 끄면 창고에 두고 팔 날을 고른다)
   autoBuy?: boolean;   // 조를 보낼 때 창고에 모자란 채비를 상단에서 바로 산다 (비워 두면 켬)
+  tip?: number;   // 이달 영주청에 낼 밀고서: 경쟁 용병단 자리 (그믐에 회계관이 살핀다)
   matSell?: Record<string, number>;   // 이번 그믐에 창고에서 팔 전리품 (이름마다 개수). 비워 두면 모두 판다(봇). 화면의 새 판은 {}로 시작해 모두 보관
   ask?: Ask };   // 이번 달 단장 조사 (몬스터 하나에 물을 것 하나)
 // 조사 의뢰 한 건: 시장 조사는 지금 나와 있는 찾는 곳 전부, 타 용병단 조사는 그 용병단의 이번 달 층별 파티 수
@@ -443,7 +449,7 @@ export const ROSTER: { id: string; name: string; style: Style; size: number }[] 
   { id: 'free', name: '군소 용병대', style: 'crowd', size: 30 },
 ];
 
-export type CoResult = {
+export type CoResult = { tip?: { i: number; nm: string; aud: boolean; fine: number; dirty: boolean; d: number }; tipBack?: string[];
   // ok: 해낸 조(둘 이상 해냄) 수, win: 해낸 사람을 4명 기준 조로 센 값(숙련 · 길 뚫기 · 명성에 쓴다), hurt: 다친 사람
   sent: number[]; hired: number[]; ok: number[]; win: number[]; got: number[]; deaths: number; hurt: number; sold: number[]; sales: number;
   soldV?: number[];   // 물품마다 판 값 (날마다 다른 시세로 판 것의 합)
@@ -510,7 +516,8 @@ export type World = {
   bought?: Bought; idle?: Record<number, number>; askNow?: AskRes; leadNow?: string; today?: number[];
   // 날 단위 시장: 이번 달 경쟁 용병단의 출정 (달 첫날 굴린 것), 시장에 풀린 양(시세), 우리 창고의 전리품(층마다 개수), 시장 소식(최근 판매)
   mo?: MonthOpen; mq?: number[]; stock?: number[]; sales?: Sale[]; pp?: number[];   // pp: 어제 시세
-  seen?: Seen[];   // 우리 조가 미궁에서 본, 아직 돌아오지 않은 경쟁 용병단 조 (곧 풀릴 물량)
+  seen?: Seen[];
+  wit?: Record<number, number>;   // 이달 우리 조가 본 경쟁 용병단의 짐 (밀고의 근거, 그믐에 비움)   // 우리 조가 미궁에서 본, 아직 돌아오지 않은 경쟁 용병단 조 (곧 풀릴 물량)
   mbox?: Record<string, number>;   // 우리 창고의 전리품 (돌아온 날 들어오고, 그믐에 팔 양 plan.matSell만큼 판다. 상하지 않는다)
 };
 // 이번 달 바로 산 것과 그 값 (금고에서 이미 나갔다. 정산의 지출 줄에 그대로 든다). fired: 이번 달 내보낸 사람, spoil: 들고 나갔다가 기한이 지나 버린 포션
@@ -1546,7 +1553,7 @@ function takeBack(W: World, s: Sortie) {
   }
   // 미궁에서 본 남들: 같은 층에 같은 날 있었던 경쟁 용병단 조를 보고 온다. 아직 돌아오지 않은 조는 곧 풀릴 물량으로 적어 둔다
   const seen = sightings(W, s);
-  if (seen.length) { s.rep.seen = seen; const now = dayAbs(W); W.seen = [...(W.seen || []).filter(x => x.d > now), ...seen.filter(x => x.d > now)]; }
+  if (seen.length) { const wit = W.wit || (W.wit = {}); seen.forEach(x => { wit[x.i] = (wit[x.i] || 0) + x.q; }); s.rep.seen = seen; const now = dayAbs(W); W.seen = [...(W.seen || []).filter(x => x.d > now), ...seen.filter(x => x.d > now)]; }
   (W.back || (W.back = [])).push(s);
   W.away = (W.away || []).filter(x => x !== s);
 }
@@ -1664,6 +1671,7 @@ function dig(W: World, f: number, want: number) {
 const takeOf = (W: World, c: Company, f: number, tool = 0) => FLOORS[f].take * lootMul(c, f, tool) + Math.floor(Math.min(CO.BASE_MAX, c.bases[f]) / 2) * CO.BASE_TAKE + (rootOf(W, f).done === 'mine' && c.style === 'player' ? CO.MINE_TAKE : 0);
 
 export function openMonth(W: World) {
+  W.wit = {};   // (이달 우리 조가 본 짐: 밀고의 근거)
   // 우리 조 수는 지난달만큼으로 본다 (붐빔 셈에만 쓴다)
   const L = W.last, plans = W.cos.map((c, i) => (c.crew ? { ...emptyPlan(), pots: zeros(), parties: L ? [...L.plans[0].parties] : zeros() } : aiPlan(W, i)));
   // 보급 사기 (경쟁 용병단): 교회 성수는 찾은 만큼(한도 안에서, 사이가 좋은 쪽부터), 상단 포션은 정한 만큼. 비워 둔 상단 칸은 쓸 만큼에서 창고와 교회 몫을 뺀 만큼
@@ -1762,6 +1770,8 @@ export function openMonth(W: World) {
   W.mo = mo;
   return mo;
 }
+// 밀고의 힘: 기본 TIP_SUS + 이달 우리 조가 본 그 쪽 짐(근거), 회계관의 신뢰가 높을수록 잘 먹힌다 (신뢰 0이면 반, 100이면 1.5배)
+export const tipPower = (W: World, i: number) => Math.round((CO.TIP_SUS + CO.TIP_EV * Math.min(1, ((W.wit || {})[i] || 0) / CO.TIP_SEE)) * (0.5 + (W.cos[0].relL ?? 50) / 100));
 // 우리 조가 미궁에서 본 경쟁 용병단 조: 그 층에 함께 있던 날이 하루라도 겹치면 본다 (탐색 임무는 더 잘, 사냥은 조금 더, 겹친 날이 길수록).
 // 지고 나올 채집품은 그 조가 캐 올 몫으로 짐작한다 (눈대중이라 ±30%). 같은 용병단의 같은 날 귀환은 하나로 묶는다
 function sightings(W: World, s: Sortie): Seen[] {
@@ -1989,7 +1999,19 @@ function settleMonth(W: World, playerPlan: Plan): MonthResult {
     }
     // 가정산: 장부의 참값을 모은다. 우리는 화면에서 신고서를 고쳐 내고(closeBooks), 경쟁 용병단은 성향대로 바로 낸다
     const D = draftOf(W, i, r, matP, P);
+    // 앙심: 지난달 우리의 헛된 밀고를 받은 쪽이 이번 달 우리를 일러바친다
+    if (c.style === 'player') W.cos.forEach(o => { if (o.grudge === W.month) { c.sus = (c.sus || 0) + CO.TIP_BACK; delete o.grudge; (r.tipBack || (r.tipBack = [])).push(o.name); } });
+    // 밀고: 그 쪽 의심이 오르고(우리 조가 본 짐이 근거), 감사가 오면 무엇이 나오는지 본다
+    const tipped = c.style !== 'player' && playerPlan.tip === i;
+    if (tipped) c.sus = (c.sus || 0) + tipPower(W, i);
     if (c.style === 'player') W.draft = D; else settle(W, i, D, aiFiling(W, i, D), r);
+    if (tipped) {
+      const me = W.cos[0], A = r.file && r.file.audit, dirty = (c.books || []).some(b => Object.keys(b.gain).length) || !!(A && A.found);
+      const d = A && A.fine ? CO.TIP_WIN : dirty ? -CO.TIP_MISS : -CO.TIP_LOSE;
+      me.relL = clamp((me.relL ?? 50) + d, 0, 100);
+      if (!dirty) c.grudge = W.month + 1;
+      res[0].tip = { i, nm: c.name, aud: !!A, fine: A ? A.fine : 0, dirty, d };
+    }
     r.net = r.sales - Object.values(r.spend).reduce((a, b) => a + b, 0);
     c.cash += r.net + (c.crew ? paid - mo.income : 0);   // (우리가 이번 달 바로 산 것은 금고에서 이미 나갔고, 판 전리품 값은 이미 들어왔다)
     c.losses = r.net < 0 ? c.losses + 1 : 0;
@@ -2155,7 +2177,7 @@ function settle(W: World, i: number, D: Draft, F0: Partial<Filing>, r: CoResult)
   const c = W.cos[i], X = preview(W, D, F0);
   r.spend.tax = X.bill.tax + X.bill.refund; r.sales += X.bill.sub + X.bill.aid;
   W.subPaid = (W.subPaid || 0) + X.bill.sub;
-  c.sus = X.sus;
+  c.sus = c.style === 'player' ? Math.max(0, X.sus - ((c.relL ?? 50) - 50) * CO.TIP_REL) : X.sus;   // (회계관이 우리를 믿을수록 덜 쌓인다)
   const books = (c.books || []).filter(b => b.m > D.m - TAX.AUDIT_BACK);
   if (X.total) books.push({ m: D.m, gain: Object.fromEntries(FILE_KEYS.filter(k => X.gain[k]).map(k => [k, X.gain[k]])) });
   c.books = books;
@@ -2719,7 +2741,7 @@ export const rankOf = (W: World, id = 'us') => (W.last ? W.last.rank.indexOf(id)
 export function carryPlan(W: World, prev: Plan | null): Plan {
   if (!prev) return defaultPlan(W);
   const c = us(W), P: Plan = JSON.parse(JSON.stringify(prev));
-  P.base = null; P.donate = 0; P.root = null; P.proc = 0; P.buy = {}; P.dorm = false; delete P.fire; delete P.build; delete P.take; delete P.sellMap; delete P.ask; if (P.matSell) P.matSell = {};   // (그믐에 팔 전리품은 달마다 새로 정한다)
+  P.base = null; P.donate = 0; P.root = null; P.proc = 0; P.buy = {}; P.dorm = false; delete P.fire; delete P.build; delete P.take; delete P.sellMap; delete P.ask; delete P.tip; if (P.matSell) P.matSell = {};   // (그믐에 팔 전리품은 달마다 새로 정한다)
   if (c.crew) P.pick = [];   // 신입은 이번 달 지원자 중 고른 사람만 (고르지 않으면 아무도 들이지 않는다)
   // 짜 둔 조는 그대로 두고 바뀐 것만 고친다: 없어진 사람의 자리는 비우고, 대기 중인 사람(새로 들어온 신입 등) 중 그 자리의 기본 편성 직업이 있으면 넣는다
   if (P.teams && c.crew) {

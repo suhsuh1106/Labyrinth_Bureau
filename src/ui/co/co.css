@@ -1395,3 +1395,7 @@ table.grid.stk td .link { display: block; font-size: 11px; }
 .bk-s .soon { color: var(--bl-ink); }
 .mnews li.soon b { color: var(--brass); }
 .ag.ag-coming { border-left-color: #8fb0e6; }
+
+/* 영주청 서류함 · 밀고서 */
+.tips { display: grid; gap: 6px; margin-top: 10px; }
+.tips tr.on td { background: rgba(217,180,90,.12); }
