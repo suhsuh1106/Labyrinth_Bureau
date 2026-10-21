@@ -1,0 +1,466 @@
+<title>1층 곳 지도</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Nanum+Pen+Script&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* 프로토타입: 1층의 "곳" 지도. 왼쪽은 양피지 위 곳 그물, 오른쪽은 고른 곳의 기록 · 명령서, 아래는 창고 · 시장 · 보고. 본편의 짙은 초록 판 · 놋쇠 색 */
+:root {
+  color-scheme: dark;
+  --desk: #121b16; --board: #1f3329; --board-2: #172720; --line: #3a5446;
+  --ink: #e1e9df; --soft: #a5b8aa; --brass: #d9b45a; --bad: #f08a7e; --good: #86cf9f; --blue: #8fb7e0;
+  --paper: #e8dfc8; --paper-ink: #2a2418; --paper-line: #b9ab8a;
+  --f-display: "Gowun Batang", "Nanum Myeongjo", "Batang", serif;
+  --f-body: "IBM Plex Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+  --f-num: "IBM Plex Mono", ui-monospace, "Consolas", monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--desk); color: var(--ink); }
+body { font-family: var(--f-body); font-size: 14px; line-height: 1.5; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 14px 28px; }
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 12px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; }
+h1 { font: 700 22px var(--f-display); margin: 0; }
+.stat { font: 500 13px var(--f-num); color: var(--soft); font-variant-numeric: tabular-nums; }
+.stat b { color: var(--ink); font-weight: 500; }
+.sp { flex: 1; }
+button { font: 600 13px var(--f-body); color: var(--ink); background: var(--board); border: 1px solid var(--line); border-radius: 3px; padding: 6px 12px; cursor: pointer; touch-action: manipulation; }
+button:hover:not(:disabled) { border-color: var(--brass); }
+button:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+button:disabled { opacity: .45; cursor: default; }
+button.main { background: var(--brass); color: #221e18; border-color: var(--brass); }
+button.sm { padding: 3px 9px; font-size: 12px; }
+button[aria-pressed="true"] { background: #3a3220; border-color: var(--brass); color: var(--brass); }
+.lead { margin: 0; color: var(--soft); font-size: 13px; max-width: 80ch; }
+.cols { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+@media (max-width: 860px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--board); border: 1px solid var(--line); border-radius: 4px; padding: 10px 12px; display: grid; gap: 8px; min-width: 0; }
+.panel h2 { font: 700 15px var(--f-display); margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+.panel h2 small { font: 400 12px var(--f-body); color: var(--soft); }
+.note { margin: 0; color: var(--soft); font-size: 12.5px; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.n { font-family: var(--f-num); font-variant-numeric: tabular-nums; }
+.good { color: var(--good); } .bad { color: var(--bad); } .gold { color: var(--brass); } .dim { color: var(--soft); }
+/* 지도 */
+.board { position: relative; border-radius: 6px; padding: 4px; border: 1px solid #8a6f45;
+  background: radial-gradient(circle at 18% 22%, rgba(120,80,30,.14) 0 7%, transparent 8%), radial-gradient(circle at 82% 74%, rgba(120,80,30,.12) 0 9%, transparent 10%), radial-gradient(ellipse at 50% 45%, #f1e4c2 0%, #e6d3a6 62%, #c9ad74 100%);
+  box-shadow: inset 0 0 28px rgba(90,55,20,.45), 0 6px 18px rgba(0,0,0,.4); }
+.board svg { display: block; width: 100%; height: auto; touch-action: manipulation; }
+.e { fill: none; stroke: #5a4630; stroke-width: .5; stroke-dasharray: 1.4 .9; stroke-linecap: round; }
+.e.sc { stroke: #a8332a; stroke-width: .75; stroke-dasharray: .3 1; }
+.e.route { stroke: #2f6db0; stroke-width: 1.1; stroke-dasharray: 2 .7; }
+.ec { font: 600 2.5px var(--f-num); fill: #5a4630; paint-order: stroke; stroke: #ecdcb6; stroke-width: .8; text-anchor: middle; }
+.z { cursor: pointer; }
+.z .blob { fill: #f6ead0; stroke: #5a4630; stroke-width: .45; }
+.z.unk .blob { fill: rgba(239,226,194,.4); stroke: #8a7350; stroke-dasharray: .8 .6; }
+.z.sel .blob { stroke: #a8332a; stroke-width: 1; }
+.z text.nm { font: 400 3.6px "Nanum Pen Script", var(--f-display); fill: #2a1d0e; text-anchor: middle; paint-order: stroke; stroke: #ecdcb6; stroke-width: .9; }
+.z text.ty { font: 600 2.4px var(--f-body); fill: #6b5432; text-anchor: middle; }
+.z text.ty.ore { fill: #8a6a10; } .z text.ty.den { fill: #8a2a20; } .z text.ty.stair { fill: #1f4f8a; }
+.z text.q { font: 400 5.5px "Nanum Pen Script", var(--f-display); fill: #6b5432; text-anchor: middle; }
+.tm { font: 700 2.3px var(--f-num); fill: #fff; text-anchor: middle; }
+.tmc { fill: #2f6db0; } .rvc { fill: #a8332a; }
+.z:focus-visible .blob { stroke: #a8332a; stroke-width: 1.2; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--soft); }
+/* 소문 조각 */
+.pieces { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.piece { background: var(--paper); color: var(--paper-ink); border: 1px solid var(--paper-line); border-radius: 2px; padding: 6px 8px; font-size: 12.5px; transform: rotate(-.8deg); box-shadow: 0 2px 6px rgba(0,0,0,.35); }
+.piece:nth-child(2n) { transform: rotate(1deg); }
+.piece .src { color: #6b5d43; font-size: 11px; display: flex; justify-content: space-between; gap: 6px; }
+.piece .ok { color: #2f7a43; font-weight: 700; } .piece .no { color: #a8332a; font-weight: 700; }
+/* 기록 · 명령서 */
+dl.rec { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; margin: 0; font-size: 13px; }
+dl.rec dt { color: var(--soft); } dl.rec dd { margin: 0; }
+.pk { display: inline-flex; flex-wrap: wrap; gap: 1px; max-width: 100%; }
+.pk i { width: 7px; height: 10px; border-radius: 1px; background: #2b3f35; border: 1px solid #3a5446; }
+.pk i.tc { background: #a8332a; border-color: #c0563f; } .pk i.wk { background: var(--brass); border-color: #f2d27a; }
+.stepper { display: inline-flex; align-items: center; gap: 4px; }
+.stepper b { min-width: 2.2em; text-align: center; }
+table.t { border-collapse: collapse; width: 100%; font-size: 13px; }
+table.t td, table.t th { padding: 3px 6px; border-bottom: 1px solid var(--line); text-align: left; }
+table.t th { color: var(--soft); font-weight: 500; }
+table.t td.r, table.t th.r { text-align: right; }
+.log { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 420px; overflow-y: auto; }
+.log li { background: var(--board-2); border: 1px solid var(--line); border-radius: 3px; padding: 6px 8px; font-size: 13px; }
+.log li.back { border-color: var(--brass); }
+.log li.mo { border-color: var(--blue); }
+.log .d { font: 500 11px var(--f-num); color: var(--soft); margin-right: 6px; }
+.segs { display: inline-flex; flex-wrap: wrap; gap: 2px; vertical-align: middle; margin: 2px 0; }
+.segs i { font-style: normal; font: 600 10px var(--f-num); min-width: 15px; height: 15px; line-height: 15px; text-align: center; border-radius: 2px; background: #2b3f35; color: var(--soft); padding: 0 2px; }
+.segs i.g { background: #6b5718; color: #f6e3a4; } .segs i.f { background: #6b2a24; color: #f6c7bf; } .segs i.x { background: #1f3f63; color: #cfe2f6; } .segs i.l { background: #3a1410; color: var(--bad); outline: 1px solid var(--bad); }
+.end { background: #2a2416; border: 1px solid var(--brass); border-radius: 4px; padding: 12px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>1층 곳 지도</h1>
+    <span class="stat">제<b id="mon">1</b>월 <b id="day">1</b>/10일</span>
+    <span class="stat">금고 <b id="gold">0</b>G</span>
+    <span class="stat">황동석 <b id="price">-</b>G</span>
+    <span class="stat" id="race">계단: 모름</span>
+    <span class="sp"></span>
+    <span class="stat">시드 <b id="seed">-</b></span>
+    <button type="button" id="reseed">새 판</button>
+    <button type="button" class="main" id="next">다음 날 ▸</button>
+  </header>
+  <p class="lead">1층의 곳(광맥 · 서식지 · 계단 · 빈 곳)을 기록으로 밝혀 간다. 조마다 <b>목적지 한 곳 · 임무 · 횃불</b>만 정한다. 횃불은 구간마다 하나씩 타고 짐 칸을 차지한다: 왕복 길을 빼고 남는 횃불이 거기서 일할 구간이다. 매장량 · 지름길 · 계단은 숨어 있고, 탐색 · 소문 · 미궁에서 본 남들로 맞춰 간다. 석 달 뒤 금고와 계단 경주로 끝난다.</p>
+  <div class="cols">
+    <div class="panel">
+      <h2>지도 탁자 <small>곳을 누르면 기록과 명령서</small></h2>
+      <div class="board"><svg id="map" viewBox="0 0 100 74" role="img" aria-label="1층 곳 지도"></svg></div>
+      <div class="legend"><span>점선 숫자 = 지나는 구간</span><span class="bad">붉은 점선 = 찾아낸 지름길</span><span style="color:var(--blue)">파란 선 = 고른 곳까지 길</span><span>파란 점 = 우리 조 · 붉은 점 = 최근 본 남들</span></div>
+      <h2>소문 조각 <small>신문 · 주점 · 상단. 틀린 것도 섞인다</small></h2>
+      <div class="pieces" id="rumors"></div>
+    </div>
+    <div style="display:grid;gap:12px;min-width:0">
+      <div class="panel" id="card"></div>
+      <div class="panel" id="teams"></div>
+      <div class="panel" id="store"></div>
+    </div>
+  </div>
+  <div class="panel"><h2>보고 <small>최근 것이 위</small></h2><ul class="log" id="log"></ul></div>
+</div>
+
+<script>
+// ---------- 난수 (시드) ----------
+let R;
+const mk = s => () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+const rnd = () => R(), ri = (a, b) => a + Math.floor(rnd() * (b - a + 1)), pick = a => a[Math.floor(rnd() * a.length)];
+const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const jo = (w, p) => { const c = w.charCodeAt(w.length - 1), has = c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28 > 0, [a, b] = p.split('/'); return w + (has ? a : b); };
+const $ = s => document.querySelector(s), fmt = n => Math.round(n).toLocaleString();
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+// ---------- 숫자 ----------
+const K = {
+  DAYS: 10, MONTHS: 3, SEG_DAY: 4,          // 하루에 구간 넷 (이동은 짧게)
+  PACK: 40, TORCH_G: 3, FOOD_G: 1, WAGE: 25, GOLD0: 1200,
+  ORE_PER: 2, SUCC: 0.72,                   // 채집: 조원마다 성공하면 2개
+  ORE_BASE: 8, D: 200, FADE: 0.3, EL: 0.8, ROT: 0.03, CROWD: 12,
+  RACE_PRIZE: 600, RUMOR_P: 0.4, RUMOR_TRUE: 0.65, SEE_P: 0.55,
+  SC_FIND: 0.35, STAIR_FIND: 0.22, REFILL: 0.25,
+};
+const MON = [
+  { nm: '굴쥐떼', diff: 0.18, mat: '쥐 가죽', mp: 5 },
+  { nm: '돌껍질 딱정벌레', diff: 0.36, mat: '딱정벌레 껍질', mp: 11 },
+  { nm: '동굴 거미', diff: 0.52, mat: '거미 독샘', mp: 22 },
+];
+const NAMES = ['무너진 갱도', '젖은 동굴', '박쥐 굴', '붉은 흙 비탈', '옛 광부 쉼터', '갈라진 틈', '물 떨어지는 방', '검은 기둥 방', '좁은 목', '넓은 홀', '버려진 수레길', '이끼 골', '메아리 방', '녹슨 사다리'];
+const GUILDS = [{ nm: '흑철단', n: 2, deep: true }, { nm: '붉은매', n: 2 }, { nm: '은방패', n: 1 }];
+
+let S;   // 판 상태 하나
+
+// ---------- 판 만들기 ----------
+function newGame(seed) {
+  R = mk(seed);
+  const slots = [[28, 54], [50, 50], [72, 54], [13, 36], [37, 33], [63, 33], [87, 36], [22, 14], [50, 11], [78, 14]].map(([x, y]) => [x + (rnd() - .5) * 6, y + (rnd() - .5) * 5]);
+  const row = i => i < 3 ? 1 : i < 7 ? 2 : 3;
+  const names = shuffle(NAMES.slice());
+  const P = [{ id: 0, x: 50, y: 67, nm: '본부 입구', ty: 'camp', seen: true, vis: true }];
+  slots.forEach(([x, y], i) => P.push({ id: i + 1, x, y, row: row(i), nm: names[i], ty: 'empty', seen: false, vis: false }));
+  // 계단은 먼 줄, 광맥 하나는 가까운 줄, 나머지는 섞어서
+  const far = [8, 9, 10], near = [1, 2, 3];
+  const stair = pick(far); P[stair].ty = 'stair';
+  const ore1 = pick(near); P[ore1].ty = 'ore';
+  const rest = shuffle(P.slice(1).map(p => p.id).filter(i => i !== stair && i !== ore1));
+  ['ore', 'ore', 'den', 'den', 'den', 'empty', 'empty', 'empty'].forEach((t, k) => { P[rest[k]].ty = t; });
+  shuffle([0, 1, 2]).forEach((m, k) => { P.filter(p => p.ty === 'den')[k].mon = m; });
+  // 길: 입구 - 가까운 줄, 줄 안의 이웃, 줄 사이는 가장 가까운 곳
+  const E = [], d2 = (a, b) => Math.hypot(P[a].x - P[b].x, P[a].y - P[b].y);
+  const add = (a, b, hid = false) => { if (a === b || E.some(e => (e.a === a && e.b === b) || (e.a === b && e.b === a))) return; E.push({ a, b, c: hid ? 1 : clamp(Math.round(d2(a, b) / 16) + (rnd() < .3 ? 1 : 0), 1, 3), hid, known: false, found: false }); };
+  [1, 2, 3].forEach(i => add(0, i));
+  [[1, 2], [2, 3], [4, 5], [5, 6], [6, 7], [8, 9], [9, 10]].forEach(([a, b]) => { if (rnd() < .8) add(a, b); });
+  const link = (from, to) => from.forEach(i => { const j = to.slice().sort((a, b) => d2(i, a) - d2(i, b)); add(i, j[0]); if (rnd() < .35) add(i, j[1]); });
+  link([4, 5, 6, 7], [1, 2, 3]); link([8, 9, 10], [4, 5, 6, 7]);
+  // 숨은 지름길 둘: 가까운 줄(또는 입구)에서 먼 곳으로, 구간 1
+  const sc1 = pick([1, 2, 3]), sc2 = pick([8, 9, 10].filter(i => i !== stair).concat([stair]));
+  add(sc1, sc2, true);
+  const sc3 = pick([4, 5, 6, 7]); add(0, sc3, true);
+  // 광맥: 매장량 · 근처 서식지에서 넘어오는 몬스터 (가까울수록 잦다)
+  P.filter(p => p.ty === 'ore').forEach(p => {
+    p.max = ri(5, 14) * 50; p.res = p.max;
+    const dens = P.filter(q => q.ty === 'den').sort((a, b) => d2(p.id, a.id) - d2(p.id, b.id));
+    p.spill = dens.slice(0, 2).map((q, k) => ({ m: q.mon, p: clamp(0.34 - d2(p.id, q.id) / 140, 0.04, 0.3) * (k ? 0.5 : 1) }));
+  });
+  P.forEach(p => { p.rec = { segs: 0, enc: [0, 0, 0], ex: 0 }; p.est = null; });
+  const teams = [{ id: 0, nm: '1조', n: 4, sk: 0.03 }, { id: 1, nm: '2조', n: 4, sk: 0 }].map(t => ({ ...t, trip: null, rest: 0 }));
+  const guilds = GUILDS.map((g, gi) => ({ ...g, gi, know: [ore1], learn: ri(3, 7), prog: 0, teams: Array.from({ length: g.n }, () => null) }));
+  S = { seed, P, E, teams, guilds, m: 1, d: 1, gold: K.GOLD0, torch: 20, ore: 0, mats: [0, 0, 0], q: K.D, hist: [], log: [], rumors: [], coming: [], sel: null, order: { team: 0, mis: 'gather', torch: 8 }, race: null, stairSeen: false, over: false, spend: { torch: 0, food: 0, wage: 0 }, earn: { ore: 0, mat: 0, prize: 0 } };
+  visit(0);
+  push(`<b>1월 1일.</b> 입구 둘레의 세 곳까지는 길이 보인다. 무엇이 있는 곳인지는 가 봐야 안다.`, 'mo');
+}
+
+// ---------- 지도 지식 ----------
+function visit(id) {
+  const p = S.P[id]; p.seen = true; p.vis = true;
+  S.E.forEach(e => { if (!e.hid && (e.a === id || e.b === id)) { e.known = true; S.P[e.a].seen = true; S.P[e.b].seen = true; } });
+}
+const edgeKnown = e => e.hid ? e.found : e.known;
+function paths() {   // 입구에서 아는 길로 가는 가장 짧은 구간 수 (다익스트라)
+  const dist = S.P.map(() => Infinity), prev = S.P.map(() => -1), done = S.P.map(() => false); dist[0] = 0;
+  for (;;) {
+    let u = -1; dist.forEach((v, i) => { if (!done[i] && v < Infinity && (u < 0 || v < dist[u])) u = i; });
+    if (u < 0) break; done[u] = true;
+    S.E.filter(edgeKnown).forEach(e => { const v = e.a === u ? e.b : e.b === u ? e.a : -1; if (v >= 0 && dist[u] + e.c < dist[v]) { dist[v] = dist[u] + e.c; prev[v] = u; } });
+  }
+  return { dist, prev };
+}
+function route(id) { const { dist, prev } = paths(); if (dist[id] === Infinity) return null; const r = [id]; while (r[0] !== 0) r.unshift(prev[r[0]]); return { r, d: dist[id] }; }
+const tyName = p => !p.vis ? '모름' : p.ty === 'camp' ? '본부' : p.ty === 'ore' ? '광맥' : p.ty === 'den' ? `${MON[p.mon].nm} 서식지` : p.ty === 'stair' ? (S.stairSeen ? '아래층 계단' : '빈 곳?') : '빈 곳';
+// 계단은 탐색해서 찾아야 보인다 (그 전엔 빈 곳처럼 보임)
+const isStairKnown = p => p.ty === 'stair' && S.stairSeen;
+
+// ---------- 시장 ----------
+const price = () => K.ORE_BASE * clamp(Math.pow(K.D / Math.max(1, S.q), K.EL), 0.55, 1.6);
+function sellOre(n, who) { const p = price(); S.q += n; return n * p; }
+
+// ---------- 우리 조 출정 ----------
+function legal(p, mis) {
+  if (!p || p.id === 0 || !p.seen) return '곳을 고르세요';
+  if (!route(p.id)) return '아는 길이 없음';
+  if (mis === 'gather' && !(p.vis && p.ty === 'ore')) return '광맥으로 확인된 곳만';
+  if (mis === 'hunt' && !(p.vis && p.ty === 'den')) return '서식지로 확인된 곳만';
+  return '';
+}
+function send() {
+  const o = S.order, t = S.teams[o.team], p = S.P[S.sel], rt = route(p.id);
+  const work = o.torch - 2 * rt.d;
+  if (t.trip || t.rest > 0 || legal(p, o.mis) || work < 1 || o.torch > S.torch) return;
+  const segs = [];
+  for (let k = 1; k < rt.r.length; k++) { const e = S.E.find(e => edgeKnown(e) && ((e.a === rt.r[k - 1] && e.b === rt.r[k]) || (e.b === rt.r[k - 1] && e.a === rt.r[k]))); for (let c = 0; c < e.c; c++) segs.push({ k: 'mv', at: c === e.c - 1 ? rt.r[k] : -1 }); }
+  for (let w = 0; w < work; w++) segs.push({ k: 'wk', at: p.id });
+  for (let k = rt.r.length - 1; k > 0; k--) { const e = S.E.find(e => edgeKnown(e) && ((e.a === rt.r[k - 1] && e.b === rt.r[k]) || (e.b === rt.r[k - 1] && e.a === rt.r[k]))); for (let c = 0; c < e.c; c++) segs.push({ k: 'mv', at: c === e.c - 1 ? rt.r[k - 1] : -1, back: true }); }
+  const days = Math.ceil(segs.length / K.SEG_DAY), food = days * t.n * K.FOOD_G;
+  S.torch -= o.torch; S.gold -= food; S.spend.food += food;
+  t.trip = { mis: o.mis, dest: p.id, segs, i: 0, torch: o.torch, ore: 0, mats: [0, 0, 0], hurt: 0, out: [], seen: [], d0: S.d, m0: S.m, why: '완주', at: 0, days, home: false };
+  push(`${t.nm} 출발 · ${p.nm} · ${misName(o.mis)} · 횃불 ${o.torch} (길 ${2 * rt.d} · 일 ${work}) · 식량 ${food}G · ${days}일쯤`);
+  render();
+}
+const misName = m => ({ gather: '채집', hunt: '사냥', scout: '탐색' })[m];
+const packUsed = T => T.torch + T.ore + T.mats.reduce((a, b) => a + b, 0);
+function fight(t, T, m, at) {
+  const n = t.n, p = clamp(K.SUCC + t.sk - MON[m].diff - T.hurt * 0.06, 0.1, 0.95);
+  let k = 0; for (let i = 0; i < n; i++) if (rnd() < p) k++;
+  S.P[at].rec.enc[m]++;
+  if (k >= Math.ceil(n / 2)) { const free = K.PACK - packUsed(T), got = Math.min(k, free); T.mats[m] += got; T.out.push({ c: 'f', s: `${MON[m].nm.slice(0, 2)}+${got}`, tip: `${MON[m].nm} 이김 · ${MON[m].mat} ${got}` }); }
+  else { let h = 0; for (let i = 0; i < n - k; i++) if (rnd() < 0.3) h++; T.hurt = Math.min(t.n, T.hurt + h); T.out.push({ c: 'l', s: `${MON[m].nm.slice(0, 2)}${h ? '!' : '×'}`, tip: `${MON[m].nm}에게 밀림${h ? ` · 다침 ${h}` : ''}` }); }
+}
+function stepSeg(t) {
+  const T = t.trip, g = T.segs[T.i]; T.i++; T.torch--;
+  if (g.k === 'mv') {
+    if (g.at >= 0) {
+      const p = S.P[g.at], first = !p.vis; visit(g.at); T.at = g.at;
+      // 지나는 길에 몬스터를 만날 수 있다 (서식지는 잦게, 광맥은 넘어온 몬스터)
+      const enc = p.ty === 'den' ? { m: p.mon, p: 0.2 } : p.ty === 'ore' ? { m: p.spill[0].m, p: p.spill[0].p * 0.4 } : null;
+      if (enc && rnd() < enc.p) fight(t, T, enc.m, g.at); else T.out.push({ c: '', s: '·', tip: `${p.nm}${first ? ' (처음 감)' : ''}` });
+      see(t, g.at);
+    } else T.out.push({ c: '', s: '·', tip: '길' });
+  } else {
+    const p = S.P[g.at]; T.at = g.at; p.rec.segs++;
+    if (T.mis === 'gather') {
+      const sp = p.spill.find(s => rnd() < s.p);
+      if (sp) fight(t, T, sp.m, p.id);
+      else { let k = 0; for (let i = 0; i < Math.min(4, t.n); i++) if (rnd() < K.SUCC + t.sk - T.hurt * 0.05) k++; const got = Math.min(k * K.ORE_PER, Math.floor(p.res), K.PACK - packUsed(T)); p.res -= got; T.ore += got; T.out.push({ c: 'g', s: `+${got}`, tip: `황동석 ${got} (조원 ${k}/${t.n} 성공)` }); }
+      survey(p, 0.25);
+    } else if (T.mis === 'hunt') {
+      if (rnd() < 0.85) fight(t, T, p.mon, p.id); else T.out.push({ c: '', s: '-', tip: '흔적만' });
+    } else {
+      p.rec.ex++;
+      const found = [];
+      S.E.filter(e => e.hid && !e.found && (e.a === p.id || e.b === p.id)).forEach(e => { if (rnd() < K.SC_FIND) { e.found = true; const o = S.P[e.a === p.id ? e.b : e.a]; o.seen = true; found.push(`${o.nm}(으)로 빠지는 옛길`); } });
+      if (p.ty === 'stair' && !S.stairSeen && rnd() < K.STAIR_FIND) { S.stairSeen = true; T.stair = true; found.push('아래로 내려가는 계단'); }
+      if (p.ty === 'ore') { survey(p, 0.08); if (!T.surv) { T.surv = true; found.push('광맥 측량'); } }
+      if (p.ty === 'den' && rnd() < 0.35) fight(t, T, p.mon, p.id);
+      else T.out.push({ c: 'x', s: found.length ? '★' : '?', tip: found.length ? found.join(' · ') : '살핌' });
+    }
+    see(t, p.id);
+    if (T.hurt >= 2 && T.segs[T.i] && T.segs[T.i].k === 'wk') { T.why = '후퇴'; cutWork(T); }
+    else if (K.PACK - packUsed(T) <= 0 && T.segs[T.i] && T.segs[T.i].k === 'wk') { T.why = '짐 가득'; cutWork(T); }
+  }
+}
+function cutWork(T) { const left = T.segs.slice(T.i).filter(s => s.k === 'wk').length; T.segs = T.segs.slice(0, T.i).concat(T.segs.slice(T.i).filter(s => s.k !== 'wk')); T.saved = left; }
+function survey(p, err) { const lo = Math.max(0, p.res * (1 - err)), hi = p.res * (1 + err); p.est = { lo: Math.round(lo / 10) * 10, hi: Math.round(hi / 10) * 10, m: S.m, d: S.d }; }
+// 미궁에서 본 남들: 같은 곳에 같은 날 있던 남의 조
+function see(t, at) {
+  const T = t.trip;
+  S.guilds.forEach(g => g.teams.forEach((r, k) => {
+    if (!r || r.at !== at || T.seen.some(x => x.g === g.gi && x.k === k && x.dep === r.dep)) return;
+    if (rnd() < K.SEE_P) { const est = Math.round(r.plan * (0.7 + rnd() * 0.6)); T.seen.push({ g: g.gi, k, dep: r.dep, at, est, ret: r.ret, nm: g.nm }); }
+  }));
+}
+function homeTrip(t) {
+  const T = t.trip; t.trip = null; t.rest = 1;
+  S.ore += T.ore; T.mats.forEach((n, m) => { S.mats[m] += n; }); S.torch += Math.max(0, T.torch);
+  const p = S.P[T.dest];
+  let extra = '';
+  if (T.stair && !S.race) { S.race = { who: '우리', m: S.m, d: S.d }; S.gold += K.RACE_PRIZE; S.earn.prize += K.RACE_PRIZE; extra = ` <b class="gold">계단을 찾았다! 영주청 상금 ${K.RACE_PRIZE}G</b>`; }
+  else if (T.stair) extra = ' 계단을 확인했다 (경주는 이미 끝남)';
+  const mats = T.mats.map((n, m) => n ? `${MON[m].mat} ${n}` : '').filter(Boolean).join(' · ');
+  const seen = T.seen.map(x => { const left = x.ret - S.d; S.coming.push({ nm: x.nm, est: x.est, ret: x.ret, m: S.m, k: x.k, g: x.g, dep: x.dep, at: x.at }); return `${x.nm} 조 · ${S.P[x.at].nm} · 황동석 ~${x.est} · ${left > 0 ? `${left}일쯤 뒤 돌아옴` : '곧 돌아옴'}`; });
+  push(`<b>${t.nm} 귀환</b> · ${p.nm} · ${misName(T.mis)} · ${T.why}${T.saved ? ` (일 ${T.saved}구간 남기고)` : ''}<br><span class="segs">${T.out.map(o => `<i class="${o.c}" title="${o.tip}">${o.s}</i>`).join('')}</span><br>황동석 <b>${T.ore}</b>${mats ? ` · ${mats}` : ''} · 남은 횃불 ${Math.max(0, T.torch)}${T.hurt ? ` · <span class="bad">다친 사람 ${T.hurt}</span>` : ''}${extra}${seen.length ? `<br><span class="dim">본 남들:</span> ${seen.join(' / ')}` : ''}`, 'back');
+}
+
+// ---------- 남들 ----------
+function rivalsDay() {
+  S.guilds.forEach(g => {
+    if (--g.learn <= 0) { const cand = S.P.filter(p => p.ty === 'ore' && !g.know.includes(p.id)); if (cand.length) g.know.push(pick(cand).id); g.learn = ri(4, 8); }
+    g.teams.forEach((r, k) => {
+      if (r && r.ret === S.d) {   // 돌아온 날 아침에 캐 가서 바로 판다
+        const p = S.P[r.at], got = Math.min(Math.floor(p.res), r.plan); p.res -= got; S.q += got; g.teams[k] = null;
+        S.coming = S.coming.filter(c => !(c.g === g.gi && c.k === k && c.dep === r.dep));
+        S.hist.push({ m: S.m, d: S.d, nm: g.nm, n: got });
+        return;
+      }
+      if (!r && rnd() < 0.55) {
+        const opts = g.know.map(i => S.P[i]).filter(p => p.res > 30);
+        if (!opts.length) return;
+        const tot = opts.reduce((a, p) => a + p.res, 0); let x = rnd() * tot, p = opts[0]; for (const o of opts) { x -= o.res; if (x <= 0) { p = o; break; } }
+        g.teams[k] = { at: p.id, dep: S.d + S.m * 100, ret: S.d + ri(2, 3), plan: ri(18, 34) };
+      }
+    });
+    if (g.deep && !S.race) { g.prog += rnd() * 0.075; if (g.prog >= 1) { S.race = { who: g.nm, m: S.m, d: S.d }; push(`<b class="bad">${g.nm}이 아래층 계단을 찾았다고 영주청이 공표했다.</b> 계단 경주는 끝났다.`, 'mo'); } }
+  });
+  S.q += K.CROWD;
+}
+// 소문: 사실 하나를 들은 대로 (틀린 것도 섞임). 우리 기록으로 맞춰 보면 ✓ · ✗
+function rumorDay() {
+  if (rnd() > K.RUMOR_P) return;
+  const seen = S.P.filter(p => p.seen && p.id), src = pick(['변경 일보', '주점 소문', '상단 서기', '떠돌이 광부']);
+  const truth = rnd() < K.RUMOR_TRUE, other = (p, f) => pick(seen.filter(q => q !== p && f(q)).concat([p]));
+  const kinds = ['ore', 'den', 'stair', 'sc', 'rich'];
+  const k = pick(kinds);
+  let r = null;
+  if (k === 'ore') { const real = pick(S.P.filter(p => p.ty === 'ore')); const p = truth ? real : other(real, q => q.ty !== 'ore'); r = { t: `${p.nm}에 황동석이 난다더라`, chk: () => p.vis ? p.ty === 'ore' : null, at: p.id }; }
+  if (k === 'den') { const real = pick(S.P.filter(p => p.ty === 'den')); const p = truth ? real : other(real, q => q.ty !== 'den' || q.mon !== real.mon); r = { t: `${p.nm}에 ${MON[real.mon].nm}이 산다더라`, chk: () => p.vis ? p.ty === 'den' && p.mon === real.mon : null, at: p.id }; }
+  if (k === 'stair') { if (S.race) return; const real = S.P.find(p => p.ty === 'stair'); const p = truth ? real : other(real, q => q.ty !== 'stair' && q.row === 3) ; r = { t: `아래로 부는 바람이 ${p.nm} 쪽에서 온다더라`, chk: () => S.stairSeen ? p.ty === 'stair' : (p.rec.ex >= 4 ? false : null), at: p.id }; }
+  if (k === 'sc') { const e = pick(S.E.filter(e => e.hid)); let a = S.P[e.a], b = S.P[e.b]; if (!truth) b = other(b, q => q !== a && !S.E.some(f => f.hid && ((f.a === a.id && f.b === q.id) || (f.b === a.id && f.a === q.id)))); r = { t: `${a.nm}에서 ${b.nm}(으)로 빠지는 옛길이 있다더라`, chk: () => S.E.some(f => f.hid && f.found && ((f.a === a.id && f.b === b.id) || (f.b === a.id && f.a === b.id))) ? true : (a.rec.ex + b.rec.ex >= 6 ? false : null), at: a.id }; }
+  if (k === 'rich') { const ores = S.P.filter(p => p.ty === 'ore').sort((x, y) => y.res - x.res); const p = truth ? ores[0] : ores[ores.length - 1]; r = { t: `${p.nm} 광맥이 아직 두껍다더라`, chk: () => p.est && p.vis ? (p.est.m === S.m && p.est.d >= S.d - 2 ? p === S.P.filter(q => q.ty === 'ore').sort((x, y) => y.res - x.res)[0] : null) : null, at: p.id }; }
+  if (!r) return;
+  if (!S.P[r.at].seen) S.P[r.at].seen = true;
+  S.rumors.unshift({ ...r, src, m: S.m, d: S.d });
+  S.rumors = S.rumors.slice(0, 12);
+}
+
+// ---------- 하루 ----------
+function nextDay() {
+  if (S.over) return;
+  // 오늘 하루: 남들이 움직이고, 우리 조는 구간 넷을 간다
+  rivalsDay(); rumorDay();
+  S.teams.forEach(t => { if (!t.trip) { if (t.rest > 0) t.rest--; return; } for (let s = 0; s < K.SEG_DAY && t.trip.i < t.trip.segs.length; s++) stepSeg(t); if (t.trip.i >= t.trip.segs.length) t.trip.home = true; });
+  S.q *= 1 - K.FADE;
+  S.ore *= 1 - K.ROT; S.ore = Math.floor(S.ore * 10) / 10;
+  // 다음 날 아침
+  S.d++;
+  if (S.d > K.DAYS) monthEnd();
+  S.teams.forEach(t => { if (t.trip && t.trip.home) homeTrip(t); });
+  S.coming = S.coming.filter(c => c.ret >= S.d || c.m !== S.m);
+  render();
+}
+function monthEnd() {
+  const wage = S.teams.reduce((a, t) => a + t.n, 0) * K.WAGE; S.gold -= wage; S.spend.wage += wage;
+  S.P.filter(p => p.ty === 'ore').forEach(p => { p.res = Math.min(p.max, p.res + p.max * K.REFILL); });
+  push(`<b>${S.m}월 그믐</b> · 급여 ${fmt(wage)}G · 광맥이 조금 다시 찼다`, 'mo');
+  S.m++; S.d = 1; S.coming = [];
+  S.guilds.forEach(g => g.teams.forEach((r, k) => { if (r) r.ret -= K.DAYS; }));
+  if (S.m > K.MONTHS) { S.over = true; S.teams.forEach(t => { if (t.trip) homeTrip(t); }); }
+}
+function push(h, c = '') { S.log.unshift({ h, c, m: S.m, d: S.d }); S.log = S.log.slice(0, 80); }
+
+// ---------- 그리기 ----------
+function render() {
+  $('#mon').textContent = Math.min(S.m, K.MONTHS); $('#day').textContent = S.over ? K.DAYS : S.d; $('#gold').textContent = fmt(S.gold); $('#seed').textContent = S.seed;
+  $('#price').textContent = price().toFixed(1);
+  $('#race').innerHTML = S.race ? (S.race.who === '우리' ? `<span class="good">계단: 우리가 먼저 (${S.race.m}월 ${S.race.d}일)</span>` : `<span class="bad">계단: ${S.race.who}이 먼저</span>`) : S.stairSeen ? '계단: 찾음 · 귀환하면 신고' : '계단: 모름';
+  $('#next').disabled = S.over;
+  mapSvg(); card(); teams(); store(); rumors();
+  $('#log').innerHTML = S.log.map(l => `<li class="${l.c}"><span class="d">${l.m}월 ${l.d}일</span>${l.h}</li>`).join('');
+}
+function mapSvg() {
+  const rt = S.sel != null && S.sel !== 0 ? route(S.sel) : null, onR = new Set();
+  if (rt) for (let k = 1; k < rt.r.length; k++) onR.add(rt.r[k - 1] + '-' + rt.r[k]).add(rt.r[k] + '-' + rt.r[k - 1]);
+  const curve = (a, b, j) => { const mx = (a.x + b.x) / 2 + (a.y - b.y) * 0.12 * j, my = (a.y + b.y) / 2 + (b.x - a.x) * 0.12 * j; return { d: `M${a.x},${a.y} Q${mx},${my} ${b.x},${b.y}`, mx: (a.x + 2 * mx + b.x) / 4, my: (a.y + 2 * my + b.y) / 4 }; };
+  let h = '';
+  S.E.forEach((e, i) => { if (!edgeKnown(e)) return; const a = S.P[e.a], b = S.P[e.b], c = curve(a, b, (i % 2 ? 1 : -1)); h += `<path class="e${e.hid ? ' sc' : ''}${onR.has(e.a + '-' + e.b) ? ' route' : ''}" d="${c.d}"/><text class="ec" x="${c.mx}" y="${c.my + 0.8}">${e.c}</text>`; });
+  // 보이지만 길을 모르는 곳으로 가는 희미한 끝
+  S.P.forEach(p => {
+    if (!p.seen) return;
+    const ty = !p.vis ? '' : p.ty === 'ore' ? 'ore' : p.ty === 'den' ? 'den' : isStairKnown(p) ? 'stair' : '';
+    const label = !p.vis ? '?' : p.ty === 'camp' ? '본부' : p.ty === 'ore' ? `광맥${p.est ? ` ${p.est.lo}~${p.est.hi}` : ''}` : p.ty === 'den' ? MON[p.mon].nm : isStairKnown(p) ? '계단 ▼' : '빈 곳';
+    const our = S.teams.filter(t => t.trip && t.trip.at === p.id);
+    const fresh = S.teams.flatMap(t => t.trip ? t.trip.seen : []).concat(S.coming).filter(x => x.at === p.id).length;
+    h += `<g class="z${p.vis ? '' : ' unk'}${S.sel === p.id ? ' sel' : ''}" data-id="${p.id}" tabindex="0" role="button" aria-label="${p.nm} · ${tyName(p)}">
+      <ellipse class="blob" cx="${p.x}" cy="${p.y}" rx="9.5" ry="5.6"/>
+      <text class="nm" x="${p.x}" y="${p.y - 0.4}">${p.nm}</text>
+      ${p.vis ? `<text class="ty ${ty}" x="${p.x}" y="${p.y + 3}">${label}</text>` : `<text class="q" x="${p.x}" y="${p.y + 4.4}">?</text>`}
+      ${our.map((t, k) => `<circle class="tmc" cx="${p.x - 8 + k * 3}" cy="${p.y - 4.6}" r="1.4"/><text class="tm" x="${p.x - 8 + k * 3}" y="${p.y - 3.8}">${t.id + 1}</text>`).join('')}
+      ${fresh ? `<circle class="rvc" cx="${p.x + 8}" cy="${p.y - 4.6}" r="1.4"/><text class="tm" x="${p.x + 8}" y="${p.y - 3.8}">${fresh}</text>` : ''}
+    </g>`;
+  });
+  h += `<text x="4" y="71" style="font:400 4px 'Nanum Pen Script';fill:#4a3520">미궁 1층 · 우리 기록</text>`;
+  $('#map').innerHTML = h;
+}
+function card() {
+  const p = S.sel != null ? S.P[S.sel] : null;
+  if (!p) { $('#card').innerHTML = `<h2>곳 기록</h2><p class="note">지도에서 곳을 고르세요. 처음엔 입구 둘레 세 곳만 보입니다.</p>`; return; }
+  const rt = route(p.id), rumorsHere = S.rumors.filter(r => r.at === p.id);
+  const scs = S.E.filter(e => e.hid && e.found && (e.a === p.id || e.b === p.id)).map(e => S.P[e.a === p.id ? e.b : e.a].nm);
+  const encs = p.rec.enc.map((n, m) => n ? `${MON[m].nm} ${n}` : '').filter(Boolean).join(' · ');
+  const sightsHere = S.coming.filter(c => c.at === p.id);
+  let rows = `<dt>종류</dt><dd>${tyName(p)}</dd><dt>길</dt><dd>${p.id === 0 ? '-' : rt ? `편도 <b class="n">${rt.d}</b>구간 · 왕복 횃불 <b class="n">${2 * rt.d}</b>` : '<span class="dim">아는 길 없음</span>'}</dd>`;
+  if (p.vis && p.ty === 'ore') rows += `<dt>남은 양</dt><dd>${p.est ? `<b class="n">${p.est.lo}~${p.est.hi}</b> <span class="dim">(${p.est.m}월 ${p.est.d}일 기록)</span>` : '<span class="dim">재 본 적 없음</span>'}</dd>`;
+  if (p.vis && p.id) rows += `<dt>우리 기록</dt><dd>일한 구간 <b class="n">${p.rec.segs}</b>${encs ? ` · 조우 ${encs}` : p.rec.segs ? ' · 조우 없음' : ''}${p.rec.ex ? ` · 탐색 ${p.rec.ex}` : ''}</dd>`;
+  if (scs.length) rows += `<dt>지름길</dt><dd class="bad">${scs.join(' · ')}</dd>`;
+  if (sightsHere.length) rows += `<dt>본 남들</dt><dd>${sightsHere.map(c => `${c.nm} ~${c.est}`).join(' · ')}</dd>`;
+  if (rumorsHere.length) rows += `<dt>소문</dt><dd>${rumorsHere.map(r => r.t).join('<br>')}</dd>`;
+  let ord = '';
+  if (p.id) {
+    const o = S.order, t = S.teams[o.team], why = legal(p, o.mis), work = rt ? o.torch - 2 * rt.d : 0;
+    const free = K.PACK - o.torch, days = rt ? Math.ceil((2 * rt.d + Math.max(0, work)) / K.SEG_DAY) : 0;
+    const exp = o.mis === 'gather' && p.est ? Math.min(free + 2 * (rt ? rt.d : 0), Math.round(Math.max(0, work) * 4 * (K.SUCC + t.sk) * K.ORE_PER * (1 - p.spill.reduce((a, s) => a + s.p, 0))), Math.round((p.est.lo + p.est.hi) / 2)) : null;
+    const tdis = t.trip ? '나가 있음' : t.rest > 0 ? '쉬는 날' : '';
+    ord = `<h2>명령서</h2>
+      <div class="row">${S.teams.map(x => `<button type="button" class="sm" data-team="${x.id}" aria-pressed="${o.team === x.id}">${x.nm}${x.trip ? ' (미궁)' : x.rest ? ' (쉼)' : ''}</button>`).join('')}</div>
+      <div class="row">${['gather', 'hunt', 'scout'].map(m => `<button type="button" class="sm" data-mis="${m}" aria-pressed="${o.mis === m}" ${legal(p, m) ? 'disabled' : ''}>${misName(m)}</button>`).join('')}</div>
+      <div class="row"><span>횃불</span><span class="stepper"><button type="button" class="sm" data-tc="-1">−</button><b class="n">${o.torch}</b><button type="button" class="sm" data-tc="1">+</button></span>
+        <span class="dim n">${rt ? `길 ${2 * rt.d} · 일 <b class="${work >= 1 ? 'good' : 'bad'}">${work}</b>구간 · ${days}일` : ''}</span></div>
+      <div class="pk" aria-label="짐 칸">${Array.from({ length: K.PACK }, (_, i) => `<i class="${i < Math.min(o.torch, rt ? 2 * rt.d : 0) ? 'tc' : i < o.torch ? 'wk' : ''}"></i>`).join('')}</div>
+      <p class="note">붉은 칸 = 길에 탈 횃불 · 금빛 = 일할 구간의 횃불 · 빈 칸 ${free} = 캐 오고 잡아 올 자리 (타는 만큼 비어 간다)${exp != null ? ` · 채집 예측 ~${exp}개` : ''}</p>
+      <div class="row"><button type="button" class="main" id="send" ${why || tdis || work < 1 || o.torch > S.torch ? 'disabled' : ''}>보내기</button><span class="note ${why || tdis ? 'bad' : ''}">${why || tdis || (o.torch > S.torch ? '창고 횃불 모자람' : work < 1 ? '횃불이 길에도 모자람' : '')}</span></div>`;
+  }
+  $('#card').innerHTML = `<h2>${p.nm} <small>${p.vis ? '가 본 곳' : '보이기만 함'}</small></h2><dl class="rec">${rows}</dl>${ord}`;
+}
+function teams() {
+  $('#teams').innerHTML = `<h2>우리 조</h2><table class="t"><tr><th>조</th><th>어디</th><th class="r">짐</th><th class="r">횃불</th><th>돌아옴</th></tr>${S.teams.map(t => { const T = t.trip; if (!T) return `<tr><td>${t.nm}</td><td class="dim">${t.rest ? '쉬는 날' : '본부'}</td><td></td><td></td><td></td></tr>`; const left = T.segs.length - T.i, ret = Math.ceil(left / K.SEG_DAY); return `<tr><td>${t.nm}</td><td>${S.P[T.dest].nm} · ${misName(T.mis)}</td><td class="r n">${T.ore + T.mats.reduce((a, b) => a + b, 0)}</td><td class="r n">${T.torch}</td><td class="n">${ret <= 0 ? '내일 아침' : `${ret + 1}일 뒤`}</td></tr>`; }).join('')}</table>`;
+}
+function store() {
+  const p = price(), soon = S.coming.filter(c => c.ret >= S.d);
+  const last = S.hist.slice(-6).reverse();
+  $('#store').innerHTML = `<h2>창고 · 시장 <small>황동석은 날마다 ${K.ROT * 100}% 상한다</small></h2>
+    <div class="row"><span>황동석 <b class="n">${fmt(S.ore)}</b></span><button type="button" class="sm" id="sellOre" ${S.ore < 1 ? 'disabled' : ''}>모두 팔기 (~${fmt(S.ore * p)}G)</button>
+      <span>횃불 <b class="n">${S.torch}</b></span><button type="button" class="sm" id="buyT">+5 사기 (${5 * K.TORCH_G}G)</button></div>
+    <div class="row">${S.mats.map((n, m) => `<span>${MON[m].mat} <b class="n">${n}</b></span>`).join(' · ')}<button type="button" class="sm" id="sellMat" ${S.mats.every(n => !n) ? 'disabled' : ''}>전리품 팔기</button></div>
+    <p class="note">오늘 시세 <b class="n">${p.toFixed(1)}G</b> (기준 ${K.ORE_BASE}G). 곧 풀릴 물량: ${soon.length ? soon.map(c => `<b>${c.nm} ~${c.est}</b> (${c.ret - S.d <= 0 ? '오늘내일' : `${c.ret - S.d}일쯤`})`).join(' · ') : '<span class="dim">본 것 없음</span>'}</p>
+    <p class="note">시장 소식: ${last.length ? last.map(x => `${x.d}일 ${x.nm} ${x.n}`).join(' · ') : '-'}</p>
+    <p class="note">벌이 황동석 ${fmt(S.earn.ore)} · 전리품 ${fmt(S.earn.mat)} · 상금 ${fmt(S.earn.prize)} / 지출 횃불 ${fmt(S.spend.torch)} · 식량 ${fmt(S.spend.food)} · 급여 ${fmt(S.spend.wage)}</p>
+    ${S.over ? `<div class="end"><b>석 달 끝.</b> 금고 <b class="n">${fmt(S.gold)}G</b> (시작 ${fmt(K.GOLD0)}G) · 계단 ${S.race ? (S.race.who === '우리' ? '<span class="good">우리가 먼저</span>' : `${S.race.who}이 먼저`) : '아무도 못 찾음'} · 아는 곳 ${S.P.filter(p => p.vis).length - 1}/10 · 지름길 ${S.E.filter(e => e.hid && e.found).length}/${S.E.filter(e => e.hid).length}</div>` : ''}`;
+}
+function rumors() {
+  $('#rumors').innerHTML = S.rumors.length ? S.rumors.map(r => { const c = r.chk(); return `<div class="piece"><div>${r.t}</div><div class="src"><span>${r.src} · ${r.m}월 ${r.d}일</span>${c === true ? '<span class="ok">✓ 맞음</span>' : c === false ? '<span class="no">✗ 아님</span>' : '<span>?</span>'}</div></div>`; }).join('') : '<p class="note">아직 들은 것 없음</p>';
+}
+
+// ---------- 입력 ----------
+document.addEventListener('click', ev => {
+  const z = ev.target.closest('.z'); if (z) { S.sel = +z.dataset.id; const p = S.P[S.sel]; if (legal(p, S.order.mis)) S.order.mis = ['gather', 'hunt', 'scout'].find(m => !legal(p, m)) || 'scout'; const rt = route(S.sel); if (rt && S.order.torch < 2 * rt.d + 1) S.order.torch = 2 * rt.d + 4; render(); return; }
+  const b = ev.target.closest('button'); if (!b || b.disabled) return;
+  if (b.dataset.team) { S.order.team = +b.dataset.team; render(); }
+  else if (b.dataset.mis) { S.order.mis = b.dataset.mis; render(); }
+  else if (b.dataset.tc) { S.order.torch = clamp(S.order.torch + +b.dataset.tc, 1, K.PACK - 4); render(); }
+  else if (b.id === 'send') send();
+  else if (b.id === 'next') nextDay();
+  else if (b.id === 'reseed') { newGame(Math.floor(Math.random() * 9000) + 1000); render(); }
+  else if (b.id === 'sellOre') { const n = Math.floor(S.ore), g = sellOre(n); S.ore -= n; S.gold += g; S.earn.ore += g; S.hist.push({ m: S.m, d: S.d, nm: '우리', n }); push(`황동석 ${n}개 팔기 · ${fmt(g)}G (개당 ${(g / Math.max(1, n)).toFixed(1)}G)`); render(); }
+  else if (b.id === 'sellMat') { const g = S.mats.reduce((a, n, m) => a + n * MON[m].mp, 0); S.gold += g; S.earn.mat += g; S.mats = [0, 0, 0]; push(`전리품 팔기 · ${fmt(g)}G`); render(); }
+  else if (b.id === 'buyT') { S.torch += 5; S.gold -= 5 * K.TORCH_G; S.spend.torch += 5 * K.TORCH_G; render(); }
+});
+document.addEventListener('keydown', ev => { const z = ev.target.closest && ev.target.closest('.z'); if (z && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); z.dispatchEvent(new MouseEvent('click', { bubbles: true })); } if (ev.key === 'n' && !ev.target.closest('input')) nextDay(); });
+const qs = new URLSearchParams(location.search);
+newGame(+(qs.get('seed') || 1234)); render();
+</script>
