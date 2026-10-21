@@ -1388,3 +1388,10 @@ table.grid.stk td .link { display: block; font-size: 11px; }
 .kitwarn .send { margin-left: auto; }
 /* 창고 창: 채집품과 전리품을 한 칸에 위아래로 */
 .stk2 { display: grid; gap: 14px; align-content: start; min-width: 0; }
+
+/* 미궁에서 본 남들 (귀환 보고 · 창고 소식) */
+.bk-s { display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: 12px; color: var(--bl-soft); border-top: 1px dashed var(--bl-line); padding-top: 4px; }
+.bk-s b { color: var(--bl-accent); font-weight: 600; }
+.bk-s .soon { color: var(--bl-ink); }
+.mnews li.soon b { color: var(--brass); }
+.ag.ag-coming { border-left-color: #8fb0e6; }
