@@ -14,6 +14,8 @@ export const CO = {
   // 날: 한 달은 MONTH_DAYS일. 우리 조는 아무 날에나 내보내고, 층마다 TRIP_DAYS[층]일 다니다 돌아온다(그날이 끝나면 다음 날 아침에 귀환).
   // 돌아온 날은 쉬고(REST_DAYS일) 그다음 날부터 다시 나갈 수 있다. 다친 사람은 HURT_DAYS일 쉰다.
   // 탐사 하루의 벌이 · 숙련 · 지도는 옛 한 달 탐사(DAYS일)의 하루 몫이다. 경쟁 용병단 · 계약 조는 달에 한 번 숫자로 굴린다
+  // 미궁에서 본 남들: 같은 층에 함께 있던 경쟁 조를 볼 확률 (탐색 임무 +SEE_SCOUT, 사냥 +⅓)
+  SEE_P: 0.45, SEE_SCOUT: 0.3,
   MONTH_DAYS: 10, TRIP_DAYS: [1, 2, 3, 4, 5], REST_DAYS: 1, HURT_DAYS: 5,
   // 날 단위 시장: 시장에 풀린 양이 날마다 MQ_FADE씩 빠진다 (열흘쯤의 판매가 시세를 정한다). 창고의 전리품은 층마다 날마다 LOOT_ROT씩 상한다
   MQ_FADE: 0.1, LOOT_ROT: [0.03, 0.025, 0.02, 0.01, 0.005],
@@ -464,7 +466,9 @@ export type CoResult = {
 };
 // 우리 조 하나의 귀환 보고. d0 · d1: 나간 날 · 돌아온 날 (그달의 며칠째)
 // sn · sw · se: 조원마다 나선 구간 · 해낸 구간 · 해낼 기대 (nm과 같은 순서)
-export type Ours = { sn?: number[]; sw?: number[]; se?: number[]; f: number; keys: string[]; ok: boolean; d: number; mats: [string, number][]; first: string[]; kit: number; g: string; crisis?: number; pots?: number; n?: number; k?: number; hurt?: number; days?: Day[]; trip?: Trip; dead?: { n: string; day: number; pot: boolean; tk?: number; ex?: number; mt?: number }[]; cls?: string[]; potC?: number; t?: number; nm?: string[]; ld?: number; d0?: number; d1?: number; tk?: number[]; mi?: number[]; got?: number; mission?: Mission; mp?: number };   // got: 캐 와 창고에 넣은 채집품 · mission: 임무(없으면 채집) · mp: 그려 온 지도(%p)   // mi: 간 사람들의 단원 번호   // tk: 간 사람들의 실력 단계 (보낼 때). 죽은 사람의 tk · ex · mt: 실력 단계 · 층 경험 합 · 조직력 짝 수 (잃은 자산)
+// 미궁에서 본 남들: 경쟁 용병단 자리 · 이름 · 층 · 돌아오는 날(판 전체) · 지고 나올 채집품 짐작 · 조 수 · 우리 조가 돌아온 날과의 차(+면 그 뒤에 돌아온다)
+export type Seen = { i: number; nm: string; f: number; d: number; q: number; n: number; rel: number };
+export type Ours = { seen?: Seen[]; sn?: number[]; sw?: number[]; se?: number[]; f: number; keys: string[]; ok: boolean; d: number; mats: [string, number][]; first: string[]; kit: number; g: string; crisis?: number; pots?: number; n?: number; k?: number; hurt?: number; days?: Day[]; trip?: Trip; dead?: { n: string; day: number; pot: boolean; tk?: number; ex?: number; mt?: number }[]; cls?: string[]; potC?: number; t?: number; nm?: string[]; ld?: number; d0?: number; d1?: number; tk?: number[]; mi?: number[]; got?: number; mission?: Mission; mp?: number };   // got: 캐 와 창고에 넣은 채집품 · mission: 임무(없으면 채집) · mp: 그려 온 지도(%p)   // mi: 간 사람들의 단원 번호   // tk: 간 사람들의 실력 단계 (보낼 때). 죽은 사람의 tk · ex · mt: 실력 단계 · 층 경험 합 · 조직력 짝 수 (잃은 자산)
 export type MonthResult = {
   month: number; res: CoResult[]; plans: Plan[]; Q: number[]; price: number[]; potion: number; potQ: number; potionC: number; cartel: boolean;
   floors: { before: number; taken: number; crowd: number; cut?: number }[]; perParty: number[]; opened: number | null; rank: string[];
@@ -506,6 +510,7 @@ export type World = {
   bought?: Bought; idle?: Record<number, number>; askNow?: AskRes; leadNow?: string; today?: number[];
   // 날 단위 시장: 이번 달 경쟁 용병단의 출정 (달 첫날 굴린 것), 시장에 풀린 양(시세), 우리 창고의 전리품(층마다 개수), 시장 소식(최근 판매)
   mo?: MonthOpen; mq?: number[]; stock?: number[]; sales?: Sale[]; pp?: number[];   // pp: 어제 시세
+  seen?: Seen[];   // 우리 조가 미궁에서 본, 아직 돌아오지 않은 경쟁 용병단 조 (곧 풀릴 물량)
   mbox?: Record<string, number>;   // 우리 창고의 전리품 (돌아온 날 들어오고, 그믐에 팔 양 plan.matSell만큼 판다. 상하지 않는다)
 };
 // 이번 달 바로 산 것과 그 값 (금고에서 이미 나갔다. 정산의 지출 줄에 그대로 든다). fired: 이번 달 내보낸 사람, spoil: 들고 나갔다가 기한이 지나 버린 포션
@@ -1539,6 +1544,9 @@ function takeBack(W: World, s: Sortie) {
     cs.forEach(kk => { B0.n[kk] = (B0.n[kk] || 0) + 1; });
     o.mats.forEach(([m]) => { const g = B0.got[m] || (B0.got[m] = {}); cs.forEach(kk => { g[kk] = (g[kk] || 0) + 1; }); });
   }
+  // 미궁에서 본 남들: 같은 층에 같은 날 있었던 경쟁 용병단 조를 보고 온다. 아직 돌아오지 않은 조는 곧 풀릴 물량으로 적어 둔다
+  const seen = sightings(W, s);
+  if (seen.length) { s.rep.seen = seen; const now = dayAbs(W); W.seen = [...(W.seen || []).filter(x => x.d > now), ...seen.filter(x => x.d > now)]; }
   (W.back || (W.back = [])).push(s);
   W.away = (W.away || []).filter(x => x !== s);
 }
@@ -1753,6 +1761,21 @@ export function openMonth(W: World) {
     map0: FLOORS.map((_, f) => mapOf(W.cos[0], f)), mapGain, rookDead: rookDead.map(s => [...s]), wins, crowd: crowdF, pool0: [...W.pool], want: zeros(), taken: zeros(), ev, income: 0 };
   W.mo = mo;
   return mo;
+}
+// 우리 조가 미궁에서 본 경쟁 용병단 조: 그 층에 함께 있던 날이 하루라도 겹치면 본다 (탐색 임무는 더 잘, 사냥은 조금 더, 겹친 날이 길수록).
+// 지고 나올 채집품은 그 조가 캐 올 몫으로 짐작한다 (눈대중이라 ±30%). 같은 용병단의 같은 날 귀환은 하나로 묶는다
+function sightings(W: World, s: Sortie): Seen[] {
+  const mo = W.mo; if (!mo) return [];
+  const base = (W.month - 1) * CO.MONTH_DAYS, L = CO.TRIP_DAYS[s.f], p0 = CO.SEE_P + (s.mission === 'scout' ? CO.SEE_SCOUT : s.mission === 'hunt' ? CO.SEE_SCOUT / 3 : 0);
+  const by = new Map<string, Seen>();
+  mo.ev.forEach(e => {
+    if (e.f !== s.f || !W.cos[e.i] || W.cos[e.i].crew) return;
+    const eA = base + e.d, ov = Math.min(s.d1 - 1, eA - 1) - Math.max(s.d0, eA - L) + 1;
+    if (ov <= 0 || rnd() >= Math.min(0.9, p0 + ov * 0.05)) return;
+    const q = e.u * takeOf(W, W.cos[e.i], e.f, mo.plans[e.i].tool || 0) * (0.7 + rnd() * 0.6), k = `${e.i}:${eA}`;
+    const x = by.get(k) || { i: e.i, nm: W.cos[e.i].name, f: e.f, d: eA, q: 0, n: 0, rel: eA - s.d1 }; x.q += q; x.n++; by.set(k, x);
+  });
+  return [...by.values()].map(x => ({ ...x, q: Math.round(x.q) })).sort((a, b) => a.d - b.d);
 }
 // 오늘 아침 돌아온 경쟁 용병단 조: 층에서 캐 가고 그날 시세로 바로 판다 (시장 소식에 남는다)
 function rivalsArrive(W: World, ours: Sortie[] = []) {

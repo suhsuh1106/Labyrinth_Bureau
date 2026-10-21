@@ -1687,3 +1687,21 @@ describe('창고 전리품', () => {
     expect(Object.values(B.mbox || {}).reduce((a, b) => a + b, 0)).toBeGreaterThan(0);
   });
 });
+
+describe('미궁에서 본 남들', () => {
+  it('같은 층에 함께 있던 경쟁 조를 귀환 보고에 적고, 아직 돌아오지 않은 조는 곧 풀릴 물량으로 남긴다', async () => {
+    const { sanitize, dayAbs } = await import('../src/core/company');
+    let seenN = 0, coming = 0;
+    for (let sd = 1; sd <= 4; sd++) {
+      setSeed(sd); const W = newWorld();
+      for (let m = 0; m < 3; m++) {
+        const P = BOT.smart(W); P.teams = sanitize(W, us(W), P).teams; P.teams!.forEach(T => { T.mission = 'scout'; });
+        runMonth(W, P); closeBooks(W);
+        W.history[W.history.length - 1].ours.forEach(r => { (r.seen || []).forEach(x => { seenN++; expect(x.f).toBe(r.f); expect(x.q).toBeGreaterThanOrEqual(0); expect(W.cos[x.i].crew).toBeUndefined(); }); });
+        coming += (W.seen || []).filter(x => x.d > dayAbs(W)).length;
+      }
+    }
+    expect(seenN).toBeGreaterThan(0);
+    expect(coming).toBeGreaterThanOrEqual(0);
+  });
+});

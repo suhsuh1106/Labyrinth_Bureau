@@ -143,7 +143,7 @@ export function backLine(r: Ours, i: number, src: string) {
   return `<li class="bk ${dead.length ? 'die' : r.ok ? 'ok' : 'no'}"><div class="bk-h"><b>${(r.t ?? i) + 1}조</b> ${FLOORS[r.f].name} <span class="ms-tag ${ms}">${MISSION_NAME[ms]}</span> <span class="dim">${T.fd ?? D.length}일 · 구간 ${D.length} · 성공 ${wins} · ${TRIP_END[T.end]}</span>
     <button type="button" class="sc-open" data-act="scene" data-src="${src}" data-i="${i}" aria-label="${(r.t ?? i) + 1}조 탐사 재생">▶ 보기</button></div>
     <div class="bk-d"><span class="days">${days || '<i class="dk"></i>'}</span>${packBar(T.slots, T.torch - T.tu, Math.max(0, (r.potC || 0) - (r.pots || 0)), T.pack, (T.food || 0) - (T.fu || 0), (T.tools || 0) - (T.tk || 0), T.pm || 0, T.pt || 0)}</div>
-    <div class="bk-r">${luckHtml(r)}${focus[0]}${dead.length ? `<b class="dead-n">† ${dead.map(z => esc(z.n)).join(', ')}</b>` : ''}${focus[1]}${focus[2]}${r.hurt ? `<span class="neg">부상 ${r.hurt}</span>` : ''}</div></li>`;
+    <div class="bk-r">${luckHtml(r)}${focus[0]}${dead.length ? `<b class="dead-n">† ${dead.map(z => esc(z.n)).join(', ')}</b>` : ''}${focus[1]}${focus[2]}${r.hurt ? `<span class="neg">부상 ${r.hurt}</span>` : ''}</div>${seenHtml(r)}</li>`;
 }
 
 // 귀환 보고 창: 다음 날 아침 돌아온 조가 있으면 저절로 뜬다. 오늘 돌아온 조(조 장비 올리기)와 이달 앞서 돌아온 조
@@ -159,6 +159,11 @@ export function backWinHtml(W: World, raw: Plan) {
       <button type="button" class="nextday" data-act="close-backs">확인</button>
     </div></div></div>`;
 }
+// 미궁에서 본 남들: 누가 · 몇 조 · 무엇을 얼마나 지고 · 우리보다 언제 돌아오나
+const relTxt = (rel: number) => (rel > 0 ? `${rel}일 뒤 귀환` : rel === 0 ? '같은 아침 귀환' : '먼저 나감');
+export const seenHtml = (r: Ours) => { const L = [...(r.seen || [])].sort((a, b) => (b.rel > 0 ? 1 : 0) - (a.rel > 0 ? 1 : 0) || a.rel - b.rel); return L.length ? `<div class="bk-s"><b>미궁에서 본 남들</b>${L.slice(0, 4).map(x => `<span class="${x.rel > 0 ? 'soon' : ''}">${esc(x.nm)}${x.n > 1 ? ` ${x.n}조` : ''} · ${esc(ITEMS[x.f].name)} ${fmt(x.q)}개쯤 · ${relTxt(x.rel)}</span>`).join('')}${L.length > 4 ? `<span>외 ${L.length - 4}</span>` : ''}</div>` : ''; };
+// 곧 풀릴 물량: 우리 조가 본, 아직 돌아오지 않은 경쟁 조 (돌아오는 날 그 층 채집품을 바로 판다)
+export const comingOf = (W: World) => { const now = dayAbs(W); return (W.seen || []).filter(x => x.d > now).sort((a, b) => a.d - b.d); };
 // 돌아온 조의 성과급 자리: 그 조의 장비 올리기 (편성표의 같은 조가 같은 조(남는 단위)를 쓰고 있을 때)
 function upBtn(W: World, P: Plan, s: Sortie) {
   const T = (P.teams || [])[s.t]; if (!T || (s.sq != null && T.sq !== s.sq)) return '';
@@ -204,6 +209,11 @@ export function agendaOf(W: World, raw: Plan): Agenda[] {
   const mb = W.mbox || {}, mN = Object.values(mb).reduce((a, b) => a + b, 0);
   if (mN && (W.day || 1) >= CO.MONTH_DAYS) { const ms = raw.matSell, sN = Object.keys(mb).reduce((a, n) => a + (ms ? Math.min(mb[n], ms[n] || 0) : mb[n]), 0);
     A.push({ k: 'mats', h: '그믐 · 전리품', t: `창고 ${fmt(mN)}점 · 팔 양 ${fmt(sN)}점`, btn: '<button type="button" class="ghost sm" data-act="store">창고</button>', must: false }); }
+  // 곧 풀릴 물량: 우리 조가 미궁에서 본 경쟁 조가 돌아와 팔 것 (그 전에 창고의 같은 채집품을 팔지)
+  const nowA = dayAbs(W), byItem = new Map<number, { q: number; d: number; nm: string[] }>();
+  comingOf(W).forEach(x => { const g = byItem.get(x.f) || { q: 0, d: x.d, nm: [] }; g.q += x.q; g.d = Math.min(g.d, x.d); if (!g.nm.includes(x.nm)) g.nm.push(x.nm); byItem.set(x.f, g); });
+  [...byItem.entries()].slice(0, 2).forEach(([f, g]) => { const n = Math.floor(((W.stock || [])[f] || 0) + 1e-9);
+    A.push({ k: 'coming', h: `곧 풀릴 ${esc(ITEMS[f].name)}`, t: `${g.nm.map(esc).join(' · ')} · ${fmt(g.q)}개쯤 · ${g.d - nowA}일 뒤${n ? ` · 우리 창고 ${fmt(n)}개 · 오늘 팔면 ${fmt(n * priceNow(W, f))}G` : ''}`, btn: '<button type="button" class="ghost sm" data-act="store">창고</button>', must: false }); });
   // 그믐에 버릴 포션
   const ex = potsExpiring(c);
   if (ex.pot + ex.holy) A.push({ k: 'pot', h: `포션 ${ex.pot + ex.holy}병 보관 끝`, t: `그믐에 버림 · ${fmt((ex.pot + ex.holy) * unitPrice(W, 'pot'))}G어치`, btn: '<button type="button" class="ghost sm" data-act="exp">편성</button>', must: false });
@@ -313,7 +323,7 @@ export function matStock(W: World, P: Plan) {
 // 시장 소식: 최근 사흘의 큰 판매. 값이 움직인 것은 누구나 보고, 판 양은 상단 장부 1단계부터, 누가 팔았는지는 2단계부터
 export function marketNews(W: World) {
   const lv = W.intel ? W.intel.lv.mkt : 0, now = dayAbs(W);
-  const big = (W.sales || []).filter(s => s.i !== 0 && now - s.d <= 2 && s.p1 < s.p0 * 0.96).slice(-5).reverse();
-  if (!big.length) return '';
-  return `<ul class="mnews">${big.map(s => `<li><span class="dim">${s.d === now ? '오늘' : `${now - s.d}일 전`}</span> <b>${esc(ITEMS[s.j].name)}</b> ${Math.round((s.p1 / s.p0 - 1) * 100)}% · ${lv >= 2 ? esc(W.cos[s.i].name) : '누군가'}${lv >= 1 ? ` ${fmt(s.q)}개` : ' 많이'} 풀었다</li>`).join('')}</ul>`;
+  const big = (W.sales || []).filter(s => s.i !== 0 && now - s.d <= 2 && s.p1 < s.p0 * 0.96).slice(-5).reverse(), soon = comingOf(W);
+  if (!big.length && !soon.length) return '';
+  return `<ul class="mnews">${soon.map(x => `<li class="soon"><span class="dim">${x.d - now}일 뒤</span> <b>${esc(ITEMS[x.f].name)}</b> ${fmt(x.q)}개쯤 · ${x.n > 1 ? `${esc(x.nm)} ${x.n}조가` : esc(jo(x.nm, '이', '가'))} 풀 듯 <small class="dim">(우리 조가 봄)</small></li>`).join('')}${big.map(s => `<li><span class="dim">${s.d === now ? '오늘' : `${now - s.d}일 전`}</span> <b>${esc(ITEMS[s.j].name)}</b> ${Math.round((s.p1 / s.p0 - 1) * 100)}% · ${lv >= 2 ? esc(W.cos[s.i].name) : '누군가'}${lv >= 1 ? ` ${fmt(s.q)}개` : ' 많이'} 풀었다</li>`).join('')}</ul>`;
 }
