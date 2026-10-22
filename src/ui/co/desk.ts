@@ -305,12 +305,23 @@ function jobsTrack(W: World, P: Plan) {
   });
   return rows.length ? `<div class="panel jobs-t"><header><h2>맡은 의뢰</h2></header><div class="jtrack">${rows.join('')}</div></div>` : '';
 }
+// 영주청 서류함 · 밀고서: 경쟁 용병단 하나를 이달 영주청 회계관에게 일러바친다 (그믐에 살핀다). 근거는 이달 우리 조가 미궁에서 본 그 쪽 짐.
+// 의심 · 감사 확률은 숫자로 보이지 않는다: 근거의 크기와 회계관 신뢰만
+function tipHtml(W: World, raw: Plan) {
+  const me = us(W), rel = Math.round(me.relL ?? 50), wit = W.wit || {};
+  const rows = W.cos.map((c, i) => ({ c, i })).filter(x => x.i && x.c.style !== 'crowd');
+  const ev = (q: number) => (q >= CO.TIP_SEE ? '<b class="pos">뚜렷함</b>' : q >= CO.TIP_SEE / 3 ? '있음' : q > 0 ? '약함' : '<span class="dim">없음 (소문만)</span>');
+  return `<section class="tips"><h3 class="rs-h">영주청 서류함 · 밀고서 <small class="dim">회계관 신뢰 ${rel}</small></h3>
+    <p class="note">한 달에 한 곳, 그믐에 냄. 근거는 이달 우리 조가 미궁에서 본 그 쪽 짐(소문만으론 약함). 추징 신뢰 +, 헛걸음 신뢰 −, 깨끗한 장부 신뢰 크게 − · 앙심.</p>
+    <div class="tw"><table class="grid slim"><thead><tr><th>용병단</th><th class="n">이달 본 짐</th><th>근거</th><th></th></tr></thead><tbody>${rows.map(({ c, i }) => `<tr${raw.tip === i ? ' class="on"' : ''}><td><b>${esc(c.name)}</b>${c.grudge ? ' <small class="neg">앙심</small>' : ''}</td><td class="n">${wit[i] ? fmt(Math.round(wit[i])) + '개쯤' : '-'}</td><td>${ev(wit[i] || 0)}</td><td><button type="button" class="${raw.tip === i ? 'seal sm' : 'ghost sm'}" data-act="tip" data-i="${i}">${raw.tip === i ? '그믐에 냄 ✓' : '밀고서 쓰기'}</button></td></tr>`).join('')}</tbody></table></div></section>`;
+}
 function boardPanel(W: World, raw: Plan) {
   const open = [...jobsOpen(W)].sort((a, b) => (a.kind === 'explore' ? -2 : a.from === W.month ? -1 : 0) - (b.kind === 'explore' ? -2 : b.from === W.month ? -1 : 0));
   const done = (W.jobs || []).filter(J => J.until < W.month && J.until >= W.month - 3);
   return `<div class="panel board"><header><h2>관리국 게시판</h2></header>
     ${open.length ? open.map(J => jobCard(W, raw, J)).join('') : '<p class="note">붙은 의뢰 없음</p>'}
     ${lawsHtml(W)}
+    ${tipHtml(W, raw)}
     ${done.length ? `<h3 class="rs-h">끝난 의뢰</h3>${done.filter(J => J.kind !== 'explore').map(J => `<p class="note">${J.by} · ${J.title} (${J.from}~${J.until}월)${J.kind === 'deliver' ? ` · 우리 ${fmt(J.done[0])} / ${fmt(J.take[0])}개` : ` · 우리 ${((J.score || [])[0] || 0).toFixed(1)}조`}</p>`).join('')}` : ''}</div>`;
 }
 
@@ -496,6 +507,10 @@ function noticeHtml(W: World, ui: DeskUi) {
   (W.jobs || []).filter(J => J.from === W.month).forEach(J => ns.push(['board', `${J.by} 새 의뢰`, `${J.title}${J.kind === 'explore' ? ' · 적어 낸 조마다 선금' : J.kind === 'race' ? ' · 순위 포상' : ` · ${FLOORS[J.f].name} ${fmt(J.qty)}개`}`]));
   if (potShock(W.month + 1) > potShock(W.month)) ns.push(['market', '상단 거리 소문', `약초 흉년 · 다음 달부터 ${CO.POT_SHOCK_LEN}달 포션 값 ×${CO.POT_SHOCK} · 포션 보관 ${CO.POT_KEEP}달`]);
   else if (potShock(W.month) > 1 && potShock(W.month - 1) === 1) ns.push(['market', '약초 흉년', `상단 포션 값 ×${CO.POT_SHOCK} (${CO.POT_SHOCK_LEN}달)`]);
+  // 지난달 밀고의 결과 · 우리를 일러바친 소문
+  const LT = W.last && W.last.res[0];
+  if (LT && LT.tip) { const T = LT.tip; ns.push(['board', '밀고 결과', T.fine ? `회계관이 ${T.nm} 장부에서 추징금 ${fmt(T.fine)}G · 신뢰 +${T.d}` : T.dirty ? `${T.nm} · 헛걸음 · 신뢰 −${-T.d}` : `${T.nm} 장부가 깨끗했음 · 신뢰 −${-T.d} · 앙심`]); }
+  if (LT && LT.tipBack) ns.push(['board', '소문', `${LT.tipBack.join(' · ')} 쪽이 우리 장부를 영주청에 일렀다는 말`]);
   if (!ns.length || ui.seen === W.month) return '';
   return `<div class="notices" role="status">${ns.map(([k, h, t]) => `<div class="nt"><b>${esc(h)}</b><span>${esc(t)}</span>${k === 'gate' ? '' : `<button type="button" class="link" data-act="place" data-place="${k}">보기</button>`}</div>`).join('')}<button type="button" class="link close-n" data-act="seen" aria-label="알림 접기">접기</button></div>`;
 }

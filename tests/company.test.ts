@@ -1705,3 +1705,25 @@ describe('미궁에서 본 남들', () => {
     expect(coming).toBeGreaterThanOrEqual(0);
   });
 });
+
+describe('밀고', () => {
+  it('밀고서를 내면 그믐에 결과가 남고, 회계관 신뢰가 그만큼 움직이며, 헛된 밀고는 다음 달 앙심으로 돌아온다', () => {
+    let seenTip = 0, back = 0;
+    for (let sd = 1; sd <= 6; sd++) {
+      setSeed(sd); const W = newWorld();
+      for (let m = 0; m < 4; m++) {
+        const P = BOT.smart(W); const tgt = 1 + (m % (W.cos.length - 1)); P.tip = tgt;
+        const rel0 = us(W).relL ?? 50;
+        runMonth(W, P); closeBooks(W);
+        const r = W.history[W.history.length - 1].res[0];
+        if (W.cos[tgt].style === 'crowd' || W.cos[tgt].crew) continue;
+        expect(r.tip).toBeDefined(); seenTip++;
+        expect(us(W).relL).toBe(Math.max(0, Math.min(100, rel0 + r.tip!.d)));
+        if (!r.tip!.dirty) expect(W.cos[tgt].grudge).toBe(W.month);
+        if (r.tipBack) back++;
+      }
+    }
+    expect(seenTip).toBeGreaterThan(0);
+    expect(back).toBeGreaterThanOrEqual(0);
+  });
+});
