@@ -1,6 +1,9 @@
 // 용병단 엔진 (docs/plan.md 1단계): 장부, 재현성, 시장 규칙이 깨지지 않는지 확인한다
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { setSeed } from '../src/core/rng';
+import type { World as W0 } from '../src/core/company';
+// 옛 길: 구역 없이 (임무 · 횃불 · 남은 채비가 돌아오는 옛 탐사. docs/zones.md 6단계에서 지운다)
+const old = (W: W0) => { delete W.zones; return W; };
 import { CO, FLOORS, ITEMS, defaultPlan, emptyPlan, newWorld, potionPrice, priceOf, runMonth, us, worth } from '../src/core/company';
 import { FILE_KEYS, TAX, detOf, auditChance, billOf, closeBooks, fileFix, gainOf, jobsExplore, lawsAt, preview } from '../src/core/company';
 import { draftHtml } from '../src/ui/co/draft';
@@ -38,6 +41,8 @@ import { backLine } from '../src/ui/co/hall';
 // 옛 시작(16명 · 네 조)을 전제로 한 규칙 테스트: 우리 명단을 16명으로 바꾸고 지원자는 비운다
 const big = (W: World) => { const c = us(W); c.crew = crewOf(16); c.members = 16; c.nextId = 16; c.sup!.pot = [12]; W.cand = []; return W; };
 import { evOf } from '../src/core/expedition';
+import { ZONE, estOf, lvOf, wideOf, zonesOn } from '../src/core/zones';
+import { goalDays, syncZones, zoneRate, zoneWay } from '../src/core/company';
 
 describe('용병단 장부', () => {
   it('매달 모든 용병단의 금고 변화가 판매 수입에서 지출을 뺀 값과 같다', async () => {
@@ -154,7 +159,7 @@ describe('상단·교회와 포션 담합', () => {
   it('담합 중 교회 후원이 쌓이면 교회가 빠져나와 후원한 쪽에 예전 값으로 팔고, 후원한 쪽은 교회와 가까워지고 상단과 멀어진다', () => {
     let checked = 0;
     for (let g = 1; g <= 40 && checked < 3; g++) {
-      setSeed(g); const W: World = newWorld();
+      setSeed(g); const W: World = old(newWorld());
       for (let m = 0; m < 36 && !W.cartel; m++) runMonth(W, BOT.even(W));
       if (!W.cartel) continue;
       const c = us(W); c.cash = 50000;
@@ -195,7 +200,7 @@ describe('교회 성수 포션', () => {
     let a = 0, b = 0;
     for (let g = 1; g <= 60; g++) {
       for (const church of [0, 9999]) {
-        setSeed(g); const W = big(newWorld()); W.unlocked = 4;
+        setSeed(g); const W = big(old(newWorld())); W.unlocked = 4;
         // 깊은 층에 포션 한 병씩만 들려 보내 포션이 모자라게 한다 (성수는 HOLY의 확률로 병을 비우지 않고 막는다)
         for (let m = 0; m < 6; m++) { const P = sanitize(W, us(W), BOT.even(W)); P.teams!.forEach(T => { T.f = 3; T.pots = 1; }); P.buy = { holy: church }; const M = runMonth(W, P); if (church) a += M.res[0].deaths; else b += M.res[0].deaths; }
       }
@@ -369,7 +374,7 @@ describe('정보망', () => {
 
 describe('전리품 비율과 몬스터 적응', () => {
   it('횃불: 조를 보낼 때 창고에 모자란 만큼 사고, 우리 조가 들고 가서 태운 만큼만 창고에서 빠진다', () => {
-    setSeed(3); const W = newWorld(), c = us(W);
+    setSeed(3); const W = old(newWorld()), c = us(W);
     const P = defaultPlan(W), Q = sanitize(W, c, P), need = needOf(Q).torch;
     expect(need).toBe(Q.parties.reduce((a, n, f) => a + n * CO.TORCH0[f], 0));
     const M = runMonth(W, P), r = M.res[0], burnt = M.ours.reduce((a, o) => a + o.trip!.tu, 0), bought = r.spend.torch / CO.TORCH_PRICE;
@@ -383,7 +388,7 @@ describe('전리품 비율과 몬스터 적응', () => {
   it('탐사는 층마다 정한 구간만큼: 구간마다 채집 지점 · 조우 · 흔적 중 하나, 채집 지점만 짐을 싣고 조우만 갈무리하며, 횃불이 떨어지거나 짐이 차면 돌아선다', () => {
     let pack = 0, torch = 0; const seen: Record<string, Record<string, number>> = { gather: {}, hunt: {}, scout: {} };
     for (let g = 1; g <= 8; g++) {
-      setSeed(g); const W = newWorld(); W.unlocked = 3;
+      setSeed(g); const W = old(newWorld()); W.unlocked = 3;
       for (let m = 0; m < 4; m++) {
         const P = sanitize(W, us(W), defaultPlan(W)); P.teams!.forEach((T, t) => { T.f = t % 3; T.mission = MISSIONS[(t + m) % 3]; }); P.torch = FLOORS.map(() => 1); P.pots = FLOORS.map(() => 3);
         const M = runMonth(W, P), names = (f: number) => floorMons(W, f).map(x => x.name);
@@ -435,7 +440,7 @@ describe('전리품 비율과 몬스터 적응', () => {
     for (const ms of MISSIONS) {
       const x = sum[ms] = { got: 0, mats: 0, map: 0, cr: 0, n: 0 };
       for (let g = 1; g <= 6; g++) {
-        setSeed(g); const W = big(newWorld()); W.unlocked = 2;
+        setSeed(g); const W = big(old(newWorld())); W.unlocked = 2;
         for (let m = 0; m < 2; m++) {
           const P = sanitize(W, us(W), defaultPlan(W)); P.teams!.forEach((T, t) => { T.f = t % 2; T.mission = ms; });
           const M = runMonth(W, P); closeBooks(W);
@@ -449,7 +454,7 @@ describe('전리품 비율과 몬스터 적응', () => {
     expect(sum.gather.cr / sum.gather.n).toBeLessThan(sum.hunt.cr / sum.hunt.n);
   });
   it('편성표에서 조마다 포션 · 횃불을 정하고, 죽은 단원은 이름과 날이 기록된다', () => {
-    setSeed(6); const W = big(newWorld()), c = us(W);
+    setSeed(6); const W = big(old(newWorld())), c = us(W);
     const P = sanitize(W, c, defaultPlan(W)); P.teams![0].pots = 2; P.teams![0].torch = 5; P.teams![1].pots = 0; P.teams![1].torch = 1;
     const Q = sanitize(W, c, P), need = needOf(Q);
     expect(need.torch).toBe(5 + 1 + Q.teams!.slice(2).reduce((a, T) => a + CO.TORCH0[T.f], 0));
@@ -489,7 +494,7 @@ describe('전리품 비율과 몬스터 적응', () => {
   it('횃불 없이 간 조는 들어가지 못하고 어둠 속에서 위기를 맞고 지도를 덜 그린다', () => {
     let darkC = 0, litC = 0, darkMap = 0, litMap = 0;
     for (const dark of [true, false]) for (let g = 1; g <= 12; g++) {
-      setSeed(g); const W = newWorld();
+      setSeed(g); const W = old(newWorld());
       for (let m = 0; m < 3; m++) {
         const P = defaultPlan(W); if (dark) { P.autoBuy = false; P.buy = { pot: 20 }; supOf(us(W)).torch = 0; }
         const M = runMonth(W, P), r = M.res[0], cr = M.ours.reduce((a, o) => a + (o.crisis || 0), 0);
@@ -503,7 +508,7 @@ describe('전리품 비율과 몬스터 적응', () => {
     expect(tripOdds(CO.DAYS, 0.9).dark).toBe(0);
     const a = tripOdds(2, 0.5), b = tripOdds(4, 0.5);
     expect(a.days).toBeLessThan(b.days); expect(a.dark).toBeGreaterThan(b.dark);
-    setSeed(5); const W = newWorld(); W.unlocked = 3; const P = sanitize(W, us(W), defaultPlan(W)); P.teams!.forEach(T => { T.f = 2; }); P.parties = [0, 0, P.teams!.length, 0, 0];   // 3층은 사흘 탐사
+    setSeed(5); const W = old(newWorld()); W.unlocked = 3; const P = sanitize(W, us(W), defaultPlan(W)); P.teams!.forEach(T => { T.f = 2; }); P.parties = [0, 0, P.teams!.length, 0, 0];   // 3층은 사흘 탐사
     const lo = forecast(W, { ...P, torch: FLOORS.map(() => 1) }), hi = forecast(W, { ...P, torch: FLOORS.map(() => 5) });
     expect(lo.mean).toBeLessThan(hi.mean); expect(lo.torch!).toBeLessThan(hi.torch!);
   });
@@ -605,7 +610,7 @@ describe('갈무리 소재와 미궁 도감', () => {
 
 describe('보급 창고 · 전리품 보관 기한 · 조사 의뢰 · 편성 줄', () => {
   it('포션은 사 둔 것에서 쓴 만큼 줄고, 모자라면 조당 포션을 줄여 보낸다', () => {
-    setSeed(61); const W: World = big(newWorld()); us(W).sup = { pot: [], holy: [], gear: {} };   // 처음 챙겨 온 포션 없이
+    setSeed(61); const W: World = big(old(newWorld())); us(W).sup = { pot: [], holy: [], gear: {} };   // 처음 챙겨 온 포션 없이
     // 보낼 때 모자란 채비를 사지 않게 하면 사 둔 10병을 조들이 나눠 들고 간다 (창고가 비면 포션 없이)
     const P = BOT.even(W); P.buy = { pot: 10 }; P.autoBuy = false;
     const M = runMonth(W, P), r = M.res[0], out = (W.away || []).reduce((a, s) => a + s.kit.pots, 0);
@@ -629,7 +634,7 @@ describe('보급 창고 · 전리품 보관 기한 · 조사 의뢰 · 편성 �
     expect(r.spend.gear).toBe(2 * CO.GEAR_PRICE);
   });
   it('포션은 산 달별로 쌓여 오래된 것부터 쓰이고, 기한이 지나면 그 묶음이 상한다', () => {
-    setSeed(63); const W: World = newWorld(); us(W).sup = { pot: [], holy: [], gear: {} };   // 처음 챙겨 온 포션 없이
+    setSeed(63); const W: World = old(newWorld()); us(W).sup = { pot: [], holy: [], gear: {} };   // 처음 챙겨 온 포션 없이
     const P = BOT.even(W); P.buy = { pot: 300 };
     const M0 = runMonth(W, P), left = potsOf(us(W)).pot;
     expect(left).toBe(300 - M0.res[0].potUsed);
@@ -667,7 +672,8 @@ describe('보급 창고 · 전리품 보관 기한 · 조사 의뢰 · 편성 �
     // 없는 사람, 겹친 사람, 닫힌 층은 걸러지고 조 수는 짠 조에서 센다
     const P = defaultPlan(W); P.teams = [{ f: 0, m: [0, 0, 999, null], g: 'g:신성' }, { f: 3, m: [1, null, null, null], g: '' }, { f: 0, m: [null, null, null, null], g: '' }];
     const Q = sanitize(W, c, P);
-    expect(Q.teams).toEqual([{ f: 0, m: [0, null, null, null], g: 'g:신성' }]);
+    expect(Q.teams).toHaveLength(1); expect(Q.teams![0]).toMatchObject({ f: 0, m: [0, null, null, null], g: 'g:신성', days: CO.TRIP_DAYS[0], margin: 0 });
+    expect(W.zones![Q.teams![0].z!].f).toBe(0);   // 구역을 정하지 않으면 그 층에서 가장 나은 구역으로
     expect(Q.parties).toEqual([1, 0, 0, 0, 0]);
     const html = expWeekHtml(W, P, { phase: 1, tab: 'report', pins: [] });
     expect(html).not.toMatch(/undefined|NaN|\[object/);
@@ -740,7 +746,7 @@ describe('정보망 넓히기', () => {
 
 describe('위기와 포션', () => {
   it('포션은 위기가 온 만큼만 쓰이고, 남은 것은 창고로 돌아온다', () => {
-    setSeed(91); const W: World = newWorld(); us(W).sup = { pot: [], holy: [], gear: {} };   // 처음 챙겨 온 포션 없이
+    setSeed(91); const W: World = old(newWorld()); us(W).sup = { pot: [], holy: [], gear: {} };   // 처음 챙겨 온 포션 없이
     const P = BOT.even(W); P.buy = { pot: 100 };
     const M = runMonth(W, P), r = M.res[0];
     const carried = M.plans[0].parties.reduce((a, n, f) => a + (n + M.plans[0].hire[f]) * M.plans[0].pots[f], 0);
@@ -922,7 +928,8 @@ describe('성공 정도 · 부상 · 수입 예측', () => {
       const W = playGame(g, BOT.even);
       W.history.forEach(M => { if (!M.fc || !M.fc.mean) return; a += M.res[0].sales; f += M.fc.mean; n++; if (M.res[0].sales >= M.fc.p10 && M.res[0].sales <= M.fc.p90) inside++; });
     }
-    expect(a / f).toBeGreaterThan(0.85); expect(a / f).toBeLessThan(1.15);
+    // (구역에 남은 양은 숨긴 정보라 남들이 먼저 파 간 몫을 예측이 다 알지 못한다: 아래쪽 폭을 조금 넓게)
+    expect(a / f).toBeGreaterThan(0.8); expect(a / f).toBeLessThan(1.15);
     expect(inside / n).toBeGreaterThan(0.5);
   });
   it('출정에 이번 달 예측이, 정산에 예측과 실제가 나온다', () => {
@@ -1116,7 +1123,7 @@ describe('영주청: 영주세 · 법령 · 가정산 · 감사', () => {
   it('미리보기는 상태를 바꾸지 않고, 덜 적은 만큼 이득과 의심이 늘고 감사 확률이 오른다', () => {
     setSeed(7); const W = big(newWorld()); runMonth(W, defaultPlan(W)); const D = W.draft!;
     const snap = JSON.stringify(W);
-    const a = preview(W, D, {}), b = preview(W, D, { loot: Math.round(D.truth.loot * 0.7), pot: D.truth.pot + 6 }), c = preview(W, D, { loot: 0 });
+    const a = preview(W, D, {}), b = preview(W, D, { loot: Math.round(D.truth.loot * 0.7), pot: D.truth.pot + 6 }), c = preview(W, D, { loot: 0, pot: D.truth.pot + 6 });
     expect(JSON.stringify(W)).toBe(snap);
     expect(a.total).toBe(0); expect(b.total).toBeGreaterThan(0); expect(c.total).toBeGreaterThan(b.total);
     expect(b.gain.loot).toBe(Math.round((D.truth.loot - Math.round(D.truth.loot * 0.7)) * D.lootRate));
@@ -1282,7 +1289,7 @@ describe('미궁 도감 · 단장 · 지정 탐사', () => {
     expect(done).toEqual(['no', 'yes']);
   });
   it('지정 탐사: 이해도가 차야 노릴 수 있고, 노린 몬스터를 더 자주 만난다', () => {
-    setSeed(9); const W = newWorld(), c = us(W), fauna = floorMons(W, 0)[1].name;
+    setSeed(9); const W = old(newWorld()), c = us(W), fauna = floorMons(W, 0)[1].name;
     const P = sanitize(W, c, defaultPlan(W)); P.teams!.forEach(T => { T.target = fauna; T.mission = 'hunt'; });   // 노리는 것은 사냥 임무만
     expect(sanitize(W, c, P).teams!.every(T => !T.target)).toBe(true);
     W.dex = { [fauna]: { n: 0, w: 0, cr: 0, u: DEX.TARGET_AT, at: 1, rec: {}, mats: {}, key: {}, mat: {} } };
@@ -1295,7 +1302,7 @@ describe('미궁 도감 · 단장 · 지정 탐사', () => {
 
 describe('채비: 식량 · 정비 도구 · 해고', () => {
   it('식량과 정비 도구는 조마다 정한 만큼 들고 가서 먹은 · 쓴 만큼 빠지고, 남은 것은 창고로 돌아온다', () => {
-    setSeed(3); const W = newWorld(), c = us(W);
+    setSeed(3); const W = old(newWorld()), c = us(W);
     W.unlocked = 5;
     const P = sanitize(W, c, defaultPlan(W)); P.teams!.forEach(T => { T.f = 4; }); P.parties = [0, 0, 0, 0, P.teams!.length]; P.food = FLOORS.map(() => 3); P.mend = FLOORS.map(() => 2);   // 5층은 닷새 탐사
     const M = runMonth(W, P); closeBooks(W);
@@ -1309,7 +1316,7 @@ describe('채비: 식량 · 정비 도구 · 해고', () => {
     M.ours.forEach(o => o.days!.forEach(d => { if (d.dd! > 3) expect(d.hg || 0).toBeGreaterThan(0); else expect(d.hg || 0).toBe(0); }));
   });
   it('식량 없이 보내면 굶은 날 성공이 떨어져 지는 날이 는다', () => {
-    const lose = (food: number) => { let l = 0, n = 0; for (let s = 1; s <= 12; s++) { setSeed(s); const W = newWorld(); const P = sanitize(W, us(W), defaultPlan(W)); P.food = FLOORS.map(() => food); const M = runMonth(W, P); M.ours.forEach(o => o.days!.forEach(d => { n++; if (!d.win) l++; })); } return l / n; };
+    const lose = (food: number) => { let l = 0, n = 0; for (let s = 1; s <= 12; s++) { setSeed(s); const W = old(newWorld()); const P = sanitize(W, us(W), defaultPlan(W)); P.food = FLOORS.map(() => food); const M = runMonth(W, P); M.ours.forEach(o => o.days!.forEach(d => { n++; if (!d.win) l++; })); } return l / n; };
     expect(lose(0)).toBeGreaterThan(lose(CO.DAYS));
   });
   it('해고: 고른 단원은 이번 달 첫머리에 떠나 조에 들지 않고, 위로금으로 한 달 급여를 받는다. 단장은 내보낼 수 없다', () => {
@@ -1487,14 +1494,17 @@ describe('날 단위 턴 · 길드 홀', () => {
     expect(run(5, false)).toBe(run(5, false));   // 같은 시드면 같다
   });
   it('시장은 날마다: 경쟁 용병단 조가 돌아온 날 캐 가고 바로 팔아 값이 내려가고, 층에 남은 양은 날마다 준다', () => {
-    setSeed(14); const W = newWorld(), P = sanitize(W, us(W), defaultPlan(W)); P.autoSell = false;
     let drops = 0;
+    for (const seed of [14, 15]) {
+    setSeed(seed); const W = newWorld(), P = sanitize(W, us(W), defaultPlan(W)); P.autoSell = false;
+    W.mq = ITEMS.map(it => it.D * 0.6);   // (1층 황동석은 바닥 값에 붙어 있는 날이 많다: 시장이 마른 채로 시작해 값이 움직이게)
     for (let d = 1; d < CO.MONTH_DAYS; d++) {
       const pool = [...W.pool], before = W.sales ? W.sales.length : 0;
       nextDay(W, P);
       const today = (W.sales || []).slice(before).filter(x => x.i !== 0);
       today.forEach(x => { expect(x.p1).toBeLessThanOrEqual(x.p0); if (x.p1 < x.p0) drops++; });
       W.pool.forEach((v, f) => expect(v).toBeLessThanOrEqual(pool[f]));   // 다시 차는 것은 그믐에만
+    }
     }
     expect(drops).toBeGreaterThan(0);
   });
@@ -1675,7 +1685,7 @@ describe('창고 전리품', () => {
   it('matSell을 비워 두면 그믐에 모두 팔고, {}이면 모두 창고에 남는다', async () => {
     const { sanitize } = await import('../src/core/company');
     const run = (keep: boolean) => {
-      setSeed(11); const W = newWorld();
+      setSeed(11); const W = old(newWorld());
       for (let m = 0; m < 3; m++) { const P = BOT.smart(W); if (keep) P.matSell = {}; P.teams = sanitize(W, us(W), P).teams; P.teams!.forEach(T => { T.mission = 'hunt'; }); runMonth(W, P); closeBooks(W); }
       return W;
     };
@@ -1727,3 +1737,66 @@ describe('밀고', () => {
     expect(back).toBeGreaterThanOrEqual(0);
   });
 });
+
+describe('구역 탐사 (docs/zones.md)', () => {
+  it('층마다 구역 여덟이 입구에서 거리 1 · 2 · 3으로 퍼져 있고, 층 매장량은 구역 남은 양의 합이다', () => {
+    setSeed(2); const W = newWorld();
+    FLOORS.forEach((F, f) => {
+      const Z = zonesOn(W.zones, f);
+      expect(Z).toHaveLength(ZONE.N);
+      expect([1, 2, 3].map(r => Z.filter(z => z.r === r).length)).toEqual(ZONE.RING);
+      Z.forEach(z => { if (z.r > 1) expect(W.zones![z.parent!].r).toBe(z.r - 1); expect(zoneWay(W, z)).toBe(z.r - 1); expect(z.known).toBe(f === 0); });
+      expect(Z.filter(z => z.kind === 'stair').length).toBe(f < FLOORS.length - 1 ? 1 : 0);
+      expect(Math.abs(Z.reduce((a, z) => a + z.max, 0) - F.max)).toBeLessThanOrEqual(ZONE.N);
+    });
+    runMonth(W, defaultPlan(W)); closeBooks(W); syncZones(W);
+    FLOORS.forEach((_, f) => expect(Math.abs(zonesOn(W.zones, f).reduce((a, z) => a + z.res, 0) - W.pool[f])).toBeLessThan(1e-6));
+    // 경쟁 용병단도 구역을 골라 그 구역에서 캐 간다
+    expect(W.mo!.ev.every(e => e.z != null && W.zones![e.z].f === e.f)).toBe(true);
+  });
+  it('이해도: 일한 인일이 경험치로 쌓여 단계가 오르고, 아는 범위가 좁아진다', () => {
+    setSeed(2); const W = newWorld(), z = zonesOn(W.zones, 0)[0];
+    expect(lvOf(z)).toBe(0); const w0 = wideOf(z);
+    z.xp = ZONE.LV[2]; expect(lvOf(z)).toBe(3); expect(wideOf(z)).toBeLessThan(w0);
+    z.xp = ZONE.LV[4]; expect(lvOf(z)).toBe(5); expect(estOf(z, 2, 1).hi - estOf(z, 2, 1).lo).toBeLessThan(0.25);
+  });
+  it('조는 구역까지 오가는 날만큼 먹기만 하고, 일할 날을 다 일하거나 짐이 차면 돌아오며, 남은 보급은 검문소가 태운다 (포션은 돌아온다)', () => {
+    let trips = 0, walked = 0;
+    for (let g = 1; g <= 4; g++) {
+      setSeed(g); const W = big(newWorld()), c = us(W);
+      const P = sanitize(W, c, defaultPlan(W));
+      const far = zonesOn(W.zones, 0).find(z => z.r === 3)!;
+      P.teams!.forEach((T, t) => { T.z = t % 2 ? far.id : T.z; T.days = 2; T.margin = 1; });
+      const Q = sanitize(W, c, P);
+      Q.teams!.forEach(T => { const z = W.zones![T.z!]; expect(T.food).toBe(2 * zoneWay(W, z) + 2 + 1); });
+      const food0 = supOf(c).food || 0, xp0 = W.zones!.map(z => z.xp);
+      const M = runMonth(W, Q);
+      M.ours.forEach(o => {
+        trips++;
+        const T = o.trip!, z = W.zones![o.z!];
+        expect(o.way).toBe(zoneWay(W, z)); expect(T.go).toBe(o.way); expect(T.wk!).toBeLessThanOrEqual(2);
+        if (o.way) { walked++; expect(T.wb).toBe(o.way); }
+        expect(o.d1! - o.d0!).toBeLessThanOrEqual(2 * o.way! + 2);
+        expect(o.burn!.food).toBe(T.food! - T.fu!);   // 남은 보급은 모두 태운다
+        D(o).forEach(d => expect(d.dd!).toBeGreaterThan(o.way!));   // 가는 날엔 구간이 없다
+      });
+      expect(supOf(c).food || 0).toBeLessThanOrEqual(food0 + 1e-9);   // 창고로 돌아오는 보급은 없다
+      // 이해도: 다녀온 구역에 사람 × 일한 날만큼
+      W.zones!.forEach((z, i) => { const md = M.ours.filter(o => o.z === i).reduce((a, o) => a + o.n! * o.wk!, 0); if (md) expect(z.xp - xp0[i]).toBeGreaterThanOrEqual(md - 1e-6); });
+    }
+    expect(trips).toBeGreaterThan(10); expect(walked).toBeGreaterThan(3);
+  });
+  it('목표량으로 보내면 보수적인 산출로 날을 잡고, 목표를 채우면 일찍 돌아선다', () => {
+    let goal = 0;
+    for (let g = 1; g <= 4; g++) {
+      setSeed(g); const W = big(newWorld()), c = us(W);
+      const P = sanitize(W, c, defaultPlan(W)); P.teams!.forEach(T => { T.goal = 3; });
+      const Q = sanitize(W, c, P);
+      Q.teams!.forEach(T => { const r = zoneRate(W, Q, T); expect(r.lo).toBeLessThan(r.hi); expect(T.days).toBe(goalDays(W, Q, T)); expect(T.days!).toBeGreaterThanOrEqual(1); });
+      const M = runMonth(W, Q);
+      M.ours.forEach(o => { expect(o.goal).toBe(3); if (o.trip!.end === 'goal') goal++; });
+    }
+    expect(goal).toBeGreaterThan(0);
+  });
+});
+const D = (o: { days?: import('../src/core/expedition').Day[] }) => o.days || [];

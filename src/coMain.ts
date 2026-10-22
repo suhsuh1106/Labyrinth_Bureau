@@ -2,7 +2,7 @@
 import './ui/co/base.css';
 import './ui/co/co.css';
 import { setSeed } from './core/rng';
-import { kitShort, sellStock, setClerks, buyNow, fireNow, hireNow, promote, upgradeSquad, setLeader, nextDay, sendQueued, teamReady, CO, FILE_KEYS, teamPots, teamTorch, teamMend, carryOf, foodDays, mendOf, FLOORS, type Plan, SRCS, type World, carryPlan, closeBooks, fileFix, fillTeams, formTeams, newWorld, probe, rankOf, roomOf, sanitize, awayIds, us, MISSIONS, type Mission } from './core/company';
+import { kitShort, sellStock, setClerks, buyNow, fireNow, hireNow, promote, upgradeSquad, setLeader, nextDay, sendQueued, teamReady, CO, FILE_KEYS, teamPots, teamTorch, teamMend, carryOf, foodDays, mendOf, FLOORS, type Plan, SRCS, type World, carryPlan, closeBooks, fileFix, fillTeams, formTeams, newWorld, probe, rankOf, roomOf, sanitize, awayIds, us, MISSIONS, type Mission, zoneRate, teamDays } from './core/company';
 import { DESC_FIRST, packBar } from './ui/co/roster';
 import { CLASSES, GEARS } from './core/data';
 import { plaqueHtml } from './ui/co/view';
@@ -13,7 +13,7 @@ import { closeScene, openScene } from './ui/co/scene';
 import { advanceArrival, arrivalOpen, closeArrival, playArrival } from './ui/co/arrival';
 
 const $ = (id: string): any => document.getElementById(id);
-const KEY = 'lb-co', VERSION = 39, MONTHS = 36;   // 39: 밀고 · 회계관 신뢰 (이전 판은 새 게임으로)
+const KEY = 'lb-co', VERSION = 40, MONTHS = 36;   // 40: 구역 탐사 · 인일 셈 (이전 판은 새 게임으로)
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
 let W: World, plan: Plan, ui: DeskUi;
 // 도장을 막 찍은 결과 화면이면 귀환 장부를 한 줄씩 띄운다 (저장하지 않는 화면 상태)
@@ -99,7 +99,9 @@ function teamAct(a: string, b: HTMLElement) {
   else if (a === 'bench') { const id = +(b.dataset.id || 0); ui.pick = pick && pick.id === id ? null : { id }; }
   else if (a === 'to-bench') { if (pick && pick.t != null && T[pick.t]) T[pick.t].m[pick.s!] = null; ui.pick = null; }
   else if (a === 'assign') assignTo(+(b.dataset.id || 0), b.dataset.t || '-1');
-  else if (a === 'tfloor') { const x = T[+(b.dataset.t || 0)]; if (x) x.f = +(b.dataset.f || 0); }
+  else if (a === 'tfloor') { const x = T[+(b.dataset.t || 0)]; if (x && x.f !== +(b.dataset.f || 0)) { x.f = +(b.dataset.f || 0); delete x.z; } }
+  // 기준: 날 ↔ 목표량 (목표로 바꾸면 지금 날 수에 아는 산출의 가운데를 곱한 만큼에서 시작)
+  else if (a === 'tmode') { const x = T[+(b.dataset.t || 0)]; if (x) { if (b.dataset.m === 'goal') { const Q = sanitize(W, c, plan), q = (Q.teams || [])[+(b.dataset.t || 0)]; x.goal = q ? Math.max(1, Math.round(zoneRate(W, Q, q).mid * (q.days || 1))) : 5; } else delete x.goal; } }
   else if (a === 'tmission') { const x = T[+(b.dataset.t || 0)], m = b.dataset.m as Mission; if (x && MISSIONS.includes(m)) { if (m === 'gather') delete x.mission; else x.mission = m; } }
   else if (a === 'slot') {
     const t = +(b.dataset.t || 0), s = +(b.dataset.s || 0);
@@ -178,7 +180,7 @@ function act(b: HTMLElement) {
     const d = ck === k ? -(+cd || 1) : DESC_FIRST.includes(k) ? -1 : 1;
     ui.sort = { ...(ui.sort || {}), [sc]: `${k}:${d}` }; render(); save(); return;
   }
-  if (a === 'refill' || a === 'fill-rest' || a === 'bench' || a === 'to-bench' || a === 'slot' || a === 'assign' || a === 'tfloor' || a === 'tmission') return teamAct(a, b);
+  if (a === 'refill' || a === 'fill-rest' || a === 'bench' || a === 'to-bench' || a === 'slot' || a === 'assign' || a === 'tfloor' || a === 'tmission' || a === 'tmode') return teamAct(a, b);
   // 한 달 몫: 구매 칸에 이번 달 쓸 만큼(창고를 뺀 것)을 담는다 (사는 것은 '지금 사기')
   if (a === 'fill' || a === 'fill-all') {
     const F = fillOf(W, plan), B = plan.buy = { ...(plan.buy || {}) }, k = b.dataset.k as 'pot' | 'torch' | 'food' | 'mend' | 'gear' | undefined;
@@ -209,7 +211,7 @@ function act(b: HTMLElement) {
     if (!T || !teamReady(W, T)) { render(); say('그 조는 지금 나갈 수 없어요'); return; }
     if (T.go) delete T.go; else T.go = true;
     render(); save();
-    say(T.go ? `${t + 1}조 보낼 예정 · ${FLOORS[T.f].name} ${CO.TRIP_DAYS[T.f]}일 길 · 다음 날을 누르면 떠나요` : `${t + 1}조 보낼 예정을 거뒀어요`); return;
+    say(T.go ? `${t + 1}조 보낼 예정 · ${FLOORS[T.f].name} ${teamDays(T)}일 길 · 다음 날을 누르면 떠나요` : `${t + 1}조 보낼 예정을 거뒀어요`); return;
   }
   if (a === 'next-day') return advance();
   // 안건의 채비 모자람: 내일 떠날 조들에 모자란 만큼만 산다
@@ -317,6 +319,7 @@ $('desk').addEventListener('change', (e: any) => {
   }
   if (k === 'tpl') { const tp = [...(plan.tpl || CO.TPL0)]; tp[+t.dataset.i] = t.value; plan.tpl = tp; render(); save(); return; }
   if (k === 'ask') { if (t.value) plan.ask = JSON.parse(t.value); else delete plan.ask; render(); save(); return; }
+  if (k === 'tzone') { const T = plan.teams && plan.teams[+t.dataset.i], z = W.zones && W.zones[+t.value]; if (T && z) { T.z = z.id; T.f = z.f; } render(); save(); return; }
   if (k === 'target') { const T = plan.teams && plan.teams[+t.dataset.i]; if (T) { if (t.value) T.target = t.value; else delete T.target; } render(); save(); return; }
   if (k === 'tlead') { tidyTeams(); setLeader(W, plan, +t.dataset.i, +t.value); tidyTeams(); render(); save(); return; }
   if (k === 'teamG') { const T = plan.teams && plan.teams[+t.dataset.i]; if (T) T.g = t.value; render(); save(); return; }
@@ -374,11 +377,14 @@ function edit(k: string, i: number, fn: (v: number) => number, j = 0) {
   else if (k === 'dtorch') { plan.torch = FLOORS.map((_, f) => carryOf(plan, f)); plan.torch[i] = Math.max(0, Math.min(CO.DAYS, fn(plan.torch[i]))); }
   else if (k === 'dfood') { plan.food = FLOORS.map((_, f) => foodDays(plan, f)); plan.food[i] = Math.max(0, Math.min(CO.DAYS, fn(plan.food[i]))); }
   else if (k === 'dmend') { plan.mend = FLOORS.map((_, f) => mendOf(plan, f)); plan.mend[i] = Math.max(0, Math.min(6, fn(plan.mend[i]))); }
-  else if (k === 'tpots' || k === 'ttorch' || k === 'tfood' || k === 'tmend') {
+  else if (k === 'tpots' || k === 'ttorch' || k === 'tfood' || k === 'tmend' || k === 'tdays' || k === 'tgoal' || k === 'tmargin') {
     const T = plan.teams && plan.teams[i];
     if (T) {
       if (k === 'tpots') T.pots = Math.max(0, Math.min(8, fn(teamPots(plan, T))));
       else if (k === 'ttorch') T.torch = Math.max(0, Math.min(CO.DAYS, fn(teamTorch(plan, T))));
+      else if (k === 'tdays') { T.days = Math.max(1, Math.min(CO.WORK_MAX, fn(T.days ?? CO.TRIP_DAYS[T.f]))); delete T.goal; }
+      else if (k === 'tgoal') T.goal = Math.max(1, Math.min(999, fn(T.goal || 1)));
+      else if (k === 'tmargin') T.margin = Math.max(0, Math.min(CO.MARGIN_MAX, fn(T.margin || 0)));
       else if (k === 'tfood') T.food = Math.max(0, Math.min(CO.DAYS, fn(T.food != null ? T.food : foodDays(plan, T.f))));
       else T.mend = Math.max(0, Math.min(6, fn(teamMend(plan, T))));
     }

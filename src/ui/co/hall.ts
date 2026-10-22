@@ -2,11 +2,13 @@
 // 옆 판에는 미궁에 나가 있는 조(며칠째 · 언제 돌아올지 · 예측), 오늘 아침 돌아온 조, 나갈 수 있는 조가 있다.
 // 대화는 기록(오늘 돌아온 조 · 다친 사람 · 시세 · 소문 · 특성)에서 고르고, 고르는 데 난수 대신 날짜와 사람 번호의 해시를 쓴다.
 // 상태를 쓰지 않고 난수도 쓰지 않는다
-import { MISSION_NAME, priceNow, CO, FLOORS, ITEMS, type Ours, type Person, type Plan, type Sortie, type World, awayIds, boughtOf, candNow, roomOf, grOf, dayAbs, dayOf, floorMons, forecast, forecastTrips, isLeader, jo, kitShort, potShock, potsExpiring, promoteDue, sanitize, stateOf, matRefOf, rushOn, teamReady, unitPrice, us } from '../../core/company';
+import { MISSION_NAME, priceNow, CO, FLOORS, ITEMS, type Ours, type Person, type Plan, type Sortie, type World, awayIds, boughtOf, candNow, roomOf, grOf, dayAbs, dayOf, floorMons, forecast, forecastTrips, isLeader, jo, kitShort, potShock, potsExpiring, promoteDue, sanitize, stateOf, matRefOf, rushOn, teamReady, unitPrice, us, teamDays } from '../../core/company';
 import { TRIP_END } from '../../core/events';
 import { adminBar, fillOf, orderCost } from './desk';
 import { stepper } from './view';
 import { dayCls, dayMark, dayTip, luckHtml, nameOf, packBar, sendBtn, sqHtml } from './roster';
+import { LV_SAYS, lvBar } from './zones';
+import { type Zone as LZone, ZONE as LZ } from '../../core/zones';
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
@@ -72,7 +74,7 @@ function talksOf(W: World, P: Plan, here: Person[], zone: Map<number, Zone>) {
       if (!lead) return;
       if ((T.pots ?? P.pots[T.f] ?? 0) === 0) say(p.id, 'nopot', ['포션도 없이 가라는 건 아니겠지?', '포션 한 병만 있으면 마음이 놓일 텐데.'], 6, mate(p, 'nopot'), ['행정관님 셈이 있으시겠지.', '조심하면 돼.']);
       else if (T.target) say(p.id, 'aim', [`이번엔 ${T.target}만 노린다.`, `${T.target} 잡는 법은 다 외웠어.`], 4, mate(p, 'aim'), REPLY);
-      else say(p.id, 'ready', [`${F}로 간다며? 이번엔 ${J(m0, '을', '를')} 잡아 보자.`, '짐은 다 쌌어. 문 열리면 바로 간다.', `${F}까지 ${CO.TRIP_DAYS[T.f]}일 길이야.`], 3, mate(p, 'ready'), ['몸조심해.', '돌아오면 한 잔 사.', ...REPLY]);
+      else say(p.id, 'ready', [`${F}로 간다며? 이번엔 ${J(m0, '을', '를')} 잡아 보자.`, '짐은 다 쌌어. 문 열리면 바로 간다.', `${F}까지 ${teamDays(T)}일 길이야.`], 3, mate(p, 'ready'), ['몸조심해.', '돌아오면 한 잔 사.', ...REPLY]);
     }
     // 특성 · 단장 · 손발 맞는 짝
     const TR: Record<string, string[]> = {
@@ -88,7 +90,7 @@ function talksOf(W: World, P: Plan, here: Person[], zone: Map<number, Zone>) {
   // 바깥 소식: 나가 있는 조, 시세, 약초 흉년, 그믐, 미궁의 숨소리
   const away = W.away || [], now = dayAbs(W), p0 = here[hash(key(0, 'news')) % Math.max(1, here.length)];
   if (p0) {
-    const soon = away.filter(s => s.d0 + CO.TRIP_DAYS[s.f] === now + 1);
+    const soon = away.filter(s => s.d1 === now + 1);
     if (soon.length) say(p0.id, 'soon', [`${s1(soon[0])}네 조가 내일쯤 돌아올 거야.`], 3, anyone(p0, 'soon'), ['무사해야 할 텐데.', '오면 한 잔 하자.']);
     else if (away.length) { const s = away[hash(key(0, 'deep')) % away.length]; say(p0.id, 'deep', [`${s.t + 1}조는 지금쯤 ${FLOORS[s.f].name} 어디쯤이겠지.`, `${s1(s)}네는 잘 있으려나.`], 2.5, anyone(p0, 'deep'), REPLY); }
     const hi = ITEMS.findIndex((it, f) => f < W.unlocked && W.price[f] > it.P0 * 1.12), lo = ITEMS.findIndex((it, f) => f < W.unlocked && W.price[f] < it.P0 * 0.85);
@@ -122,14 +124,23 @@ const fig = (p: Person, say?: string, sub = '') => `<div class="mc ${CLS_TAG[p.c
 
 // 나가 있는 조 하나: 며칠째(예정 날까지 칸), 언제 돌아올지(예정), 조원, 들고 간 채비, 수입 예측
 function awayCard(W: World, P: Plan, s: Sortie) {
-  const L = CO.TRIP_DAYS[s.f], gone = Math.min(L, dayAbs(W) - s.d0), back = s.d0 + L;
+  const L = Math.max(1, s.d1 - s.d0), gone = Math.min(L, dayAbs(W) - s.d0), back = s.d1;
   const fc = forecastTrips(W, P, [s]).mean;
   const cells = Array.from({ length: L }, (_, j) => `<i class="${j < gone ? 'gone' : j === gone ? 'now' : ''}"></i>`).join('');
   const when = back - dayAbs(W) <= 0 ? '오늘쯤' : back - dayAbs(W) === 1 ? '내일 아침' : `${back - dayAbs(W)}일 뒤`;
-  return `<li class="aw"><div class="aw-h"><b>${s.t + 1}조</b> ${FLOORS[s.f].name} <span class="ms-tag ${s.mission || 'gather'}">${MISSION_NAME[s.mission || 'gather']}</span> <span class="dim">${dayOf(s.d0)}일 출발</span><span class="when">귀환 ${when}${back > CO.MONTH_DAYS * W.month ? ' · 다음 달' : ''}</span></div>
+  return `<li class="aw"><div class="aw-h"><b>${s.t + 1}조</b> ${FLOORS[s.f].name} ${s.z != null && W.zones ? `<b class="zn">${esc(W.zones[s.z].nm)}</b>` : `<span class="ms-tag ${s.mission || 'gather'}">${MISSION_NAME[s.mission || 'gather']}</span>`} <span class="dim">${dayOf(s.d0)}일 출발${s.goal ? ` · 목표 ${s.goal}개` : ''}</span><span class="when">귀환 ${when}${back > CO.MONTH_DAYS * W.month ? ' · 다음 달' : ''}</span></div>
     <div class="aw-d" role="img" aria-label="${L}일 중 ${gone}일째">${cells}</div>
     <div class="aw-m">${s.who.map(p => `<span class="${CLS_TAG[p.c] || ''}">${p.lead ? '★' : ''}${esc(nameOf(p))}</span>`).join('')}</div>
     <div class="aw-k">${packBar(Math.round(s.who.length * CO.SLOT_PP), s.kit.torch, s.kit.pots, 0, s.kit.food, s.kit.mend)}<span class="dim">예측 <b>${fmt(fc)}G</b></span></div></li>`;
+}
+// 구역 탐사의 실적 한 줄: 일한 인일 · 한 사람 하루 몫, 이해도 막대(단계가 오르면 띠), 검문소가 태운 채비
+function zoneLine(r: Ours) {
+  if (!r.zx || r.wk == null) return '';
+  const md = (r.n || 0) * r.wk, [x0, x1] = r.zx, L0 = LZ.LV.filter(t => x0 >= t).length, L1 = LZ.LV.filter(t => x1 >= t).length, b = r.burn;
+  const z = { xp: x1 } as LZone;
+  return `<div class="bk-z"><span>${md}인일 · 한 사람 하루 <b>${md ? (Math.round((r.got || 0) / md * 10) / 10) : 0}</b>개${r.goal ? ` · 목표 ${r.goal}개${(r.got || 0) >= r.goal ? ' 채움' : ''}` : ''}</span>
+    <span class="zx">이해도 ${lvBar(z)} <small class="pos">+${Math.round((x1 - x0) * 10) / 10}</small></span>${L1 > L0 ? `<b class="lvup">이해도 ${L1}단계 · ${LV_SAYS[L1]}이 보인다</b>` : ''}
+    ${b && (b.food || b.mend) ? `<span class="dim" title="미궁에 들고 간 보급 · 수리 도구는 기운이 스며 검문소가 거둬 태운다">검문소 태움 ${[b.food ? `보급 ${b.food}` : '', b.mend ? `수리 도구 ${b.mend}` : ''].filter(Boolean).join(' · ')} (${b.v}G)</span>` : ''}</div>`;
 }
 // 오늘 아침 돌아온 조 하나: 해냈나 · 다닌 날 · 짐 · 잃은 사람. ▶ 보기는 탐사 재생 장면
 export function backLine(r: Ours, i: number, src: string) {
@@ -140,12 +151,24 @@ export function backLine(r: Ours, i: number, src: string) {
   const ms = r.mission || 'gather', mapT = r.mp ? `<span>지도 <b>+${r.mp}</b>%p</span>` : '';
   const gotT = r.got ? `<span>${esc(ITEMS[r.f].name)} <b>${fmt(r.got)}</b>개 → 창고</span>` : '', matT = r.mats.length ? `<span>${r.mats.slice(0, 3).map(([m, n]) => `${esc(m)} ×${n}`).join(', ')}${r.mats.length > 3 ? ` 외 ${r.mats.length - 3}` : ''}</span>` : '';
   const focus = ms === 'scout' ? [mapT, gotT, matT] : ms === 'hunt' ? [matT, gotT, mapT] : [gotT, matT, mapT];
-  return `<li class="bk ${dead.length ? 'die' : r.ok ? 'ok' : 'no'}"><div class="bk-h"><b>${(r.t ?? i) + 1}조</b> ${FLOORS[r.f].name} <span class="ms-tag ${ms}">${MISSION_NAME[ms]}</span> <span class="dim">${T.fd ?? D.length}일 · 구간 ${D.length} · 성공 ${wins} · ${TRIP_END[T.end]}</span>
+  const head = r.zn ? `<b class="zn">${esc(r.zn)}</b> <span class="dim">${r.way ? `→${r.way} · ` : ''}일 ${r.wk ?? 0}일${r.way ? ` · ←${T.wb ?? r.way}` : ''} · 구간 ${D.length} · 성공 ${wins} · ${TRIP_END[T.end]}</span>` : `<span class="ms-tag ${ms}">${MISSION_NAME[ms]}</span> <span class="dim">${T.fd ?? D.length}일 · 구간 ${D.length} · 성공 ${wins} · ${TRIP_END[T.end]}</span>`;
+  return `<li class="bk ${dead.length ? 'die' : r.ok ? 'ok' : 'no'}"><div class="bk-h"><b>${(r.t ?? i) + 1}조</b> ${FLOORS[r.f].name} ${head}
     <button type="button" class="sc-open" data-act="scene" data-src="${src}" data-i="${i}" aria-label="${(r.t ?? i) + 1}조 탐사 재생">▶ 보기</button></div>
     <div class="bk-d"><span class="days">${days || '<i class="dk"></i>'}</span>${packBar(T.slots, T.torch - T.tu, Math.max(0, (r.potC || 0) - (r.pots || 0)), T.pack, (T.food || 0) - (T.fu || 0), (T.tools || 0) - (T.tk || 0), T.pm || 0, T.pt || 0)}</div>
-    <div class="bk-r">${luckHtml(r)}${focus[0]}${dead.length ? `<b class="dead-n">† ${dead.map(z => esc(z.n)).join(', ')}</b>` : ''}${focus[1]}${focus[2]}${r.hurt ? `<span class="neg">부상 ${r.hurt}</span>` : ''}</div>${seenHtml(r)}</li>`;
+    ${zoneLine(r)}<div class="bk-r">${luckHtml(r)}${focus[0]}${dead.length ? `<b class="dead-n">† ${dead.map(z => esc(z.n)).join(', ')}</b>` : ''}${focus[1]}${focus[2]}${r.hurt ? `<span class="neg">부상 ${r.hurt}</span>` : ''}</div>${seenHtml(r)}</li>`;
 }
 
+// 탐사 장부: 이달 다녀온 구역 탐사마다 계획(일할 날 · 목표) · 실제(일한 날 · 끝난 까닭) · 인일 · 캐 온 값(오늘 시세) · 들고 간 보급 · 수리 도구 값과 태운 값 · 배율
+function tripsLedger(W: World) {
+  const rs = (W.back || []).map(s => ({ s, r: s.rep! })).filter(x => x.r && x.r.zn);
+  if (!rs.length) return '';
+  const rows = rs.map(({ s, r }) => {
+    const T = r.trip!, md = (r.n || 0) * (r.wk || 0), v = (r.got || 0) * priceNow(W, r.f) + r.mats.reduce((a, [m, k]) => a + k * matRefOf(W, m), 0);
+    const kit = (T.food || 0) * unitPrice(W, 'food') + (T.tools || 0) * unitPrice(W, 'mend'), b = r.burn ? r.burn.v : 0;
+    return `<tr><td>${(r.t ?? 0) + 1}조</td><td>${esc(r.zn!)}</td><td class="n">${s.goal ? `목표 ${s.goal}개` : `${s.work ?? r.wk}일`}</td><td class="n">${r.wk}일 · ${TRIP_END[T.end]}</td><td class="n">${md}</td><td class="n">${fmt(v)}G</td><td class="n">${fmt(kit)}G${b ? ` <small class="dim">태움 ${fmt(b)}</small>` : ''}</td><td class="n"><b>${kit ? `×${(Math.round(v / kit * 10) / 10)}` : '—'}</b></td></tr>`;
+  }).join('');
+  return `<details class="panel backs"><summary><h2>탐사 장부</h2><span class="right">${rs.length}건</span></summary><div class="tw"><table class="grid"><thead><tr><th>조</th><th>구역</th><th class="n">계획</th><th class="n">실제</th><th class="n" title="사람 × 일한 날">인일</th><th class="n" title="캐 온 채집품(오늘 시세) + 전리품(평균 시세)">가져온 값</th><th class="n" title="들고 간 보급 · 수리 도구의 값 (남은 것은 검문소가 태운다)">채비</th><th class="n">배율</th></tr></thead><tbody>${rows}</tbody></table></div></details>`;
+}
 // 귀환 보고 창: 다음 날 아침 돌아온 조가 있으면 저절로 뜬다. 오늘 돌아온 조(조 장비 올리기)와 이달 앞서 돌아온 조
 export function backWinHtml(W: World, raw: Plan) {
   const P = sanitize(W, us(W), raw), all = W.back || [], today = todayBack(W), before = all.filter(s => !today.includes(s)).reverse();
@@ -155,6 +178,7 @@ export function backWinHtml(W: World, raw: Plan) {
     <div class="hall-side back-body">
       ${today.length ? `<div class="panel backs"><header><h2>오늘 아침 돌아온 조</h2><span class="right">${today.length}조</span></header><ol class="bks">${today.map(s => line(s, true)).join('')}</ol></div>` : ''}
       ${before.length ? `<details class="panel backs"${today.length ? '' : ' open'}><summary><h2>이달 앞서 돌아온 조</h2><span class="right">${before.length}조</span></summary><ol class="bks">${before.map(s => line(s, false)).join('')}</ol></details>` : ''}
+      ${tripsLedger(W)}
       ${all.length ? '' : '<p class="note">이달 돌아온 조가 없어요</p>'}
       <button type="button" class="nextday" data-act="close-backs">확인</button>
     </div></div></div>`;
@@ -187,7 +211,7 @@ export function agendaOf(W: World, raw: Plan): Agenda[] {
   // 나갈 수 있는 조: 보내면 예측 (예정을 잡은 조는 내일 출발, 다시 누르면 거둠)
   ready.forEach(({ T, t }) => {
     const fc = forecast(W, { ...P, teams: [T], parties: FLOORS.map((_, f) => (f === T.f ? 1 : 0)) }).mean;
-    A.push({ k: T.go ? 'sent' : 'send', h: `${t + 1}조 ${T.go ? '내일 출발' : '대기'}`, t: `${FLOORS[T.f].name} ${MISSION_NAME[T.mission || 'gather']} · ${T.m.filter(x => x != null).length}명 · ${CO.TRIP_DAYS[T.f]}일 길 · 예측 +${fmt(fc)}G`, btn: sendBtn(T, t), must: !T.go });
+    A.push({ k: T.go ? 'sent' : 'send', h: `${t + 1}조 ${T.go ? '내일 출발' : '대기'}`, t: `${FLOORS[T.f].name} ${T.z != null && W.zones ? W.zones[T.z].nm : MISSION_NAME[T.mission || 'gather']} · ${T.m.filter(x => x != null).length}명 · ${teamDays(T)}일 길 · 예측 +${fmt(fc)}G`, btn: sendBtn(T, t), must: !T.go });
   });
   // 빈자리: 조 크기 한도까지 비어 있는 자리 (본부에 있는 조만)
   const out = awayIds(W), empty = teams.filter(T => !T.m.some(id => id != null && out.has(id))).reduce((a, T) => a + T.m.filter(x => x == null).length, 0);
@@ -220,14 +244,14 @@ export function agendaOf(W: World, raw: Plan): Agenda[] {
   return A;
 }
 function agendaHtml(A: Agenda[], W: World, ready: number) {
-  const next = (W.away || []).reduce((m, s) => Math.min(m, s.d0 + CO.TRIP_DAYS[s.f] - dayAbs(W)), Infinity);
+  const next = (W.away || []).reduce((m, s) => Math.min(m, s.d1 - dayAbs(W)), Infinity);
   return `<div class="panel agenda"><header><h2>오늘 안건</h2>${ready > 1 ? `<button type="button" class="ghost sm" data-act="send-all">${A.filter(a => a.k === 'send').length ? '모두 보내기' : '예정 모두 거두기'}</button>` : ''}<button type="button" class="link right" data-act="exp">출정 편성 →</button></header>
     ${A.length ? `<ul class="ags">${A.map(a => `<li class="ag ag-${a.k}${a.must ? ' must' : ''}"><div><b>${a.h}</b><small>${a.t}</small></div>${a.btn}</li>`).join('')}</ul>` : `<p class="note">정할 것 없음${isFinite(next) ? ` · 다음 귀환 ${next <= 1 ? '내일 아침' : `${next}일 뒤`}` : ''}</p>`}</div>`;
 }
 // 날 띠: 이번 달 열흘. 지난 날 · 오늘 · 돌아올 조가 있는 날(예정)
 export function dayStrip(W: World) {
   const day = W.day || 1, base = (W.month - 1) * CO.MONTH_DAYS, due = new Map<number, number>();
-  (W.away || []).forEach(s => { const d = s.d0 + CO.TRIP_DAYS[s.f] - base; due.set(d, (due.get(d) || 0) + 1); });
+  (W.away || []).forEach(s => { const d = s.d1 - base; due.set(d, (due.get(d) || 0) + 1); });
   return `<span class="dstrip" role="img" aria-label="제${W.month}월 ${day}일 / ${CO.MONTH_DAYS}일">${Array.from({ length: CO.MONTH_DAYS }, (_, j) => {
     const d = j + 1, n = due.get(d) || 0;
     return `<i class="${d < day ? 'past' : d === day ? 'today' : ''}${d === CO.MONTH_DAYS ? ' end' : ''}" title="${d}일${d === CO.MONTH_DAYS ? ' · 그믐 (정산)' : ''}${n ? ` · ${n}조 귀환 예정` : ''}">${d}${n ? `<sup>${n}</sup>` : ''}</i>`;
@@ -262,7 +286,7 @@ export function hallHtml(W: World, raw: Plan) {
   const away = W.away || [], back = todayBack(W), B = boughtOf(W);
   const ready = (P.teams || []).map((T, t) => ({ T, t })).filter(x => teamReady(W, x.T));
   const ag = agendaOf(W, P), monthBack = (W.back || []).length, spent = Object.values(B.cost).reduce((a, b) => a + b, 0);
-  const haul = forecastTrips(W, P, [...(W.back || []), ...away.filter(s => s.d0 + CO.TRIP_DAYS[s.f] <= W.month * CO.MONTH_DAYS)]).mean;
+  const haul = forecastTrips(W, P, [...(W.back || []), ...away.filter(s => s.d1 <= W.month * CO.MONTH_DAYS)]).mean;
   return `<div class="hall">
     <div class="hall-room" aria-label="회색늑대 숙소 · 길드 홀">
       <div class="hall-top"><b>회색늑대 숙소</b> <span class="dim">본부 ${here.length}명 · 미궁 ${out.size}명</span></div>

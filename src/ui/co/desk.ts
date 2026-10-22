@@ -2,7 +2,8 @@
 // 정보 주차 — 자료함(보고서·신문·도감·조사 결과)을 열어 읽고, 조사 의뢰를 걸고, 정보망과 내정(건물·보급·창고·세력)을 정한다.
 // 탐험 주차 — 이번 달 조사를 옆에 두고 층마다 몇 조를 무엇을 챙겨 보낼지 정하고 도장을 찍는다. 결과는 다음 달 보고서가 된다.
 // 화면은 HTML 문자열만 만든다. 상태를 쓰지 않고 난수도 쓰지 않는다
-import { buyPrice, kitShort, monthNeed, rushOn, adminFee, adminOf, setClerks, awayIds, boughtOf, holyRoom, teamReady, forecastTrips, type Team, floorMons, CO, FLOORS, INTEL, ITEMS, TAX, type Filing, type Job, type Person, clamp, jobsExplore, mapOf, torchOf, undMods, jobsOpen, jobsSign, taxGuess, torchBuy, fireCost, potShock, potionNow, foodBuy, mendBuy, carryOf, foodDays, mendOf, torchRate, torchOdds, wageCo, candNow, grOf, hqCost, hqKeep, hqLv, fcRank, forecast, townOf, type Plan, SRCS, type World, bedsOf, isRook, rookCount, churchPrice, dormCost, dormKeep, roomOf, wageOf, gearBuy, intelBlock, intelCost, lootMul, maxParties, needOf, potsExpiring, potsOf, probeCost, probesLeft, sanitize, sortieCost, succRate, supOf, toolCost, trainBonus, us } from '../../core/company';
+import { zoneReportHtml } from './zones';
+import { teamDays, buyPrice, kitShort, monthNeed, rushOn, adminFee, adminOf, setClerks, awayIds, boughtOf, holyRoom, teamReady, forecastTrips, type Team, floorMons, CO, FLOORS, INTEL, ITEMS, TAX, type Filing, type Job, type Person, clamp, jobsExplore, mapOf, torchOf, undMods, jobsOpen, jobsSign, taxGuess, torchBuy, fireCost, potShock, potionNow, foodBuy, mendBuy, carryOf, foodDays, mendOf, torchRate, torchOdds, wageCo, candNow, grOf, hqCost, hqKeep, hqLv, fcRank, forecast, townOf, type Plan, SRCS, type World, bedsOf, isRook, rookCount, churchPrice, dormCost, dormKeep, roomOf, wageOf, gearBuy, intelBlock, intelCost, lootMul, maxParties, needOf, potsExpiring, potsOf, probeCost, probesLeft, sanitize, sortieCost, succRate, supOf, toolCost, trainBonus, us } from '../../core/company';
 import { CLASSES, GEARS, BUYERS, PAIR_CLASS } from '../../core/data';
 import { askPanel, bookHtml, condLabel, demandsNow, kitHint } from './book';
 import { SRC_INFO, intelHtml, rumorsHtml } from './intel';
@@ -390,20 +391,20 @@ export function costLines(W: World, raw: Plan): CostLine[] {
 }
 // 이번 달 수입 예측: 이번 달 돌아온 조 · 그믐 전에 돌아올 조 (짐은 그믐 정산 때 판다)와, 지금 본부에 있는 조가 남은 날 동안 나갈 예측
 export function monthFc(W: World, P: Plan) {
-  const end = W.month * CO.MONTH_DAYS, trips = [...(W.back || []), ...(W.away || []).filter(s => s.d0 + CO.TRIP_DAYS[s.f] <= end)];
+  const end = W.month * CO.MONTH_DAYS, trips = [...(W.back || []), ...(W.away || []).filter(s => s.d1 <= end)];
   const home = homePlan(W, P), left = CO.MONTH_DAYS - (W.day || 1) + 1;
   // 본부의 조는 남은 날 동안 (탐사 + 쉬는 날)마다 한 번씩 나간다고 본다
-  const reps = (home.teams || []).flatMap(T => Array.from({ length: Math.floor(left / (CO.TRIP_DAYS[T.f] + CO.REST_DAYS) + (left >= CO.TRIP_DAYS[T.f] ? 0.5 : 0)) }, () => T));
+  const reps = (home.teams || []).flatMap(T => Array.from({ length: Math.floor(left / (teamDays(T) + CO.REST_DAYS) + (left >= teamDays(T) ? 0.5 : 0)) }, () => T));
   const sorties = trips.map(s => ({ ...s }));
   const c = us(W), byId = new Map((c.crew || []).map(p => [p.id, p]));
   reps.forEach((T, k) => sorties.push({ id: -1 - k, t: 0, f: T.f, m: T.m.filter((x): x is number => x != null), who: T.m.filter((x): x is number => x != null).map(id => byId.get(id)!).filter(Boolean), d0: 0, d1: 0, m0: W.month, g: T.g,
-    kit: { pots: T.pots ?? P.pots[T.f] ?? 0, holy: 0, age: 0, torch: T.torch ?? carryOf(P, T.f), food: (T.food ?? foodDays(P, T.f)) * T.m.filter(x => x != null).length, mend: T.mend ?? mendOf(P, T.f), gear: (T.g || '').slice(2) }, out: null as any }));
+    kit: { pots: T.pots ?? P.pots[T.f] ?? 0, holy: 0, age: 0, torch: T.torch ?? carryOf(P, T.f), food: (T.food ?? foodDays(P, T.f)) * T.m.filter(x => x != null).length, mend: T.mend ?? mendOf(P, T.f), gear: (T.g || '').slice(2) }, ...(T.z != null ? { z: T.z, work: T.days, ...(T.goal ? { goal: T.goal } : {}) } : {}), out: null as any }));
   return forecastTrips(W, { ...P, hire: P.hire }, sorties);
 }
 // 행정력 예측 (그믐에 셀 것): 이번 달 돌아온 조 · 나가 있는 조에, 본부의 조가 남은 날 동안 나갈 탐사를 더한다
 export function adminProj(W: World, P: Plan) {
   const home = homePlan(W, P), left = CO.MONTH_DAYS - (W.day || 1) + 1, T = [...(W.back || []), ...(W.away || [])];
-  const more = (home.teams || []).map(Tm => ({ f: Tm.f, n: Math.floor(left / (CO.TRIP_DAYS[Tm.f] + CO.REST_DAYS) + (left >= CO.TRIP_DAYS[Tm.f] ? 0.5 : 0)) }));
+  const more = (home.teams || []).map(Tm => ({ f: Tm.f, n: Math.floor(left / (teamDays(Tm) + CO.REST_DAYS) + (left >= teamDays(Tm) ? 0.5 : 0)) }));
   return adminOf(W, us(W), T.length + more.reduce((a, x) => a + x.n, 0), new Set([...T.map(s => s.f), ...more.filter(x => x.n).map(x => x.f)]).size);
 }
 // 행정 여력 막대: 부하 ÷ 역량 (항목별), 70%까지 여유 · 넘으면 관리비 · 100%를 넘으면 창고 포션이 더 상한다
@@ -626,6 +627,7 @@ export function expWeekHtml(W: World, raw: Plan, ui: DeskUi) {
       <div class="col">${jobsTrack(W, P)}${memo ? `<div class="panel"><header><h2>이번 달 조사</h2></header><div class="memo">${memo}</div></div>` : ''}</div>
     </div>
     ${c.crew ? askPanel(W, P) : ''}
+    ${c.crew ? zoneReportHtml(W, P) : ''}
     ${c.crew ? `<div class="panel sheetwrap"><header><h2>편성표</h2><span class="sub">배치 칸의 조를 누르면 그 조 빈자리로 · 머리글을 누르면 정렬</span></header>${tplBar(W, P)}${stockBar(W, raw, P)}${assignHtml(W, P, others, (ui.sort || {}).as)}
         <p class="note">조직력: 함께 나간 달만큼 성공 최대 +${Math.round(CO.CO_SUCC * 100)}%p · 위기 −${Math.round(CO.CO_CRISIS * 100)}%. 빈자리 하나당 성공 −${Math.round(CO.SHORT_PEN * 100)}%p.</p></div>` : ''}`;
 }

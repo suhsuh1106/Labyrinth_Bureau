@@ -23,16 +23,19 @@ function teamLines(W: World, live = false) {
     const cls = (x.cls || x.keys.filter(k => k.startsWith('c:')).map(k => k.slice(2))).join('·'), gear = x.keys.find(k => k.startsWith('g:'));
     const n = x.n || 4, k = x.k != null ? x.k : x.ok ? n : 0, T = x.trip, D = x.days, dead = x.dead || [];
     const mats = (x.mats || []).map(([m, c]) => `${m} ×${c}`);
-    const ms = x.mission || 'gather', head = `<b>${no}조</b> ${F.name} <span class="ms-tag ${ms}">${MISSION_NAME[ms]}</span> <span class="grade g${Math.min(4, Math.max(1, k))}">${gradeOf(k)}</span> <span class="dim">${cls || '혼성'}${gear ? ` · ${gear.slice(2)}` : ''}${n < 4 ? ` · ${n}명` : ''}${x.d0 != null ? ` · ${x.d0}일 → ${x.d1}일` : ''}</span>`;
+    const ms = x.mission || 'gather', head = `<b>${no}조</b> ${F.name} ${x.zn ? `<b class="zn">${esc(x.zn)}</b>` : `<span class="ms-tag ${ms}">${MISSION_NAME[ms]}</span>`} <span class="grade g${Math.min(4, Math.max(1, k))}">${gradeOf(k)}</span> <span class="dim">${cls || '혼성'}${gear ? ` · ${gear.slice(2)}` : ''}${n < 4 ? ` · ${n}명` : ''}${x.d0 != null ? ` · ${x.d0}일 → ${x.d1}일` : ''}</span>`;
     if (!D || !T) { lines.push({ k: x.d ? 'die' : x.ok ? 'ok' : 'no', v: 0, t: head, amt: `${mats.join(', ') || (k ? '' : '빈손')}${x.d ? ` · ${x.d}명 사망` : ''}` }); return; }
     // 날 칸: 승(초록) · 패(빨강) · 위기(!) · 사망(†). 못 간 날은 빈 칸, 돌아선 날은 어둠
     const back = T.end === 'torch' || T.end === 'flee';
     // 하루 한 묶음 (그날의 구간 칸). 칸 색이 사건 (채집 지점 · 조우 · 흔적)
     const cell = (d: typeof D[number], j: number) => `<i class="${dayCls(d)}${live ? ' hid' : ''}" data-s="${d.win ? 'ok' : 'no'}${d.d ? ' die' : ''}" style="--j:${j}" title="${esc(dayTip(d, j))}">${dayMark(d)}</i>`;
-    const per = segsOf(CO.SEGS[x.f], CO.TRIP_DAYS[x.f]);
-    const days = Array.from({ length: CO.TRIP_DAYS[x.f] }, (_, k) => {
+    // 구역 탐사: 가는 날(→) · 일한 날 · 돌아오는 날(←). 옛 길은 그 층 날 수
+    const go = x.zn ? T.go || 0 : 0, wb = x.zn ? T.wb || 0 : 0, wk = x.zn ? x.wk ?? 0 : CO.TRIP_DAYS[x.f], nd = x.zn ? Math.max(T.fd || 0, go + wk + wb) : CO.TRIP_DAYS[x.f];
+    const per = [...Array(go).fill(0), ...segsOf(Math.round(wk * CO.SEGS[x.f] / CO.TRIP_DAYS[x.f]), wk)];
+    const days = Array.from({ length: nd }, (_, k) => {
+      if (x.zn && (k < go || k >= nd - wb)) return `<span class="dg wkd" title="${k + 1}일 · ${k < go ? '가는 길' : '돌아오는 길'}"><i class="wk">${k < go ? '→' : '←'}</i></span>`;
       const es = D.map((d, j) => ({ d, j })).filter(({ d, j }) => (d.dd ?? j + 1) === k + 1);
-      const fill = es.length ? '' : Array.from({ length: per[k] }, () => '<i class="o"></i>').join('');
+      const fill = es.length ? '' : Array.from({ length: per[k] || 0 }, () => '<i class="o"></i>').join('');
       return `<span class="dg" title="${k + 1}일">${es.map(({ d, j }) => cell(d, j)).join('')}${fill}</span>`;
     }).join('') + (back ? (() => { const z = dead.filter(y => y.day === 0); return `<span class="dg"><i class="dk${z.length ? ' dead' : ''}${live ? ' hid' : ''}" data-s="${z.length ? 'die' : 'no'}" style="--j:${D.length}" title="${esc(`${END[T.end]} · 어둠 속 귀환${T.dark ? ` · 위기 ${T.dark}` : ''}${z.length ? ` · 사망 ${z.map(y => y.n).join(', ')}` : ''}`)}">${z.length ? '†' : T.dark ? '!' : ''}</i></span>`; })() : '');
     const fLeft = (T.food || 0) - (T.fu || 0), oLeft = (T.tools || 0) - (T.tk || 0);

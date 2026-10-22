@@ -4,7 +4,8 @@
 // 성향: even(고르게) · deep(깊은 층 위주) · smart(시장을 읽는 숙련자, 근원에는 채굴장)
 //       smartNoGuide · smartSeal · smartNoRoot: 숙련 봇에서 지침을 빼거나 근원을 달리 다룬 것
 import { setSeed } from '../src/core/rng';
-import { type Mission, type Team, type Person, grOf, sqCost, sqLv, upgradeSquad, forecast, CO, TAX, FLOORS, potShock, cashK, aidAt, jobsExplore, churchPrice, ITEMS, type Filing, type Plan, type World, closeBooks, preview, setClerks, defaultPlan, dormCost, jobsSign, partyMargin, roomOf, demandMul, potsOf, probe, floorMons, mapOf, maxParties, newWorld, torchRate, torchOdds, sanitize, canTarget, rankOf, runMonth, succRate, us, worth } from '../src/core/company';
+import { type Mission, type Team, type Person, grOf, sqCost, sqLv, upgradeSquad, forecast, CO, TAX, FLOORS, potShock, cashK, aidAt, jobsExplore, churchPrice, ITEMS, type Filing, type Plan, type World, closeBooks, preview, setClerks, defaultPlan, dormCost, jobsSign, partyMargin, roomOf, demandMul, potsOf, probe, floorMons, mapOf, maxParties, newWorld, torchRate, torchOdds, sanitize, canTarget, rankOf, runMonth, succRate, us, worth, zoneKnown, zoneWay } from '../src/core/company';
+import { zonesOn } from '../src/core/zones';
 import { demandSeen } from '../src/ui/co/book';
 import { ASK_KEYS, DEX, MAT_KEYS, type Dex, askable, badSure, keySure } from '../src/core/dex';
 import { CLASSES, PAIR_CLASS, classWeaks } from '../src/core/data';
@@ -133,6 +134,7 @@ export function gearUp(W: World, Q: Plan, rate = GEAR_RATE, max = GEAR_MAX) {
   return Q;
 }
 let BIAS: { c: string; mode: 'pre' | 'avoid' | 'thin' } | null = null;   // thin: 직업과 상관없이 지원자 다섯에 하나를 거른다 (빼기가 직업 탓인지 덜 뽑은 탓인지 가르는 기준)
+const ZONE_PICK = process.env.ZONE_PICK !== '0', ZONE_CROWD = +(process.env.ZONE_CROWD || 0);   // (몰림 벌점: 0.35 · 1이면 20판 3.80 · 2.90위, 0이면 2.75위. 잰 남은 양이 이미 몰림을 알려 준다)
 const DEATH_V = +(process.env.DEATH_V || 300), HUNT_EDGE = +(process.env.HUNT_EDGE || 0.05), HUNT_MAX = +(process.env.HUNT_MAX || 0.5);
 export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine', kit = true, scout = false, guide = true, askAll = ASK_ALL, missions = MISSION): Plan {
   const c = us(W), P = defaultPlan(W), L = W.last, pots = 3;
@@ -211,6 +213,22 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
     const one = (T: Team, m: Mission) => { const fc = forecast(W, { ...Q, teams: [{ ...T, mission: m }], parties: FLOORS.map((_, f) => (f === T.f ? 1 : 0)), hire: FLOORS.map(() => 0) }); return fc.mean - fc.dead * DEATH_V; };
     const cand = Q.teams!.filter(T => !T.mission).map(T => ({ T, d: one(T, 'hunt') - one(T, 'gather') * (1 + HUNT_EDGE) })).filter(x => x.d >= 0).sort((a, b) => b.d - a.d);
     cand.slice(0, Math.max(0, Math.floor(Q.teams!.length * HUNT_MAX) - Q.teams!.filter(T => T.mission === 'hunt').length)).forEach(x => { x.T.mission = 'hunt'; });
+  }
+  // 구역 (docs/zones.md): 조마다 그 층에서 아는 산출로 가장 나은 구역 (든 날 하루에 남는 값, 잰 남은 양이 적으면 덜, 한 구역에 몰리면 덜 캔다고 본다)
+  if (W.zones && ZONE_PICK) {
+    const used: Record<number, number> = {};
+    Q.teams!.forEach(T => {
+      let best = T.z, bv = -Infinity;
+      zonesOn(W.zones, T.f).filter(z => zoneKnown(W, z)).forEach(z => {
+        const days = CO.TRIP_DAYS[T.f], U: Team = { ...T, z: z.id, days, margin: 0, food: 2 * zoneWay(W, z) + days };
+        if (z.kind === 'den' || z.kind === 'stair') U.mission = 'hunt'; else delete U.mission;
+        delete U.goal;
+        const fc = forecast(W, { ...Q, teams: [U], parties: FLOORS.map((_, f) => (f === T.f ? 1 : 0)) }, true);
+        const v = (fc.mean - fc.dead * DEATH_V) / (U.food! + CO.REST_DAYS) * (z.seen ? Math.min(1, 0.3 + z.seen.v / Math.max(1, z.max)) : 1) / (1 + ZONE_CROWD * (used[z.id] || 0));
+        if (v > bv) { bv = v; best = z.id; }
+      });
+      T.z = best; if (best != null) used[best] = (used[best] || 0) + 1;
+    });
   }
   // (기록에서 짐작이 서면 그것부터, 서지 않으면 아직 묻지 않은 것을 하나씩 지워 간다. 묻는 데 돈이 들지 않는다)
   if (LT && askAll) for (const M of floorMons(W, LT.f)) {
