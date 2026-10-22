@@ -1399,3 +1399,23 @@ table.grid.stk td .link { display: block; font-size: 11px; }
 /* 영주청 서류함 · 밀고서 */
 .tips { display: grid; gap: 6px; margin-top: 10px; }
 .tips tr.on td { background: rgba(217,180,90,.12); }
+
+/* 구역 탐사 (docs/zones.md): 구역 보고서 · 이해도 막대 · 귀환 실적 */
+.zn { font-weight: 600; }
+.zlv { display: inline-flex; align-items: center; gap: 4px; vertical-align: middle; }
+.zlv b { font: 600 12px var(--f-num); min-width: 1ch; }
+.zlv i { display: inline-block; width: 54px; height: 6px; border-radius: 3px; background: var(--paper-2); border: 1px solid var(--rule); overflow: hidden; }
+.zlv em { display: block; height: 100%; background: var(--good); }
+.zk { font-size: 11px; padding: 0 6px; border-radius: 9px; border: 1px solid var(--rule); white-space: nowrap; }
+.zk.ore { color: var(--church); border-color: color-mix(in srgb, var(--church) 50%, transparent); }
+.zk.den { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 50%, transparent); }
+.zk.mix { color: var(--merchant); border-color: color-mix(in srgb, var(--merchant) 50%, transparent); }
+.zk.stair { color: var(--ink); }
+table.zrep tr.zf th { background: var(--paper-2); color: var(--ink); font-size: 12px; }
+table.zrep tr.on td { background: color-mix(in srgb, var(--good) 8%, transparent); }
+table.zrep small.ok { color: var(--good); display: block; }
+.bk-z { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; font-size: 12px; margin-top: 4px; }
+.bk-z .lvup { color: var(--good); border: 1px solid var(--good); border-radius: 3px; padding: 0 6px; animation: lvup .6s ease-out; }
+@keyframes lvup { from { transform: scale(1.25); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .bk-z .lvup { animation: none; } }
+.dg.wkd i.wk, i.wk { font-style: normal; font-size: 10px; color: var(--ink-soft); background: var(--paper-2); }

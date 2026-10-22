@@ -28,7 +28,8 @@ export const evOf = (d: Day): EvKind => d.ev || 'f';
 // 탐사 한 번: 다닌 날(fd), 들고 간 횃불 · 태운 횃불, 짐 칸 · 채집품 · 전리품(pm) · 지도 기록(pt)을 채운 칸 · 남은 횃불과 포션이 차지한 칸, 돌아선 까닭, 어둠 속 위기
 // food · fu: 들고 간 식량(사람×날) · 먹은 것, tools · tk: 들고 간 정비 도구 · 쓴 것, blunt: 고치지 못하고 끝난 진 날 (무뎌짐)
 // dm: 어둠 속 귀환에서 조원마다 한 글자 (Day.ms와 같은 글자, 주사위에 안 걸렸으면 o)
-export type Trip = { fd?: number; torch: number; tu: number; slots: number; pack: number; pm?: number; pt?: number; rest: number; end: 'done' | 'torch' | 'pack' | 'flee'; dark: number; food?: number; fu?: number; tools?: number; tk?: number; blunt?: number; dm?: string };
+// go · wb: 오간 날 (구역까지 가는 날 · 돌아오는 날, 일하지 않고 먹기만 한다), wk: 일한 날
+export type Trip = { fd?: number; go?: number; wb?: number; wk?: number; torch: number; tu: number; slots: number; pack: number; pm?: number; pt?: number; rest: number; end: 'done' | 'torch' | 'pack' | 'flee' | 'goal'; dark: number; food?: number; fu?: number; tools?: number; tk?: number; blunt?: number; dm?: string };
 
 // 사건: 한 구간에 하나. g 채집 지점, f 그 층 몬스터 j와의 조우, t 흔적
 export type Ev = { k: EvKind; j?: number; w: number };
@@ -37,6 +38,9 @@ export type TripCfg = {
   size: number; segs: number[]; slots: number; torch: number; rate: number;   // segs: 날마다 구간 수, rate: 구간마다 횃불 하나를 더 태울 확률
   names: string[];   // 그 층 몬스터 이름
   evs: Ev[];   // 구간마다 뽑을 사건과 무게
+  way?: number;   // 한쪽 길에 드는 날 (segs 앞의 0인 날이 가는 날, 일을 마치면 이만큼 걸어 돌아온다)
+  goal?: number;   // 목표량 (채집 몫 lootSum으로): 채우면 그 구간에서 일을 마치고 돌아선다
+  noTorch?: boolean;   // 횃불을 셈하지 않는다 (구역 탐사: 오가는 길과 일하는 날을 보급 하나로 셈한다)
   ambush: number;   // 채집 · 흔적에서 둘 미만 해냈을 때 다음 구간이 조우가 될 확률
   lootSlot: number; matSlot: number; trailSlot: number;   // 짐 칸: 채집품(옛 마주침 몫마다) · 전리품 한 점 · 흔적 하나를 다 해냈을 때
   darkMin: number; darkBack: number; party: number;
@@ -64,7 +68,8 @@ export const segsOf = (n: number, d: number) => Array.from({ length: d }, (_, i)
 
 // 탐사의 지금 상태 (저장할 수 있는 모양). 탐사는 구간마다 한 걸음씩 굴린다: 그날의 성공률 · 위기는 그날의 판 상태로 다시 셈한다
 // e: 그날 몇째 구간, amb: 들켜서 다음 구간이 조우, trail: 흔적에서 해낸 비율의 합 (지도를 그린 만큼), pm · pt: 전리품 · 지도 기록이 차지한 짐 칸
-export type TripState = { day: number; e?: number; amb?: boolean; trail?: number; pm?: number; pt?: number; lost?: boolean; hg?: number; gone: number[]; hurt: number[]; wins: number[]; seen: number[]; days: Day[]; tu: number; pack: number; lootSum: number; ex?: number[];   // ex: 조원마다 해낼 기대 (숨은 기질을 뺀 확률의 합)
+// wb: 돌아오는 길에 남은 날 (일을 마치면 C.way부터), walk: 걸은 날
+export type TripState = { day: number; e?: number; wb?: number; walk?: number; amb?: boolean; trail?: number; pm?: number; pt?: number; lost?: boolean; hg?: number; gone: number[]; hurt: number[]; wins: number[]; seen: number[]; days: Day[]; tu: number; pack: number; lootSum: number; ex?: number[];   // ex: 조원마다 해낼 기대 (숨은 기질을 뺀 확률의 합)
   end: Trip['end']; food: number; tools: number; blunt: number; fu: number; tk: number; done: boolean };
 export function startTrip(size: number, food: number, tools: number): TripState {
   return { day: 0, gone: [], hurt: [], wins: Array(size).fill(0), seen: Array(size).fill(0), days: [], tu: 0, pack: 0, lootSum: 0, end: 'done', food, tools, blunt: 0, fu: 0, tk: 0, done: false };
@@ -139,17 +144,23 @@ function trail(C: TripCfg, S: TripState, up: number[], hungry: Set<number>, held
   if (!win && rnd() < C.ambush) S.amb = true;
   return D;
 }
+// 일을 마친다: 돌아오는 길이 있으면 그만큼 걷고, 없으면 끝
+const turnBack = (C: TripCfg, S: TripState) => { if (C.way && S.wb == null) S.wb = C.way; else S.done = true; };
+// 걷는 날: 먹기만 한다 (모자라면 그날 굶는다)
+function walk(C: TripCfg, S: TripState, up: number[]) { const eat = Math.min(S.food, up.length); S.food -= eat; S.fu += eat; S.walk = (S.walk || 0) + 1; S.day++; }
 // 구간 하나를 굴린다 (끝났으면 S.done). 그날 첫 구간에 식량을 먹고, 첫 구간 말고는 구간마다 확률로 횃불 하나를 더 태운다.
 // 구간마다 사건 하나를 뽑아 굴린다 (들켰으면 조우). 그날 진 조우가 있으면 그날 끝에 정비 도구 하나
 export function stepTrip(C: TripCfg, S: TripState) {
   if (S.done) return;
-  if (S.day >= C.segs.length) { S.done = true; return; }
   const e = S.e || 0, day = S.day, gone = new Set(S.gone);
   // 짐 칸: 남은 횃불 · 포션 · 정비 도구가 한 칸씩, 식량은 foodSlot개가 한 칸
   const held = () => (C.torch - S.tu) + C.pots() + S.food / C.foodSlot + S.tools;
   const up = Array.from({ length: C.size }, (_, m) => m).filter(m => !gone.has(m));
-  if (!up.length || gone.size >= Math.ceil(C.size / 2)) { S.end = 'flee'; S.done = true; return; }   // (절반을 잃으면 물러난다: 네 명이면 둘)
-  if ((day === 0 && e === 0) || rnd() < C.rate) { if (S.tu < C.torch) S.tu++; else { S.end = 'torch'; S.done = true; return; } }
+  if (S.wb != null) { if (S.wb <= 0 || !up.length) { S.done = true; return; } walk(C, S, up); if (--S.wb <= 0) S.done = true; return; }   // (돌아오는 길)
+  if (S.day >= C.segs.length) { turnBack(C, S); return; }
+  if (!C.segs[day]) { walk(C, S, up); return; }   // (가는 길)
+  if (!up.length || gone.size >= Math.ceil(C.size / 2)) { S.end = 'flee'; turnBack(C, S); return; }   // (절반을 잃으면 물러난다: 네 명이면 둘)
+  if (!C.noTorch && ((day === 0 && e === 0) || rnd() < C.rate)) { if (S.tu < C.torch) S.tu++; else { S.end = 'torch'; turnBack(C, S); return; } }
   if (e === 0) {
     // 식량: 하루 한 사람에 하나. 모자라면 뒷사람부터 굶는다 (굶은 사람은 그날 성공 −hungerPen)
     const eat = Math.min(S.food, up.length); S.food -= eat; S.fu += eat; S.hg = up.length - eat; S.lost = false;
@@ -163,21 +174,23 @@ export function stepTrip(C: TripCfg, S: TripState) {
     const E = C.evs[pickW(C.evs.map(x => x.w))];
     D = E.k === 'g' ? gather(C, S, up, hungry, held) : E.k === 't' ? trail(C, S, up, hungry, held) : fight(C, S, E.j!, up, hungry, held);
   }
-  const last = e + 1 >= C.segs[day] || S.end === 'pack';
+  if (C.goal && S.lootSum >= C.goal && S.end === 'done') S.end = 'goal';
+  const last = e + 1 >= C.segs[day] || S.end === 'pack' || S.end === 'goal';
   // 정비 도구: 진 조우가 있었던 날은 그날 끝에 무기가 상한다. 도구가 있으면 하나 써서 고치고, 없으면 무뎌진 채로 다닌다 (그 뒤로 성공 −toolPen씩 쌓임)
   if (last && S.lost) { if (S.tools > 0) { S.tools--; S.tk++; D.fx = 1; } else { S.blunt++; D.bl = S.blunt; } }
   const g2 = new Set(S.gone);
   D.pk = Math.round(S.pack * 10) / 10; D.pm = Math.round((S.pm || 0) * 10) / 10; D.pt = Math.round((S.pt || 0) * 10) / 10; D.tl = C.torch - S.tu; D.pl = C.pots(); D.fl = S.food; D.ol = S.tools; D.hu = S.hurt.filter(m => !g2.has(m)).length;
   S.days.push(D);
   if (last) { S.day++; S.e = 0; } else S.e = e + 1;
-  if (S.end === 'pack' || S.day >= C.segs.length) S.done = true;
+  if (S.end === 'pack' || S.end === 'goal' || S.day >= C.segs.length) turnBack(C, S);
 }
 // 탐사를 마친다: 횃불이 떨어졌으면 남은 사람마다 어둠 속 귀환의 부상 주사위를 한 번 더 (darkMin + 그 층 주사위 × darkBack)
 export function finishTrip(C: TripCfg, S: TripState) {
   const DK = { cr: 0, d: 0 }, dm = Array(C.size).fill('-');
   if (S.end === 'torch') Array.from({ length: C.size }, (_, m) => m).filter(m => !S.gone.includes(m)).forEach(m => { dm[m] = dice(C, S, m, -1, 0, DK) || 'o'; });
   const rest = (C.torch - S.tu) + C.pots() + S.food / C.foodSlot + S.tools;
-  const trip: Trip = { fd: S.day + (S.e ? 1 : 0), torch: C.torch, tu: S.tu, slots: C.slots, pack: Math.round(S.pack * 10) / 10, pm: Math.round((S.pm || 0) * 10) / 10, pt: Math.round((S.pt || 0) * 10) / 10, rest: Math.round(rest * 10) / 10, end: S.end, dark: DK.cr, food: C.food, fu: S.fu, tools: C.tools, tk: S.tk, blunt: S.blunt, ...(S.end === 'torch' ? { dm: dm.join('') } : {}) };
+  const fd = S.day + (S.e ? 1 : 0), go = C.segs.findIndex(n => n > 0), go0 = Math.min(go < 0 ? 0 : go, fd), wk = Math.max(0, fd - (S.walk || 0));
+  const trip: Trip = { fd, ...(C.way != null ? { go: go0, wb: Math.max(0, (S.walk || 0) - go0), wk } : {}), torch: C.torch, tu: S.tu, slots: C.slots, pack: Math.round(S.pack * 10) / 10, pm: Math.round((S.pm || 0) * 10) / 10, pt: Math.round((S.pt || 0) * 10) / 10, rest: Math.round(rest * 10) / 10, end: S.end, dark: DK.cr, food: C.food, fu: S.fu, tools: C.tools, tk: S.tk, blunt: S.blunt, ...(S.end === 'torch' ? { dm: dm.join('') } : {}) };
   return { days: S.days, trip, wins: S.wins, seen: S.seen, ex: (S.ex || S.seen.map(() => 0)).map(v => Math.round(v * 100) / 100), lootSum: S.lootSum, trail: S.trail || 0, tu: S.tu, fu: S.fu, tk: S.tk, foodLeft: S.food, toolsLeft: S.tools };
 }
 // 하루를 굴린다 (그날의 구간을 모두, 끝났으면 S.done)
