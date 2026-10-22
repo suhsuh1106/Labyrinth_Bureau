@@ -101,6 +101,12 @@ table.t td.r, table.t th.r { text-align: right; }
 .pk i.over { background: var(--bad); }
 .t.calc td { padding: 2px 6px; font-size: 12.5px; }
 .t.calc td:first-child { color: var(--soft); white-space: nowrap; }
+.xp { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+.xp b { color: var(--brass); font-weight: 600; }
+.xp i { display: inline-block; width: 70px; height: 6px; background: #2b3f35; border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
+.xp i em { display: block; height: 100%; background: var(--brass); }
+.lvup { background: #3a3220; border: 1px solid var(--brass); color: var(--brass); border-radius: 3px; padding: 5px 8px; margin-bottom: 6px; font-weight: 600; }
+.lvup b { font-size: 16px; }
 .segs i.o { background: #2b3f35; color: var(--brass); outline: 1px dashed var(--brass); }
 .z text.hzm { font: 700 2.2px var(--f-body); fill: #8a4a10; text-anchor: middle; }
 /* 다음 날 단추: 늘 오른쪽 아래 */
@@ -131,7 +137,7 @@ body { padding-bottom: 84px; }
     <button type="button" id="reseed">새 판</button>
     <button type="button" class="main" id="next">다음 날 ▸</button>
   </header>
-  <p class="lead">행정관은 사무실에서 <b>인일(사람 × 날)</b>로 셈한다. 구역마다 인일당 산출 · 사고 · 장비 손상이 있고, 우리 보고서는 그 숫자를 범위로 안다(겹이 깊을수록 좁다). 목표량을 정하면 필요한 날 · 보급 · 의약품 · 수리 도구가 계산되고, 날을 정하면 예상 수확이 나온다. 보급 1칸 = 1인일(식량 · 횃불), 배낭은 한 사람 8칸: 떠날 때는 보급이 차지하고 먹는 만큼 캔 것이 채운다. 목표를 채우거나 배낭이 차면 일찍 돌아오고, 남은 채비는 검문소가 거둬 태운다. 현장의 판단은 현장이 한다.</p>
+  <p class="lead">행정관은 사무실에서 <b>인일(사람 × 날)</b>로 셈한다. 구역마다 인일당 산출 · 사고 · 장비 손상이 있고, 우리 보고서는 그 숫자를 범위로 안다. 그 구역에서 일할수록 이해도 경험치(인일)가 쌓여 단계가 오르고 범위가 좁아진다. 목표량을 정하면 필요한 날 · 보급 · 의약품 · 수리 도구가 계산되고, 날을 정하면 예상 수확이 나온다. 보급 1칸 = 1인일(식량 · 횃불), 배낭은 한 사람 8칸: 떠날 때는 보급이 차지하고 먹는 만큼 캔 것이 채운다. 목표를 채우거나 배낭이 차면 일찍 돌아오고, 남은 채비는 검문소가 거둬 태운다. 현장의 판단은 현장이 한다.</p>
   <div class="cols">
     <div class="panel">
       <div class="row" id="tabs" role="tablist" aria-label="층"></div>
@@ -163,11 +169,11 @@ const jo = (w, p) => { const c = w.charCodeAt(w.length - 1), has = c >= 0xAC00 &
 const K = {
   DAYS: 10, MONTHS: 6, BAG: 8, SUP_G: 3, MED_G: 8, TOOL_G: 5, WAGE: 25, GOLD0: 1200, HIRE_G: 60,
   FADE: 0.3, EL: 1.0, SEE_P: 0.5,
-  LV: [1, 2, 4, 6, 9],                         // 정보 겹마다 필요한 조사 (그 구역에서 일한 조-일 1 · 지나간 날 ¼)
-  WIDE: [0, 0, 0.6, 0.25, 0.1, 0.05],          // 겹마다 우리가 아는 산출 범위 (±)
+  LV: [4, 12, 28, 52, 90],                     // 이해도 단계마다 필요한 경험치 (그 구역에서 일한 인일 1 · 지나간 인일 ¼ · 연구 · 엿듣기 · 표식 · 매수)
+  WIDE: [0, 0, 0.6, 0.25, 0.1, 0.05],          // 단계마다 우리가 아는 산출 범위 (±). 단계 사이에서는 경험치만큼 매끄럽게 좁아진다
   SEV: 0.2, DIE: 0.2,                           // 사고 다섯에 하나는 중상, 중상자 다섯에 하나는 숨진다
   OVERHEAR: 0.35, TRACE: 0.2, BRIBE_G: 60, BRIBE_P: 0.55, BRIBE_FID: 0.8,
-  RESEARCH_N: 3, RESEARCH_PTS: 2, SURVEY_DAY: 3,
+  RESEARCH_N: 3, RESEARCH_PTS: 6, SURVEY_DAY: 3,
 };
 const FL = [
   { nm: '1층', acc: 1, prize: 600, mapG: 120, plan: [14, 26] },
@@ -237,7 +243,7 @@ function genFloor(f, used) {
     z.max = Math.round((IT[z.item].cat === 'herb' ? ri(30, 80) : ri(50, 160)) / (1 + f * 0.4)); z.res = z.max; z.regen = Math.max(1, Math.round((IT[z.item].cat === 'herb' ? ri(6, 16) : ri(2, 12)) / (1 + f * 0.4)));
     z.relics = ri(4, 10);
     z.secret = pick(z.r > 1 ? ['short', 'footing', 'seam'] : ['footing', 'seam']);
-    z.bias = (rnd() - 0.5) * 2;   // 우리 짐작이 참값에서 어긋난 쪽 (겹이 깊을수록 작아진다)
+    z.bias = (rnd() - 0.5) * 2;   // 우리 짐작이 참값에서 어긋난 쪽 (이해도가 오를수록 작아진다)
     if (z === stair) z.stair = { type: pick(Object.keys(STAIR)), diff: 0.2 + f * 0.1 + rnd() * 0.15 };
     const pool = (kind === 'ruin' ? RUIN : NAMES).filter(n => !used.has(n));
     z.nm = (pool.length ? pick(pool) : pick(NAMES.concat(RUIN).filter(n => !used.has(n)))) || '이름 없는 굴';
@@ -260,10 +266,12 @@ function newGame(seed) {
   push(`<b>1월 1일.</b> 1층 구역 보고서는 아직 없다. 조를 "1층 둘러보기"로 보내거나 관리국 공개 지도를 산다.`, 'mo');
 }
 
-// ---------- 정보 겹 · 우리 짐작 ----------
+// ---------- 이해도 · 우리 짐작 ----------
 const lvAt = p => K.LV.filter(t => p >= t).length;
 const lvOf = z => lvAt(z.pts);
 const nextPts = z => K.LV[lvOf(z)] ?? null;
+const lvProg = z => { const L = lvOf(z), a = L ? K.LV[L - 1] : 0, b = K.LV[L]; return b == null ? 1 : (z.pts - a) / (b - a); };
+const xpBar = z => { const L = lvOf(z), np = nextPts(z), w = Math.round(lvProg(z) * 100); return `<span class="xp" title="이해도 경험치"><b>이해도 ${L}</b><i><em style="width:${w}%"></em></i><small class="n">${np != null ? `${Math.floor(z.pts)}/${np}인일` : '다 앎'}</small></span>`; };
 const knowSecret = z => lvOf(z) >= 5;
 function chain(z) { const c = [z]; let p = z; while (p.parent != null) { p = S.Z[p.parent]; c.unshift(p); } return c; }
 const placeOf = id => typeof id === 'string' ? { floor: +id.slice(1) } : S.Z[id];
@@ -272,12 +280,12 @@ const oneWay = place => place.floor != null ? place.floor : Math.max(0, place.r 
 const price = i => IT[i].base * clamp(Math.pow(IT[i].D / Math.max(1, S.q[i]), K.EL), 0.5, 1.6);
 const effRate = (z, k) => z.rate[k] * (k === 'gather' && z.secret === 'seam' && knowSecret(z) ? 1.5 : 1);
 const effAcc = z => z.acc * (z.secret === 'footing' && knowSecret(z) ? 0.5 : 1);
-// 우리가 아는 산출 범위 (인일당). 둘째 겹까지는 층의 흔한 값으로 짐작, 셋째 겹부터는 참값 둘레
+// 우리가 아는 산출 범위 (인일당). 2단계까지는 층의 흔한 값으로 짐작, 3단계부터는 참값 둘레 (다음 단계로 갈수록 좁아짐)
 function estRate(z, k) {
   const L = lvOf(z);
   if (L < 2 || !z.rate[k] && L >= 2 && k !== z.main) return null;
   if (L === 2) { const typ = k === 'gather' ? 2.3 / (1 + z.f * 0.5) : k === 'hunt' ? 0.55 : 0.28; return { lo: typ * 0.4, hi: typ * 1.6, mid: typ }; }
-  const w = K.WIDE[L], mid = effRate(z, k) * (1 + z.bias * w * 0.5);
+  const w = K.WIDE[L] - (K.WIDE[L] - (K.WIDE[L + 1] ?? K.WIDE[L])) * lvProg(z), mid = effRate(z, k) * (1 + z.bias * w * 0.5);
   return { lo: mid * (1 - w), hi: mid * (1 + w), mid };
 }
 const riskWord = a => a < 0.03 ? '낮음' : a < 0.06 ? '보통' : '높음';
@@ -343,7 +351,7 @@ function stepDay(t) {
   if (step === 'go' || step === 'back') {
     const via = T.z ? chain(T.z).slice(0, -1) : [];
     T.out.push({ c: '', s: step === 'go' ? '→' : '←', tip: step === 'go' ? '가는 길' : '오는 길' });
-    via.forEach(q => { learn(T, () => { q.pts += 0.25; q.known = true; }); for (let i = 0; i < n; i++) if (rnd() < effAcc(q) * 0.5) accident(T, `${q.nm}을 지나다`); });
+    via.forEach(q => { learn(T, () => { q.pts += n * 0.25; q.known = true; }); for (let i = 0; i < n; i++) if (rnd() < effAcc(q) * 0.5) accident(T, `${q.nm}을 지나다`); });
     if (T.f > 0) { for (let g = 0; g < T.f; g++) for (let i = 0; i < n; i++) if (rnd() < 0.01) accident(T, `${FL[g].nm} 계단을 지나다`); }
     return;
   }
@@ -352,14 +360,14 @@ function stepDay(t) {
     for (let k = 0; k < K.SURVEY_DAY; k++) {
       const left = S.Z.filter(z => z.f === f && !z.known && !T.found.includes(z.id)).sort((a, b) => a.r - b.r);
       if (!left.length) break;
-      const z = pick(left.filter(q => q.r === left[0].r)); T.found.push(z.id); learn(T, () => { z.known = true; z.pts += 0.5; S.mapped[f] = S.Z.filter(q => q.f === f).every(q => q.known); });
+      const z = pick(left.filter(q => q.r === left[0].r)); T.found.push(z.id); learn(T, () => { z.known = true; z.pts += 2; S.mapped[f] = S.Z.filter(q => q.f === f).every(q => q.known); });
     }
     T.out.push({ c: 'x', s: '★', tip: '구역을 찾아 다님' });
     for (let i = 0; i < n; i++) if (rnd() < 0.02 * FL[f].acc) accident(T, '낯선 길');
     return;
   }
   const z = T.z; T.wd++; T.md += fit;
-  learn(T, () => { z.pts += 1; z.rec.days++; });
+  learn(T, () => { z.pts += fit; z.rec.days++; });
   if (T.push && !T.pushed) {   // 계단 돌파: 그 구역을 알수록 · 사람이 많을수록 잘 뚫린다. 실패하면 사고 둘
     T.pushed = true;
     T.broke = rnd() < clamp(0.25 + lvOf(z) * 0.08 + (fit - 4) * 0.05 - z.stair.diff * 0.5, 0.05, 0.9);
@@ -395,12 +403,12 @@ function see(t, at) {
     if (rnd() < K.SEE_P) {
       T.seen.push({ g: g.gi, k, dep: r.dep, at, o: S.Z[at].item, est: Math.round(r.plan * (0.7 + rnd() * 0.6)), ret: r.ret, nm: g.nm });
       const z = S.Z[at], v = g.pts[at] || 0;
-      if (v > z.pts && rnd() < K.OVERHEAR) { learn(T, () => { z.pts = Math.max(z.pts, Math.min(v, z.pts + 2)); }); T.heard.push(`${g.nm} 조의 말 → ${z.nm}`); }
+      if (v > z.pts && rnd() < K.OVERHEAR) { learn(T, () => { z.pts = Math.max(z.pts, Math.min(v, z.pts + 6)); }); T.heard.push(`${g.nm} 조의 말 → ${z.nm}`); }
     }
   }));
 }
 function homeTrip(t) {
-  const T = t.trip, z = T.z, lv0 = z ? lvOf(z) : 0; T.learn.forEach(fn => fn()); t.trip = null;
+  const T = t.trip, z = T.z, lv0 = z ? lvOf(z) : 0, xp0 = z ? z.pts : 0; T.learn.forEach(fn => fn()); t.trip = null;
   let died = 0; for (let i = 0; i < T.crit; i++) if (rnd() < K.DIE) died++;
   t.n = Math.max(1, t.n - died);
   t.rest = 1 + (T.hurt ? 2 : 0) + (T.crit - died > 0 ? 6 : 0);
@@ -411,8 +419,9 @@ function homeTrip(t) {
   if (T.rec) Object.assign(T.rec, { done: true, burnt, why: T.why, val, adays: realDays, got: z ? T.prod[z.main] : null, gotNm: z ? prodName(z, z.main) : '', md: T.md, rate: T.md ? (z ? T.prod[z.main] / T.md : 0) : 0, hurt: T.hurt + T.crit, dead: died });
   let extra = '';
   if (T.found.length) extra += `<br><b>새 보고서:</b> ${T.found.map(id => S.Z[id].nm).join(' · ')}${S.mapped[T.f] ? ` · <span class="good">${FL[T.f].nm} 구역을 다 앎</span>` : ''}`;
-  if (z && lvOf(z) > lv0) extra += `<br><b class="gold">${z.nm} 보고서 ${lvOf(z)}겹째</b>: ${layerText(z, lvOf(z))}`;
-  for (let i = 0; i < T.frag; i++) { const c = S.Z.filter(q => q.f === T.f && q !== z && lvOf(q) < 5); if (!c.length) break; const q = pick(c); q.known = true; q.pts = Math.max(q.pts, K.LV[lvOf(q)]); extra += `<br><b class="gold">지도 조각</b> → ${q.nm} 보고서 ${lvOf(q)}겹째`; }
+  const lvUp = z && lvOf(z) > lv0 ? `<div class="lvup">▲ ${z.nm} 이해도 ${lv0} → <b>${lvOf(z)}</b> · 새로 안 것: ${layerText(z, lvOf(z))}</div>` : '';
+  if (z) extra += `<br>${xpBar(z)} <span class="gold n">+${Math.round(z.pts - xp0)}인일</span>`;
+  for (let i = 0; i < T.frag; i++) { const c = S.Z.filter(q => q.f === T.f && q !== z && lvOf(q) < 5); if (!c.length) break; const q = pick(c); q.known = true; q.pts = Math.max(q.pts, K.LV[lvOf(q)]); extra += `<br><b class="gold">지도 조각</b> → ${q.nm} 이해도 ${lvOf(q)}`; }
   if (T.broke) {
     const f = z.f;
     if (S.open === f) { S.race[f] = { who: '우리', m: S.m, d: S.d }; S.gold += FL[f].prize; S.earn.prize += FL[f].prize; S.open = f + 1; S.openAt[f + 1] = S.m * K.DAYS + S.d; extra += `<br><b class="gold">${FL[f].nm} 계단을 먼저 뚫었다! 영주청 상금 ${FL[f].prize}G · ${FL[f + 1].nm}이 열렸다</b>`; }
@@ -420,7 +429,7 @@ function homeTrip(t) {
   const prod = z ? Object.entries(T.prod).filter(([, v]) => v).map(([k, v]) => `${prodName(z, k)} <b>${v}</b>`).join(' · ') : '';
   const back = [T.sup ? `보급 ${T.sup}` : '', T.med ? `의약품 ${T.med}` : '', T.tool ? `수리 도구 ${T.tool}` : ''].filter(Boolean).join(' · ');
   const seen = T.seen.map(x => { const left = x.ret - S.d; S.coming.push({ ...x, m: S.m }); return `${x.nm} 조 · ${S.Z[x.at].nm} · ${IT[x.o].nm} ~${x.est} · ${left > 0 ? `${left}일쯤 뒤 돌아옴` : '곧 돌아옴'}`; });
-  push(`<b>${t.nm} 귀환</b> · ${nameOf(T.place)} · ${T.why}${T.saved ? ` (일할 날 ${T.saved}일 남기고)` : ''} · ${realDays}일<br><span class="segs">${T.out.map(o => `<i class="${o.c}" title="${o.tip}">${o.s}</i>`).join('')}</span><br>${prod || (z ? '빈손' : '')}${z && T.md ? ` · 실적 ${f1(T.prod[z.main] / T.md)}/인일 (${T.md}인일)` : ''}${T.usedMed ? ` · 의약품 ${T.usedMed} 씀` : ''}${T.usedTool ? ` · 수리 도구 ${T.usedTool} 씀` : ''}${T.hurt ? ` · <span class="bad">다침 ${T.hurt}</span>` : ''}${T.crit ? ` · <b class="bad">중상 ${T.crit}</b>` : ''}${died ? ` · <b class="bad">잃은 사람 ${died}</b>` : ''}${T.wear ? ` · <span class="bad">장비 손상 ${T.wear}</span>` : ''} · 쉬는 날 ${t.rest}<br><span class="dim">검문소:</span> ${back ? `<span class="bad">거둔 채비 ${back} (${burnt}G)</span>` : '거둔 채비 없음'}${extra}${seen.length ? `<br><span class="dim">본 남들:</span> ${seen.join(' / ')}` : ''}${T.heard.length ? `<br><span class="gold">엿들은 것:</span> ${T.heard.join(' / ')}` : ''}`, 'back');
+  push(`${lvUp}<b>${t.nm} 귀환</b> · ${nameOf(T.place)} · ${T.why}${T.saved ? ` (일할 날 ${T.saved}일 남기고)` : ''} · ${realDays}일<br><span class="segs">${T.out.map(o => `<i class="${o.c}" title="${o.tip}">${o.s}</i>`).join('')}</span><br>${prod || (z ? '빈손' : '')}${z && T.md ? ` · ${T.md}인일 일해 한 사람 하루 ${f1(T.prod[z.main] / T.md)}개` : ''}${T.usedMed ? ` · 의약품 ${T.usedMed} 씀` : ''}${T.usedTool ? ` · 수리 도구 ${T.usedTool} 씀` : ''}${T.hurt ? ` · <span class="bad">다침 ${T.hurt}</span>` : ''}${T.crit ? ` · <b class="bad">중상 ${T.crit}</b>` : ''}${died ? ` · <b class="bad">잃은 사람 ${died}</b>` : ''}${T.wear ? ` · <span class="bad">장비 손상 ${T.wear}</span>` : ''} · 쉬는 날 ${t.rest}<br><span class="dim">검문소:</span> ${back ? `<span class="bad">거둔 채비 ${back} (${burnt}G)</span>` : '거둔 채비 없음'}${extra}${seen.length ? `<br><span class="dim">본 남들:</span> ${seen.join(' / ')}` : ''}${T.heard.length ? `<br><span class="gold">엿들은 것:</span> ${T.heard.join(' / ')}` : ''}`, 'back');
 }
 
 // ---------- 남들 ----------
@@ -428,7 +437,7 @@ function rivalsDay() {
   const now = S.m * K.DAYS + S.d;
   S.guilds.forEach(g => {
     g.teams.forEach((r, k) => {
-      if (r && r.ret === S.d) { const z = S.Z[r.at], got = Math.min(Math.floor(z.res), r.plan); z.res -= got; S.q[z.item] += got; g.pts[z.id] = (g.pts[z.id] || 0) + 2; g.res[z.id] = { v: Math.round(z.res), m: S.m, d: S.d }; g.teams[k] = null; S.coming = S.coming.filter(c => !(c.g === g.gi && c.k === k && c.dep === r.dep)); S.hist.push({ d: S.d, nm: g.nm, n: got, o: z.item }); return; }
+      if (r && r.ret === S.d) { const z = S.Z[r.at], got = Math.min(Math.floor(z.res), r.plan); z.res -= got; S.q[z.item] += got; g.pts[z.id] = (g.pts[z.id] || 0) + 8; g.res[z.id] = { v: Math.round(z.res), m: S.m, d: S.d }; g.teams[k] = null; S.coming = S.coming.filter(c => !(c.g === g.gi && c.k === k && c.dep === r.dep)); S.hist.push({ d: S.d, nm: g.nm, n: got, o: z.item }); return; }
       if (!r && rnd() < 0.5) {
         const opts = S.Z.filter(z => z.f <= S.open && z.res > 8 && z.rate.gather > 0.3); if (!opts.length) return;
         const w = z => z.rate.gather * z.res * IT[z.item].base * g.pref[IT[z.item].cat] * (g.grudge > now && z.rec.last ? 2 : 1) * Math.pow(g.depth, z.f) / (1 + z.r * 0.3), tot = opts.reduce((a, z) => a + w(z), 0);
@@ -439,7 +448,7 @@ function rivalsDay() {
     if (g.deep && S.open < 2 && !S.race[S.open] && now - S.openAt[S.open] >= 14 + S.open * 8 && rnd() < 0.15) {
       const f = S.open, z = S.Z[S.stairs[f]];
       if (rnd() < 0.08 + g.prog) { S.race[f] = { who: g.nm, m: S.m, d: S.d }; S.open = f + 1; S.openAt[f + 1] = now; g.prog = 0; z.known = true; push(`<b class="bad">영주청 고시: ${jo(g.nm, '이/가')} ${FL[f].nm} ${z.nm}의 계단을 뚫었다.</b> ${FL[f + 1].nm}이 모두에게 열렸다.`, 'mo'); }
-      else { g.prog += 0.05; g.pts[z.id] = (g.pts[z.id] || 0) + 1; push(`변경 일보: ${g.nm}, ${FL[f].nm} ${z.nm}에서 물러나. "${STAIR[z.stair.type]}" 때문이라는 소문.`, 'mo'); }
+      else { g.prog += 0.05; g.pts[z.id] = (g.pts[z.id] || 0) + 4; push(`변경 일보: ${g.nm}, ${FL[f].nm} ${z.nm}에서 물러나. "${STAIR[z.stair.type]}" 때문이라는 소문.`, 'mo'); }
     }
   });
   IT.forEach((x, i) => { if (x.f <= S.open) S.q[i] += x.crowd; });
@@ -469,7 +478,7 @@ function monthEnd() {
 }
 function push(h, c = '') { S.log.unshift({ h, c, m: S.m, d: S.d }); S.log = S.log.slice(0, 120); }
 
-// ---------- 보고서의 겹 ----------
+// ---------- 이해도 단계마다 보고서에 적히는 것 ----------
 const evs = z => Object.entries(z.rate).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
 function layerText(z, L) {
   if (L === 1) return (z.stair ? ['아래로 가는 길'] : []).concat(evs(z).map(([k]) => EV[k] + (k === z.main ? '(주)' : ''))).join(' · ');
@@ -485,7 +494,7 @@ const bribeG = () => K.BRIBE_G * (1 + S.open);
 function bribe(g) {
   if (g.bribed === S.m) return; g.bribed = S.m; const cost = bribeG(); S.gold -= cost; S.spend.info += cost;
   if (rnd() < K.BRIBE_P) {
-    const got = S.Z.filter(z => z.f <= S.open && (g.pts[z.id] || 0) * K.BRIBE_FID > z.pts).map(z => { const lv0 = lvOf(z); z.known = true; z.pts = g.pts[z.id] * K.BRIBE_FID; const r0 = g.res[z.id]; if (r0 && (!z.seenRes || z.seenRes.m * 100 + z.seenRes.d < r0.m * 100 + r0.d)) z.seenRes = r0; return lvOf(z) > lv0 ? `${z.nm} ${lv0}→${lvOf(z)}겹` : ''; }).filter(Boolean);
+    const got = S.Z.filter(z => z.f <= S.open && (g.pts[z.id] || 0) * K.BRIBE_FID > z.pts).map(z => { const lv0 = lvOf(z); z.known = true; z.pts = g.pts[z.id] * K.BRIBE_FID; const r0 = g.res[z.id]; if (r0 && (!z.seenRes || z.seenRes.m * 100 + z.seenRes.d < r0.m * 100 + r0.d)) z.seenRes = r0; return lvOf(z) > lv0 ? `${z.nm} 이해도 ${lv0}→${lvOf(z)}` : ''; }).filter(Boolean);
     push(`<b class="gold">${g.nm} 서기 매수 (${cost}G)</b> · 장부를 베껴 옴: ${got.join(' · ') || '우리가 이미 아는 것뿐'}`);
   } else { g.grudge = S.m * K.DAYS + S.d + K.DAYS; push(`<b class="bad">${g.nm} 서기가 매수를 거절하고 윗선에 일렀다 (${cost}G 날림).</b> 한 달 동안 ${g.nm}이 우리가 다니는 구역을 노린다.`); }
 }
@@ -498,7 +507,7 @@ function render() {
   $('#next').disabled = S.over;
   $('#next').innerHTML = S.over ? '끝' : `다음 날 ▸ <small>${S.m}월 ${S.d}일</small>`;
   $('#tabs').innerHTML = FL.map((f, i) => `<button type="button" class="sm" role="tab" data-view="${i}" aria-selected="${S.view === i}" aria-pressed="${S.view === i}" ${i > S.open ? 'disabled' : ''}>${f.nm}${i > S.open ? ' (닫힘)' : ''}</button>`).join('') + (S.mapped[S.view] ? '' : ` <button type="button" class="sm" data-map="${S.view}">${FL[S.view].nm} 공개 지도 사기 (${FL[S.view].mapG}G)</button>`);
-  $('#sorts').innerHTML = [['dist', '거리'], ['lv', '아는 겹'], ['item', '채집물'], ['last', '최근 보낸 곳']].map(([k, nm]) => `<button type="button" class="sm" data-sort="${k}" aria-pressed="${S.sort === k}">${nm}</button>`).join('');
+  $('#sorts').innerHTML = [['dist', '거리'], ['lv', '이해도'], ['item', '채집물'], ['last', '최근 보낸 곳']].map(([k, nm]) => `<button type="button" class="sm" data-sort="${k}" aria-pressed="${S.sort === k}">${nm}</button>`).join('');
   mapSvg(); reps(); card(); teams(); store(); tripsTable();
   $('#log').innerHTML = S.log.map(l => `<li class="${l.c}"><span class="d">${l.m}월 ${l.d}일</span>${l.h}</li>`).join('');
 }
@@ -516,12 +525,12 @@ function reps() {
   list.sort((a, b) => key(a) - key(b));
   const floorCard = `<article class="rep${S.sel === 'F' + F ? ' on' : ''}"><header><b>${FL[F].nm} 둘러보기</b><span class="dim">${S.Z.filter(z => z.f === F && z.known).length}/8 구역을 앎</span></header><p class="note">층을 돌며 구역을 찾아 보고서를 만든다 (하루에 셋쯤, 가까운 것부터 · 사흘이면 다 찾는다).${S.floorInfo[F] ? ` <br><b>이 층에서 나는 것</b> ${IT.filter(x => x.f === F).map(x => x.nm).join(' · ')} · <b>몬스터</b> ${MON.slice(F * 3, F * 3 + 3).map(x => x.nm).join(' · ')}` : ''}</p><div class="row"><button type="button" class="sm" data-pick="F${F}">이곳으로 보내기 ▸</button></div></article>`;
   $('#reps').innerHTML = floorCard + list.map(z => {
-    const L = lvOf(z), names = ['하는 일', '나는 것 · 위험', '산출 · 남은 양', '정확한 산출 · 사고율', '비밀'];
-    const lines = [0, 1, 2, 3, 4].filter(i => i < L).map(i => `<li><span class="dim">${names[i]}</span> ${layerText(z, i + 1)}</li>`).join('');
+    const L = lvOf(z), names = ['1 하는 일', '2 나는 것 · 위험', '3 산출 · 남은 양', '4 정확한 산출 · 사고율', '5 비밀'];
+    const lines = [0, 1, 2, 3, 4].map(i => i < L ? `<li><span class="dim">${names[i]}</span> ${layerText(z, i + 1)}</li>` : i === L ? `<li class="dim">${names[i]} · ${K.LV[i] - Math.floor(z.pts)}인일 더</li>` : '').join('');
     const via = chain(z).slice(0, -1).map(q => q.nm).join(' → ');
-    return `<article class="rep${S.sel === z.id ? ' on' : ''}"><header><b>${z.nm}</b><span class="pips" aria-label="정보 ${L}겹">${'●'.repeat(L)}${'○'.repeat(5 - L)}</span><span class="dim">오가는 길 ${2 * oneWay(z)}일${via ? ` · ${via} 지나서` : ''}</span></header>
-      ${lines ? `<ul>${lines}</ul>` : '<p class="note">그 안은 아직 모른다</p>'}
-      <p class="note">${z.rec.last ? `우리 실적: ${z.rec.md}인일에 ${prodName(z, z.main)} ${z.rec.got} (${f1(z.rec.got / Math.max(1, z.rec.md))}/인일) · 사고 ${z.rec.acc} · 마지막 ${z.rec.last.m}월 ${z.rec.last.d}일` : '보낸 적 없음'}${S.coming.filter(c => c.at === z.id).length ? ` · <b>본 남들</b> ${S.coming.filter(c => c.at === z.id).map(c => c.nm).join(' · ')}` : ''}</p>
+    return `<article class="rep${S.sel === z.id ? ' on' : ''}"><header><b>${z.nm}</b>${xpBar(z)}<span class="dim">오가는 길 ${2 * oneWay(z)}일${via ? ` · ${via} 지나서` : ''}</span></header>
+      <ul>${lines}</ul>
+      <p class="note">${z.rec.last ? `우리 실적: ${z.rec.md}인일 일해 ${prodName(z, z.main)} ${z.rec.got} · 한 사람 하루 ${f1(z.rec.got / Math.max(1, z.rec.md))}개 · 사고 ${z.rec.acc} · 마지막 ${z.rec.last.m}월 ${z.rec.last.d}일` : '보낸 적 없음'}${S.coming.filter(c => c.at === z.id).length ? ` · <b>본 남들</b> ${S.coming.filter(c => c.at === z.id).map(c => c.nm).join(' · ')}` : ''}</p>
       <div class="row"><button type="button" class="sm" data-pick="${z.id}">이곳으로 보내기 ▸</button></div></article>`;
   }).join('');
 }
@@ -537,7 +546,7 @@ function card() {
     const modeRow = z ? `<div class="row"><span>기준</span><button type="button" class="sm" data-mode="goal" aria-pressed="${o.mode === 'goal'}" ${est ? '' : 'disabled'}>목표량</button><button type="button" class="sm" data-mode="days" aria-pressed="${o.mode === 'days' || !est}">날 수</button>${est ? '' : '<span class="note">산출을 몰라 날 수로만</span>'}</div>` : '';
     const goalRow = z && o.mode === 'goal' && est ? `<div class="row"><span>목표 ${mainNm}</span>${stp('goal', o.goal, '목표량')}<span class="dim n">${pl.n}명 × ${f1(est.lo * t.sk)}~${f1(est.hi * t.sk)}/인일 → 일할 날 ${Math.max(1, Math.ceil(o.goal / (pl.n * est.hi * t.sk)))}~<b>${pl.work}</b>일</span></div>`
       : `<div class="row"><span>일할 날</span>${z ? stp('days', o.days, '일할 날') : `<b class="n">${pl.work}</b>`}<span class="dim n">${est ? `예상 ${mainNm} ${pl.haulLo}~${pl.haulHi}` : z ? '산출을 모름' : '구역을 찾아 다님'}</span></div>`;
-    const accTxt = pl.accE != null ? `예상 사고 ${f1(pl.accE)}건` : z && lvOf(z) >= 2 ? `위험 ${riskWord(z.acc)} (넷째 겹에서 숫자)` : '위험 모름';
+    const accTxt = pl.accE != null ? `예상 사고 ${f1(pl.accE)}건` : z && lvOf(z) >= 2 ? `위험 ${riskWord(z.acc)} (이해도 4에서 숫자)` : '위험 모름';
     const wearTxt = pl.wearE != null ? `예상 손상 ${f1(pl.wearE)}번` : '손상 모름';
     body = `${modeRow}${goalRow}
       <div class="row"><span>여유</span>${stp('margin', o.margin, '여유 날')}<span class="dim">일 (보급만 더 챙김 · 산출이 모자랄 때 버팀)</span></div>
