@@ -174,6 +174,7 @@ function act(b: HTMLElement) {
   if (a === 'bs-close') { closeSheet(); render(); save(); return; }
   if (a === 'bs-grow') { sheetFull = !sheetFull; setSheetFull(sheetFull); render(); return; }
   if (a === 'bs-floor') { ui.floor = +(b.dataset.f || 0); ui.zone = undefined; render(); save(); return; }
+  if (a === 'bs-view') { ui.view = b.dataset.v === 'ledger' ? 'ledger' : undefined; render(); save(); return; }
   if (a === 'bs-zone') { const z = +(b.dataset.z || 0); ui.menu = undefined; ui.order = undefined; ui.zone = z; render(); save(); return; }
   if (a === 'bs-team') { const t = +(b.dataset.t || 0); ui.menu = undefined; ui.zone = undefined; ui.order = ui.order === t ? undefined : t; render(); save(); return; }
   if (a === 'bs-place') return placeTeam(+(b.dataset.t || 0), +(b.dataset.z || 0));

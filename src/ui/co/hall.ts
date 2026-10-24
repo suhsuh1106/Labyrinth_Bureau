@@ -2,13 +2,14 @@
 // 옆 판에는 미궁에 나가 있는 조(며칠째 · 언제 돌아올지 · 예측), 오늘 아침 돌아온 조, 나갈 수 있는 조가 있다.
 // 대화는 기록(오늘 돌아온 조 · 다친 사람 · 시세 · 소문 · 특성)에서 고르고, 고르는 데 난수 대신 날짜와 사람 번호의 해시를 쓴다.
 // 상태를 쓰지 않고 난수도 쓰지 않는다
+import { tripPL } from './ledger';
 import { MISSION_NAME, priceNow, CO, FLOORS, ITEMS, type Ours, type Person, type Plan, type Sortie, type World, awayIds, boughtOf, candNow, roomOf, grOf, dayAbs, dayOf, floorMons, forecast, forecastTrips, isLeader, jo, kitShort, potShock, potsExpiring, promoteDue, sanitize, stateOf, matRefOf, rushOn, teamReady, unitPrice, us, teamDays } from '../../core/company';
 import { TRIP_END } from '../../core/events';
 import { adminBar, fillOf, orderCost } from './desk';
 import { stepper } from './view';
 import { dayCls, dayMark, dayTip, luckHtml, nameOf, packBar, sendBtn, sqHtml } from './roster';
 import { LV_SAYS, lvBar } from './zones';
-import { type Zone as LZone, ZONE as LZ } from '../../core/zones';
+import { type Zone as LZone, ZONE as LZ, lvOf } from '../../core/zones';
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
@@ -160,35 +161,39 @@ export function backLine(r: Ours, i: number, src: string) {
     ${zoneLine(r)}<div class="bk-r">${luckHtml(r)}${focus[0]}${dead.length ? `<b class="dead-n">† ${dead.map(z => esc(z.n)).join(', ')}</b>` : ''}${focus[1]}${focus[2]}${r.hurt ? `<span class="neg">부상 ${r.hurt}</span>` : ''}</div>${seenHtml(r)}</li>`;
 }
 
-// 탐사 장부: 이달 다녀온 구역 탐사마다 계획(일할 날 · 목표) · 실제(일한 날 · 끝난 까닭) · 인일 · 캐 온 값(오늘 시세) · 들고 간 보급 · 수리 도구 값과 태운 값 · 배율
-function tripsLedger(W: World) {
-  const rs = (W.back || []).map(s => ({ s, r: s.rep! })).filter(x => x.r && x.r.zn);
-  if (!rs.length) return '';
-  const rows = rs.map(({ s, r }) => {
-    const T = r.trip!, md = (r.n || 0) * (r.wk || 0), v = (r.got || 0) * priceNow(W, r.f) + r.mats.reduce((a, [m, k]) => a + k * matRefOf(W, m), 0);
-    const kit = (T.food || 0) * unitPrice(W, 'food') + (T.tools || 0) * unitPrice(W, 'mend'), b = r.burn ? r.burn.v : 0;
-    return `<li class="tl"><span class="tl-h"><b>${(r.t ?? 0) + 1}조 ${esc(r.zn!)}</b><span class="tl-x">${kit ? `×${(Math.round(v / kit * 10) / 10)}` : ''}</span></span>
-      <span class="tl-b">계획 ${s.goal ? `목표 ${s.goal}개` : `${s.work ?? r.wk}일`} → ${r.wk}일 · ${s.work && (r.wk || 0) < s.work ? `<b class="early">${TRIP_END[T.end]} · ${s.work - (r.wk || 0)}일 일찍</b>` : TRIP_END[T.end]} · ${md}인일 · 가져온 값 ${fmt(v)}G · 채비 ${fmt(kit)}G${b ? ` (태움 ${fmt(b)})` : ''}</span></li>`;
-  }).join('');
-  return `<details class="panel backs"><summary><h2>탐사 장부</h2><span class="right">${rs.length}건</span></summary><ul class="tls">${rows}</ul><p class="note">배율 = 가져온 값(채집품 오늘 시세 + 전리품 평균 시세) ÷ 들고 간 보급 · 수리 도구 값</p></details>`;
-}
 // 귀환 보고 창: 다음 날 아침 돌아온 조가 있으면 저절로 뜬다. 오늘 돌아온 조(조 장비 올리기)와 이달 앞서 돌아온 조
 export function backWinHtml(W: World, raw: Plan) {
   return `<div class="reader back-w" role="dialog" aria-modal="true" aria-label="귀환 보고"><div class="reader-in">
     <div class="reader-bar"><h2 class="exp-h">귀환 보고 <small>제${W.month}월 ${W.day || 1}일 아침</small></h2><span class="sp"></span><button type="button" class="close" data-act="close-backs" aria-label="창 닫기">×</button></div>
     ${backBodyHtml(W, raw)}</div></div>`;
 }
-// 귀환 보고의 몸: 오늘 아침 돌아온 조 · 이달 앞서 돌아온 조 · 탐사 장부 (판의 기록 시트도 이것을 띄운다)
+// 귀환 보고의 몸: 오늘 아침 돌아온 조 · 이달 앞서 돌아온 조 (조마다 손익을 크게, 탐사 기록은 접음) (판의 기록 시트도 이것을 띄운다)
 export function backBodyHtml(W: World, raw: Plan, close = true) {
   const P = sanitize(W, us(W), raw), all = W.back || [], today = todayBack(W), before = all.filter(s => !today.includes(s)).reverse();
-  const line = (s: Sortie, up: boolean) => backLine(s.rep!, all.indexOf(s), 'back').replace(/<\/li>$/, `${up ? upBtn(W, P, s) : ''}</li>`);
+  // 조마다 한 장: 위에 투입 → 가져옴과 손익을 크게, 구간 칸 · 짐 · 구역 기록은 접어 둔다
+  const line = (s: Sortie, up: boolean) => `<li class="bk2 ${(s.rep!.dead || []).length ? 'die' : ''}">${heroHtml(W, s, all.indexOf(s))}<details class="bk-more"><summary>탐사 기록</summary><ol class="bks">${backLine(s.rep!, all.indexOf(s), 'back').replace(/<button type="button" class="sc-open"[^]*?<\/button>/, '')}</ol></details>${up ? upBtn(W, P, s) : ''}</li>`;
   return `<div class="hall-side back-body">
-      ${today.length ? `<div class="panel backs"><header><h2>오늘 아침 돌아온 조</h2><span class="right">${today.length}조</span></header><ol class="bks">${today.map(s => line(s, true)).join('')}</ol></div>` : ''}
-      ${before.length ? `<details class="panel backs"${today.length ? '' : ' open'}><summary><h2>이달 앞서 돌아온 조</h2><span class="right">${before.length}조</span></summary><ol class="bks">${before.map(s => line(s, false)).join('')}</ol></details>` : ''}
-      ${tripsLedger(W)}
+      ${today.length ? `<div class="panel backs"><header><h2>오늘 아침 돌아온 조</h2><span class="right">${today.length}조</span></header><ol class="bk2s">${today.map(s => line(s, true)).join('')}</ol></div>` : ''}
+      ${before.length ? `<details class="panel backs"${today.length ? '' : ' open'}><summary><h2>이달 앞서 돌아온 조</h2><span class="right">${before.length}조</span></summary><ol class="bk2s">${before.map(s => line(s, false)).join('')}</ol></details>` : ''}
       ${all.length ? '' : '<p class="note">이달 돌아온 조가 없어요</p>'}
       ${close ? '<button type="button" class="nextday" data-act="close-backs">확인</button>' : ''}
     </div>`;
+}
+// 귀환 한 장의 머리: 투입(채비 + 급여 몫) → 가져옴(채집품 오늘 시세 + 전리품 평균 시세), 손익을 크게 · 배율 · 두 막대,
+// 그 아래 얻은 것(채집품 · 새 소재 · 이해도 단계 · 지도)과 잃은 것(사망 · 부상)을 꼬리표로. 장부의 귀환 손익과 같은 셈
+function heroHtml(W: World, s: Sortie, i: number) {
+  const x = tripPL(W, s), r = s.rep!, cost = x.kit + x.wage, got = x.loot + x.mats, mul = cost > 0 ? got / cost : 0, max = Math.max(1, cost, got);
+  const w = (v: number) => `${Math.round(v / max * 100)}%`, dead = r.dead || [];
+  const L0 = r.zx ? lvOf({ xp: r.zx[0] } as LZone) : 0, L1 = r.zx ? lvOf({ xp: r.zx[1] } as LZone) : 0;
+  const tags = [r.got ? `<span class="tg gold">${esc(ITEMS[r.f].name)} ${fmt(r.got)}</span>` : '', r.mats.length ? `<span class="tg">전리품 ${r.mats.reduce((a, [, k]) => a + k, 0)}점</span>` : '',
+    ...(r.first || []).map(m => `<span class="tg new">새 소재 ${esc(m)}</span>`), L1 > L0 ? `<span class="tg new">이해도 ${L1}단계</span>` : '', r.mp ? `<span class="tg">지도 +${r.mp}%p</span>` : '',
+    dead.length ? `<span class="tg dead">† ${dead.map(d => esc(d.n)).join(', ')}</span>` : '', r.hurt ? `<span class="tg hurt">부상 ${r.hurt}</span>` : ''].filter(Boolean).join('');
+  return `<div class="bk-hero ${x.net < 0 ? 'loss' : 'gain'}">
+    <div class="bh-h"><b>${(r.t ?? i) + 1}조</b><span>${r.zn ? esc(r.zn) : FLOORS[r.f].name} · ${r.d0 ?? ''}일 → ${r.d1 ?? ''}일 · ${r.n || s.m.length}명</span><button type="button" class="sc-open" data-act="scene" data-src="back" data-i="${i}" aria-label="${(r.t ?? i) + 1}조 탐사 재생">▶ 보기</button></div>
+    <div class="bh-n"><b>${x.net < 0 ? '−' : '+'}${fmt(Math.abs(x.net))}G</b>${cost > 0 ? `<span class="mul">×${(Math.round(mul * 10) / 10).toFixed(1)}</span>` : ''}</div>
+    <div class="bh-bars"><span>투입 ${fmt(cost)}</span><i class="out" style="width:${w(cost)}"></i><span>가져옴 ${fmt(got)}</span><i class="in" style="width:${w(got)}"></i></div>
+    <small class="bh-t">채비 ${fmt(x.kit)} · 급여 몫 ${fmt(x.wage)} (${x.days}일) → 채집품 ${fmt(x.loot)} · 전리품 ${fmt(x.mats)}</small>
+    ${tags ? `<div class="bh-tags">${tags}</div>` : ''}</div>`;
 }
 // 미궁에서 본 남들: 누가 · 몇 조 · 무엇을 얼마나 지고 · 우리보다 언제 돌아오나
 const relTxt = (rel: number) => (rel > 0 ? `${rel}일 뒤 귀환` : rel === 0 ? '같은 아침 귀환' : '먼저 나감');

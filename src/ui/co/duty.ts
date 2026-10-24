@@ -11,7 +11,7 @@ const settled = (W: World) => W.history.length > (W.draft ? 1 : 0);
 
 // tabs: 이 업무가 여는 단추 시트의 탭 ([단추, 탭]). memo: 단장이 넘기며 남기는 한 줄
 export const DUTIES: { k: DutyKey; n: string; tabs: [string, string][]; memo: string; go: [string, string]; when: (W: World) => boolean }[] = [
-  { k: 'sell', n: '창고 · 팔기 · 기록', tabs: [['goods', 'sell'], ['rec', 'month'], ['rec', 'back'], ['rec', 'zone']], go: ['goods', 'sell'],
+  { k: 'sell', n: '창고 · 팔기 · 장부 · 기록', tabs: [['goods', 'sell'], ['main', 'ledger'], ['rec', 'back'], ['rec', 'zone']], go: ['goods', 'sell'],
     memo: '음! 돈 될 만한 건 다 챙겨 오긴 했는데!',
     when: W => reps(W).length > 0 },
   { k: 'book', n: '미궁 도감 · 단장 조사', tabs: [['rec', 'book']], go: ['rec', 'book'],

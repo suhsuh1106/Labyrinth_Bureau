@@ -1737,13 +1737,33 @@ describe('물자 시트 (docs/board.md 3단계)', () => {
 });
 describe('기록 시트 (docs/board.md 4단계)', () => {
   it('이달은 순이익 예측과 줄마다 이번 달 · 지난달, 구역은 열린 층의 구역마다 카드이고, 깨지지 않으며 판은 그대로다', async () => {
-    const { monthHtml, zoneCards } = await import('../src/ui/co/records');
+    const { zoneCards } = await import('../src/ui/co/records');
+    const { ledgerHtml } = await import('../src/ui/co/ledger');
     setSeed(34); const W = newWorld(); for (let m = 0; m < 2; m++) { runMonth(W, BOT.even(W)); closeBooks(W); }
     const P = carryPlan(W, W.last!.plans[0]), snap = JSON.stringify(W);
-    const h = [monthHtml(W, P), zoneCards(W, P)];
+    const h = [ledgerHtml(W, P), zoneCards(W, P)];
     h.forEach(x => expect(x).not.toMatch(/undefined|NaN|\[object/));
     expect(h[0]).toContain('순이익 예측'); expect(h[0]).toContain('data-act="bs-menu-tab"');
+    // 장부: 조마다 열흘 달력 한 줄, 귀환 손익은 가져온 값 − 채비 − 급여 몫
+    expect(h[0]).toContain('lg-cal'); expect(h[0]).toContain('귀환 손익');
     zonesOn(W.zones, 0).forEach(z => expect(h[1]).toContain(`data-z="${z.id}"`));
+    expect(JSON.stringify(W)).toBe(snap);
+  });
+});
+describe('장부 · 귀환 손익 (본 화면)', () => {
+  it('달 중간에 돌아온 조마다 손익(가져온 값 − 채비 − 급여 몫)을 장부 · 귀환 보고에 크게 적고, 공사의 투자 크기를 보이며, 판은 그대로다', async () => {
+    const { ledgerHtml, tripPL, investHtml } = await import('../src/ui/co/ledger');
+    const { backBodyHtml } = await import('../src/ui/co/hall');
+    setSeed(35); const W = newWorld(); runMonth(W, BOT.even(W)); closeBooks(W);
+    const P = BOT.even(W);
+    for (let d = 0; d < 5; d++) { sendReady(W, P); nextDay(W, P); }
+    expect((W.back || []).length).toBeGreaterThan(0);
+    const snap = JSON.stringify(W);
+    (W.back || []).forEach(s => { const x = tripPL(W, s); expect(x.net).toBeCloseTo(x.loot + x.mats - x.kit - x.wage); expect(x.kit).toBeGreaterThan(0); expect(x.wage).toBeGreaterThan(0); });
+    const h = [ledgerHtml(W, P), backBodyHtml(W, P, false), investHtml(W, P, 'med', '의무실'), investHtml(W, P, 'dorm', '숙소')];
+    h.forEach(x => expect(x).not.toMatch(/undefined|NaN|Infinity|\[object/));
+    expect(h[0]).toContain('lg-bar'); expect(h[1]).toContain('bk-hero'); expect(h[1]).toContain('투입');
+    expect(h[2]).toContain('금고의'); expect(h[2]).toContain('평가액');
     expect(JSON.stringify(W)).toBe(snap);
   });
 });
@@ -1755,8 +1775,9 @@ describe('단장의 인계 (화면만, docs/plan.md)', () => {
     const ui = { phase: 0, tab: 'report', pins: [] as string[], duty: [] as string[] };
     expect(dutyDue(W, ui)).toEqual([]);
     expect(tabOpen(ui, 'crew', 'team') && tabOpen(ui, 'goods', 'buy')).toBe(true);
-    expect(tabOpen(ui, 'goods', 'sell') || tabOpen(ui, 'rec', 'month') || tabOpen(ui, 'hq', 'board')).toBe(false);
+    expect(tabOpen(ui, 'goods', 'sell') || tabOpen(ui, 'main', 'ledger') || tabOpen(ui, 'hq', 'board')).toBe(false);
     const h = boardShellHtml(W, P, { ...ui, menu: 'hq' });
+    expect(h).toContain('장부는 단장이 맡고 있어요');
     expect(h).toContain('단장이 맡고 있어요'); expect(h).not.toMatch(/undefined|NaN|\[object/);
     expect(JSON.stringify(W)).toBe(snap);
     // 옛 판(ui.duty 없음)은 모두 넘겨받은 것으로 본다
