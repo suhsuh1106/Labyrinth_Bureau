@@ -13,6 +13,7 @@ import { monthHtml, zoneCards } from './records';
 import { askPanel } from './book';
 import { LV_SAYS, SECRET_NAME } from './zones';
 import { stepper } from './view';
+import { DUTIES, hasDuty, tabOpen } from './duty';
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
@@ -85,12 +86,15 @@ export function boardShellHtml(W: World, raw: Plan, ui: DeskUi) {
   const tray = teams.map((T, t) => (st[t].k === 'home' || st[t].k === 'busy' ? flag(T, t, false) : '')).join('');
   const elsewhere = teams.filter((T, t) => { const S = st[t], z = S.k === 'away' ? zoneAt(W, S.s.z) : S.k === 'go' ? zoneAt(W, T.z) : undefined; return z && z.f !== f; }).length;
   const backBar = back.length && ui.backs ? `<div class="bs-ret" role="status"><b>아침 귀환 ${back.length}조</b><span>${back.map(s => { const r = s.rep!; const up = r.zx && Math.floor(lvOf({ xp: r.zx[1] } as Zone)) > lvOf({ xp: r.zx[0] } as Zone); return `${(r.t ?? 0) + 1}조 ${r.zn ? esc(r.zn) : FLOORS[r.f].name}${r.got ? ` · 채집품 ${r.got}` : ''}${(r.dead || []).length ? ' · †' : ''}${up ? ' · 이해도 오름' : ''}`; }).join(' / ')}</span><button type="button" class="mini" data-act="bs-backs">보고</button><button type="button" class="x" data-act="close-backs" aria-label="접기">×</button></div>` : '';
+  // 단장의 인계: 새로 넘겨받은 업무 한 장 (열면 그 탭으로, ×로 접는다)
+  const dn = (ui.dutyNew || []).map(k => DUTIES.find(d => d.k === k)).filter(Boolean)[0];
+  const dutyBar = dn ? `<div class="bs-ret duty" role="status"><b>단장 브란 · ${dn.n}</b><span>${esc(dn.memo)}</span><button type="button" class="mini" data-act="duty-go" data-k="${dn.k}">열기</button><button type="button" class="x" data-act="duty-ok" data-k="${dn.k}" aria-label="접기">×</button></div>` : '';
   const hint = !tray ? '본부에 남은 조가 없어요' : '깃발을 구역에 끌어다 놓기 · 깃발을 누르면 명령서';
   const mid = `<div class="bs-mid">
     <div class="bs-floors">${FLOORS.slice(0, W.unlocked).map((F, g) => `<button type="button" data-act="bs-floor" data-f="${g}" aria-pressed="${g === f}">${F.name}</button>`).join('')}${elsewhere ? `<span class="dim">다른 층 ${elsewhere}조</span>` : ''}<span class="legend"><i class="us"></i>우리 <i class="them"></i>남</span></div>
     <div class="bs-map" id="bs-map" data-f="${f}"><canvas id="bs-terrain" aria-hidden="true"></canvas>
       <svg class="bs-arrows" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${arrows}</svg>
-      ${zones}${rivHtml}${onMap}${backBar}</div>
+      ${zones}${rivHtml}${onMap}${backBar || dutyBar}</div>
     <div class="bs-tray"><span class="lbl">본부</span><div class="flags">${tray}</div><span class="hint">${hint}</span></div>
   </div>`;
   const goN = st.filter(x => x.k === 'go').length, must = ag.filter(a => a.must).length;
@@ -107,7 +111,7 @@ export function boardShellHtml(W: World, raw: Plan, ui: DeskUi) {
 // ---------- 시트 ----------
 function sheetHtml(W: World, raw: Plan, P: Plan, ui: DeskUi) {
   if (ui.menu && MENUS[ui.menu]) return menuSheet(W, raw, P, ui);
-  if (ui.order != null && P.teams && P.teams[ui.order]) return orderSheet(W, raw, P, ui.order);
+  if (ui.order != null && P.teams && P.teams[ui.order]) return orderSheet(W, raw, P, ui.order, hasDuty(ui, 'book'));
   if (ui.zone != null && zoneAt(W, ui.zone)) return zoneSheet(W, P, zoneAt(W, ui.zone)!);
   return '';
 }
@@ -134,7 +138,7 @@ function zoneSheet(W: World, P: Plan, z: Zone) {
 }
 
 // 명령서: 그 조를 그 구역으로. 날/목표 · 일할 날(목표량) · 여유 · 포션, 오감 · 일 · 보급 · 예측, 단장 조사(단장이 낀 조), 내일 아침 출발
-function orderSheet(W: World, raw: Plan, P: Plan, t: number) {
+function orderSheet(W: World, raw: Plan, P: Plan, t: number, ask = true) {
   const T = P.teams![t], z = zoneAt(W, T.z), S = teamState(W, T);
   if (!z) return '';
   const n = T.m.filter(x => x != null).length, way = zoneWay(W, z), d = T.days || CO.TRIP_DAYS[T.f], r = zoneRate(W, P, T), goal = !!T.goal, L = lvOf(z), k = riskEst(z);
@@ -152,14 +156,15 @@ function orderSheet(W: World, raw: Plan, P: Plan, t: number) {
     <div class="row"><span class="k">장비</span><select data-k="teamG" data-i="${t}" aria-label="${t + 1}조 장비"><option value="">없음</option>${GEARS.filter(g => g !== '일반').map(g => `<option value="g:${g}"${T.g === 'g:' + g ? ' selected' : ''}>${g} (${PAIR_CLASS[g]} 대신) · 창고 ${S0.gear[g] || 0}</option>`).join('')}</select></div>
     <div class="calc"><div><span>오감</span><b>${2 * way}일</b></div><div><span>일</span><b>${d}일</b></div><div><span>보급</span><b>${n * (T.food || 0)}</b></div><div class="big"><span>예측</span><b>${Math.round(r.lo * d)}~${Math.round(r.hi * d)}</b></div></div>
     <p class="note">${2 * way + d}일 뒤 아침 귀환 · 한 사람 하루 보급 하나 · 남은 보급은 검문소가 태운다${L < 3 ? ' · 이해도가 낮아 예측 폭이 넓다' : ''}</p>
-    ${hasLead ? askPanel(W, P) : ''}${status}${S.k === 'go' || S.k === 'home' ? kitWarn(W, raw) : ''}
+    ${hasLead && ask ? askPanel(W, P) : ''}${status}${S.k === 'go' || S.k === 'home' ? kitWarn(W, raw) : ''}
     <div class="acts"><button type="button" data-act="bs-home" data-t="${t}">${S.k === 'go' ? '명령 거두기' : '닫기'}</button>${S.k === 'home' || S.k === 'go' ? `<button type="button" class="go" data-act="send" data-t="${t}" aria-pressed="${S.k === 'go'}">${S.k === 'go' ? '내일 아침 출발 ✓' : '내일 아침 출발'}</button>` : ''}</div>`, `${t + 1}조 명령서`);
 }
 
 // 단추 시트: 탭마다 지금 있는 창의 내용
 function menuSheet(W: World, raw: Plan, P: Plan, ui: DeskUi) {
-  const M = MENUS[ui.menu!], tab = M.tabs.some(x => x[0] === ui.mtab) ? ui.mtab! : M.tabs[0][0];
-  const body = (() => {
+  // 단장이 아직 맡고 있는 탭은 잠근다 (docs/plan.md "단장의 인계")
+  const M = MENUS[ui.menu!], open = M.tabs.filter(([k]) => tabOpen(ui, ui.menu!, k)), tab = open.some(x => x[0] === ui.mtab) ? ui.mtab! : open.length ? open[0][0] : '';
+  const body = !tab ? `<p class="note">단장이 맡고 있어요 · ${M.tabs.map(([k]) => DUTIES.find(d => d.tabs.some(([m, t]) => m === ui.menu && t === k))?.n).filter((x, i, a) => x && a.indexOf(x) === i).join(' · ')}</p>` : (() => {
     if (ui.menu === 'crew') return tab === 'team' ? teamsHtml(W, raw, ui) : tab === 'list' ? listHtml(W, raw, ui) : candsHtml(W);
     if (ui.menu === 'goods') return tab === 'buy' ? buyHtml(W, raw) : tab === 'kit' ? kitHtml(W, raw, ui) : sellHtml(W, raw);
     if (ui.menu === 'rec') {
@@ -171,7 +176,7 @@ function menuSheet(W: World, raw: Plan, P: Plan, ui: DeskUi) {
     return tab === 'train' ? `${staffBlds(W, raw)}${placeBody(W, raw, ui, tab)}` : placeBody(W, raw, ui, tab);
   })();
   return sheet(`<h2>${M.n}<small>${M.sub}</small><button type="button" class="x" data-act="bs-close" aria-label="닫기">×</button></h2>
-    <div class="tabs" role="tablist">${M.tabs.map(([k, n]) => `<button type="button" role="tab" data-act="bs-tab" data-k="${k}" aria-selected="${k === tab}">${n}</button>`).join('')}</div>
+    <div class="tabs" role="tablist">${M.tabs.map(([k, n]) => tabOpen(ui, ui.menu!, k) ? `<button type="button" role="tab" data-act="bs-tab" data-k="${k}" aria-selected="${k === tab}">${n}</button>` : `<button type="button" role="tab" class="lock" disabled aria-selected="false" title="단장이 맡고 있어요">${n}</button>`).join('')}</div>
     <div class="bs-body">${body}</div>`, M.n, true);
 }
 
