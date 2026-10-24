@@ -182,6 +182,8 @@ export const CO = {
   TRAIN_MAX: 0.2, TRAIN_K: 20,
   // 미궁의 압력: 모두가 꺼낸 전리품 값(기준 시세)이 PRESS_DIV마다 1씩 차고 매달 PRESS_DECAY만큼 빠진다.
   // ANOM_AT마다 이상 징후가 돌고, OVER를 넘으면 달마다 OVER_CHANCE로 범람한다. 범람하면 1·2층에 있던 파티가 당하고 두 층이 쑥대밭이 된다
+  // DEPTHS · CARTEL: 미궁의 압력 · 범람 · 근원(봉인 · 채굴장)과 상단 · 교회의 포션 담합. 탐사 · 보급 · 채집과 사냥의 뼈대를 먼저 보려고 꺼 둔다 (2026-10-24)
+  DEPTHS: false, CARTEL: false,
   PRESS_DIV: 2200, PRESS_DECAY: 0.03, ANOM_AT: [55, 75, 90], OVER: 100, OVER_CHANCE: 0.4, OVER_KILL: 0.2, OVER_POOL: 0.4, OVER_LEFT: 0.35,
   // 근원: 약점을 갖춘 우리 직영 파티가 그 층에서 ROOT_WINS번 성공하면, 약점대로 들어간 달에 근원을 찾는다.
   // 기금이 ROOT_COST에 차면 봉인이나 채굴장이 된다. 봉인: 교회가 같은 돈을 보태고(SEAL_MATCH), 압력이 SEAL_DRAIN 빠지고,
@@ -2644,6 +2646,7 @@ function politics(W: World, plans: Plan[], res: CoResult[], potQ: number) {
     c.relM = clamp((c.relM ?? 50) + (r.potNeed - r.potC) / 120, 0, 100);
     c.relC += (50 - c.relC) * 0.05; c.relM += (50 - c.relM) * 0.05;
   });
+  if (!CO.CARTEL) return;
   const K = W.cartel;
   if (K) {
     plans.forEach((P, i) => { K.donated[i] = (K.donated[i] || 0) + Math.max(0, Math.floor(P.donate || 0)); });
@@ -2672,6 +2675,7 @@ function politics(W: World, plans: Plan[], res: CoResult[], potQ: number) {
 // 미궁의 압력과 근원: 모두가 꺼낸 만큼 미궁이 차오른다. 이상 징후가 먼저 돌고, 넘치면 범람한다.
 // 우리 직영 파티는 약점대로 들어가 성공을 쌓으면 근원을 찾는다 (경쟁 용병단은 현장 기록을 가져오지 않아 찾지 못한다)
 function depths(W: World, plans: Plan[], res: CoResult[], floors: MonthResult['floors'], keyHit: Set<number>) {
+  if (!CO.DEPTHS) return false;
   const add = floors.reduce((a, F, f) => a + F.taken * ITEMS[f].P0 * pressOf(W, f), 0) / CO.PRESS_DIV;
   W.pressure = (W.pressure || 0) * (1 - CO.PRESS_DECAY) + add;
   const k = W.anoms || 0;
