@@ -77,7 +77,7 @@ describe('몬스터와 편성 지침', () => {
     let a = 0, b = 0;
     for (let g = 1; g <= 120; g++) { a += rankOf(playGame(g, BOT.smart, FILER.smart)); b += rankOf(playGame(g, BOT.smartNoGuide, FILER.smartNoGuide)); if (g % 10 === 0) await new Promise(r => setTimeout(r, 0)); }
     expect(a).toBeLessThanOrEqual(b * 1.06);
-  }, 300000);
+  }, 600000);   // (경쟁 용병단이 커져 판이 무겁다)
 });
 
 describe('밸런스', () => {

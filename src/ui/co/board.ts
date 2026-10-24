@@ -1,7 +1,7 @@
 // 판 (docs/board.md 1단계): 휴대폰을 세로로 든 한 화면. 위 요약 띠 · 가운데 작전 지도(구역에 깃발 말을 끌어다 놓는다) · 아래 단추 줄(인원 · 물자 · 기록 · 본부 · 다음 날).
 // 단추를 누르면 판 위로 시트가 올라온다 (1단계는 지금 있는 창의 내용을 시트 안에 그대로 띄운다).
 // 읽기만 한다 (상태를 쓰지 않고 난수를 쓰지 않는다). 지도 바탕은 구역 자리로만 그려 같은 판이면 같은 그림이다
-import { CO, FLOORS, type Plan, type Team, type World, awayIds, dayAbs, rankOf, richEst, riskEst, sanitize, stateOf, teamPots, teamMend, teamReady, supOf, potsOf, us, zoneAt, zoneKnown, zoneRate, zoneWay } from '../../core/company';
+import { CO, FLOORS, type Plan, type Team, type World, awayIds, bagDays, dayAbs, rankOf, richEst, riskEst, sanitize, stateOf, teamPots, teamMend, teamReady, supOf, potsOf, us, zoneAt, zoneKnown, zoneRate, zoneWay } from '../../core/company';
 import { type Zone, lvOf, lvProg, nextXp, viaOf, zonesOn } from '../../core/zones';
 import { KIND_NAME, nameOf } from './roster';
 import { GEARS, PAIR_CLASS } from '../../core/data';
@@ -78,7 +78,7 @@ export function boardShellHtml(W: World, raw: Plan, ui: DeskUi) {
     const S = st[t], L = T.m.filter((x): x is number => x != null).map(id => (c.crew || []).find(p => p.id === id)), ld = L[0];
     const col = S.k === 'away' ? '#3f7d4e' : S.k === 'go' ? '#c9473c' : S.k === 'busy' ? '#7d6b55' : '#a8322a';
     const left = S.k === 'away' ? S.s.d1 - now : 0;
-    const tip = S.k === 'away' ? `미궁 · ${left <= 0 ? '오늘' : `${left}일 뒤`} 귀환` : S.k === 'go' ? '내일 아침 출발' : S.k === 'busy' ? S.why : '본부';
+    const tip = S.k === 'away' ? `미궁 · ${left <= 0 ? '오늘' : `늦어도 ${left}일 뒤`} 귀환` : S.k === 'go' ? '내일 아침 출발' : S.k === 'busy' ? S.why : '본부';
     return `<button type="button" class="bf ${S.k}${on ? ' onmap' : ''}${ui.order === t ? ' sel' : ''}" data-act="bs-team" data-t="${t}" aria-label="${t + 1}조 ${ld ? esc(nameOf(ld)) : ''} ${L.length}명 · ${tip}">${flagSvg(`${t + 1}조`, col)}${on ? '' : `<span class="tag">${ld && ld.lead ? '★' : ''}${ld ? esc(nameOf(ld)) : '빈 조'} · ${L.length}명</span>`}${S.k === 'away' ? `<span class="left">${Math.max(0, left)}일</span>` : S.k === 'busy' ? `<span class="why">${S.why}</span>` : ''}</button>`;
   };
   const onMap = teams.map((T, t) => { const S = st[t], z = S.k === 'away' ? zoneAt(W, S.s.z) : S.k === 'go' ? zoneAt(W, T.z) : undefined; return z && z.f === f ? `<span class="bfp" style="left:${zx(z)}%;top:${zy(z)}%">${flag(T, t, true)}</span>` : ''; }).join('');
@@ -140,8 +140,10 @@ function orderSheet(W: World, raw: Plan, P: Plan, t: number) {
   const n = T.m.filter(x => x != null).length, way = zoneWay(W, z), d = T.days || CO.TRIP_DAYS[T.f], r = zoneRate(W, P, T), goal = !!T.goal, L = lvOf(z), k = riskEst(z);
   const c = us(W), lead = (c.crew || []).find(p => p.lead), hasLead = !!lead && T.m.includes(lead.id);
   const S0 = supOf(c), H0 = potsOf(c);
+  // 짐: 계획한 날보다 먼저 찰 것 같으면 그날 돌아온다 (예측 · 귀환 날도 그만큼)
+  const bd = bagDays(W, P, T), early = !goal && bd < d - 0.5, dE = early ? Math.max(1, Math.round(bd)) : d;
   const chips = `<div class="chips"><span>거리 <b>${z.r}</b></span>${L >= 2 ? `<span>위험 <b>${riskWord(k.mid)}</b></span>` : ''}${L >= 3 && z.seen ? `<span>남은 양 <b>${Math.round(z.seen.v)}</b></span>` : ''}<span>한 조 하루 <b>${f1(r.lo)}~${f1(r.hi)}</b>개</span></div>`;
-  const status = S.k === 'away' ? `<p class="note">미궁에 있어요 · ${Math.max(0, S.s.d1 - dayAbs(W))}일 뒤 아침 귀환</p>` : S.k === 'busy' ? `<p class="note neg">지금 나갈 수 없어요 · ${S.why}</p>` : '';
+  const status = S.k === 'away' ? `<p class="note">미궁에 있어요 · 늦어도 ${Math.max(0, S.s.d1 - dayAbs(W))}일 뒤 아침 귀환 (짐이 차거나 물러나면 더 일찍)</p>` : S.k === 'busy' ? `<p class="note neg">지금 나갈 수 없어요 · ${S.why}</p>` : '';
   return sheet(`${zoneHead(W, z, ` · ${t + 1}조 ${n}명`)}${chips}
     <div class="row"><span class="k">기준</span><span class="seg" role="group" aria-label="${t + 1}조 기준"><button type="button" data-act="tmode" data-t="${t}" data-m="days" aria-pressed="${!goal}">날</button><button type="button" data-act="tmode" data-t="${t}" data-m="goal" aria-pressed="${goal}">목표</button></span></div>
     <div class="row"><span class="k">${goal ? '목표량' : '일할 날'}</span>${goal ? stepper('tgoal', t, T.goal!, `${t + 1}조 목표량 (채집품)`) : stepper('tdays', t, d, `${t + 1}조 일할 날`)}</div>
@@ -150,8 +152,9 @@ function orderSheet(W: World, raw: Plan, P: Plan, t: number) {
     <div class="row"><span class="k">포션</span>${stepper('tpots', t, teamPots(P, T), `${t + 1}조 포션`)}<small class="dim">쓰지 않으면 돌아온다</small></div>
     <div class="row"><span class="k">수리 도구</span>${stepper('tmend', t, teamMend(P, T), `${t + 1}조 수리 도구`)}<small class="dim">진 날 하나</small></div>
     <div class="row"><span class="k">장비</span><select data-k="teamG" data-i="${t}" aria-label="${t + 1}조 장비"><option value="">없음</option>${GEARS.filter(g => g !== '일반').map(g => `<option value="g:${g}"${T.g === 'g:' + g ? ' selected' : ''}>${g} (${PAIR_CLASS[g]} 대신) · 창고 ${S0.gear[g] || 0}</option>`).join('')}</select></div>
-    <div class="calc"><div><span>오감</span><b>${2 * way}일</b></div><div><span>일</span><b>${d}일</b></div><div><span>보급</span><b>${n * (T.food || 0)}</b></div><div class="big"><span>예측</span><b>${Math.round(r.lo * d)}~${Math.round(r.hi * d)}</b></div></div>
-    <p class="note">${2 * way + d}일 뒤 아침 귀환 · 한 사람 하루 보급 하나 · 남은 보급은 검문소가 태운다${L < 3 ? ' · 이해도가 낮아 예측 폭이 넓다' : ''}</p>
+    ${early ? `<p class="bag-w"><b>짐 ~${dE}일째 가득</b><span>짐이 차면 그날 돌아온다 · 일할 날 ${d}일 중 ${dE}일쯤</span></p>` : ''}
+    <div class="calc"><div><span>오감</span><b>${2 * way}일</b></div><div><span>일</span><b>${early ? `~${dE}/${d}` : d}일</b></div><div><span>보급</span><b>${n * (T.food || 0)}</b></div><div class="big"><span>예측</span><b>${Math.round(r.lo * dE)}~${Math.round(r.hi * dE)}</b></div></div>
+    <p class="note">${early ? `${2 * way + dE}일 뒤 아침 귀환 예측 (늦어도 ${2 * way + d}일)` : `${2 * way + d}일 뒤 아침 귀환`} · 한 사람 하루 보급 하나 · 남은 보급은 검문소가 태운다${L < 3 ? ' · 이해도가 낮아 예측 폭이 넓다' : ''}</p>
     ${hasLead ? askPanel(W, P) : ''}${status}${S.k === 'go' || S.k === 'home' ? kitWarn(W, raw) : ''}
     <div class="acts"><button type="button" data-act="bs-home" data-t="${t}">${S.k === 'go' ? '명령 거두기' : '닫기'}</button>${S.k === 'home' || S.k === 'go' ? `<button type="button" class="go" data-act="send" data-t="${t}" aria-pressed="${S.k === 'go'}">${S.k === 'go' ? '내일 아침 출발 ✓' : '내일 아침 출발'}</button>` : ''}</div>`, `${t + 1}조 명령서`);
 }

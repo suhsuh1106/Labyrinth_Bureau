@@ -151,7 +151,9 @@ export function backLine(r: Ours, i: number, src: string) {
   const ms = r.mission || 'gather', mapT = r.mp ? `<span>지도 <b>+${r.mp}</b>%p</span>` : '';
   const gotT = r.got ? `<span>${esc(ITEMS[r.f].name)} <b>${fmt(r.got)}</b>개 → 창고</span>` : '', matT = r.mats.length ? `<span>${r.mats.slice(0, 3).map(([m, n]) => `${esc(m)} ×${n}`).join(', ')}${r.mats.length > 3 ? ` 외 ${r.mats.length - 3}` : ''}</span>` : '';
   const focus = ms === 'scout' ? [mapT, gotT, matT] : ms === 'hunt' ? [matT, gotT, mapT] : [gotT, matT, mapT];
-  const head = r.zn ? `<b class="zn">${esc(r.zn)}</b> <span class="dim">${r.way ? `→${r.way} · ` : ''}일 ${r.wk ?? 0}일${r.way ? ` · ←${T.wb ?? r.way}` : ''} · 구간 ${D.length} · 성공 ${wins} · ${TRIP_END[T.end]}</span>` : `<span class="ms-tag ${ms}">${MISSION_NAME[ms]}</span> <span class="dim">${T.fd ?? D.length}일 · 구간 ${D.length} · 성공 ${wins} · ${TRIP_END[T.end]}</span>`;
+  // 계획한 날보다 일찍 돌아왔으면 까닭과 함께 (짐 가득 · 후퇴 · 목표 채움)
+  const wk = r.wk ?? 0, short = r.pw && wk < r.pw ? r.pw - wk : 0;
+  const head = r.zn ? `<b class="zn">${esc(r.zn)}</b> <span class="dim">${r.way ? `→${r.way} · ` : ''}일 ${wk}${r.pw ? `/${r.pw}` : ''}일${r.way ? ` · ←${T.wb ?? r.way}` : ''} · 구간 ${D.length} · 성공 ${wins} · </span>${short ? `<b class="early">${TRIP_END[T.end]} · ${short}일 일찍</b>` : `<span class="dim">${TRIP_END[T.end]}</span>`}` : `<span class="ms-tag ${ms}">${MISSION_NAME[ms]}</span> <span class="dim">${T.fd ?? D.length}일 · 구간 ${D.length} · 성공 ${wins} · ${TRIP_END[T.end]}</span>`;
   return `<li class="bk ${dead.length ? 'die' : r.ok ? 'ok' : 'no'}"><div class="bk-h"><b>${(r.t ?? i) + 1}조</b> ${FLOORS[r.f].name} ${head}
     <button type="button" class="sc-open" data-act="scene" data-src="${src}" data-i="${i}" aria-label="${(r.t ?? i) + 1}조 탐사 재생">▶ 보기</button></div>
     <div class="bk-d"><span class="days">${days || '<i class="dk"></i>'}</span>${packBar(T.slots, T.torch - T.tu, Math.max(0, (r.potC || 0) - (r.pots || 0)), T.pack, (T.food || 0) - (T.fu || 0), (T.tools || 0) - (T.tk || 0), T.pm || 0, T.pt || 0)}</div>
@@ -166,7 +168,7 @@ function tripsLedger(W: World) {
     const T = r.trip!, md = (r.n || 0) * (r.wk || 0), v = (r.got || 0) * priceNow(W, r.f) + r.mats.reduce((a, [m, k]) => a + k * matRefOf(W, m), 0);
     const kit = (T.food || 0) * unitPrice(W, 'food') + (T.tools || 0) * unitPrice(W, 'mend'), b = r.burn ? r.burn.v : 0;
     return `<li class="tl"><span class="tl-h"><b>${(r.t ?? 0) + 1}조 ${esc(r.zn!)}</b><span class="tl-x">${kit ? `×${(Math.round(v / kit * 10) / 10)}` : ''}</span></span>
-      <span class="tl-b">계획 ${s.goal ? `목표 ${s.goal}개` : `${s.work ?? r.wk}일`} → ${r.wk}일 · ${TRIP_END[T.end]} · ${md}인일 · 가져온 값 ${fmt(v)}G · 채비 ${fmt(kit)}G${b ? ` (태움 ${fmt(b)})` : ''}</span></li>`;
+      <span class="tl-b">계획 ${s.goal ? `목표 ${s.goal}개` : `${s.work ?? r.wk}일`} → ${r.wk}일 · ${s.work && (r.wk || 0) < s.work ? `<b class="early">${TRIP_END[T.end]} · ${s.work - (r.wk || 0)}일 일찍</b>` : TRIP_END[T.end]} · ${md}인일 · 가져온 값 ${fmt(v)}G · 채비 ${fmt(kit)}G${b ? ` (태움 ${fmt(b)})` : ''}</span></li>`;
   }).join('');
   return `<details class="panel backs"><summary><h2>탐사 장부</h2><span class="right">${rs.length}건</span></summary><ul class="tls">${rows}</ul><p class="note">배율 = 가져온 값(채집품 오늘 시세 + 전리품 평균 시세) ÷ 들고 간 보급 · 수리 도구 값</p></details>`;
 }
@@ -190,7 +192,7 @@ export function backBodyHtml(W: World, raw: Plan, close = true) {
 }
 // 미궁에서 본 남들: 누가 · 몇 조 · 무엇을 얼마나 지고 · 우리보다 언제 돌아오나
 const relTxt = (rel: number) => (rel > 0 ? `${rel}일 뒤 귀환` : rel === 0 ? '같은 아침 귀환' : '먼저 나감');
-export const seenHtml = (r: Ours) => { const L = [...(r.seen || [])].sort((a, b) => (b.rel > 0 ? 1 : 0) - (a.rel > 0 ? 1 : 0) || a.rel - b.rel); return L.length ? `<div class="bk-s"><b>미궁에서 본 남들</b>${L.slice(0, 4).map(x => `<span class="${x.rel > 0 ? 'soon' : ''}">${esc(x.nm)}${x.n > 1 ? ` ${x.n}조` : ''} · ${esc(ITEMS[x.f].name)} ${fmt(x.q)}개쯤 · ${relTxt(x.rel)}</span>`).join('')}${L.length > 4 ? `<span>외 ${L.length - 4}</span>` : ''}</div>` : ''; };
+export const seenHtml = (r: Ours) => { const L = [...(r.seen || [])].sort((a, b) => (b.rel > 0 ? 1 : 0) - (a.rel > 0 ? 1 : 0) || a.rel - b.rel); return L.length ? `<div class="bk-s"><b>미궁에서 본 남들</b>${L.slice(0, 4).map(x => `<span class="${x.rel > 0 ? 'soon' : ''}">${esc(x.nm)}${x.n > 1 ? ` ${x.n}조` : ''}${x.zn ? ` · ${esc(x.zn)}` : ''}${x.h ? ' · <b class="hunt">사냥</b>' : ''} · ${esc(ITEMS[x.f].name)} ${fmt(x.q)}개쯤${x.mt ? ` · 전리품 ${fmt(x.mt)}점쯤` : ''} · ${relTxt(x.rel)}</span>`).join('')}${L.length > 4 ? `<span>외 ${L.length - 4}</span>` : ''}</div>` : ''; };
 // 곧 풀릴 물량: 우리 조가 본, 아직 돌아오지 않은 경쟁 조 (돌아오는 날 그 층 채집품을 바로 판다)
 export const comingOf = (W: World) => { const now = dayAbs(W); return (W.seen || []).filter(x => x.d > now).sort((a, b) => a.d - b.d); };
 // 돌아온 조의 성과급 자리: 그 조의 장비 올리기 (편성표의 같은 조가 같은 조(남는 단위)를 쓰고 있을 때)

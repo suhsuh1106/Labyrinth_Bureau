@@ -1527,6 +1527,10 @@ body.dragging, body.dragging * { cursor: grabbing !important; user-select: none;
 .bs-sheet .calc span { display: block; font-size: 11px; color: var(--bs-dim); }
 .bs-sheet .calc b { font: 600 15px var(--f-num); }
 .bs-sheet .calc .big b { color: var(--bs-brass); }
+.bs-sheet .bag-w { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin: 0; padding: 6px 10px; border: 1px solid var(--bs-brass); border-radius: 6px; font-size: 12px; color: var(--bs-dim); }
+.bs-sheet .bag-w b { color: var(--bs-brass); font-size: 13px; }
+/* 계획보다 일찍 돌아온 조: 까닭을 눈에 띄게 (버그가 아니라 짐 가득 · 후퇴 · 목표) */
+.early { font-weight: 600; color: var(--warn); }
 .bs-sheet .zpick { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; }
 .bs-sheet .acts { display: grid; grid-template-columns: 1fr 2fr; gap: 8px; position: sticky; bottom: -14px; background: var(--bs-desk-2); padding: 8px 0 2px; }
 .bs-sheet .acts button { border-radius: 8px; padding: 12px; cursor: pointer; font-weight: 700; border: 1px solid var(--bs-line); background: var(--bs-desk-3); color: var(--bs-chalk); }

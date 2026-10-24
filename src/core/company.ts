@@ -30,14 +30,18 @@ export const CO = {
   // 교회 성수: 우리가 한 달에 바로 살 수 있는 병 수 (교회와 사이가 좋으면 더). 횃불 기본 채비 (층마다 조당)
   CHURCH_US: 60, TORCH0: [1, 2, 3, 3, 4],
   // SORTIE: 경쟁 용병단 · 계약 조가 조마다 내는 채비비 (우리 조는 식량 · 정비 도구를 사서 들고 간다)
+  ELITE_SUCC: 0.1,   // 소수 정예(깊은 층 성향)의 조원 성공 덤
+  // 모르는 구역의 위험 (구역 이해도 0단계면 다, 5단계면 없음): 성공 −UNK_SUCC, 부상 주사위 ×(1 + UNK_RISK), 채집 지점에서 못 해낸 사람도 부상 주사위(층 하루 몫 × UNK_GATHER)
+  UNK_SUCC: 0.1, UNK_RISK: 1.5, UNK_GATHER: 0.6,
+  CROWD_MIN: 12, CROWD_MAX: 24,   // 군소 용병대 인원 (3 ~ 6조)
   PARTY: 4, WAGE: 30, SORTIE: 50, POTION0: 35, POTION_Q0: 500,
   // 채비 (우리 조): 식량은 하루 한 사람에 하나(FOOD_PRICE, 짐 한 칸에 FOOD_SLOT개, 기본 FOOD_DAYS일치). 굶은 사람은 그날 성공 −HUNGER_PEN.
   // 정비 도구(MEND_PRICE, 한 칸에 하나, 층마다 기본 MEND0개)는 진 날 하나 써서 무기를 고친다. 없으면 무뎌져 그 뒤로 날마다 성공 −MEND_PEN씩 쌓인다
   // 해고 위로금 (달치 급여)
   FIRE_PAY: 1,
-  FOOD_PRICE: 1, FOOD_SLOT: 8, FOOD_DAYS: 6, HUNGER_PEN: 0.1, MEND_PRICE: 8, MEND_PEN: 0.05, MEND0: [0, 1, 1, 2, 2],
+  FOOD_PRICE: 2, FOOD_SLOT: 8, FOOD_DAYS: 6, HUNGER_PEN: 0.1, MEND_PRICE: 8, MEND_PEN: 0.05, MEND0: [0, 1, 1, 2, 2],
   // 횃불: 창고 품목 (상하지 않는다). 경쟁 용병단은 조마다 그 층 TAX.TORCH개씩 들고 가고, 모자라면 그 조는 위기 ×DARK_CRISIS, 그려 오는 지도 ×DARK_MAP
-  TORCH_PRICE: 3, RUSH: 1.5,   // RUSH: 달 첫날이 지나 사는 보급(긴급 구매)은 정가의 이만큼 배
+  TORCH_PRICE: 6, RUSH: 1.5,   // RUSH: 달 첫날이 지나 사는 보급(긴급 구매)은 정가의 이만큼 배
   DARK_CRISIS: 1.3, DARK_MAP: 0.5,
   // 우리 조의 탐사 (다키스트 던전처럼): 층마다 TRIP_DAYS일, SEGS구간(아래 구간과 임무). 첫 구간에 횃불 하나를 켜고, 그 뒤로는 구간마다 확률로 하나를 더 태운다
   // (날마다 TORCH_F[층] + TORCH_UND × (모르는 만큼 × UND_F)를 구간에 나눈 것, segRate). 태울 횃불이 없으면 돌아서고, 남은 사람마다 DARK_MIN + 진 날 위기 × DARK_BACK의 확률로 어둠 속 위기를 맞는다.
@@ -87,7 +91,7 @@ export const CO = {
   // 사망을 더 줄인다 (모두 교회 포션이면 한 병이 1+HOLY병 몫)
   POTION_C0: 32, CHURCH_CAP: 360, HOLY: 0.25,
   // 담합: 포션 수요와 사망이 쌓이면 긴장이 차고, 넘치면 상단과 교회가 함께 값을 올린다. 교회 후원이 쌓이면 교회가 빠진다
-  CARTEL_MARKUP: 1.4, CARTEL_MONTHS: 5, CARTEL_COOL: 8, BREAK_DONATION: 3000, TENSION_Q: 110,
+  CARTEL_MARKUP: 1.4, CARTEL_MONTHS: 5, CARTEL_COOL: 8, BREAK_DONATION: 3000, TENSION_Q: 55,
   // 신입 계약금 (한 명당). 지원자보다 찾는 사람이 많으면 모자란 비율 × RECRUIT_UP만큼 오른다 (RECRUIT_MAX배까지)
   RECRUIT: 80, RECRUIT_UP: 0.5, RECRUIT_MAX: 2,
   // 숙소: 인원은 침상 수를 넘지 못한다. 처음엔 인원보다 BED_SPARE개 많다. 증축하면 침상 DORM_ADD개가 다음 달에 생기고(한 번에 한 채),
@@ -152,7 +156,7 @@ export const CO = {
   // 수습은 훈련한 달마다 한 번 겪은 것으로 센다. 나가서 해내면 +SK_WIN · 못 해내도 +SK_TRY인 것과 견준다
   DRILL_SK: [1, 2, 3, 4.5],
   // 관리비 (경쟁 용병단): 급여 × (1 + OH_K × 인원²). 머릿수가 늘수록 가파르게 붙는다 (16명 ×1.1, 32명 ×1.4, 40명 ×1.64, 50명 ×2)
-  OH_K: 0.0004,
+  OH_K: 0.00015,
   // 행정력 (우리): 부하 = 단원 · 서기 1명마다 A_MEMBER + 이번 달 탐사 한 번마다 A_TRIP + 보낸 층 하나마다 A_FLOOR + 창고 품목 하나마다 A_KIND · 창고 A_UNITS개마다 1
   //   + 건물 한 단계마다 A_BLD + 정보망 한 단계마다 A_INTEL + 맡은 탐사 계획서마다 A_JOB.
   // 역량 = 행정관 A_BASE + 서기마다 A_CLERK + 기록실 단계마다 A_REC. 여력 = 부하 ÷ 역량이 A_FREE를 넘으면 관리비 = 급여 × A_K × (넘은 만큼)²,
@@ -171,7 +175,7 @@ export const CO = {
   // 명성: 성공한 조마다 그 층의 FAME_F, 사망마다 -FAME_DEATH. 매달 FAME_FADE를 곱한다
   FAME_F: [1, 2, 3, 5, 8], FAME_DEATH: 1, FAME_FADE: 0.9, FAME_K: 50,
   // 시작 금고는 규모^CASH_EXP에 비례 (큰 조직의 관리비는 OH_K)
-  CASH_EXP: 1,
+  CASH_EXP: 0.5,
   // 몸집과 질: 훈련과 탐사 숙련은 사람 머릿수로 나뉜다. 같은 훈련비·같은 성공이라도 SIZE_REF명보다 크면 한 사람에게 덜 돌아간다.
   // 큰 용병단은 조를 많이 보내고 건물 값을 여럿이 나눠 내지만, 한 조 한 조는 무뎌진다. 작은 용병단은 그 반대다
   SIZE_REF: 36,
@@ -180,11 +184,13 @@ export const CO = {
   TRAIN_MAX: 0.2, TRAIN_K: 20,
   // 미궁의 압력: 모두가 꺼낸 전리품 값(기준 시세)이 PRESS_DIV마다 1씩 차고 매달 PRESS_DECAY만큼 빠진다.
   // ANOM_AT마다 이상 징후가 돌고, OVER를 넘으면 달마다 OVER_CHANCE로 범람한다. 범람하면 1·2층에 있던 파티가 당하고 두 층이 쑥대밭이 된다
-  PRESS_DIV: 6000, PRESS_DECAY: 0.03, ANOM_AT: [55, 75, 90], OVER: 100, OVER_CHANCE: 0.4, OVER_KILL: 0.2, OVER_POOL: 0.4, OVER_LEFT: 0.35,
+  // DEPTHS · CARTEL: 미궁의 압력 · 범람 · 근원(봉인 · 채굴장)과 상단 · 교회의 포션 담합. 탐사 · 보급 · 채집과 사냥의 뼈대를 먼저 보려고 꺼 둔다 (2026-10-24)
+  DEPTHS: false, CARTEL: false,
+  PRESS_DIV: 2200, PRESS_DECAY: 0.03, ANOM_AT: [55, 75, 90], OVER: 100, OVER_CHANCE: 0.4, OVER_KILL: 0.2, OVER_POOL: 0.4, OVER_LEFT: 0.35,
   // 근원: 약점을 갖춘 우리 직영 파티가 그 층에서 ROOT_WINS번 성공하면, 약점대로 들어간 달에 근원을 찾는다.
   // 기금이 ROOT_COST에 차면 봉인이나 채굴장이 된다. 봉인: 교회가 같은 돈을 보태고(SEAL_MATCH), 압력이 SEAL_DRAIN 빠지고,
   // 그 층 압력 ×SEAL_PRESS, 층 크기 ×SEAL_MAX, 길을 아는 우리 파티 성공률 +SEAL_SUCC. 채굴장: 우리 조당 채집 +MINE_TAKE, 그 층 압력 ×MINE_PRESS
-  ROOT_WINS: 12, ROOT_COST: 5000, SEAL_PRESS: 0.3, SEAL_MAX: 0.9, SEAL_SUCC: 0.15, SEAL_MATCH: 1, SEAL_DRAIN: 25,
+  ROOT_WINS: 12, ROOT_COST: 2500, SEAL_PRESS: 0.3, SEAL_MAX: 0.9, SEAL_SUCC: 0.15, SEAL_MATCH: 1, SEAL_DRAIN: 25,
   MINE_TAKE: 20, MINE_PRESS: 2.5,
   // 전리품 비율: 성공 한 번에 캐 오는 양 = 층의 기본 양 × (1 + 탐사 숙련도 + 갈무리장 + 채집 장비)
   // 숙련도는 그 층에서 쌓은 성공 수에서 나오고 갈수록 덜 오른다: EXP_MAX × 성공 / (성공 + EXP_K)
@@ -328,11 +334,11 @@ const LEARN_AT: Record<string, number> = { deep: 5, steady: 6, shallow: 6, secon
 // harm: 포션을 들고 위기를 맞았을 때 죽는 몫 (나머지는 다친다). 깊은 층은 포션으로 다 막지 못한다
 export type Floor = { name: string; max: number; take: number; base: number; risk: number; cap: number; harm: number };
 export const FLOORS: Floor[] = [
-  { name: '1층', max: 2400, take: 50, base: 0.86, risk: 0.04, cap: 90, harm: 0.08 },
-  { name: '2층', max: 1200, take: 40, base: 0.70, risk: 0.13, cap: 35, harm: 0.1 },
-  { name: '3층', max: 700, take: 30, base: 0.55, risk: 0.24, cap: 18, harm: 0.18 },
-  { name: '4층', max: 360, take: 30, base: 0.42, risk: 0.36, cap: 10, harm: 0.3 },
-  { name: '5층', max: 160, take: 20, base: 0.28, risk: 0.55, cap: 6, harm: 0.5 },
+  { name: '1층', max: 1200, take: 50, base: 0.86, risk: 0.04, cap: 90, harm: 0.08 },
+  { name: '2층', max: 600, take: 40, base: 0.70, risk: 0.13, cap: 35, harm: 0.1 },
+  { name: '3층', max: 350, take: 30, base: 0.55, risk: 0.24, cap: 18, harm: 0.18 },
+  { name: '4층', max: 180, take: 30, base: 0.42, risk: 0.36, cap: 10, harm: 0.3 },
+  { name: '5층', max: 80, take: 20, base: 0.28, risk: 0.55, cap: 6, harm: 0.5 },
 ];
 // 층마다 채집품(기본 소재) 한 가지: 채집 지점에서 캔다. 판마다 같고 변하지 않는다(층에 다시 차는 양도 정해져 있다). P0는 수요(D)만큼 팔렸을 때의 시세다.
 // (코드의 loot · ITEMS는 채집품이다. 몬스터에게서 갈무리하는 전리품(사냥 소재)은 mat · monsters.ts)
@@ -344,11 +350,11 @@ export const FLOORS: Floor[] = [
 // 모두가 1층에 몰려도 값이 무너지지 않는다. 천장은 그대로라 1층이 나중에 더 좋아지지는 않는다
 export type Item = { name: string; buyer: string; P0: number; D: number; el: number; lo: number; hi: number };
 export const ITEMS: Item[] = [
-  { name: '황동석', buyer: '상단 경매장 · 대장간', P0: 9.6, D: 850, el: 0.35, lo: 1, hi: 1.15 },
-  { name: '철광석', buyer: '대장간 · 상단', P0: 23, D: 550, el: 0.45, lo: 0.75, hi: 1.25 },
-  { name: '저급 마석', buyer: '마법학교 · 상단', P0: 34, D: 300, el: 0.5, lo: 0.7, hi: 1.3 },
-  { name: '고급 마석', buyer: '마법학교', P0: 56, D: 150, el: 0.55, lo: 0.65, hi: 1.35 },
-  { name: '미스릴 원석', buyer: '수도 · 마법학교', P0: 120, D: 60, el: 0.6, lo: 0.6, hi: 1.4 },
+  { name: '황동석', buyer: '상단 경매장 · 대장간', P0: 9.6, D: 425, el: 0.35, lo: 1, hi: 1.15 },
+  { name: '철광석', buyer: '대장간 · 상단', P0: 23, D: 275, el: 0.45, lo: 0.75, hi: 1.25 },
+  { name: '저급 마석', buyer: '마법학교 · 상단', P0: 34, D: 150, el: 0.5, lo: 0.7, hi: 1.3 },
+  { name: '고급 마석', buyer: '마법학교', P0: 56, D: 75, el: 0.55, lo: 0.65, hi: 1.35 },
+  { name: '미스릴 원석', buyer: '수도 · 마법학교', P0: 120, D: 30, el: 0.6, lo: 0.6, hi: 1.4 },
 ];
 const NF = FLOORS.length;
 export const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
@@ -374,6 +380,7 @@ export type Company = {
   sq?: Squad[]; sqSeq?: number;   // 우리 조(남는 단위): 조장 · 장비 단계 · 단계마다 낸 값
   losses: number;
   know: number[]; learned: boolean[];   // 층마다 드나든 달 수와 약점을 깨쳤는지 (경쟁 용병단)
+  zk?: Record<number, number>;   // 구역마다 일한 인일 (경쟁 용병단의 구역 이해도 경험치, 우리의 Zone.xp와 같은 눈금)
   relM?: number; relC?: number; relL?: number;   // relL: 영주청 회계관의 신뢰 (우리만, 밀고로 오르내림)
   grudge?: number;   // 우리의 헛된 밀고에 앙심을 품고 우리를 일러바칠 달 (경쟁 용병단)
   relMx?: undefined;   // 상단·교회와의 사이 (0~100, 50이 보통)
@@ -445,14 +452,14 @@ export type Probe = { m: number; k: 'mkt' | 'riv'; id?: string; cost: number; de
 export const ROSTER: { id: string; name: string; style: Style; size: number }[] = [
   // 미궁이 막 열려 모두 작게 시작한다. size는 처음 들어온 인원이다
   { id: 'us', name: '회색늑대 용병단', style: 'player', size: 7 },
-  { id: 'red', name: '붉은 깃발단', style: 'volume', size: 28 },
-  { id: 'holy', name: '성흔 기사단', style: 'steady', size: 24 },
+  // 경쟁 용병단 다섯: 조 하나의 벌이 · 짐은 우리와 같고 머릿수로 앞선다. 층 다섯 · 층마다 구역 여덟이라 길드마다 조 4 ~ 12개(평균 8개 안팎).
+  // 붉은 깃발단은 다수(8조로 시작해 12조까지), 철모회는 소수 정예(4조 → 6조). 군소 용병대는 3 ~ 6조로 층을 붐비게만 한다 (2026-10-24)
+  { id: 'red', name: '붉은 깃발단', style: 'volume', size: 32 },
+  { id: 'holy', name: '성흔 기사단', style: 'steady', size: 28 },
   { id: 'iron', name: '철모회', style: 'deep', size: 16 },
-  { id: 'crow', name: '까마귀단', style: 'chaser', size: 16 },
-  { id: 'silver', name: '은빛 창', style: 'hoarder', size: 16 },
-  { id: 'fox', name: '여우굴 패', style: 'shallow', size: 8 },
-  { id: 'bridge', name: '돌다리 형제단', style: 'second', size: 8 },
-  { id: 'free', name: '군소 용병대', style: 'crowd', size: 30 },
+  { id: 'crow', name: '까마귀단', style: 'chaser', size: 24 },
+  { id: 'silver', name: '은빛 창', style: 'hoarder', size: 20 },
+  { id: 'free', name: '군소 용병대', style: 'crowd', size: 12 },
 ];
 
 export type CoResult = { tip?: { i: number; nm: string; aud: boolean; fine: number; dirty: boolean; d: number }; tipBack?: string[];
@@ -480,9 +487,10 @@ export type CoResult = { tip?: { i: number; nm: string; aud: boolean; fine: numb
 // sn · sw · se: 조원마다 나선 구간 · 해낸 구간 · 해낼 기대 (nm과 같은 순서)
 // 미궁에서 본 남들: 경쟁 용병단 자리 · 이름 · 층 · 돌아오는 날(판 전체) · 지고 나올 채집품 짐작 · 조 수 · 우리 조가 돌아온 날과의 차(+면 그 뒤에 돌아온다)
 // z: 본 구역 (경쟁 조가 굴린 구역, 판의 남의 깃발)
-export type Seen = { i: number; nm: string; f: number; d: number; q: number; n: number; rel: number; z?: number };
-// z: 구역 · zx: 그 구역 이해도 경험치 (다녀오기 전 · 뒤) · way · wk: 한쪽 길 · 일한 날 · goal: 목표량 · burn: 검문소가 태운 채비 (포션 · 보급 · 수리 도구 · 값)
-export type Ours = { zn?: string; z?: number; zx?: [number, number]; way?: number; wk?: number; goal?: number; burn?: { pot: number; food: number; mend: number; v: number }; seen?: Seen[]; sn?: number[]; sw?: number[]; se?: number[]; f: number; keys: string[]; ok: boolean; d: number; mats: [string, number][]; first: string[]; kit: number; g: string; crisis?: number; pots?: number; n?: number; k?: number; hurt?: number; days?: Day[]; trip?: Trip; dead?: { n: string; day: number; pot: boolean; tk?: number; ex?: number; mt?: number }[]; cls?: string[]; potC?: number; t?: number; nm?: string[]; ld?: number; d0?: number; d1?: number; tk?: number[]; mi?: number[]; got?: number; mission?: Mission; mp?: number };   // got: 캐 와 창고에 넣은 채집품 · mission: 임무(없으면 채집) · mp: 그려 온 지도(%p)   // mi: 간 사람들의 단원 번호   // tk: 간 사람들의 실력 단계 (보낼 때). 죽은 사람의 tk · ex · mt: 실력 단계 · 층 경험 합 · 조직력 짝 수 (잃은 자산)
+// h: 그중 사냥 조(사냥터 · 계단), mt: 지고 나올 전리품 짐작(점), zn: 본 구역 이름
+export type Seen = { i: number; nm: string; f: number; d: number; q: number; n: number; rel: number; z?: number; zn?: string; h?: number; mt?: number };
+// z: 구역 · zx: 그 구역 이해도 경험치 (다녀오기 전 · 뒤) · way · wk · pw: 한쪽 길 · 일한 날 · 계획한 일할 날 · goal: 목표량 · burn: 검문소가 태운 채비 (포션 · 보급 · 수리 도구 · 값)
+export type Ours = { pw?: number; zn?: string; z?: number; zx?: [number, number]; way?: number; wk?: number; goal?: number; burn?: { pot: number; food: number; mend: number; v: number }; seen?: Seen[]; sn?: number[]; sw?: number[]; se?: number[]; f: number; keys: string[]; ok: boolean; d: number; mats: [string, number][]; first: string[]; kit: number; g: string; crisis?: number; pots?: number; n?: number; k?: number; hurt?: number; days?: Day[]; trip?: Trip; dead?: { n: string; day: number; pot: boolean; tk?: number; ex?: number; mt?: number }[]; cls?: string[]; potC?: number; t?: number; nm?: string[]; ld?: number; d0?: number; d1?: number; tk?: number[]; mi?: number[]; got?: number; mission?: Mission; mp?: number };   // got: 캐 와 창고에 넣은 채집품 · mission: 임무(없으면 채집) · mp: 그려 온 지도(%p)   // mi: 간 사람들의 단원 번호   // tk: 간 사람들의 실력 단계 (보낼 때). 죽은 사람의 tk · ex · mt: 실력 단계 · 층 경험 합 · 조직력 짝 수 (잃은 자산)
 export type MonthResult = {
   month: number; res: CoResult[]; plans: Plan[]; Q: number[]; price: number[]; potion: number; potQ: number; potionC: number; cartel: boolean;
   floors: { before: number; taken: number; crowd: number; cut?: number }[]; perParty: number[]; opened: number | null; rank: string[];
@@ -496,7 +504,7 @@ export type MonthResult = {
   map0?: number[]; mapBy?: Record<number, number>;   // 우리 지도: 이번 달 전 완성도, 단원마다 보탠 몫
 };
 // 수입 예측: 전리품과 소재 판매 수입의 분포 (약점 · 역효과는 넣지 않는다. 플레이어가 아는 것만으로 셈한다)
-export type Forecast = { items?: number; mean: number; p10: number; p50: number; p90: number; bins: number[]; step: number; dead: number; hurt: number; loot?: number; crisis?: number; torch?: number; food?: number; mend?: number };   // food · mend: 먹을 식량 · 쓸 정비 도구 기대값, loot: 그중 전리품 기대값, crisis: 우리 조가 맞을 위기 기대값, torch: 태울 횃불 기대값
+export type Forecast = { bag?: number; items?: number; mean: number; p10: number; p50: number; p90: number; bins: number[]; step: number; dead: number; hurt: number; loot?: number; crisis?: number; torch?: number; food?: number; mend?: number };   // bag: 짐 칸이 찰 기대 일한 날 (구역 조 하나를 셀 때), food · mend: 먹을 식량 · 쓸 정비 도구 기대값, loot: 그중 전리품 기대값, crisis: 우리 조가 맞을 위기 기대값, torch: 태울 횃불 기대값
 // 근원: 찾은 달(0이면 아직), 봉인·채굴장 기금, 다 모은 쪽과 그 달
 export type Root = { found: number; seal: number; mine: number; done: '' | 'seal' | 'mine'; at: number };
 // 현장 기록: 우리 파티만 가져오는 정보다. 증언(notes)과, 어떤 직업·장비를 갖춘 파티가 몇 번 나가 몇 번 성공했는지(obs, '*'는 그 층 전체)
@@ -1038,6 +1046,8 @@ export const zoneW = (z: Zone) => (lvOf(z) >= 1 ? z.w : ZONE.KIND_W.mix);
 // 우리가 아는 채집 몫 · 위험 배율 (이해도만큼의 범위, 가운데 값을 셈에 쓴다). 비밀(5단계)을 알면 덕을 본다
 export const richEst = (z: Zone) => estOf(z, z.rich, 1);
 export const riskEst = (z: Zone) => estOf(z, z.risk, 1);
+// 그 구역을 모르는 만큼 (이해도 0단계 1 ~ 5단계 0)
+export const unkOf = (z: Zone) => 1 - Math.min(5, lvOf(z)) / 5;
 export const seamOf = (z: Zone) => (z.secret === 'seam' && knowSecret(z) ? 1.5 : 1);
 export const footOf = (z: Zone) => (z.secret === 'footing' && knowSecret(z) ? 0.5 : 1);
 // 층 매장량(W.pool)과 구역 남은 양을 맞춘다: 층이 다시 차면 빈 만큼(끝 − 남은 양)대로, 줄면 남은 양대로 나눈다
@@ -1054,17 +1064,10 @@ export function syncZones(W: World) {
 // (crowd: 이미 그 구역에 정한 우리 조 수. 몰리면 덜 캔다고 본다)
 export function bestZone(W: World, f: number, days = CO.TRIP_DAYS[f], crowd: Record<number, number> = {}) {
   const Z = zonesOn(W.zones, f).filter(z => zoneKnown(W, z)); if (!Z.length) return undefined;
-  const sc = (z: Zone) => zoneW(z)[0] * richEst(z).mid * seamOf(z) * (z.seen ? Math.min(1, 0.3 + z.seen.v / Math.max(1, z.max)) : 1) * days / (days + 2 * zoneWay(W, z)) / (1 + 0.5 * (crowd[z.id] || 0));
+  const sc = (z: Zone) => zoneW(z)[0] * richEst(z).mid * seamOf(z) * (1 - CO.UNK_SUCC * unkOf(z)) / (1 + CO.UNK_RISK * unkOf(z) * FLOORS[f].risk * 4) * (z.seen ? Math.min(1, 0.3 + z.seen.v / Math.max(1, z.max)) : 1) * days / (days + 2 * zoneWay(W, z)) / (1 + 0.5 * (crowd[z.id] || 0));
   return Z.reduce((b, z) => (sc(z) > sc(b) ? z : b)).id;
 }
 // 경쟁 용병단이 고르는 구역: 남은 양 × 채집 무게 × 채집 몫대로 (숨은 성질은 모르니 평균적인 채비로 다닌다)
-function rivalZone(W: World, f: number) {
-  const Z = zonesOn(W.zones, f); if (!Z.length) return undefined;
-  const ws = Z.map(z => Math.max(0, z.res) * z.w[0] * z.rich / (1 + zoneWay(W, z)));
-  let x = rnd() * ws.reduce((a, b) => a + b, 0);
-  for (let i = 0; i < Z.length; i++) { x -= ws[i]; if (x <= 0) return Z[i].id; }
-  return Z[Z.length - 1].id;
-}
 // 일할 날 하루에 캐 올 채집품 (우리가 아는 산출의 범위: lo · mid · hi)
 export function zoneRate(W: World, P: Plan, T: Team) {
   const z = zoneAt(W, T.z); if (!z) return { lo: 0, mid: 0, hi: 0 };
@@ -1073,6 +1076,11 @@ export function zoneRate(W: World, P: Plan, T: Team) {
   return { lo: mid * (1 - w), mid, hi: mid * (1 + w) };
 }
 // 목표량으로 보내면: 보수적인 산출(범위의 아래)로 날을 잡는다
+// 짐이 찰 날: 조 하나가 그 구역에서 일하면 몇째 날쯤 짐 칸이 차나 (기대값, 채비를 뺀 빈 칸 ÷ 하루에 실을 칸). 차면 그날 돌아선다
+export function bagDays(W: World, P: Plan, T: Team) {
+  if (!zoneAt(W, T.z)) return Infinity;
+  return forecast(W, { ...P, teams: [T], parties: FLOORS.map((_, g) => (g === T.f ? 1 : 0)) }, true).bag ?? Infinity;
+}
 export const goalDays = (W: World, P: Plan, T: Team) => clamp(Math.ceil((T.goal || 0) / Math.max(0.5, zoneRate(W, P, T).lo)), 1, CO.WORK_MAX);
 // 사냥 임무가 노릴 몬스터 (옛 지정 탐사): 그 층에 사는 몬스터이고 도감 이해도가 TARGET_AT 이상이면 노릴 수 있다
 export const canTarget = (W: World, f: number, name: string) => floorMons(W, f).some(M => M.name === name) && ((W.dex || {})[name]?.u || 0) >= DEX.TARGET_AT;
@@ -1181,8 +1189,8 @@ const STYLE: Record<Style, { prior: (W: World, f: number) => number; resp: numbe
 // 성향마다 몸집을 불리는 정도: build는 증축할 때 금고가 증축 값의 몇 배여야 하는지(0이면 짓지 않는다), cap은 그 이상 짓지 않는 인원
 // margin은 조 하나를 더 보냈을 때 남아야 하는 돈
 const GROW: Record<Style, { build: number; cap: number; margin: number }> = {
-  volume: { build: 1.5, cap: 140, margin: 60 }, steady: { build: 2.5, cap: 100, margin: 120 }, deep: { build: 3.5, cap: 48, margin: 150 }, chaser: { build: 2, cap: 80, margin: 100 },
-  hoarder: { build: 3, cap: 64, margin: 120 }, shallow: { build: 3, cap: 20, margin: 120 }, second: { build: 3, cap: 16, margin: 120 }, crowd: { build: 0, cap: 0, margin: 0 }, player: { build: 0, cap: 0, margin: 0 },
+  volume: { build: 1.5, cap: 48, margin: 30 }, steady: { build: 2.5, cap: 40, margin: 36 }, deep: { build: 3.5, cap: 24, margin: 45 }, chaser: { build: 2, cap: 36, margin: 30 },
+  hoarder: { build: 3, cap: 32, margin: 36 }, shallow: { build: 3, cap: 20, margin: 36 }, second: { build: 3, cap: 16, margin: 36 }, crowd: { build: 0, cap: 0, margin: 0 }, player: { build: 0, cap: 0, margin: 0 },
 };
 // 조 하나를 더 보냈을 때 남을 돈 예측: 지난달 그 용병단이 보낸 층들의 조당 벌이(평균) − 출정비와 포션 − 늘어날 급여
 export function partyMargin(W: World, i: number) {
@@ -1464,23 +1472,24 @@ function tripCtx(W: World, s: Sortie) {
   // 구역: 사건의 무게 · 만날 몬스터의 무게는 구역이 정하고(참값), 채집 몫 · 부상 주사위는 구역 배율만큼. 오가는 날은 먹기만 한다
   const Z = zoneAt(W, s.z), work = s.work || CO.TRIP_DAYS[f];
   const sd = segDay(f), sk = segK(f), MW = Z ? Z.w : missionW(mission, X.stealth), EW = Z ? Z.mw : wts;
-  const zRich = Z ? Z.rich * seamOf(Z) : 1, zRisk = Z ? Z.risk * footOf(Z) : 1;
+  const unk = Z ? unkOf(Z) : 0, uS = CO.UNK_SUCC * unk;   // 모르는 구역일수록 덜 해내고 더 다친다
+  const zRich = Z ? Z.rich * seamOf(Z) : 1, zRisk = Z ? Z.risk * footOf(Z) * (1 + CO.UNK_RISK * unk) : 1;
   const goalL = s.goal ? s.goal * CO.DAYS * CO.ENC_DAY / (CO.FIND * U.loot * takeOf(W, c, f) * 0.925) : undefined;
   const C: TripCfg = {
     size, segs: Z ? [...Array(s.way || 0).fill(0), ...segsOf(Math.round(work * CO.SEGS[f] / CO.TRIP_DAYS[f]), work)] : segsOf(CO.SEGS[f], CO.TRIP_DAYS[f]), slots, torch: kit.torch, rate: segRate(f, torchRate(f, u)), names: mons.map(M => M.name),
-    ...(Z ? { way: s.way || 0, noTorch: true, ...(goalL ? { goal: goalL } : {}) } : {}),
+    ...(Z ? { way: s.way || 0, noTorch: true, gatherDice: true, ...(goalL ? { goal: goalL } : {}) } : {}),
     evs: [{ k: 'g', w: MW[0] }, ...EW.map((w, j) => ({ k: 'f' as const, j, w: w * MW[1] * (Z ? X.stealth : 1) })), { k: 't', w: MW[2] }], ambush: Math.min(0.9, CO.AMBUSH * X.stealth),
     lootSlot: CO.LOOT_SLOT[f], matSlot: CO.MAT_SLOT[f], trailSlot: CO.TRAIL_SLOT, darkMin: CO.DARK_MIN, darkBack: CO.DARK_BACK, party: CO.PARTY,
     injPen: CO.INJ_PEN, loseLoot: CO.LOSE_LOOT, pots: () => co.pots,
     food: kit.food, foodSlot: CO.FOOD_SLOT, hungerPen: CO.HUNGER_PEN, tools: kit.mend, toolPen: CO.MEND_PEN,
     // 조우 난이도: 층마다 HARD_F, 주 몬스터는 HARD_MAIN만큼 더 해내기 어렵다
-    pm: (m, j) => clamp(ppBase + vs[j] - CO.HARD_F[f] - (j ? 0 : CO.HARD_MAIN) + MM.pp[m] + aptB(who[m], 'hunt'), 0.05, 0.97),
+    pm: (m, j) => clamp(ppBase + vs[j] - CO.HARD_F[f] - (j ? 0 : CO.HARD_MAIN) + MM.pp[m] + aptB(who[m], 'hunt') - uS, 0.05, 0.97),
     // 채집 지점 · 흔적: 몬스터의 약점 · 역효과 없이 층의 난이도만
-    gp: m => clamp(ppBase - CO.HARD_F[f] + CO.GATHER_EASE + MM.pp[m] + aptB(who[m], 'gather') + X.easy, 0.05, 0.97),
-    tp: m => clamp(ppBase - CO.HARD_F[f] + CO.TRAIL_EASE + MM.pp[m] + aptB(who[m], 'scout') + X.easy, 0.05, 0.97),
+    gp: m => clamp(ppBase - CO.HARD_F[f] + CO.GATHER_EASE + MM.pp[m] + aptB(who[m], 'gather') + X.easy - uS, 0.05, 0.97),
+    tp: m => clamp(ppBase - CO.HARD_F[f] + CO.TRAIL_EASE + MM.pp[m] + aptB(who[m], 'scout') + X.easy - uS, 0.05, 0.97),
     hid: m => MM.pp[m] - MK.pp[m],   // (실제 실력 단계와 등급의 차 + 숨은 기질: 행정관이 모르는 몫)
     // 부상 주사위: 구간 하나는 그 층 하루의 sd 몫 (흔적은 TRAIL_INJ배, 어둠 속 귀환은 따로)
-    injP: (m, j) => { const p0 = CO.INJ_BASE + CO.INJ_K * F.risk; return Math.min(0.9, (j === -1 ? CO.DARK_MIN + p0 * CO.DARK_BACK : p0 * sd * zRisk * (j === -2 ? CO.TRAIL_INJ : 1)) * (j >= 0 && !S.lead && classBad(mons[j].bad, who[m].c, keys) ? (badSure(Dx[j]) === mons[j].bad ? CO.BAD_INJ_KNOWN : CO.BAD_INJ) : 1) * MM.cr[m] * CO.INJ_TIER[tierOf(who[m])] * U.crisis * X.inj * (j >= 0 && j === tg && keySure(Dx[j]) ? DEX.KEY_CRISIS : 1)); },
+    injP: (m, j) => { const p0 = CO.INJ_BASE + CO.INJ_K * F.risk; return Math.min(0.9, (j === -1 ? CO.DARK_MIN + p0 * CO.DARK_BACK : p0 * sd * zRisk * (j === -2 ? CO.TRAIL_INJ : j === -3 ? CO.UNK_GATHER * unk : 1)) * (j >= 0 && !S.lead && classBad(mons[j].bad, who[m].c, keys) ? (badSure(Dx[j]) === mons[j].bad ? CO.BAD_INJ_KNOWN : CO.BAD_INJ) : 1) * MM.cr[m] * CO.INJ_TIER[tierOf(who[m])] * U.crisis * X.inj * (j >= 0 && j === tg && keySure(Dx[j]) ? DEX.KEY_CRISIS : 1)); },
     hurt: m => { hurtOnce(m); if (!MM.medic && CO.INJ_REST && !co.hurtIds.includes(who[m].id)) co.hurtIds.push(who[m].id); },
     // 포션: 성수부터 쓴다. 성수는 HOLY의 확률로 병을 비우지 않고 막는다
     usePot: () => {
@@ -1515,7 +1524,7 @@ function tripCtx(W: World, s: Sortie) {
     meet: (j, up, win, cr, kd, got) => {
       const M = mons[j];
       got.forEach(([m, n]) => { const e = co.got.find(g => g[0] === m); if (e) e[1] += n; else co.got.push([m, n]); });
-      co.meets.push({ j, conds: condKeys(up.map(m => who[m].c), gearOut ? 'g:' + gearOut : ''), win, cr, kd, n: up.length, got: win ? got : [] });
+      co.meets.push({ j, conds: condKeys(up.map(m => who[m].c), gearOut ? 'g:' + gearOut : ''), win, cr, kd, n: up.length, got });   // (진 조우에서 실어 온 것도 얻은 소재로 적는다)
       if (q && !co.ans && M.name === q.mon && up.some(m => who[m].lead)) {
         const x = q.m ? M.mats.find(y => y.n === q.m) : null;
         co.ans = (x ? !!(x.b || []).some(([k]) => k.split('+').includes(q.k)) : q.b ? q.k === M.bad : q.k === M.key) ? 'yes' : 'no';
@@ -1584,7 +1593,8 @@ function takeBack(W: World, s: Sortie) {
   o.meets.forEach(e => {
     const M = mons[e.j], D = dex[M.name] || (dex[M.name] = newDex(W.month));
     dexMeet(D, e.conds, e.win, e.cr, e.kd, e.n, segK(s.f));
-    if (e.win) { dexWin(D, e.conds, M.mats.map(x => x.n), new Set(e.got.map(x => x[0]))); e.got.forEach(([m, n]) => dexGot(D, m, n)); }
+    if (e.win) dexWin(D, e.conds, M.mats.map(x => x.n), new Set(e.got.map(x => x[0])));
+    e.got.forEach(([m, n]) => dexGot(D, m, n));   // (얻은 소재는 진 조우에서 실어 온 것까지)
   });
   // 단장 조사: 단장이 물을 몬스터를 만났으면 답(맞으면 확정, 틀리면 아님), 나갔는데 못 만났으면 'miss'. 한 달에 하나만 받는다
   const q = o.q, done = W.askNow && (W.askNow.ans === 'yes' || W.askNow.ans === 'no');
@@ -1627,7 +1637,7 @@ function takeBack(W: World, s: Sortie) {
   const ld = s.who.findIndex(x => x.lead);
   s.rep = { f: s.f, keys: o.keys, ok: o.ok, d: o.dq, mats: o.mats, first: o.mats.filter(([m]) => !before.has(m)).map(([m]) => m), kit: -1, g: s.kit.gear ? 'g:' + s.kit.gear : '', crisis: o.crisis, pots: o.pu, n: s.m.length, k: o.k, hurt: o.hq,
     days: o.days, trip: o.trip, ...(o.sn ? { sn: o.sn, sw: o.sw, se: o.se } : {}), ...(o.dead.length ? { dead: o.dead.map(x => ({ n: x.n, day: x.day, pot: x.pot, ...lost.get(x.id) })) } : {}), cls: o.cls, potC: s.kit.pots, nm: s.who.map(x => x.n || x.c), mi: [...s.m], tk: s.who.map(tierOf), ld, t: s.t, d0: dayOf(s.d0), d1: dayOf(s.d1), ...(s.got != null ? { got: s.got } : {}), ...(s.mission ? { mission: s.mission } : {}), mp: Math.round(((c.map ? c.map[s.f] : 0) - map0) * 10) / 10,
-    ...(Z ? { z: Z.id, zn: Z.nm, zx, way: s.way || 0, wk: o.trip.wk ?? o.fd, ...(s.goal ? { goal: s.goal } : {}), burn } : {}) };
+    ...(Z ? { z: Z.id, zn: Z.nm, zx, way: s.way || 0, wk: o.trip.wk ?? o.fd, ...(s.work ? { pw: s.work } : {}), ...(s.goal ? { goal: s.goal } : {}), burn } : {}) };
   // 찾는 곳의 소재 기록 (해낸 탐사만)
   if (o.ok && B0) {
     const cs = ['*', ...condsOf(o.keys)];
@@ -1722,7 +1732,7 @@ export type MonthOpen = { m: number; plans: Plan[]; res: CoResult[]; potion: num
   cost: { potion: number; gear: number; torch: number; food: number; mend: number }[]; potNeed: number[]; potC: number[]; potUsed: number[]; potShort: number[];
   map0?: number[];   // 달 첫날의 우리 지도
   mapGain: number[][]; rookDead: number[][]; wins: number[][]; crowd: number[]; pool0: number[]; want: number[]; taken: number[];
-  ev: { d: number; i: number; f: number; u: number; z?: number }[];   // 경쟁 용병단 조 하나: 돌아오는 날(그달 며칠째), 층, 캐 올 몫
+  ev: { d: number; i: number; f: number; u: number; z?: number; h?: 1; mt?: [string, number][] }[];   // 경쟁 용병단 조 하나: 돌아오는 날(그달 며칠째), 층, 캐 올 몫, 구역, 사냥(h), 지고 나올 전리품
   income: number;   // 우리가 이번 달 판 전리품 값 (금고에 이미 들어왔다)
 };
 // 시장 소식: 판 날(판 전체 날 번호), 물품, 양, 판 쪽(용병단 자리), 그날 값이 얼마나 움직였나
@@ -1756,8 +1766,45 @@ function dig(W: World, f: number, want: number, zid?: number) {
 // 성공 한 번에 캐 오는 양: 층의 기본 양 × 전리품 비율(숙련 · 장비) + 거점 + 채굴장 (우리만)
 const takeOf = (W: World, c: Company, f: number, tool = 0) => FLOORS[f].take * lootMul(c, f, tool) + Math.floor(Math.min(CO.BASE_MAX, c.bases[f]) / 2) * CO.BASE_TAKE + (rootOf(W, f).done === 'mine' && c.style === 'player' ? CO.MINE_TAKE : 0);
 
-// 경쟁 조 하나가 탐사 한 번에 지고 나올 수 있는 채집품 (우리 조의 lootK / PARTY 단위): 넷의 짐 칸에서 보급 · 수리 도구 · 횃불 한 칸을 빼고 채집품만 채운 만큼
-export const rivalBag = (f: number) => Math.max(0, CO.PARTY * CO.SLOT_PP - Math.ceil(CO.PARTY * (CO.TRIP_DAYS[f] + 1) / CO.FOOD_SLOT) - CO.MEND0[f] - 1) / CO.LOOT_SLOT[f] / (CO.DAYS * CO.ENC_DAY) * CO.FIND;
+// ---------- 경쟁 조의 탐사: 우리 조와 같은 식 (docs/zones.md) ----------
+// 경쟁 용병단도 구역을 그쪽 이해도(c.zk, 일한 인일)만큼 알고, 그 짐작으로 구역을 고른다. 사냥터 · 계단이면 사냥이다(우리처럼 구역이 임무를 정한다).
+// 탐사 한 번은 그 층 TRIP_DAYS일(오가는 날은 먹기만)이고, 구간마다 채집 지점 · 조우 · 흔적이 구역의 무게대로 나온다:
+// 채집품은 우리 엔진의 채집 몫, 전리품은 우리 엔진의 갈무리(조우 × 몬스터 무게 × 소재 확률 × 해낸 비율 × MAT_ENC × 구간의 날 몫 × HUNT_MAT, 사냥이면 × HUNT_CARE),
+// 지도 기록은 흔적에서 해낸 만큼. 셋이 같은 짐 칸(넷의 SLOT_PP에서 보급 · 수리 도구 · 포션을 뺀 것)을 나눠 쓰고, 넘치면 같은 비율로 두고 온다
+export const seenBy = (c: Company, z: Zone): Zone => ({ ...z, xp: (c.zk && c.zk[z.id]) || 0 });
+const HUNT_LEAN: Record<Style, number> = { volume: 0.8, steady: 1, deep: 1.1, chaser: 1.3, hoarder: 1, shallow: 0.9, second: 1, crowd: 1, player: 1 };
+export const huntZone = (z: Zone) => z.kind === 'den' || z.kind === 'stair';
+// 탐사 한 번의 기대: u는 채집품 몫(우리 조의 lootK / PARTY 단위), mt는 전리품 [이름, 기대 개수], 짐에 넘쳐 두고 온 비율은 이미 뺐다
+export function rivalHaul(W: World, f: number, z: Zone, w: number[], mw: number[], rich: number, did: number, won: boolean, keys: string[], full: number, pots: number) {
+  const days = CO.TRIP_DAYS[f], way = zoneWay(W, z), segs = CO.SEGS[f] * days / (days + 2 * way), sd = segDay(f), care = huntZone(z) ? CO.HUNT_CARE : 1;
+  let u = segs * w[0] * did * segK(f) * CO.GATHER_K * rich / (CO.DAYS * CO.ENC_DAY) * CO.FIND;
+  const enc = segs * w[1], mt: [string, number][] = [];
+  floorMons(W, f).forEach((M, j) => M.mats.forEach(x => {
+    const e = enc * (mw[j] || 0) * matChance(x, keys, full) * did * CO.MAT_ENC * sd * CO.HUNT_MAT * care * (won ? 1 : CO.LOSE_MAT) * (x.k ? (x.k[0] + x.k[1]) / 2 : 1);
+    if (e > 0) mt.push([x.n, e]);
+  }));
+  const trail = segs * w[2] * did * CO.TRAIL_SLOT;
+  const free = Math.max(0, CO.PARTY * CO.SLOT_PP - CO.PARTY * (days + 1) / CO.FOOD_SLOT - CO.MEND0[f] - pots);
+  const need = u * CO.LOOT_SLOT[f] * (CO.DAYS * CO.ENC_DAY) / CO.FIND + mt.reduce((a, [, e]) => a + e, 0) * CO.MAT_SLOT[f] + trail;
+  const cut = need > free ? free / need : 1;
+  u *= cut; mt.forEach(m => { m[1] *= cut; });
+  return { u, mt, cut };
+}
+// 고를 때는 그쪽이 아는 만큼으로: 하는 일(1단계부터), 채집 몫은 그쪽 이해도의 가운데 값, 몬스터 무게는 하는 일을 알면 참값. 값은 지난달 시세 · 소재 평균 시세
+function rivalValue(W: World, c: Company, z: Zone, take: number, keys: string[], full: number, pots: number) {
+  const v = seenBy(c, z), L = lvOf(v), w = L >= 1 ? z.w : ZONE.KIND_W.mix, mw = L >= 1 ? z.mw : CO.ENC_W, rich = richEst(v).mid;
+  const u = unkOf(v), H = rivalHaul(W, z.f, z, w, mw, rich, Math.max(0.1, 0.75 - CO.UNK_SUCC * u), true, keys, full, pots);
+  const left = Math.min(1, 0.3 + z.res / Math.max(1, z.max));
+  return (H.u * take * W.price[z.f] * left + H.mt.reduce((a, [n, e]) => a + e * matRefOf(W, n), 0) * (huntZone(z) && L >= 1 ? HUNT_LEAN[c.style] : 1)) / (1 + CO.UNK_RISK * u * FLOORS[z.f].risk * 4);   // (모르는 곳의 위험을 층 위험만큼 덜 친다)
+}
+// 조 하나가 이달 다닐 구역: 아는 값의 제곱 무게로 (좋은 곳에 몰리되 다 같은 데로 가지는 않는다)
+function rivalPick(W: World, c: Company, f: number, take: number, keys: string[], full: number, pots: number) {
+  const Z = zonesOn(W.zones, f).filter(z => z.res > 0 || huntZone(z)); if (!Z.length) return undefined;
+  const ws = Z.map(z => Math.pow(Math.max(0, rivalValue(W, c, z, take, keys, full, pots)), 2));
+  let x = rnd() * ws.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < Z.length; i++) { x -= ws[i]; if (x <= 0) return Z[i]; }
+  return Z[Z.length - 1];
+}
 export function openMonth(W: World) {
   W.wit = {}; syncZones(W);   // (이달 우리 조가 본 짐: 밀고의 근거)
   // 우리 조 수는 지난달만큼으로 본다 (붐빔 셈에만 쓴다)
@@ -1775,7 +1822,7 @@ export function openMonth(W: World) {
   const potQ = buyM.reduce((a, b) => a + b, 0) + gotC.reduce((a, b) => a + b, 0), K = W.cartel;
   const potion = Math.round(potionPrice(potQ + (L ? L.res[0].potNeed : 0)) * (K ? CO.CARTEL_MARKUP : 1) * potShock(W.month));
   const potionC = Math.round(CO.POTION_C0 * (K ? CO.CARTEL_MARKUP : 1)), pc = W.cos.map((_, i) => churchPrice(W, i));
-  const gearB = W.cos.map((c, i) => (ai(i) ? gearBuy(c, plans[i]) : {})), torchB = W.cos.map((c, i) => (ai(i) ? torchBuy(c, plans[i]) : 0));
+  const gearB = W.cos.map((c, i) => (ai(i) ? gearBuy(c, plans[i]) : {})), torchB = W.cos.map((c, i) => (ai(i) && !W.zones ? torchBuy(c, plans[i]) : 0));   // (구역 탐사엔 횃불을 셈하지 않는다: 우리 조와 같다)
   const potUse = W.cos.map((c, i) => {
     const S = sups[i]; S.pot[0] = (S.pot[0] || 0) + buyM[i]; S.holy[0] = (S.holy[0] || 0) + gotC[i];
     Object.entries(gearB[i]).forEach(([g, n]) => { S.gear[g] = (S.gear[g] || 0) + n; });
@@ -1809,8 +1856,11 @@ export function openMonth(W: World) {
         const pp = clamp(p + U.succ + kw * CO.KEY_BONUS - bw * CO.BAD_PEN - rooks * CO.ROOK_PEN, 0.05, 0.97);
         // 명단이 없는 쪽은 손발 · 실력이 붙는 만큼을 숫자로: 처음 AI_VET0, AI_VET_M달에 걸쳐 AI_VET까지
         const vet = CO.AI_VET0 + (CO.AI_VET - CO.AI_VET0) * Math.min(1, W.month / CO.AI_VET_M);
-        const pm = () => clamp(pp + vet, 0.05, 0.97);
-        const crP = (ok: boolean) => Math.min(0.95, F.risk * (ok ? CO.CRISIS_OK : CO.CRISIS_FAIL) * U.crisis);
+        // 구역: 이달 다닐 곳을 먼저 고른다. 그쪽이 모르는 구역일수록 덜 해내고 위기가 잦다 (우리 조와 같은 규칙)
+        const nT = W.zones ? tripsOf(f) : 1, take = takeOf(W, c, f, P.tool || 0), Zq = W.zones ? rivalPick(W, c, f, take, keys, full, P.pots[f] || 0) : undefined;
+        const unkR = Zq ? unkOf(seenBy(c, Zq)) : 0;
+        const pm = () => clamp(pp + vet + (c.style === 'deep' ? CO.ELITE_SUCC : 0) - CO.UNK_SUCC * unkR, 0.05, 0.97);   // (철모회는 소수 정예: 실력 덤)
+        const crP = (ok: boolean) => Math.min(0.95, F.risk * (ok ? CO.CRISIS_OK : CO.CRISIS_FAIL) * U.crisis * (1 + CO.UNK_RISK * unkR));
         // 위기: 위기마다 들고 간 포션을 한 병 쓴다. 포션이 있으면 대개 다치고 층의 harm만큼만 죽는다 (성수는 그보다 덜). 포션이 없으면 CRISIS_DEATH만큼 죽는다
         let potsIn = P.pots[f], dq = 0, hq = 0, m0 = 0;
         const hit = () => {
@@ -1827,19 +1877,25 @@ export function openMonth(W: World) {
         };
         // 그 층만큼 횃불을 들고 가고, 모자라면 어둠 속으로 들어간다
         let dark = false;
-        if (torchLeft[i] >= TAX.TORCH[f]) { torchLeft[i] -= TAX.TORCH[f]; torchUsed[i] += TAX.TORCH[f]; } else { dark = true; torchShort[i]++; }
+        if (W.zones) { /* 구역 탐사엔 횃불이 없다 */ } else if (torchLeft[i] >= TAX.TORCH[f]) { torchLeft[i] -= TAX.TORCH[f]; torchUsed[i] += TAX.TORCH[f]; } else { dark = true; torchShort[i]++; }
         const did = Array.from({ length: size }, () => rnd() < pm());
         const k = did.filter(Boolean).length, ok = k >= 2;
-        if (k) mons.forEach(M => M.mats.forEach(x => { if (rnd() < matChance(x, keys, full) * k / CO.PARTY) { const nn = x.k ? x.k[0] + Math.floor(rnd() * (x.k[1] - x.k[0] + 1)) : 1; res[i].matSold[x.n] = (res[i].matSold[x.n] || 0) + nn; } }));
+        if (k && !W.zones) mons.forEach(M => M.mats.forEach(x => { if (rnd() < matChance(x, keys, full) * k / CO.PARTY) { const nn = x.k ? x.k[0] + Math.floor(rnd() * (x.k[1] - x.k[0] + 1)) : 1; res[i].matSold[x.n] = (res[i].matSold[x.n] || 0) + nn; } }));
         for (let m = 0; m < size; m++) { m0 = m; if (rnd() < Math.min(0.95, crP(did[m]) * (dark ? CO.DARK_CRISIS : 1))) hit(); }
         if (c.rook) rk.forEach((t, m) => { if (did[m]) c.rook![t]++; });
         // 캐 올 몫(해낸 사람 수로 센 값)은 돌아오는 날 층에서 캐 간다. 돌아오는 날은 그달 안에 흩는다
         // 한 달 몫을 탐사 한 번씩 나눠 그달 날짜에 흩는다 (우리 조처럼 한 달에 여러 번 다녀온다: 귀환 보고 · 시장에 풀리는 한 번의 양이 탐사 한 번 몫)
         // (구역은 그 조가 한 달 내내 다니는 한 곳)
-        const nT = W.zones ? tripsOf(f) : 1, zq = W.zones ? rivalZone(W, f) : undefined;
-        // 한 번에 지고 나오는 양은 우리 조와 같은 짐 칸 한도 (rivalBag)
-        const uT = W.zones ? Math.min(k / CO.PARTY / nT, rivalBag(f)) * U.loot : k / CO.PARTY * U.loot;
-        for (let j = 0; j < nT; j++) ev.push({ d: nT > 1 ? Math.min(CO.MONTH_DAYS, 1 + Math.floor((j + rnd()) * CO.MONTH_DAYS / nT)) : 1 + Math.floor(rnd() * CO.MONTH_DAYS), i, f, u: uT, ...(zq != null ? { z: zq } : {}) });
+        if (Zq) {
+          // 탐사 한 번마다 우리 조와 같은 식의 기대에서 전리품 개수를 굴린다 (전리품은 그믐에 판다). 구역 이해도는 일한 인일만큼
+          const H = rivalHaul(W, f, Zq, Zq.w, Zq.mw, Zq.rich, k / size, ok, keys, full, P.pots[f] || 0);
+          for (let j = 0; j < nT; j++) {
+            const mt: [string, number][] = H.mt.map(([m, e]) => [m, Math.floor(e) + (rnd() < e - Math.floor(e) ? 1 : 0)] as [string, number]).filter(([, n]) => n > 0);
+            mt.forEach(([m, n]) => { res[i].matSold[m] = (res[i].matSold[m] || 0) + n; });
+            ev.push({ d: Math.min(CO.MONTH_DAYS, 1 + Math.floor((j + rnd()) * CO.MONTH_DAYS / nT)), i, f, u: H.u * U.loot, z: Zq.id, ...(huntZone(Zq) ? { h: 1 as const } : {}), ...(mt.length ? { mt } : {}) });
+          }
+          const zk = c.zk || (c.zk = {}); zk[Zq.id] = Math.round(((zk[Zq.id] || 0) + size * CO.TRIP_DAYS[f] * nT) * 100) / 100;
+        } else ev.push({ d: 1 + Math.floor(rnd() * CO.MONTH_DAYS), i, f, u: k / CO.PARTY * U.loot });
         w += k / CO.PARTY;
         mapGain[i][f] += (1 + k / size) * CO.MAP_STEP[f] * (hqLv(c, 'rec') >= 1 ? 1.25 : 1) * (dark ? CO.DARK_MAP : 1);
         if (ok) okN++;
@@ -1875,10 +1931,13 @@ function sightings(W: World, s: Sortie): Seen[] {
     if (e.f !== s.f || !W.cos[e.i] || W.cos[e.i].crew) return;
     const eA = base + e.d, ov = Math.min(s.d1 - 1, eA - 1) - Math.max(s.d0, eA - L) + 1;
     if (ov <= 0 || rnd() >= Math.min(0.9, p0 + ov * 0.05) * (s.z != null && e.z != null && e.z !== s.z ? CO.SEE_ZONE : 1)) return;
-    const q = e.u * takeOf(W, W.cos[e.i], e.f, mo.plans[e.i].tool || 0) * (0.7 + rnd() * 0.6), k = `${e.i}:${eA}`;
-    const x = by.get(k) || { i: e.i, nm: W.cos[e.i].name, f: e.f, d: eA, q: 0, n: 0, rel: eA - s.d1, ...(e.z != null ? { z: e.z } : {}) }; x.q += q; x.n++; by.set(k, x);
+    const eye = 0.7 + rnd() * 0.6, q = e.u * takeOf(W, W.cos[e.i], e.f, mo.plans[e.i].tool || 0) * eye, k = `${e.i}:${eA}:${e.z ?? ''}`;
+    const x = by.get(k) || { i: e.i, nm: W.cos[e.i].name, f: e.f, d: eA, q: 0, n: 0, rel: eA - s.d1, ...(e.z != null ? { z: e.z, ...(W.zones && W.zones[e.z] ? { zn: W.zones[e.z].nm } : {}) } : {}) }; x.q += q; x.n++;
+    if (e.h) x.h = (x.h || 0) + 1;
+    const mt = (e.mt || []).reduce((a, [, n]) => a + n, 0); if (mt) x.mt = (x.mt || 0) + mt * eye;
+    by.set(k, x);
   });
-  return [...by.values()].map(x => ({ ...x, q: Math.round(x.q) })).sort((a, b) => a.d - b.d);
+  return [...by.values()].map(x => ({ ...x, q: Math.round(x.q), ...(x.mt ? { mt: Math.round(x.mt) } : {}) })).sort((a, b) => a.d - b.d);
 }
 // 오늘 아침 돌아온 경쟁 용병단 조: 층에서 캐 가고 그날 시세로 바로 판다 (시장 소식에 남는다)
 function rivalsArrive(W: World, ours: Sortie[] = []) {
@@ -2026,7 +2085,10 @@ function settleMonth(W: World, playerPlan: Plan): MonthResult {
     // 보급 창고를 한 달 묵힌다: 기한을 넘긴 포션 묶음은 상해서 버린다
     const S = supOf(c); r.potSpoil = ageLots(S.pot, CO.POT_KEEP) + ageLots(S.holy, CO.HOLY_KEEP);
     const pot = mo.cost[i].potion;
-    const sortie = sortieCost(P).reduce((a, b) => a + b, 0);
+    // 구역 탐사 (경쟁 용병단): 우리 조처럼 출정비 없이 보급(한 사람 하루 하나, 오가는 날 하루 더) · 수리 도구(층마다 MEND0)를 탐사마다 사서 간다
+    const zr = !!W.zones && !c.crew, kitZ = zr ? FLOORS.map((_, f) => P.parties[f] * tripsOf(f)) : [];
+    const sortie = zr ? 0 : sortieCost(P).reduce((a, b) => a + b, 0);
+    const foodZ = zr ? kitZ.reduce((a, n, f) => a + n * CO.PARTY * (CO.TRIP_DAYS[f] + 1) * CO.FOOD_PRICE, 0) : 0, mendZ = zr ? kitZ.reduce((a, n, f) => a + n * CO.MEND0[f] * CO.MEND_PRICE, 0) : 0;
     r.potNeed = mo.potNeed[i]; r.potC = mo.potC[i]; r.potUsed += mo.potUsed[i]; r.potShort = mo.potShort[i];
     // 신입: 찾은 만큼 중 지원자에서 받은 만큼. 모두 같은 값을 낸다 (군소 용병대는 따로)
     r.recruitWant = rWant[i]; r.recruited = rGot[i]; r.recruitPrice = rPrice;
@@ -2067,7 +2129,7 @@ function settleMonth(W: World, playerPlan: Plan): MonthResult {
       tool: toolCost(P), proc: Math.max(0, Math.floor(P.proc || 0)), intel: c.style === 'player' ? intelCost(P) : 0,
       gear: mo.cost[i].gear, probe: c.style === 'player' ? probeCost(W) : 0,
       dorm: c.style === 'crowd' ? 0 : dormKeep(bedsOf(c)) + build + (P.build === 'dorm' ? hqB : 0), heal: Math.round(r.hurt * CO.HEAL_COST * (hqLv(c, 'med') >= 1 ? 0.5 : 1)),
-      hq: hqKeep(c) + (P.build !== 'dorm' ? hqB : 0), job: jobPen, torch: mo.cost[i].torch, food: 0, mend: 0, fire: 0, tax: 0, fine: 0 };
+      hq: hqKeep(c) + (P.build !== 'dorm' ? hqB : 0), job: jobPen, torch: mo.cost[i].torch, food: foodZ, mend: mendZ, fire: 0, tax: 0, fine: 0 };
     // 우리가 이번 달 바로 산 보급 · 해고 위로금
     // 행정력 (우리): 이번 달 탐사 · 층 · 창고 · 건물 · 정보망 부하가 역량을 넘은 만큼 관리비, 1을 넘으면 창고 포션이 더 상한다
     if (c.crew) {
@@ -2122,7 +2184,7 @@ function settleMonth(W: World, playerPlan: Plan): MonthResult {
     c.fame = Math.max(0, (c.fame || 0) * CO.FAME_FADE + r.win.reduce((a, n, f) => a + n * CO.FAME_F[f], 0) - r.deaths * CO.FAME_DEATH + (r.jobFame || 0));
     if (c.style === 'crowd') {
       const sent = r.sent.reduce((a, b) => a + b, 0) || 1;
-      c.members = clamp(c.members - r.deaths + Math.round(r.net / sent / 25) * CO.PARTY, 16, 200);
+      c.members = clamp(c.members - r.deaths + Math.round(r.net / sent / 25) * CO.PARTY, CO.CROWD_MIN, CO.CROWD_MAX);
       c.cash = 0;   // 군소 용병대는 버는 대로 쓴다
       return;
     }
@@ -2592,6 +2654,7 @@ function politics(W: World, plans: Plan[], res: CoResult[], potQ: number) {
     c.relM = clamp((c.relM ?? 50) + (r.potNeed - r.potC) / 120, 0, 100);
     c.relC += (50 - c.relC) * 0.05; c.relM += (50 - c.relM) * 0.05;
   });
+  if (!CO.CARTEL) return;
   const K = W.cartel;
   if (K) {
     plans.forEach((P, i) => { K.donated[i] = (K.donated[i] || 0) + Math.max(0, Math.floor(P.donate || 0)); });
@@ -2620,6 +2683,7 @@ function politics(W: World, plans: Plan[], res: CoResult[], potQ: number) {
 // 미궁의 압력과 근원: 모두가 꺼낸 만큼 미궁이 차오른다. 이상 징후가 먼저 돌고, 넘치면 범람한다.
 // 우리 직영 파티는 약점대로 들어가 성공을 쌓으면 근원을 찾는다 (경쟁 용병단은 현장 기록을 가져오지 않아 찾지 못한다)
 function depths(W: World, plans: Plan[], res: CoResult[], floors: MonthResult['floors'], keyHit: Set<number>) {
+  if (!CO.DEPTHS) return false;
   const add = floors.reduce((a, F, f) => a + F.taken * ITEMS[f].P0 * pressOf(W, f), 0) / CO.PRESS_DIV;
   W.pressure = (W.pressure || 0) * (1 - CO.PRESS_DECAY) + add;
   const k = W.anoms || 0;
@@ -2684,7 +2748,7 @@ const ZONE_CAP = 0.6;
 export function forecast(W: World, P: Plan, quick = false): Forecast {
   const c = us(W), L = W.last, I = W.intel;
   let dead = 0, hurt = 0, maxV = 0, floorLoss = 0, lootE = 0, crisis = 0, burn = 0, foodE = 0, mendE = 0, itemsE = 0;
-  const parts: { n: number; p: number; v: number; z?: number; lv?: number; it?: number }[] = [];
+  const parts: { n: number; p: number; v: number; z?: number; lv?: number; it?: number; bd?: number }[] = [];
   FLOORS.forEach((F, f) => {
     const n = P.parties[f] + P.hire[f]; if (f >= W.unlocked || !n) return;
     const others = L ? L.plans.reduce((a, Q, i) => a + (i ? Q.parties[f] + Q.hire[f] : 0), 0) : 0;
@@ -2705,7 +2769,7 @@ export function forecast(W: World, P: Plan, quick = false): Forecast {
       // 조장 · 조 크기 · 조 장비 (우리 조만)
       const lv = sqLv(c, T), X = who && who.length ? teamFx(who, lv) : null;
       // 구역: 사건 · 몬스터의 무게는 구역대로, 채집 몫 · 위험은 우리가 아는 배율(범위의 가운데)로. 일할 날은 정한 만큼 (횃불을 셈하지 않는다)
-      const Z = T ? zoneAt(W, T.z) : undefined, EW = Z ? Z.mw : CO.ENC_W, zR = Z ? richEst(Z).mid * seamOf(Z) : 1, zK = Z ? riskEst(Z).mid * footOf(Z) : 1, zWay = Z ? zoneWay(W, Z) : 0;
+      const Z = T ? zoneAt(W, T.z) : undefined, EW = Z ? Z.mw : CO.ENC_W, zR = Z ? richEst(Z).mid * seamOf(Z) : 1, zU = Z ? unkOf(Z) : 0, zK = Z ? riskEst(Z).mid * footOf(Z) * (1 + CO.UNK_RISK * zU) : 1, zWay = Z ? zoneWay(W, Z) : 0;
       const MW = Z ? zoneW(Z).map((v, k) => (k === 1 ? v * (X ? X.stealth : 1) : v)) : missionW((T && T.mission) || 'gather', X ? X.stealth : 1), u = teamUnd(c, f, who), U = undMods(u, mapOf(c, f), f);
       const pt0 = clamp(p0 + U.succ - rooks * CO.ROOK_PEN + (X ? X.succ : -(CO.PARTY - size) * CO.SHORT_PEN), 0.05, 0.97);
       // 우리 조는 조원마다 실력 단계 · 특성 · 조직력을 더한 성공률의 평균으로 (조원끼리 다른 성공률을 하나로 예측)
@@ -2725,8 +2789,8 @@ export function forecast(W: World, P: Plan, quick = false): Forecast {
       const ap = (m: Mission) => (who && who.length ? who.reduce((a, x) => a + aptB(x, m), 0) / who.length : 0);
       // (조원마다 셈해 평균한다: 깊은 층에선 실력 단계 보정이 커서 평균을 먼저 내면 바닥에서 잘리는 몫을 놓친다)
       const byM = (d: number, m?: Mission) => (MM ? MM.pp.reduce((a, x, k) => a + clamp(clamp(pt0 + x, 0.05, 0.97) + d + (m ? aptB(who![k], m) : 0), 0.03, 0.97), 0) / who!.length : clamp(pt + d + (m ? ap(m) : 0), 0.03, 0.97));
-      const ez = X ? X.easy : 0, pd = odds ? byM(-CO.HARD_F[f] - CO.HARD_MAIN * EW[0] / Math.max(1e-9, EW.reduce((a, b) => a + b, 0)), 'hunt') : pt;
-      const pg = odds ? byM(-CO.HARD_F[f] + CO.GATHER_EASE + ez, 'gather') : pt, ptr = byM(-CO.HARD_F[f] + CO.TRAIL_EASE + ez, 'scout');
+      const ez = X ? X.easy : 0, uS = CO.UNK_SUCC * zU, pd = odds ? byM(-CO.HARD_F[f] - CO.HARD_MAIN * EW[0] / Math.max(1e-9, EW.reduce((a, b) => a + b, 0)) - uS, 'hunt') : pt;
+      const pg = odds ? byM(-CO.HARD_F[f] + CO.GATHER_EASE + ez - uS, 'gather') : pt, ptr = byM(-CO.HARD_F[f] + CO.TRAIL_EASE + ez - uS, 'scout');
       // 이김: 조원의 절반 이상이 해냄 (이항 분포). 채집에서 지면 해낸 사람 몫의 LOSE_LOOT배만 싣는다
       const need0 = Math.ceil(size / 2), pk_ = (p: number, k: number) => binom(size, k) * Math.pow(p, k) * Math.pow(1 - p, size - k);
       let pwin = 0, lostK = 0; for (let k = 0; k <= size; k++) { if (k >= need0) pwin += pk_(pd, k); else lostK += k * pk_(pg, k); }
@@ -2747,11 +2811,11 @@ export function forecast(W: World, P: Plan, quick = false): Forecast {
       const hand = size > CO.PARTY ? CO.PARTY / Math.max(CO.PARTY, size * pg) : 1;
       // 목표량: 채우면 돌아선다 (기대가 목표를 넘는 만큼 덜 캔다)
       const it0 = size * pg * per * loM * lk * lf * wG * hand * cap / Math.max(1e-9, W.price[f]), gc = T && T.goal && it0 > T.goal ? T.goal / it0 : 1;
-      parts.push({ n: size, p: pg, v: (per * loM * lk * lf * wG * hand * gc + mat * pd / Math.max(1e-9, pg)) * cap, ...(Z ? { z: Z.id, lv: per * loM * lk * lf * wG * hand * gc * cap, it: it0 * gc } : {}) }); lootE += size * pg * per * loM * lk * lf * wG * hand * cap * gc; itemsE += it0 * gc;
+      parts.push({ n: size, p: pg, v: (per * loM * lk * lf * wG * hand * gc + mat * pd / Math.max(1e-9, pg)) * cap, ...(Z ? { z: Z.id, lv: per * loM * lk * lf * wG * hand * gc * cap, it: it0 * gc, ...(need > 0 && free < Infinity ? { bd: free / (need / Math.max(1e-9, dk * CO.DAYS)) } : {}) } : {}) }); lootE += size * pg * per * loM * lk * lf * wG * hand * cap * gc; itemsE += it0 * gc;
       if (!hired && odds) {
         // 우리 조: 부상 주사위. 한 사람이 맞을 주사위 수 h (다닌 날 × 못 해낼 확률 × 주사위), 처음 하나는 부상, 그 뒤는 포션이 막고 모자라면 사망
         // 조 전체가 맞을 주사위 size × h 중 포션이 먼저 pk만큼 막고, 남은 것이 한 사람에 h2씩: 처음 하나는 부상, 그 뒤는 사망
-        const h = dk * CO.DAYS * (MW[1] * (1 - pd) + MW[2] * (1 - ptr) * CO.TRAIL_INJ) * Math.min(0.9, (CO.INJ_BASE + CO.INJ_K * F.risk) * crM), h2 = Math.max(0, size * h - pk) / size, one = 1 - Math.exp(-h2);
+        const h = dk * CO.DAYS * (MW[1] * (1 - pd) + MW[2] * (1 - ptr) * CO.TRAIL_INJ + (Z ? MW[0] * (1 - pg) * CO.UNK_GATHER * zU : 0)) * Math.min(0.9, (CO.INJ_BASE + CO.INJ_K * F.risk) * crM), h2 = Math.max(0, size * h - pk) / size, one = 1 - Math.exp(-h2);
         dead += size * Math.max(0, h2 - one); hurt += size * one * CO.INJ_REST; crisis += Math.min(size * h, pk);
       } else if (!hired) {
         const cp0 = pt * Math.min(0.95, F.risk * CO.CRISIS_OK * crM) + (1 - pt) * Math.min(0.95, F.risk * CO.CRISIS_FAIL * crM);
@@ -2767,7 +2831,8 @@ export function forecast(W: World, P: Plan, quick = false): Forecast {
     const k = capZ / it;
     ps.forEach(x => { const d = (x.lv || 0) * (1 - k); x.v -= d; lootE -= x.n * x.p * d; itemsE -= (x.it || 0) * (1 - k); });
   });
-  if (quick) return { items: itemsE, mean: parts.reduce((a, x) => a + x.n * x.p * x.v, 0) - floorLoss,  p10: 0, p50: 0, p90: 0, bins: [], step: 1, dead, hurt, loot: lootE, crisis, torch: burn, food: foodE, mend: mendE };
+  const bag = parts.reduce((m, x) => Math.min(m, x.bd ?? Infinity), Infinity);
+  if (quick) return { ...(bag < Infinity ? { bag } : {}), items: itemsE, mean: parts.reduce((a, x) => a + x.n * x.p * x.v, 0) - floorLoss,  p10: 0, p50: 0, p90: 0, bins: [], step: 1, dead, hurt, loot: lootE, crisis, torch: burn, food: foodE, mend: mendE };
   maxV = parts.reduce((a, x) => a + x.n * x.v, 0);
   // 퍼뜨린 뒤 꼭대기를 넘어갈 자리까지 칸을 둔다
   const step = Math.max(10, Math.round(maxV / 240 / 10) * 10), NBIN = Math.ceil(maxV * 1.45 / step) + 2;
