@@ -171,17 +171,21 @@ function tripsLedger(W: World) {
 }
 // 귀환 보고 창: 다음 날 아침 돌아온 조가 있으면 저절로 뜬다. 오늘 돌아온 조(조 장비 올리기)와 이달 앞서 돌아온 조
 export function backWinHtml(W: World, raw: Plan) {
-  const P = sanitize(W, us(W), raw), all = W.back || [], today = todayBack(W), before = all.filter(s => !today.includes(s)).reverse();
-  const line = (s: Sortie, up: boolean) => backLine(s.rep!, all.indexOf(s), 'back').replace(/<\/li>$/, `${up ? upBtn(W, P, s) : ''}</li>`);
   return `<div class="reader back-w" role="dialog" aria-modal="true" aria-label="귀환 보고"><div class="reader-in">
     <div class="reader-bar"><h2 class="exp-h">귀환 보고 <small>제${W.month}월 ${W.day || 1}일 아침</small></h2><span class="sp"></span><button type="button" class="close" data-act="close-backs" aria-label="창 닫기">×</button></div>
-    <div class="hall-side back-body">
+    ${backBodyHtml(W, raw)}</div></div>`;
+}
+// 귀환 보고의 몸: 오늘 아침 돌아온 조 · 이달 앞서 돌아온 조 · 탐사 장부 (판의 기록 시트도 이것을 띄운다)
+export function backBodyHtml(W: World, raw: Plan, close = true) {
+  const P = sanitize(W, us(W), raw), all = W.back || [], today = todayBack(W), before = all.filter(s => !today.includes(s)).reverse();
+  const line = (s: Sortie, up: boolean) => backLine(s.rep!, all.indexOf(s), 'back').replace(/<\/li>$/, `${up ? upBtn(W, P, s) : ''}</li>`);
+  return `<div class="hall-side back-body">
       ${today.length ? `<div class="panel backs"><header><h2>오늘 아침 돌아온 조</h2><span class="right">${today.length}조</span></header><ol class="bks">${today.map(s => line(s, true)).join('')}</ol></div>` : ''}
       ${before.length ? `<details class="panel backs"${today.length ? '' : ' open'}><summary><h2>이달 앞서 돌아온 조</h2><span class="right">${before.length}조</span></summary><ol class="bks">${before.map(s => line(s, false)).join('')}</ol></details>` : ''}
       ${tripsLedger(W)}
       ${all.length ? '' : '<p class="note">이달 돌아온 조가 없어요</p>'}
-      <button type="button" class="nextday" data-act="close-backs">확인</button>
-    </div></div></div>`;
+      ${close ? '<button type="button" class="nextday" data-act="close-backs">확인</button>' : ''}
+    </div>`;
 }
 // 미궁에서 본 남들: 누가 · 몇 조 · 무엇을 얼마나 지고 · 우리보다 언제 돌아오나
 const relTxt = (rel: number) => (rel > 0 ? `${rel}일 뒤 귀환` : rel === 0 ? '같은 아침 귀환' : '먼저 나감');

@@ -16,40 +16,41 @@ export const nameOf = (p: Person) => p.n || `${p.c} ${p.id}`;
 // 표시 등급 (우리 길드가 부여한 자격. 실제 실력은 보이지 않는다)
 export const tierHtml = (p: Person) => { const g = grOf(p); return `<span class="tier t${g}" title="등급 ${GRADE_N[g]} · 급여 ${CO.TIER_WAGE[g]}G · 계약금 ×${CO.TIER_COST[g]}"><span class="pips">${'<i></i>'.repeat(5)}</span><em>${GRADE_N[g]}</em></span>`; };
 // 진급 예정: 기록이 자격 조건을 채웠다 (자격증을 주면 그 등급으로, 미루면 불만)
-const dueHtml = (p: Person) => (promoteDue(p) ? ` <button type="button" class="tog sm due" data-act="promote" data-id="${p.id}" title="기록이 ${GRADE_N[eligible(p)]} 자격을 채웠다 · 자격증을 주면 급여 ${CO.TIER_WAGE[eligible(p)]}G · 미루면 달마다 불만">자격 → ${GRADE_N[eligible(p)]}</button>` : '');
+export const dueHtml = (p: Person) => (promoteDue(p) ? ` <button type="button" class="tog sm due" data-act="promote" data-id="${p.id}" title="기록이 ${GRADE_N[eligible(p)]} 자격을 채웠다 · 자격증을 주면 급여 ${CO.TIER_WAGE[eligible(p)]}G · 미루면 달마다 불만">자격 → ${GRADE_N[eligible(p)]}</button>` : '');
 // 불만 칸 (CO.GRUDGE_MAX칸이 차면 그달 첫머리에 떠난다)
-const gdHtml = (p: Person) => (p.gd ? `<span class="gd" title="불만 ${p.gd}/${CO.GRUDGE_MAX} · 한 칸마다 성공 −${Math.round(CO.GRUDGE_PEN * 100)}%p · 다 차면 떠남">${'<i class="on"></i>'.repeat(Math.min(p.gd, CO.GRUDGE_MAX))}${'<i></i>'.repeat(Math.max(0, CO.GRUDGE_MAX - p.gd))}</span>` : '<span class="dim">–</span>');
+export const gdHtml = (p: Person) => (p.gd ? `<span class="gd" title="불만 ${p.gd}/${CO.GRUDGE_MAX} · 한 칸마다 성공 −${Math.round(CO.GRUDGE_PEN * 100)}%p · 다 차면 떠남">${'<i class="on"></i>'.repeat(Math.min(p.gd, CO.GRUDGE_MAX))}${'<i></i>'.repeat(Math.max(0, CO.GRUDGE_MAX - p.gd))}</span>` : '<span class="dim">–</span>');
 // 기대 대비 추세: 최근 석 달 · 그 전 석 달 (달마다 남긴 누적 기록의 차, %p)
 function trendOf(p: Person) {
   const h = p.sh || [], n = h.length, d = (a?: number[], b?: number[]) => (a && b && a[0] - b[0] > 0 ? Math.round(((a[1] - b[1]) - ((a[2] || 0) - (b[2] || 0))) / (a[0] - b[0]) * 100) : null);
   return { last: n ? d(h[n - 1], n > 3 ? h[n - 4] : [0, 0, 0]) : null, prev: n > 3 ? d(h[n - 4], n > 6 ? h[n - 7] : [0, 0, 0]) : null };
 }
 const sgnP = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : '±'}${Math.abs(v)}`;
-const trendHtml = (p: Person) => { const t = trendOf(p); if (t.last == null) return '<span class="dim">–</span>'; return `<span class="luck ${t.last >= 5 ? 'up' : t.last <= -5 ? 'dn' : ''}" title="기대 대비 (성공 비율 − 기대 비율) · 최근 석 달${t.prev != null ? ' · 그 전 석 달' : ''}">${sgnP(t.last)}</span>${t.prev != null ? `<small class="dim"> · ${sgnP(t.prev)}</small>` : ''}`; };
+export const trendHtml = (p: Person) => { const t = trendOf(p); if (t.last == null) return '<span class="dim">–</span>'; return `<span class="luck ${t.last >= 5 ? 'up' : t.last <= -5 ? 'dn' : ''}" title="기대 대비 (성공 비율 − 기대 비율) · 최근 석 달${t.prev != null ? ' · 그 전 석 달' : ''}">${sgnP(t.last)}</span>${t.prev != null ? `<small class="dim"> · ${sgnP(t.prev)}</small>` : ''}`; };
 // 이력서 · 기록 한 줄: 층마다 해낸/나선 (예: 1층 9/12)
 const recLine = (n?: number[], w?: number[]) => (n && n.some(Boolean) ? n.map((k, f) => (k ? `${FLOORS[f].name} ${(w && w[f]) || 0}/${k}` : '')).filter(Boolean).join(' · ') : '');
 export const resumeHtml = (p: Person) => recLine(p.pn, p.pw) || `<span class="dim">미궁 이력 없음</span>`;
 // 개인 기록 카드: 이력서와 우리 기록, 다음 자격 조건, 기대 대비, 진급 · 부상 이력
-function cardHtml(p: Person, cols: number) {
+function cardHtml(p: Person, cols: number) { return `<tr class="card"><td colspan="${cols}">${pcardHtml(p)}</td></tr>`; }
+export function pcardHtml(p: Person) {
   const g = grOf(p), e = eligible(p), next = CO.GRADE_REQ[Math.min(4, Math.max(g, e) + 1)], nf = next ? next[0] : 0;
   const nextT = Math.max(g, e) >= 4 ? '더 오를 등급이 없다' : `다음 ${GRADE_N[Math.max(g, e) + 1]}: ${nf ? `${FLOORS[nf].name} 이상에서 ` : ''}${next[1]}번 성공 (지금 ${winsFrom(p, nf)})`;
   const r = p.sg && p.sg[0] ? `성공 비율 ${Math.round(p.sg[1] / p.sg[0] * 100)}% · 기대 ${Math.round((p.sg[2] || 0) / p.sg[0] * 100)}% (구간 ${p.sg[0]})` : '아직 나선 구간 없음';
-  return `<tr class="card"><td colspan="${cols}"><div class="pcard">
+  return `<div class="pcard">
     <div><small>이력서</small><b>${esc(p.job || '–')}</b><span>${resumeHtml(p)}</span></div>
     <div><small>우리 기록</small><b>함께한 ${p.mo || 0}달 · 다친 ${p.hc || 0}번</b><span>${recLine(p.rn, p.rw) || '<span class="dim">아직 다녀온 탐사 없음</span>'}</span></div>
     <div><small>자격</small><b>${GRADE_N[g]}${e > g ? ` → ${GRADE_N[e]} 자격` : ''}</b><span>${nextT}</span></div>
     <div><small>기대 대비</small><b>${r}</b><span>${(p.gh || []).map(([m, k]) => `${m}월 ${GRADE_N[k]}`).join(' · ') || '진급 이력 없음'}</span></div>
-  </div></td></tr>`;
+  </div>`;
 }
 export const traitHtml = (p: Person) => (p.tr ? `<span class="trait" title="${esc(TRAITS[p.tr] || '')}">${p.tr}</span>` : '')
   + (hidSeen(p) && p.hd !== '무난' ? `<span class="trait hid ${(HIDDEN[p.hd!] || { v: 0 }).v > 0 ? 'up' : 'dn'}" title="숨은 기질 · ${esc((HIDDEN[p.hd!] || { t: '' }).t)}">${p.hd}</span>` : '');
 // 임무 적성 · 해낸 비율(나선 구간 중)
 export const aptHtml = (p: Person) => (p.apt ? `<span class="ms-tag ${p.apt}" title="${MISSION_NAME[p.apt]} 사건에서 성공 +${Math.round(CO.APT_SUCC * 100)}%p">${MISSION_NAME[p.apt]}</span>` : '<span class="dim">–</span>');
 // 카리스마 (조장이 되면 조 크기 한도 = 카리스마 + 1), 조장 꼬리표, 조장 자리 요구
-const chHtml = (W: World, p: Person) => `<span class="ch" title="카리스마 ${chOf(p)} · 조장이 되면 ${capOf(p)}명 조${chOf(p) <= CO.SMALL_CH ? ' · 소수 조 덤 (은신 · 채집 · 흔적)' : ''}">${'<i class="on"></i>'.repeat(chOf(p))}${'<i></i>'.repeat(5 - chOf(p))}</span>${isLeader(us(W), p.id) ? ' <small class="ld-b">조장</small>' : ''}${p.dm === 'lead' ? ` <small class="dm-b" title="조장 자리를 바란다 · 조장이 아니면 그믐마다 불만 한 칸">조장 요구</small>` : ''}`;
+export const chHtml = (W: World, p: Person) => `<span class="ch" title="카리스마 ${chOf(p)} · 조장이 되면 ${capOf(p)}명 조${chOf(p) <= CO.SMALL_CH ? ' · 소수 조 덤 (은신 · 채집 · 흔적)' : ''}">${'<i class="on"></i>'.repeat(chOf(p))}${'<i></i>'.repeat(5 - chOf(p))}</span>${isLeader(us(W), p.id) ? ' <small class="ld-b">조장</small>' : ''}${p.dm === 'lead' ? ` <small class="dm-b" title="조장 자리를 바란다 · 조장이 아니면 그믐마다 불만 한 칸">조장 요구</small>` : ''}`;
 const rateOf = (p: Person) => (p.sg && p.sg[0] ? p.sg[1] / p.sg[0] : -1);
 // 해낸 비율과 기대 비율(누적): 기대보다 꾸준히 낫거나 못하면 운이 아니라 사람 탓일 수 있다
-const rateHtml = (p: Person) => {
+export const rateHtml = (p: Person) => {
   if (!p.sg || !p.sg[0]) return '<span class="dim">–</span>';
   const r = Math.round(rateOf(p) * 100), e = p.sg[2] != null ? Math.round(p.sg[2] / p.sg[0] * 100) : null, d = e == null ? 0 : r - e;
   return `${r}%${e == null ? '' : `<small class="luck ${d >= 5 ? 'up' : d <= -5 ? 'dn' : ''}" title="기대 ${e}% · 나선 구간 ${p.sg[0]}"> ${d > 0 ? '+' : d < 0 ? '−' : '±'}${Math.abs(d)}</small>`}`;

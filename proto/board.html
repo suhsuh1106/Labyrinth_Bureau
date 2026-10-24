@@ -1,0 +1,420 @@
+<title>행정관의 판</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* 세로 한 화면: 위 요약 띠(먹색) · 가운데 작전 지도(양피지에 잉크, 깃발 말) · 아래 단추 줄과 올라오는 시트. 한 가지 모습으로 간다(책상 위 지도) */
+:root {
+  --ink: #2b2118; --ink-soft: #6b5a45; --parch: #eadfc3; --parch-2: #dccaa1; --rock: #b9a47c;
+  --desk: #1c1814; --desk-2: #27211b; --desk-3: #352c23; --line: #4a3e31; --chalk: #efe6d2; --chalk-dim: #b3a58c;
+  --red: #a8322a; --red-2: #c9473c; --blue: #2f4f7a; --brass: #c9993f; --good: #3f7d4e; --good-l: #8fd0a1;
+  --ore: #8a6418; --den: #a8322a; --mix: #2f4f7a; --stair: #5b437f;
+  --f-display: "Gowun Batang", "Nanum Myeongjo", serif;
+  --f-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --f-num: "IBM Plex Mono", ui-monospace, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { margin: 0; background: var(--desk); color: var(--chalk); font: 14px/1.45 var(--f-body); overflow: hidden; -webkit-tap-highlight-color: transparent; }
+button, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+.app { height: 100%; display: grid; grid-template-rows: auto 1fr auto; max-width: 520px; margin: 0 auto; }
+
+/* 위: 요약 띠 */
+.top { padding-block: 10px 8px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 6px; background: var(--desk-2); border-bottom: 1px solid var(--line); }
+.top .r1 { display: flex; align-items: baseline; gap: 10px; }
+.top h1 { margin: 0; font: 700 17px var(--f-display); }
+.top .when { font: 600 13px var(--f-num); color: var(--brass); }
+.top .opt { margin-left: auto; background: none; border: 1px solid var(--line); border-radius: 12px; width: 28px; height: 24px; cursor: pointer; color: var(--chalk-dim); }
+.top .r2 { display: flex; gap: 14px; font-size: 12px; color: var(--chalk-dim); }
+.top .r2 b { font: 600 14px var(--f-num); color: var(--chalk); font-variant-numeric: tabular-nums; }
+.days { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; }
+.days i { height: 6px; border-radius: 3px; background: var(--desk-3); position: relative; }
+.days i.past { background: #6e5730; } .days i.now { background: var(--brass); }
+.days i.ret::after { content: ""; position: absolute; left: 50%; top: -5px; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: var(--good-l); }
+
+/* 가운데: 작전 지도 */
+.mid { position: relative; min-height: 0; display: grid; grid-template-rows: auto 1fr auto; }
+.floors { display: flex; gap: 6px; padding: 8px 16px 0; align-items: center; }
+.floors button { border: 1px solid var(--line); background: none; border-radius: 14px; padding: 3px 12px; font-size: 12px; color: var(--chalk-dim); cursor: pointer; }
+.floors button[aria-pressed="true"] { border-color: var(--brass); color: var(--chalk); background: var(--desk-3); }
+.floors button:disabled { opacity: .45; cursor: default; }
+.floors .legend { margin-left: auto; font-size: 11px; color: var(--chalk-dim); display: flex; gap: 8px; }
+.floors .legend i { display: inline-block; width: 8px; height: 8px; margin-right: 3px; border-radius: 1px; }
+.map { position: relative; margin: 6px 12px 0; border-radius: 4px; touch-action: none; box-shadow: 0 6px 20px rgba(0,0,0,.55), inset 0 0 0 1px rgba(0,0,0,.4); }
+.map canvas, .map svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.map svg { pointer-events: none; }
+.arrow { fill: none; stroke: var(--red); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 9 6; animation: march 1s linear infinite; }
+.arrow.out { stroke: var(--good); stroke-width: 2; stroke-dasharray: 2 5; animation: none; }
+.arrow.hover { stroke: var(--red-2); opacity: .75; }
+@keyframes march { to { stroke-dashoffset: -15; } }
+.zone { position: absolute; width: 84px; margin-left: -42px; margin-top: -22px; display: grid; justify-items: center; gap: 0; background: none; border: 0; padding: 0; cursor: pointer; color: var(--ink); }
+.zone .sym { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; border: 2px solid currentColor; background: rgba(234, 223, 195, .85); font: 700 14px var(--f-body); position: relative; }
+.zone .nm { font: 700 12px/1.15 var(--f-display); text-align: center; max-width: 84px; margin-top: 2px; text-shadow: 0 0 3px var(--parch), 0 0 3px var(--parch); }
+.zone .tick { font: 600 10px var(--f-num); color: var(--ink-soft); letter-spacing: 1px; text-shadow: 0 0 3px var(--parch); }
+.zone .tick b { color: var(--good); }
+.zone.ore { color: var(--ore); } .zone.den { color: var(--den); } .zone.mix { color: var(--mix); } .zone.stair { color: var(--stair); }
+.zone.unk { color: var(--ink-soft); } .zone.unk .sym { border-style: dashed; }
+.zone.can .sym { box-shadow: 0 0 0 4px rgba(168, 50, 42, .18); }
+.zone.hot .sym { box-shadow: 0 0 0 6px rgba(168, 50, 42, .45); transform: scale(1.12); }
+.riv { position: absolute; width: 18px; height: 22px; pointer-events: none; }
+.riv svg { width: 100%; height: 100%; }
+
+/* 깃발 말 */
+.piece { position: absolute; width: 44px; height: 50px; margin: -46px 0 0 -6px; background: none; border: 0; padding: 0; cursor: grab; z-index: 3; touch-action: none; transition: left .45s ease, top .45s ease; }
+.piece svg { width: 44px; height: 46px; overflow: visible; filter: drop-shadow(0 2px 2px rgba(0,0,0,.45)); }
+.piece .tag { position: absolute; left: -4px; top: 46px; white-space: nowrap; background: var(--parch); color: var(--ink); border: 1px solid var(--ink); font: 600 10px/14px var(--f-body); padding: 0 4px; border-radius: 2px; }
+.piece .left { position: absolute; left: 30px; top: -4px; background: var(--good); color: #fff; border-radius: 7px; font: 600 10px/14px var(--f-num); padding: 0 4px; }
+.piece.sel svg { filter: drop-shadow(0 0 4px #fff) drop-shadow(0 2px 2px rgba(0,0,0,.45)); }
+.piece.drag { transition: none; transform: scale(1.12); z-index: 9; cursor: grabbing; }
+.piece.small { transform: scale(.82); transform-origin: 6px 46px; }
+.piece.small .tag { display: none; }
+
+/* 본부 받침 */
+.tray { display: flex; align-items: center; gap: 18px; padding: 8px 16px 10px; min-height: 76px; position: relative; }
+.tray .lbl { font-size: 11px; color: var(--chalk-dim); width: 30px; line-height: 1.2; }
+.tray .hint { font-size: 12px; color: var(--chalk-dim); margin-left: auto; text-align: right; max-width: 140px; }
+
+/* 아래: 단추 줄 */
+.bot { padding-block: 8px max(10px, env(safe-area-inset-bottom, 0px)); padding-left: max(12px, env(safe-area-inset-left, 0px)); padding-right: max(12px, env(safe-area-inset-right, 0px)); background: var(--desk-2); border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(4, 1fr) 1.6fr; gap: 6px; position: relative; z-index: 25; }
+.bot button { border: 1px solid var(--line); background: var(--desk-3); border-radius: 8px; padding: 8px 2px 6px; cursor: pointer; display: grid; justify-items: center; gap: 2px; font-size: 12px; position: relative; }
+.bot button[aria-pressed="true"] { border-color: var(--brass); color: var(--brass); }
+.bot button svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.6; }
+.bot .badge { position: absolute; top: 2px; right: 6px; min-width: 16px; height: 16px; border-radius: 8px; background: var(--red-2); color: #fff; font: 700 10px/16px var(--f-num); }
+.bot .next { background: var(--brass); color: #2a1d08; border-color: var(--brass); font-weight: 700; font-size: 14px; align-content: center; }
+.bot .next small { font: 600 11px var(--f-num); }
+
+/* 시트: 아래에서 올라온다 (양피지 서류) */
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; background: var(--parch); color: var(--ink); border-radius: 12px 12px 0 0; padding: 10px 16px 14px; box-shadow: 0 -10px 30px rgba(0,0,0,.55); z-index: 20; display: grid; gap: 10px; max-height: 76%; overflow: auto; align-content: start; }
+.sheet[hidden] { display: none !important; }
+.sheet .grab { width: 40px; height: 4px; border-radius: 2px; background: var(--rock); justify-self: center; }
+.sheet h2 { margin: 0; font: 700 19px var(--f-display); display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; text-wrap: balance; }
+.sheet h2 small { font: 500 12px var(--f-body); color: var(--ink-soft); }
+.kind { font: 600 11px var(--f-body); border-radius: 9px; padding: 1px 8px; border: 1px solid currentColor; }
+.kind.ore { color: var(--ore); } .kind.den { color: var(--den); } .kind.mix { color: var(--mix); } .kind.stair { color: var(--stair); } .kind.unk { color: var(--ink-soft); }
+.facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 0; }
+.facts div { background: var(--parch-2); border-radius: 6px; padding: 5px 8px; display: grid; }
+.facts dt { font-size: 11px; color: var(--ink-soft); }
+.facts dd { margin: 0; font: 600 14px var(--f-num); font-variant-numeric: tabular-nums; }
+.facts dd.lock { color: var(--ink-soft); font: 500 12px var(--f-body); }
+.xp .bar { height: 8px; border-radius: 4px; background: var(--parch-2); overflow: hidden; }
+.xp .bar b { display: block; height: 100%; background: var(--good); }
+.note { margin: 0; font-size: 12px; color: var(--ink-soft); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; color: var(--ink-soft); }
+.chips span { background: var(--parch-2); border-radius: 6px; padding: 2px 8px; }
+.chips b { color: var(--ink); font-family: var(--f-num); }
+.row { display: flex; align-items: center; gap: 10px; }
+.row .k { width: 70px; font-size: 12px; color: var(--ink-soft); flex: none; }
+.seg { display: inline-flex; border: 1px solid var(--ink); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; background: none; padding: 6px 12px; cursor: pointer; font-size: 13px; color: var(--ink); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--parch); font-weight: 700; }
+.step { display: inline-flex; align-items: center; border: 1px solid var(--ink); border-radius: 8px; overflow: hidden; }
+.step button { width: 40px; height: 34px; border: 0; background: var(--parch-2); font: 600 18px var(--f-num); cursor: pointer; color: var(--ink); }
+.step output { min-width: 52px; text-align: center; font: 600 16px var(--f-num); }
+.row select { flex: 1; min-width: 0; padding: 6px; border: 1px solid var(--ink); border-radius: 8px; background: var(--parch-2); color: var(--ink); font-size: 13px; }
+.calc { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center; }
+.calc div { background: var(--parch-2); border-radius: 6px; padding: 5px 4px; }
+.calc span { display: block; font-size: 11px; color: var(--ink-soft); }
+.calc b { font: 600 15px var(--f-num); }
+.calc .big b { color: var(--red); }
+.acts { display: grid; grid-template-columns: 1fr 2fr; gap: 8px; position: sticky; bottom: -14px; background: var(--parch); padding-block: 8px 0; }
+.acts button { border-radius: 8px; padding: 12px; cursor: pointer; font-weight: 700; border: 1px solid var(--ink); background: var(--parch-2); color: var(--ink); }
+.acts .go { background: var(--red); border-color: var(--red); color: #fff; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--rock); }
+.tabs button { border: 0; background: none; padding: 6px 10px; cursor: pointer; color: var(--ink-soft); border-bottom: 2px solid transparent; font-size: 13px; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-color: var(--red); font-weight: 700; }
+table.ls { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.ls th { text-align: left; font: 600 11px var(--f-body); color: var(--ink-soft); padding: 4px; border-bottom: 1px solid var(--rock); }
+table.ls td { padding: 6px 4px; border-bottom: 1px solid var(--parch-2); }
+table.ls td.n { text-align: right; font-family: var(--f-num); font-variant-numeric: tabular-nums; }
+.pill { font-size: 11px; border-radius: 8px; padding: 0 6px; background: var(--parch-2); }
+.pill.out { background: #cfe3d3; color: var(--good); } .pill.hurt { background: #f0cfc9; color: var(--red); }
+.card { background: var(--parch-2); border-radius: 8px; padding: 8px 10px; display: grid; gap: 4px; }
+.card h3 { margin: 0; font: 700 14px var(--f-display); display: flex; justify-content: space-between; align-items: baseline; }
+.card h3 small { font: 500 12px var(--f-num); color: var(--ink-soft); }
+.card p { margin: 0; font-size: 12px; color: var(--ink-soft); }
+.card .row { justify-content: space-between; }
+.mini { border: 1px solid var(--ink); background: var(--parch); color: var(--ink); border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 12px; font-weight: 600; }
+.toast { position: absolute; left: 16px; right: 16px; top: 10px; z-index: 30; background: var(--parch); color: var(--ink); border: 2px solid var(--good); border-radius: 6px; padding: 10px 12px; font-size: 13px; display: grid; gap: 2px; animation: drop .3s ease-out; box-shadow: 0 6px 18px rgba(0,0,0,.4); }
+.toast b.up { color: var(--good); }
+@keyframes drop { from { transform: translateY(-14px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .piece { transition: none; } .arrow { animation: none; } .toast { animation: none; } }
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="r1"><h1>회색늑대 용병단</h1><span class="when" id="when"></span><button type="button" class="opt" id="opt" aria-label="설정 · 새 게임">⋯</button></div>
+    <div class="r2"><span>금고 <b id="cash"></b>G</span><span>순위 <b>6</b>/8</span><span>본부 <b id="home"></b></span><span>미궁 <b id="out"></b></span></div>
+    <div class="days" id="days" aria-label="이번 달 날"></div>
+  </header>
+
+  <main class="mid">
+    <div class="floors" id="floors"></div>
+    <div class="map" id="map">
+      <canvas id="terrain" aria-hidden="true"></canvas>
+      <svg id="lines" aria-hidden="true"></svg>
+    </div>
+    <div class="tray" id="tray"><span class="lbl">본부<br>대기</span></div>
+    <section class="sheet" id="sheet" hidden aria-live="polite"></section>
+  </main>
+
+  <nav class="bot" aria-label="행정">
+    <button type="button" data-menu="crew"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.5 2.7-6 6-6s6 2.5 6 6"/><circle cx="17" cy="9" r="2.4"/><path d="M15.5 14.2c3 .2 5.5 2.4 5.5 5.8"/></svg>인원<span class="badge">2</span></button>
+    <button type="button" data-menu="goods"><svg viewBox="0 0 24 24"><path d="M3 9l9-5 9 5v10l-9 4-9-4z"/><path d="M3 9l9 5 9-5M12 14v9"/></svg>물자</button>
+    <button type="button" data-menu="rec"><svg viewBox="0 0 24 24"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11M9 8h6"/></svg>기록</button>
+    <button type="button" data-menu="hq"><svg viewBox="0 0 24 24"><path d="M3 10l9-6 9 6v10H3z"/><path d="M9 20v-6h6v6"/></svg>본부</button>
+    <button type="button" class="next" id="next">다음 날 ▶ <small id="nextd"></small></button>
+  </nav>
+</div>
+
+<script>
+// 예시 판: 1층 구역 여덟. rate는 한 사람 하루 캐는 채집품(참값), 우리는 이해도만큼의 범위로 안다
+const LV = [4, 12, 28, 52, 90], WIDE = [0.6, 0.6, 0.6, 0.25, 0.1, 0.05];
+const KIND = { ore: ['채집터', '⛏'], den: ['사냥터', '⚔'], mix: ['섞인 곳', '◐'], stair: ['계단', '⇣'] };
+const LAYER = ['이름 · 거리', '하는 일', '위험', '산출 범위 · 남은 양', '좁은 범위 · 사고율', '비밀'];
+const Z = [
+  { id: 0, nm: '종소리 방', r: 1, x: 22, y: 72, kind: 'ore', xp: 14, rate: 1.6, risk: 0.9, left: 210, riv: 2, mon: '동굴 박쥐 떼' },
+  { id: 1, nm: '버려진 수레길', r: 1, x: 52, y: 76, kind: 'mix', xp: 5, rate: 1.1, risk: 1.0, left: 340, mon: '굴 들쥐' },
+  { id: 2, nm: '깨진 거울 방', r: 1, x: 80, y: 70, kind: 'den', xp: 0, rate: 0.4, risk: 1.3, left: 120, riv: 1, mon: '거울 도마뱀' },
+  { id: 3, nm: '동쪽 절벽', r: 2, p: 0, x: 15, y: 45, kind: 'ore', xp: 30, rate: 2.2, risk: 1.05, left: 520, mon: '동굴 박쥐 떼' },
+  { id: 4, nm: '이끼 골', r: 2, p: 1, x: 46, y: 49, kind: 'ore', xp: 0, rate: 1.9, risk: 0.85, left: 470, mon: '굴 들쥐' },
+  { id: 5, nm: '박쥐 굴', r: 2, p: 2, x: 77, y: 43, kind: 'den', xp: 2, rate: 0.5, risk: 1.4, left: 160, mon: '동굴 박쥐 떼' },
+  { id: 6, nm: '녹슨 사다리', r: 3, p: 3, x: 30, y: 19, kind: 'stair', xp: 0, rate: 0.6, risk: 1.5, left: 90, mon: '사다리 거미' },
+  { id: 7, nm: '마른 우물', r: 3, p: 4, x: 67, y: 17, kind: 'ore', xp: 0, rate: 2.6, risk: 1.1, left: 610, mon: '굴 들쥐' },
+];
+const T = [
+  { id: 1, n: 5, ld: '브란', lead: true, at: null, plan: null, days: 1, goal: 0, mode: 'days', margin: 0, go: false, ask: '' },
+  { id: 2, n: 3, ld: '토르', at: null, plan: null, days: 1, goal: 0, mode: 'days', margin: 0, go: false },
+  { id: 3, n: 4, ld: '이르마', at: 3, away: 2, plan: null, days: 2, go: true },
+];
+let day = 3, cash = 3000, sel = null, open = null, menu = null, tab = {}, hoverZ = null;
+const $ = s => document.querySelector(s), map = $('#map');
+const lvOf = z => LV.filter(t => z.xp >= t).length;
+const prog = z => { const L = lvOf(z), a = L ? LV[L - 1] : 0, b = LV[L]; return b == null ? 1 : (z.xp - a) / (b - a); };
+const wide = z => { const L = lvOf(z); return L < 2 ? WIDE[L] : WIDE[L] - (WIDE[L] - WIDE[Math.min(5, L + 1)]) * prog(z); };
+const way = z => z.r - 1, known = z => lvOf(z) >= 1;
+const est = z => { const w = wide(z), mid = lvOf(z) < 3 ? 1.3 : z.rate; return { lo: mid * (1 - w), mid, hi: mid * (1 + w) }; };
+const via = z => { const c = []; let p = z; while (p.p != null) { p = Z[p.p]; c.unshift(p); } return c; };
+const fmt = n => Math.round(n).toLocaleString('ko-KR');
+const workOf = (t, z) => t.mode === 'goal' ? Math.max(1, Math.min(6, Math.ceil(t.goal / Math.max(0.5, est(z).lo * t.n)))) : t.days;
+
+// ---------- 지도 바탕: 바위에 빗금, 굴과 통로는 밝은 양피지, 잉크 테두리, 격자와 가장자리 좌표 (같은 크기면 같은 그림) ----------
+function hash(a, b) { let h = (a * 374761393 + b * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
+function drawTerrain() {
+  const cv = $('#terrain'), W = map.clientWidth, H = map.clientHeight, dpr = devicePixelRatio || 1;
+  cv.width = W * dpr; cv.height = H * dpr; const g = cv.getContext('2d'); g.scale(dpr, dpr);
+  const P = z => [z.x / 100 * W, z.y / 100 * H], gate = [W / 2, H - 14];
+  // 바위
+  const rg = g.createRadialGradient(W / 2, H * .6, 20, W / 2, H / 2, Math.max(W, H) * .75);
+  rg.addColorStop(0, '#cbb68c'); rg.addColorStop(1, '#9d865d'); g.fillStyle = rg; g.fillRect(0, 0, W, H);
+  g.strokeStyle = 'rgba(60,44,28,.22)'; g.lineWidth = 1;
+  for (let i = 0; i < 900; i++) { const x = hash(i, 1) * W, y = hash(i, 2) * H, l = 4 + hash(i, 3) * 6; g.beginPath(); g.moveTo(x, y); g.lineTo(x + l, y - l * .7); g.stroke(); }
+  // 굴 모양: 구역마다 울퉁불퉁한 덩어리, 통로는 굽은 띠. 먼저 굵은 잉크로, 그 위에 양피지로 (테두리가 남는다)
+  const blob = (cx, cy, rx, ry, seed) => { g.beginPath(); for (let k = 0; k <= 24; k++) { const a = k / 24 * Math.PI * 2, j = .78 + hash(seed, k % 24) * .38; const x = cx + Math.cos(a) * rx * j, y = cy + Math.sin(a) * ry * j; k ? g.lineTo(x, y) : g.moveTo(x, y); } g.closePath(); };
+  const tunnel = (a, b, seed) => { g.beginPath(); g.moveTo(a[0], a[1]); const mx = (a[0] + b[0]) / 2 + (hash(seed, 9) - .5) * 40, my = (a[1] + b[1]) / 2 + (hash(seed, 8) - .5) * 20; g.quadraticCurveTo(mx, my, b[0], b[1]); };
+  const pass = (w, col) => {
+    g.strokeStyle = col; g.fillStyle = col; g.lineCap = 'round'; g.lineJoin = 'round';
+    Z.forEach(z => { g.lineWidth = w; tunnel(z.p == null ? gate : P(Z[z.p]), P(z), z.id); g.stroke(); });
+    Z.forEach(z => { const [x, y] = P(z); blob(x, y, 44 + (w > 20 ? 3 : 0), 30 + (w > 20 ? 3 : 0), z.id + 50); g.fill(); });
+    blob(gate[0], gate[1] + 4, 40, 18, 99); g.fill();
+  };
+  pass(26, '#3a2b1d'); pass(20, '#eadfc3');
+  // 굴 바닥의 결
+  g.strokeStyle = 'rgba(107,90,69,.25)'; Z.forEach(z => { const [x, y] = P(z); for (let k = 0; k < 3; k++) { g.beginPath(); g.ellipse(x, y, 30 - k * 8, 19 - k * 5, 0, 0, Math.PI * 2); g.setLineDash([2, 4]); g.stroke(); } }); g.setLineDash([]);
+  // 격자와 좌표 (작전 지도)
+  g.strokeStyle = 'rgba(43,33,24,.12)'; g.lineWidth = 1;
+  const cols = 6, rows = Math.round(cols * H / W);
+  for (let i = 1; i < cols; i++) { g.beginPath(); g.moveTo(i * W / cols, 0); g.lineTo(i * W / cols, H); g.stroke(); }
+  for (let j = 1; j < rows; j++) { g.beginPath(); g.moveTo(0, j * H / rows); g.lineTo(W, j * H / rows); g.stroke(); }
+  g.fillStyle = 'rgba(43,33,24,.55)'; g.font = '600 10px "IBM Plex Mono", monospace';
+  for (let i = 0; i < cols; i++) g.fillText('ABCDEFGH'[i], i * W / cols + 4, 12);
+  for (let j = 0; j < rows; j++) g.fillText(String(j + 1), 4, j * H / rows + 24);
+  // 입구 · 나침반 · 축척
+  g.fillStyle = '#2b2118'; g.font = '700 12px "Gowun Batang", serif'; g.textAlign = 'center'; g.fillText('미궁 입구', gate[0], H - 6);
+  g.save(); g.translate(W - 26, 30); g.strokeStyle = '#2b2118'; g.lineWidth = 1.2; g.beginPath(); g.arc(0, 0, 14, 0, Math.PI * 2); g.stroke(); g.beginPath(); g.moveTo(0, -12); g.lineTo(4, 4); g.lineTo(0, 1); g.lineTo(-4, 4); g.closePath(); g.fill(); g.fillText('N', 0, -17); g.restore();
+  g.textAlign = 'left'; g.fillStyle = 'rgba(43,33,24,.7)'; g.font = '600 10px "IBM Plex Mono", monospace'; g.fillText('한 칸 = 하루 길', 10, H - 10);
+  // 가장자리 그을림
+  const vg = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * .35, W / 2, H / 2, Math.max(W, H) * .72); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(40,26,10,.45)'); g.fillStyle = vg; g.fillRect(0, 0, W, H);
+}
+
+// 깃발 말 (우리: 붉은 기 · 남: 푸른 작은 기)
+const flag = (no, col) => `<svg viewBox="0 0 44 46" aria-hidden="true"><ellipse cx="6" cy="44" rx="6" ry="2" fill="rgba(0,0,0,.35)"/><rect x="4.5" y="4" width="3" height="40" rx="1" fill="#3a2b1d"/><path d="M7.5 5h30l-7 9 7 9h-30z" fill="${col}" stroke="#2b2118" stroke-width="1.2"/><text x="19" y="18.5" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-weight="600" font-size="11" fill="#fff">${no}</text></svg>`;
+const rivFlag = n => `<svg viewBox="0 0 18 22"><rect x="2" y="2" width="2" height="19" fill="#2b2118"/><path d="M4 3h12l-3 4 3 4H4z" fill="#2f4f7a"/><text x="10" y="9.5" text-anchor="middle" font-size="7" font-weight="700" fill="#fff" font-family="IBM Plex Mono, monospace">${n}</text></svg>`;
+
+function render() {
+  $('#when').textContent = `제1월 ${day}일`;
+  $('#cash').textContent = fmt(cash);
+  $('#home').textContent = T.filter(t => t.at == null).reduce((a, t) => a + t.n, 0) + 2 + '명';
+  $('#out').textContent = T.filter(t => t.at != null).reduce((a, t) => a + t.n, 0) + '명';
+  $('#nextd').textContent = day < 10 ? `${day + 1}일` : '그믐';
+  $('#days').innerHTML = Array.from({ length: 10 }, (_, i) => `<i class="${i + 1 < day ? 'past' : i + 1 === day ? 'now' : ''}${T.some(t => t.at != null && day + t.away === i + 1) ? ' ret' : ''}"></i>`).join('');
+  $('#floors').innerHTML = ['1층', '2층', '3층'].map((f, i) => `<button type="button" aria-pressed="${!i}" ${i ? 'disabled title="계단 돌파 전"' : ''}>${f}</button>`).join('') +
+    `<span class="legend"><span><i style="background:var(--red)"></i>우리</span><span><i style="background:var(--blue)"></i>남</span></span>`;
+  const W = map.clientWidth, H = map.clientHeight, P = z => [z.x / 100 * W, z.y / 100 * H], gate = [W / 2, H - 14];
+  // 화살표: 보낼 예정(붉은 점선, 흐름) · 나가 있는 길(초록 점) · 끄는 중(옅은 붉은)
+  const route = z => [gate, ...via(z).map(P), P(z)];
+  const pathD = pts => pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+  let s = `<defs><marker id="ah" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#a8322a"/></marker></defs>`;
+  T.forEach(t => { if (t.at != null) s += `<path class="arrow out" d="${pathD(route(Z[t.at]))}"/>`; else if (t.plan != null) s += `<path class="arrow" marker-end="url(#ah)" d="${pathD(route(Z[t.plan]))}"/>`; });
+  if (hoverZ != null && sel != null) s += `<path class="arrow hover" marker-end="url(#ah)" d="${pathD(route(Z[hoverZ]))}"/>`;
+  $('#lines').innerHTML = s;
+  map.querySelectorAll('.zone, .piece, .riv').forEach(e => e.remove());
+  Z.forEach(z => {
+    const L = lvOf(z), k = known(z) ? z.kind : 'unk', b = document.createElement('button');
+    b.type = 'button'; b.className = `zone ${k}${sel != null ? ' can' : ''}${hoverZ === z.id ? ' hot' : ''}`; b.dataset.z = z.id;
+    b.style.left = z.x + '%'; b.style.top = z.y + '%';
+    b.setAttribute('aria-label', `${z.nm}, 거리 ${z.r}, 이해도 ${L}단계`);
+    // 이해도: 단계는 잉크 눈금(■), 다음 단계까지는 초록
+    b.innerHTML = `<span class="sym">${known(z) ? KIND[z.kind][1] : '?'}</span><span class="nm">${z.nm}</span><span class="tick">${'■'.repeat(L)}<b>${prog(z) > 0 && L < 5 ? '▪' : ''}</b>${'□'.repeat(Math.max(0, 5 - L - (prog(z) > 0 && L < 5 ? 1 : 0)))}</span>`;
+    map.appendChild(b);
+    if (z.riv && L >= 2) { const r = document.createElement('span'); r.className = 'riv'; r.innerHTML = rivFlag(z.riv); r.title = `최근 본 남의 조 ${z.riv}`; const [x, y] = P(z); r.style.left = x - 38 + 'px'; r.style.top = y - 30 + 'px'; map.appendChild(r); }
+  });
+  const tray = $('#tray'); tray.querySelectorAll('.hint').forEach(e => e.remove());
+  const home = T.filter(t => t.at == null && t.plan == null), tr = tray.getBoundingClientRect(), mr = map.getBoundingClientRect();
+  T.forEach(t => {
+    const p = document.createElement('button'); p.type = 'button'; p.dataset.t = t.id;
+    const zi = t.at != null ? t.at : t.plan;
+    p.className = `piece${zi != null ? ' small' : ''}${sel === t.id ? ' sel' : ''}`;
+    p.innerHTML = flag(t.id + '조', t.at != null ? '#3f7d4e' : t.plan != null ? '#c9473c' : '#a8322a') + `<span class="tag">${t.lead ? '★' : ''}${t.ld} · ${t.n}명</span>${t.at != null ? `<span class="left">${t.away}일</span>` : ''}`;
+    p.setAttribute('aria-label', `${t.id}조 ${t.ld} ${t.n}명${t.at != null ? `, 미궁, ${t.away}일 뒤 귀환` : t.plan != null ? `, ${Z[t.plan].nm}로 보낼 예정` : ''}`);
+    let x, y;
+    if (zi != null) { const [px, py] = P(Z[zi]); x = px + 16; y = py - 6; }
+    else { x = 64 + home.indexOf(t) * 66; y = H + (tr.top - mr.bottom) + 52; }
+    p.style.left = x + 'px'; p.style.top = y + 'px';
+    map.appendChild(p);
+  });
+  tray.insertAdjacentHTML('beforeend', `<span class="hint">${!home.length ? '본부의 조가 모두 나갔거나 명령을 받았어요' : sel != null ? '갈 구역을 누르거나 끌어다 놓기' : '깃발을 구역에 끌어다 놓기'}</span>`);
+  document.querySelectorAll('.bot [data-menu]').forEach(b => b.setAttribute('aria-pressed', String(menu === b.dataset.menu)));
+  renderSheet();
+}
+
+// ---------- 시트 ----------
+function renderSheet() {
+  const sh = $('#sheet');
+  if (menu) { sh.hidden = false; sh.innerHTML = menuHtml(menu); return; }
+  if (!open) { sh.hidden = true; return; }
+  sh.hidden = false;
+  const z = Z[open.z], L = lvOf(z), e = est(z), k = known(z) ? z.kind : 'unk', nx = LV[L];
+  const title = `<div class="grab"></div><h2>${z.nm} <span class="kind ${k}">${known(z) ? KIND[z.kind][0] : '하는 일 모름'}</span><small>1층 · 이해도 ${L}단계${nx != null ? ` · ${z.xp}/${nx}인일` : ''}</small></h2>`;
+  if (open.t == null) {
+    const facts = [['거리', `${z.r}`], ['오가는 날', way(z) ? `${2 * way(z)}일` : '없음'], ['위험', L >= 2 ? (z.risk < 0.95 ? '낮음' : z.risk < 1.15 ? '보통' : '높음') : null, 2],
+      ['산출 · 인일', L >= 3 ? `${e.lo.toFixed(1)}~${e.hi.toFixed(1)}` : null, 3], ['남은 양', L >= 3 ? `${z.left}개` : null, 3], ['비밀', L >= 5 ? '숨은 줄기' : null, 5]]
+      .map(([a, b, need]) => `<div><dt>${a}</dt><dd class="${b == null ? 'lock' : ''}">${b == null ? `${need}단계에` : b}</dd></div>`).join('');
+    sh.innerHTML = title + `<dl class="facts">${facts}</dl><div class="xp"><div class="bar"><b style="width:${Math.round(prog(z) * 100)}%"></b></div></div>
+      <p class="note">${nx != null ? `다음 단계에 <b>${LAYER[L + 1]}</b>이 보인다 · ` : ''}깃발을 이 구역에 끌어다 놓으면 명령서가 열린다</p>
+      <div class="acts"><button type="button" data-close>닫기</button><button type="button" class="go" data-pick>본부 조 보내기</button></div>`;
+    return;
+  }
+  const t = T.find(x => x.id === open.t), d = workOf(t, z), food = t.n * (2 * way(z) + d + t.margin);
+  sh.innerHTML = title + `<div class="chips"><span>거리 <b>${z.r}</b></span>${L >= 2 ? `<span>위험 <b>${z.risk < 0.95 ? '낮음' : z.risk < 1.15 ? '보통' : '높음'}</b></span>` : ''}${L >= 3 ? `<span>남은 양 <b>${z.left}</b></span>` : ''}<span>산출 · 인일 <b>${e.lo.toFixed(1)}~${e.hi.toFixed(1)}</b></span></div>
+    <div class="row"><span class="k">${t.id}조 · ${t.n}명</span><span class="seg" role="group" aria-label="기준"><button type="button" data-mode="days" aria-pressed="${t.mode === 'days'}">날</button><button type="button" data-mode="goal" aria-pressed="${t.mode === 'goal'}">목표</button></span></div>
+    <div class="row"><span class="k">${t.mode === 'goal' ? '목표량' : '일할 날'}</span><span class="step"><button type="button" data-st="-1" aria-label="줄이기">−</button><output>${t.mode === 'goal' ? t.goal + '개' : d + '일'}</output><button type="button" data-st="1" aria-label="늘리기">+</button></span></div>
+    <div class="row"><span class="k">여유</span><span class="step"><button type="button" data-mg="-1" aria-label="여유 줄이기">−</button><output>${t.margin}일</output><button type="button" data-mg="1" aria-label="여유 늘리기">+</button></span></div>
+    ${t.lead ? `<div class="row"><span class="k">단장 조사</span><select id="ask" aria-label="단장 조사"><option value="">묻지 않음</option>${['둔기', '찌르기', '화염', '냉기', '신성', '독'].map(w => `<option${t.ask === w ? ' selected' : ''}>${z.mon} · 약점 ${w}?</option>`).join('')}</select></div>` : ''}
+    <div class="calc"><div><span>오감</span><b>${2 * way(z)}일</b></div><div><span>일</span><b>${d}일</b></div><div><span>보급</span><b>${food}</b></div><div class="big"><span>예측</span><b>${Math.round(e.lo * t.n * d)}~${Math.round(e.hi * t.n * d)}</b></div></div>
+    <p class="note">${2 * way(z) + d}일 뒤 귀환 · 남은 보급은 검문소가 태운다${L < 3 ? ' · 이해도가 낮아 예측 폭이 넓다' : ''}</p>
+    <div class="acts"><button type="button" data-cancel>본부로</button><button type="button" class="go" data-send>${t.go ? '명령 취소' : '내일 아침 출발'}</button></div>`;
+}
+
+// 아래 단추의 시트 (예시 내용): 인원 · 물자 · 기록 · 본부(대외 포함)
+const MENUS = {
+  crew: ['인원', [['명단', 'list'], ['지원자 2', 'cand']]],
+  goods: ['물자', [['구매', 'buy'], ['배분', 'kit'], ['팔기', 'sell']]],
+  rec: ['기록', [['장부', 'book'], ['순위 · 시세', 'rank'], ['도감', 'dex'], ['본 것', 'seen']]],
+  hq: ['본부', [['공사', 'build'], ['교관 · 서기', 'staff'], ['대외', 'out']]],
+};
+const CREW = [['브란 오스카', '전사', '고참', 1, ''], ['이르마 벨', '전사', '정식', 3, 'out'], ['케일 도랑', '궁수', '정식', 3, 'out'], ['요아스 펠', '도적', '견습', 1, ''], ['미렐 하스', '마법사', '견습', 1, ''], ['토르 갈렌', '사제', '정식', 2, ''], ['페드 누아', '도적', '견습', 0, 'hurt']];
+function menuHtml(m) {
+  const [nm, tabs] = MENUS[m], cur = tab[m] || tabs[0][1];
+  const head = `<div class="grab"></div><h2>${nm}<small>${{ crew: '보유 인원과 조 편성', goods: '구매 · 조마다 배분 · 창고와 팔기', rec: '수입 · 지출과 모은 정보', hq: '업그레이드와 바깥 상대' }[m]}</small></h2>
+    <div class="tabs" role="tablist">${tabs.map(([a, k]) => `<button type="button" role="tab" data-tab="${k}" aria-selected="${cur === k}">${a}</button>`).join('')}</div>`;
+  const body = {
+    list: `<table class="ls"><thead><tr><th>이름</th><th>직업</th><th>등급</th><th>조</th></tr></thead><tbody>${CREW.map(([n, c, g, t, st]) => `<tr><td>${n}</td><td>${c}</td><td>${g}</td><td>${st === 'out' ? `<span class="pill out">${t}조 · 미궁</span>` : st === 'hurt' ? '<span class="pill hurt">부상 3일</span>' : t ? `<span class="pill">${t}조</span>` : '<span class="pill">대기</span>'}</td></tr>`).join('')}</tbody></table><p class="note">이름을 누르면 기록 카드 · 조 칸을 누르면 다른 조로 옮긴다</p>`,
+    cand: [['하넬 로브', '궁수', '정식 자격', 112, '채집'], ['데브 마르', '전사', '견습', 80, '사냥']].map(([n, c, g, v, a]) => `<div class="card"><h3>${n} <small>${c} · ${g} · 적성 ${a}</small></h3><div class="row"><p>계약금 ${v}G · 내일 아침 합류</p><button type="button" class="mini">계약</button></div></div>`).join(''),
+    buy: [['포션', 35, 3, 0], ['보급', 1, 0, 5], ['수리 도구', 8, 0, 0]].map(([n, p, h, need]) => `<div class="card"><h3>${n} <small>${p}G · 창고 ${h}</small></h3><div class="row"><p>${need ? `내일 떠날 조에 ${need} 모자람` : '모자람 없음'}</p><span class="step"><button type="button">−</button><output>${need}</output><button type="button">+</button></span></div></div>`).join('') + '<p class="note">달 첫날은 정가, 2일부터 긴급 구매 ×1.5</p>',
+    kit: `<table class="ls"><thead><tr><th>조</th><th>포션</th><th>수리</th><th>장비</th></tr></thead><tbody><tr><td>1조</td><td class="n">1</td><td class="n">0</td><td>섞인 대로</td></tr><tr><td>2조</td><td class="n">0</td><td class="n">0</td><td>섞인 대로</td></tr></tbody></table><p class="note">보급은 일할 날 · 여유로 저절로 셈한다</p>`,
+    sell: `<div class="card"><h3>황동석 <small>창고 42 · 오늘 9.6G</small></h3><div class="row"><p>날마다 3%씩 상함 · 어제보다 −0.2</p><button type="button" class="mini">모두 팔기</button></div></div><div class="card"><h3>박쥐 날개막 <small>창고 3 · 평균 28G</small></h3><p>그믐에 팔 양을 정한다</p></div>`,
+    book: `<table class="ls"><tbody><tr><td>판매</td><td class="n">+412</td></tr><tr><td>급여</td><td class="n">−189</td></tr><tr><td>보급 · 포션</td><td class="n">−46</td></tr><tr><td>본부 유지</td><td class="n">−72</td></tr><tr><td><b>이달 순이익 (지금까지)</b></td><td class="n"><b>+105</b></td></tr></tbody></table>`,
+    rank: `<table class="ls"><thead><tr><th>용병단</th><th>평가액</th></tr></thead><tbody>${[['붉은 깃발단', '11,240'], ['성흔 기사단', '9,980'], ['철모회', '6,120'], ['까마귀단', '5,870'], ['은빛 창', '5,410'], ['회색늑대 (우리)', '3,105']].map(([a, b]) => `<tr><td>${a}</td><td class="n">${b}</td></tr>`).join('')}</tbody></table>`,
+    dex: `<div class="card"><h3>동굴 박쥐 떼 <small>이해도 34</small></h3><p>만남 9 · 찌르기 갖춘 쪽 해낸 비율 71% · 안 갖춘 쪽 48%</p></div><div class="card"><h3>굴 들쥐 <small>이해도 12</small></h3><p>만남 3</p></div>`,
+    seen: `<div class="card"><h3>붉은 깃발단 2조 <small>종소리 방</small></h3><p>황동석 ~40개 · 5일에 돌아올 듯 (2일 3조가 봄)</p></div>`,
+    build: [['숙소', '2단계 · 24자리', 2400], ['훈련장', '0단계', 800], ['기록실', '0단계', 800], ['의무실', '0단계', 600]].map(([n, l, v]) => `<div class="card"><h3>${n} <small>${l}</small></h3><div class="row"><p>다음 단계 ${fmt(v)}G · 다음 달 완공</p><button type="button" class="mini">공사</button></div></div>`).join(''),
+    staff: `<div class="card"><h3>교관 <small>1단계 · 달 150G</small></h3><p>대기한 사람 실력 +2</p></div><div class="card"><h3>서기 <small>0명 · 한 명 35G</small></h3><p>행정 여력 58% · 70%를 넘으면 관리비</p></div>`,
+    out: `<div class="card"><h3>영주청 <small>회계관 신뢰 50</small></h3><div class="row"><p>밀고: 그믐에 한 곳을 일러 의심을 올린다</p><button type="button" class="mini">밀고서</button></div></div>
+      <div class="card"><h3>교회 <small>사이 52</small></h3><div class="row"><p>후원 · 근원 기금</p><button type="button" class="mini">후원</button></div></div>
+      <div class="card"><h3>관리국 게시판 <small>의뢰 1</small></h3><div class="row"><p>2층 탐사 계획서: 조당 선금 120G</p><button type="button" class="mini">맡기</button></div></div>
+      <div class="card"><h3>상단 <small>사이 50</small></h3><p>황동석 · 철광석을 ±5% 더 쳐준다</p></div>`,
+  }[cur];
+  return head + body + `<div class="acts"><button type="button" data-close>닫기</button><button type="button" class="go" data-close>판으로</button></div>`;
+}
+
+// ---------- 끌어다 놓기 (손가락 · 마우스 같게) ----------
+let drag = null;
+map.addEventListener('pointerdown', ev => {
+  const p = ev.target.closest('.piece'); if (!p) return;
+  const t = T.find(x => x.id === +p.dataset.t); if (t.at != null) { toastMsg(`${t.id}조는 미궁에 있어요`, `${t.away}일 뒤 아침 귀환 예정 · ${Z[t.at].nm}`); return; }
+  drag = { t, p, x0: ev.clientX, y0: ev.clientY, moved: false }; p.setPointerCapture(ev.pointerId);
+});
+map.addEventListener('pointermove', ev => {
+  if (!drag) return;
+  if (!drag.moved && Math.hypot(ev.clientX - drag.x0, ev.clientY - drag.y0) < 6) return;
+  if (!drag.moved) { drag.moved = true; sel = drag.t.id; menu = null; open = null; render(); drag.p = map.querySelector(`.piece[data-t="${drag.t.id}"]`); drag.p.classList.add('drag'); }
+  const mr = map.getBoundingClientRect(), x = ev.clientX - mr.left, y = ev.clientY - mr.top;
+  drag.p.style.left = x - 6 + 'px'; drag.p.style.top = y + 'px';
+  const hit = Z.find(z => Math.hypot(z.x / 100 * mr.width - x, z.y / 100 * mr.height - y) < 38);
+  const h = hit ? hit.id : null;
+  if (h !== hoverZ) { hoverZ = h; const keep = { l: drag.p.style.left, t: drag.p.style.top }; render(); drag.p = map.querySelector(`.piece[data-t="${drag.t.id}"]`); drag.p.classList.add('drag'); drag.p.style.left = keep.l; drag.p.style.top = keep.t; }
+});
+map.addEventListener('pointerup', () => {
+  if (!drag) return;
+  const { t, moved } = drag; drag = null;
+  if (moved) { if (hoverZ != null) place(t, hoverZ); sel = null; hoverZ = null; render(); return; }
+  menu = null; sel = sel === t.id ? null : t.id; if (t.plan != null) { open = { z: t.plan, t: t.id }; sel = null; } render();
+});
+map.addEventListener('click', ev => {
+  const zb = ev.target.closest('.zone'); if (!zb) return;
+  const z = +zb.dataset.z; menu = null;
+  if (sel != null) { place(T.find(x => x.id === sel), z); sel = null; render(); return; }
+  open = { z }; render();
+});
+function place(t, z) { t.plan = z; t.go = false; open = { z, t: t.id }; if (t.mode === 'goal' && !t.goal) t.goal = Math.round(est(Z[z]).mid * t.n * t.days); }
+
+$('#sheet').addEventListener('click', ev => {
+  const b = ev.target.closest('button'); if (!b) return;
+  if (b.dataset.tab) { tab[menu] = b.dataset.tab; render(); return; }
+  if (b.dataset.close != null) { menu = null; open = null; render(); return; }
+  if (!open) return;
+  const t = open.t != null ? T.find(x => x.id === open.t) : null;
+  if (b.dataset.pick != null) { const h = T.find(x => x.at == null && x.plan == null); if (h) place(h, open.z); }
+  else if (b.dataset.mode) { t.mode = b.dataset.mode; if (t.mode === 'goal' && !t.goal) t.goal = Math.round(est(Z[open.z]).mid * t.n * t.days); }
+  else if (b.dataset.st) { if (t.mode === 'goal') t.goal = Math.max(1, t.goal + +b.dataset.st); else t.days = Math.max(1, Math.min(6, t.days + +b.dataset.st)); }
+  else if (b.dataset.mg) t.margin = Math.max(0, Math.min(3, t.margin + +b.dataset.mg));
+  else if (b.dataset.cancel != null) { t.plan = null; t.go = false; open = null; }
+  else if (b.dataset.send != null) { t.go = !t.go; if (t.go) open = null; }
+  render();
+});
+$('#sheet').addEventListener('change', ev => { if (ev.target.id === 'ask' && open && open.t != null) T.find(x => x.id === open.t).ask = ev.target.value; });
+document.querySelectorAll('.bot [data-menu]').forEach(b => b.addEventListener('click', () => { menu = menu === b.dataset.menu ? null : b.dataset.menu; open = null; sel = null; render(); }));
+$('#opt').addEventListener('click', () => toastMsg('설정 · 새 게임', '프로토타입: 여기에 둔다'));
+
+// 다음 날: 명령 받은 조가 떠나고, 나가 있던 조는 하루씩. 돌아온 조는 실적과 이해도를 띄운다
+$('#next').addEventListener('click', () => {
+  if (day >= 10) { day = 1; toastMsg('그믐 · 가정산 → 정산', '프로토타입은 여기까지 · 다시 1일부터'); return; }
+  day++; open = null; sel = null; menu = null;
+  const msgs = [];
+  T.forEach(t => {
+    if (t.at != null) { t.away--; if (t.away <= 0) { const z = Z[t.at], L0 = lvOf(z), md = t.n * t.days, got = Math.round(md * z.rate * (0.8 + 0.4 * ((t.id * 37 + day * 11) % 10) / 10)); z.xp += md; z.left = Math.max(0, z.left - got); cash += Math.round(got * 9.6); const L1 = lvOf(z);
+      msgs.push([`${t.id}조 귀환 · ${z.nm} · 황동석 ${got}개`, `${md}인일 · 한 사람 하루 ${(got / md).toFixed(1)}개${L1 > L0 ? ` · <b class="up">이해도 ${L1}단계: ${LAYER[L1]}이 보인다</b>` : ''}`]); t.at = null; t.plan = null; t.go = false; } }
+    else if (t.plan != null && t.go) { const z = Z[t.plan], d = workOf(t, z); t.days = d; t.at = t.plan; t.away = 2 * way(z) + d; cash -= t.n * (2 * way(z) + d + t.margin); }
+  });
+  if (msgs.length) toastMsg(...msgs[0]); else render();
+});
+function toastMsg(a, b) {
+  render(); map.querySelectorAll('.toast').forEach(e => e.remove());
+  const el = document.createElement('div'); el.className = 'toast'; el.setAttribute('role', 'status'); el.innerHTML = `<span>${a}</span><span>${b}</span>`;
+  map.appendChild(el); setTimeout(() => el.remove(), 3200);
+}
+let rw = 0; const fit = () => { if (map.clientWidth !== rw || true) { rw = map.clientWidth; drawTerrain(); render(); } };
+addEventListener('resize', fit);
+(document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()).then(fit);
+fit();
+</script>
