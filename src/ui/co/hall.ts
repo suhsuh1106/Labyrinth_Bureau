@@ -192,7 +192,7 @@ export function backBodyHtml(W: World, raw: Plan, close = true) {
 }
 // 미궁에서 본 남들: 누가 · 몇 조 · 무엇을 얼마나 지고 · 우리보다 언제 돌아오나
 const relTxt = (rel: number) => (rel > 0 ? `${rel}일 뒤 귀환` : rel === 0 ? '같은 아침 귀환' : '먼저 나감');
-export const seenHtml = (r: Ours) => { const L = [...(r.seen || [])].sort((a, b) => (b.rel > 0 ? 1 : 0) - (a.rel > 0 ? 1 : 0) || a.rel - b.rel); return L.length ? `<div class="bk-s"><b>미궁에서 본 남들</b>${L.slice(0, 4).map(x => `<span class="${x.rel > 0 ? 'soon' : ''}">${esc(x.nm)}${x.n > 1 ? ` ${x.n}조` : ''} · ${esc(ITEMS[x.f].name)} ${fmt(x.q)}개쯤 · ${relTxt(x.rel)}</span>`).join('')}${L.length > 4 ? `<span>외 ${L.length - 4}</span>` : ''}</div>` : ''; };
+export const seenHtml = (r: Ours) => { const L = [...(r.seen || [])].sort((a, b) => (b.rel > 0 ? 1 : 0) - (a.rel > 0 ? 1 : 0) || a.rel - b.rel); return L.length ? `<div class="bk-s"><b>미궁에서 본 남들</b>${L.slice(0, 4).map(x => `<span class="${x.rel > 0 ? 'soon' : ''}">${esc(x.nm)}${x.n > 1 ? ` ${x.n}조` : ''}${x.zn ? ` · ${esc(x.zn)}` : ''}${x.h ? ' · <b class="hunt">사냥</b>' : ''} · ${esc(ITEMS[x.f].name)} ${fmt(x.q)}개쯤${x.mt ? ` · 전리품 ${fmt(x.mt)}점쯤` : ''} · ${relTxt(x.rel)}</span>`).join('')}${L.length > 4 ? `<span>외 ${L.length - 4}</span>` : ''}</div>` : ''; };
 // 곧 풀릴 물량: 우리 조가 본, 아직 돌아오지 않은 경쟁 조 (돌아오는 날 그 층 채집품을 바로 판다)
 export const comingOf = (W: World) => { const now = dayAbs(W); return (W.seen || []).filter(x => x.d > now).sort((a, b) => a.d - b.d); };
 // 돌아온 조의 성과급 자리: 그 조의 장비 올리기 (편성표의 같은 조가 같은 조(남는 단위)를 쓰고 있을 때)

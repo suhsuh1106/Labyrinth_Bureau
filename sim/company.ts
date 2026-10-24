@@ -135,7 +135,8 @@ export function gearUp(W: World, Q: Plan, rate = GEAR_RATE, max = GEAR_MAX) {
   return Q;
 }
 let BIAS: { c: string; mode: 'pre' | 'avoid' | 'thin' } | null = null;   // thin: 직업과 상관없이 지원자 다섯에 하나를 거른다 (빼기가 직업 탓인지 덜 뽑은 탓인지 가르는 기준)
-const ZONE_PICK = process.env.ZONE_PICK !== '0', ZONE_CROWD = +(process.env.ZONE_CROWD || 0);   // (몰림 벌점: 0.35 · 1이면 20판 3.80 · 2.90위, 0이면 2.75위. 잰 남은 양이 이미 몰림을 알려 준다)
+// ZONE_PICK=1: 조마다 예측의 하루 값으로 구역을 고른다. 경쟁 조도 아는 값으로 구역을 고르며 좋은 구역(사냥터 포함)에 몰린 뒤로는 손해라(40판 2.48 · 33% 대 1.82 · 45%) 기본 고르기(채집 몫 × 남은 양, 우리 조끼리 몰리면 덜)로 둔다
+const ZONE_PICK = process.env.ZONE_PICK === '1', ZONE_CROWD = +(process.env.ZONE_CROWD || 0);   // (몰림 벌점: 0.35 · 1이면 20판 3.80 · 2.90위, 0이면 2.75위. 잰 남은 양이 이미 몰림을 알려 준다)
 const DEATH_V = +(process.env.DEATH_V || 300), HUNT_EDGE = +(process.env.HUNT_EDGE || 0.05), HUNT_MAX = +(process.env.HUNT_MAX || 0.5);
 export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine', kit = true, scout = false, guide = true, askAll = ASK_ALL, missions = MISSION): Plan {
   const c = us(W), P = defaultPlan(W), L = W.last, pots = 3;

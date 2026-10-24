@@ -920,7 +920,7 @@ describe('성공 정도 · 부상 · 수입 예측', () => {
     // 결재 때 그달 다녀온 조들의 예측이 남는다 (조마다 여러 번 다녀왔으니 한 번씩 보낸 예측보다 크다)
     const M = runMonth(W, P);
     expect(M.fc!.mean).toBeGreaterThan(fc.mean);
-    expect(fcRank(fc, 0)).toBe(0); expect(fcRank(fc, fc.p90 * 3)).toBe(1);
+    expect(fcRank(fc, 0)).toBe(0); expect(fcRank(fc, fc.p90 * 3)).toBeCloseTo(1, 2);   // (분포 칸은 소수 셋째 자리로 반올림한다)
   });
   it('기본 운영이면 수입 예측이 실제와 크게 어긋나지 않는다', () => {
     let a = 0, f = 0, inside = 0, n = 0;
