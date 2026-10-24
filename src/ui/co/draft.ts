@@ -14,9 +14,10 @@ const suspSay = (s: number) => s < TAX.SUS_FREE * 0.5 ? '영주청은 우리 장
 
 // 가정산 화면: 귀환 요약, 판매 · 손익, 신고서(참값 · 신고 · 고지서 · 이득 · 맞대 볼 기록), 회계관 소문 한 줄, 법령, 제출 단추.
 // 의심과 감사 확률은 숫자로 보이지 않는다 (감사는 뒤통수로 온다)
-export function draftHtml(W: World, F0: Partial<Filing>, live = false) {
+// lock: 신고서를 아직 단장이 맡고 있다 (첫 그믐. 장부 그대로 내고 고칠 칸은 숫자만 보인다, duty.ts)
+export function draftHtml(W: World, F0: Partial<Filing>, live = false, lock = false) {
   const D = W.draft, L = W.last; if (!D || !L) return '<p class="note">낼 신고서가 없어요.</p>';
-  const c = us(W), r = L.res[D.i], X = preview(W, D, F0), T = D.truth, honest = X.honest;
+  const c = us(W), r = L.res[D.i], X = preview(W, D, lock ? {} : F0), T = D.truth, honest = X.honest;
   const show = (k: FileKey) => k === 'loot' || (k === 'mat' && D.matTaxed.length > 0) || (k === 'pot' && D.subPot > 0) || (k === 'torch' && D.subTorch > 0) || (k === 'aid' && D.aidF >= 0) || (k === 'adv' && D.advN > 0);
   const effect = (k: FileKey) => {
     const B = X.bill;
@@ -31,7 +32,7 @@ export function draftHtml(W: World, F0: Partial<Filing>, live = false) {
   const rows = FILE_KEYS.filter(show).map(k => {
     const i = FILE_KEYS.indexOf(k), R = ROW[k], g = X.gain[k], off = X.F[k] !== T[k];
     return `<tr class="${off ? 'off' : ''}"><td><b>${R.n}</b><small>${note(k)}</small></td><td class="n">${fmt(T[k])}${R.u}</td>
-      <td class="n">${stepper('file', i, X.F[k], `${R.n} 신고`, R.step)}</td><td class="n">${effect(k)}</td>
+      <td class="n">${lock ? fmt(X.F[k]) + R.u : stepper('file', i, X.F[k], `${R.n} 신고`, R.step)}</td><td class="n">${effect(k)}</td>
       <td class="n ${g ? 'pos' : 'dim'}">${g ? '+' + fmt(g) : '-'}</td><td class="rec${off ? ' hot' : ' dim'}">${off ? FILE_SRC[k] : R.dir}</td></tr>`;
   }).join('');
   const pay = (B: typeof honest) => B.sub + B.aid - B.tax - B.refund, op = profitOf(r), netH = op + pay(honest), netF = op + pay(X.bill);
@@ -48,10 +49,10 @@ export function draftHtml(W: World, F0: Partial<Filing>, live = false) {
         <div><small>순이익 (장부 그대로)</small><b class="${netH < 0 ? 'neg' : 'pos'}">${sgn(netH)}G</b><i>세금 ${fmt(honest.tax)} · 지원 ${fmt(honest.sub + honest.aid)}${honest.refund ? ` · 반납 ${fmt(honest.refund)}` : ''}</i></div>
         <div class="me"><small>순이익 (이 신고서)</small><b class="${netF < 0 ? 'neg' : 'pos'}">${sgn(netF)}G</b><i>${X.total ? `장부 그대로보다 <b class="pos">+${fmt(X.total)}</b> · 걸리면 ×${1 + TAX.AUDIT_PEN} 추징` : '장부 그대로'}</i></div>
       </div>
-      <p class="note rumor">${X.watched || (c.watch || 0) >= D.m ? '스캔들 뒤로 회계관이 우리 장부를 지켜본다는 말이 있어요.' : suspSay(c.sus || 0)}</p></section>
+      ${lock ? '<p class="note">첫 신고서는 단장이 장부 그대로 내요. 다음 달부터 행정관 몫이에요.</p>' : ''}<p class="note rumor">${X.watched || (c.watch || 0) >= D.m ? '스캔들 뒤로 회계관이 우리 장부를 지켜본다는 말이 있어요.' : suspSay(c.sus || 0)}</p></section>
     <section class="rp">${lawsHtml(W, D.m)}</section>
   </article>
-  <div class="foot"><button type="button" class="ghost" data-act="file-reset">장부 그대로 다시</button><span class="tot">순이익 <b class="${netF < 0 ? 'neg' : 'pos'}">${sgn(netF)}G</b>${X.total ? ` <span class="dim">(장부 그대로보다 +${fmt(X.total)})</span>` : ''}</span><button type="button" class="seal" data-act="file">신고서 내기</button></div></div>`;
+  <div class="foot">${lock ? '<span></span>' : '<button type="button" class="ghost" data-act="file-reset">장부 그대로 다시</button>'}<span class="tot">순이익 <b class="${netF < 0 ? 'neg' : 'pos'}">${sgn(netF)}G</b>${X.total ? ` <span class="dim">(장부 그대로보다 +${fmt(X.total)})</span>` : ''}</span><button type="button" class="seal" data-act="file">신고서 내기</button></div></div>`;
 }
 
 // 판매 내역: 품목마다 개수 · 판매액 · 세율 · 장부대로 낼 세금. 채집품은 처음부터 시장에 등록된 물품이라 영주세, 전리품은 시장에 등록된 것만(법령), 의뢰 · 선금 · 지도 판매는 비과세

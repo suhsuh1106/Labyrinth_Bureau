@@ -178,10 +178,10 @@ describe('신문', () => {
 });
 
 describe('첫날 장면', () => {
-  it('전제만 몇 줄 깔고 인물 대사 없이 결정표로 넘어가며, 게임 규칙을 건드리지 않는다', async () => {
+  it('전제만 몇 줄 깔고 단장의 한마디 뒤 판으로 넘어가며, 게임 규칙을 건드리지 않는다', async () => {
     const { ARRIVAL } = await import('../src/ui/co/arrival');
     expect(ARRIVAL.length).toBeGreaterThan(0);
-    expect(ARRIVAL.filter(l => l.who)).toEqual([]);
+    expect(ARRIVAL.filter(l => l.who).map(l => l.who)).toEqual(['브란 오스카']);
     // 장면은 DOM만 만지고 게임 규칙을 import하지 않는다
     const src = (await import('node:fs')).readFileSync('src/ui/co/arrival.ts', 'utf8');
     expect(src).not.toMatch(/core\/|rnd\(/);
@@ -1745,5 +1745,30 @@ describe('기록 시트 (docs/board.md 4단계)', () => {
     expect(h[0]).toContain('순이익 예측'); expect(h[0]).toContain('data-act="bs-menu-tab"');
     zonesOn(W.zones, 0).forEach(z => expect(h[1]).toContain(`data-z="${z.id}"`));
     expect(JSON.stringify(W)).toBe(snap);
+  });
+});
+describe('단장의 인계 (화면만, docs/plan.md)', () => {
+  it('새 판은 판 · 인원 · 보급만 열고, 조건이 차면 업무를 하나씩 넘겨받으며, 첫 신고서는 장부 그대로다', async () => {
+    const { boardShellHtml } = await import('../src/ui/co/board');
+    const { DUTIES, dutyDue, tabOpen } = await import('../src/ui/co/duty');
+    setSeed(34); const W = newWorld(), P = carryPlan(W, null), snap = JSON.stringify(W);
+    const ui = { phase: 0, tab: 'report', pins: [] as string[], duty: [] as string[] };
+    expect(dutyDue(W, ui)).toEqual([]);
+    expect(tabOpen(ui, 'crew', 'team') && tabOpen(ui, 'goods', 'buy')).toBe(true);
+    expect(tabOpen(ui, 'goods', 'sell') || tabOpen(ui, 'rec', 'month') || tabOpen(ui, 'hq', 'board')).toBe(false);
+    const h = boardShellHtml(W, P, { ...ui, menu: 'hq' });
+    expect(h).toContain('단장이 맡고 있어요'); expect(h).not.toMatch(/undefined|NaN|\[object/);
+    expect(JSON.stringify(W)).toBe(snap);
+    // 옛 판(ui.duty 없음)은 모두 넘겨받은 것으로 본다
+    expect(DUTIES.every(d => d.tabs.every(([m, t]) => tabOpen({}, m, t)))).toBe(true);
+    // 한 달을 굴리면 귀환 · 도감 업무가 넘어오고, 가정산 동안은 신고서가 아직 단장 몫이다
+    runMonth(W, BOT.even(W));
+    const due = dutyDue(W, ui);
+    expect(due).toContain('sell'); expect(due).toContain('book'); expect(due).not.toContain('books');
+    expect(draftHtml(W, { loot: 0 }, false, true)).not.toContain('data-act="file-reset"');
+    closeBooks(W);
+    expect(dutyDue(W, ui)).toContain('books');
+    const dn = boardShellHtml(W, carryPlan(W, W.last!.plans[0]), { ...ui, dutyNew: ['sell'] });
+    expect(dn).toContain('data-act="duty-go"');
   });
 });
