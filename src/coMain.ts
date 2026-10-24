@@ -166,6 +166,7 @@ function act(b: HTMLElement) {
   // 판 (docs/board.md)
   if (a === 'bs-menu') { const m = b.dataset.m || 'crew'; if (ui.menu === m) { closeSheet(); render(); save(); return; } return openMenu(m, ui.mtab && MENUS[m].tabs.some(x => x[0] === ui.mtab) ? ui.mtab : undefined); }
   if (a === 'bs-tab') { ui.mtab = b.dataset.k; render(); save(); return; }
+  if (a === 'bs-menu-tab') return openMenu(b.dataset.m || 'rec', b.dataset.k);
   if (a === 'bs-close') { closeSheet(); render(); save(); return; }
   if (a === 'bs-grow') { sheetFull = !sheetFull; setSheetFull(sheetFull); render(); return; }
   if (a === 'bs-floor') { ui.floor = +(b.dataset.f || 0); ui.zone = undefined; render(); save(); return; }

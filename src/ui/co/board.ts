@@ -5,11 +5,12 @@ import { CO, FLOORS, type Plan, type Team, type World, awayIds, dayAbs, rankOf, 
 import { type Zone, lvOf, lvProg, nextXp, viaOf, zonesOn } from '../../core/zones';
 import { KIND_NAME, nameOf } from './roster';
 import { agendaOf, backBodyHtml, nextDayBtn, todayBack } from './hall';
-import { type DeskUi, docBody, kitWarn, ledgerHtml, placeBody, staffBlds, storeHtml } from './desk';
+import { type DeskUi, docBody, kitWarn, placeBody, staffBlds } from './desk';
 import { candsHtml, listHtml, teamsHtml } from './crew';
 import { buyHtml, kitHtml, sellHtml } from './goods';
+import { monthHtml, zoneCards } from './records';
 import { askPanel } from './book';
-import { LV_SAYS, SECRET_NAME, zoneReportHtml } from './zones';
+import { LV_SAYS, SECRET_NAME } from './zones';
 import { stepper } from './view';
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
@@ -26,7 +27,7 @@ const riskWord = (v: number) => (v < 0.9 ? '낮음' : v < 1.15 ? '보통' : '높
 export const MENUS: Record<string, { n: string; sub: string; tabs: [string, string][] }> = {
   crew: { n: '인원', sub: '보유 인원과 조 편성', tabs: [['team', '조 편성'], ['list', '명단'], ['cand', '지원자']] },
   goods: { n: '물자', sub: '구매 · 조마다 배분 · 창고와 팔기', tabs: [['buy', '구매'], ['kit', '배분'], ['sell', '팔기']] },
-  rec: { n: '기록', sub: '수입 · 지출과 모은 정보', tabs: [['month', '이달'], ['back', '귀환'], ['zone', '구역'], ['report', '보고서'], ['paper', '신문'], ['book', '도감'], ['probe', '조사']] },
+  rec: { n: '기록', sub: '수입 · 지출과 모은 정보', tabs: [['month', '이달'], ['back', '귀환'], ['zone', '구역'], ['report', '지난달'], ['paper', '신문'], ['book', '도감'], ['probe', '정보']] },
   hq: { n: '본부', sub: '업그레이드와 바깥 상대', tabs: [['train', '본부'], ['board', '게시판 · 영주청'], ['church', '교회'], ['alley', '정보망']] },
 };
 // 옛 창을 여는 단추(장소 · 자료 · 창고 · 출정 · 귀환)가 가리키는 시트와 탭
@@ -156,9 +157,9 @@ function menuSheet(W: World, raw: Plan, P: Plan, ui: DeskUi) {
     if (ui.menu === 'crew') return tab === 'team' ? teamsHtml(W, raw, ui) : tab === 'list' ? listHtml(W, raw, ui) : candsHtml(W);
     if (ui.menu === 'goods') return tab === 'buy' ? buyHtml(W, raw) : tab === 'kit' ? kitHtml(W, raw, ui) : sellHtml(W, raw);
     if (ui.menu === 'rec') {
-      if (tab === 'month') return ledgerHtml(W, raw);
+      if (tab === 'month') return monthHtml(W, raw);
       if (tab === 'back') return backBodyHtml(W, raw, false);
-      if (tab === 'zone') return zoneReportHtml(W, P);
+      if (tab === 'zone') return zoneCards(W, P);
       return `<article class="co-sheet doc" id="${tab === 'report' ? 'results' : tab === 'probe' ? 'intel' : tab === 'book' ? 'book' : 'doc-' + tab}">${docBody(W, tab, P, ui)}</article>`;
     }
     return tab === 'train' ? `${staffBlds(W, raw)}${placeBody(W, raw, ui, tab)}` : placeBody(W, raw, ui, tab);

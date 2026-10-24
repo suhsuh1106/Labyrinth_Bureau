@@ -165,9 +165,10 @@ function tripsLedger(W: World) {
   const rows = rs.map(({ s, r }) => {
     const T = r.trip!, md = (r.n || 0) * (r.wk || 0), v = (r.got || 0) * priceNow(W, r.f) + r.mats.reduce((a, [m, k]) => a + k * matRefOf(W, m), 0);
     const kit = (T.food || 0) * unitPrice(W, 'food') + (T.tools || 0) * unitPrice(W, 'mend'), b = r.burn ? r.burn.v : 0;
-    return `<tr><td>${(r.t ?? 0) + 1}조</td><td>${esc(r.zn!)}</td><td class="n">${s.goal ? `목표 ${s.goal}개` : `${s.work ?? r.wk}일`}</td><td class="n">${r.wk}일 · ${TRIP_END[T.end]}</td><td class="n">${md}</td><td class="n">${fmt(v)}G</td><td class="n">${fmt(kit)}G${b ? ` <small class="dim">태움 ${fmt(b)}</small>` : ''}</td><td class="n"><b>${kit ? `×${(Math.round(v / kit * 10) / 10)}` : '—'}</b></td></tr>`;
+    return `<li class="tl"><span class="tl-h"><b>${(r.t ?? 0) + 1}조 ${esc(r.zn!)}</b><span class="tl-x">${kit ? `×${(Math.round(v / kit * 10) / 10)}` : ''}</span></span>
+      <span class="tl-b">계획 ${s.goal ? `목표 ${s.goal}개` : `${s.work ?? r.wk}일`} → ${r.wk}일 · ${TRIP_END[T.end]} · ${md}인일 · 가져온 값 ${fmt(v)}G · 채비 ${fmt(kit)}G${b ? ` (태움 ${fmt(b)})` : ''}</span></li>`;
   }).join('');
-  return `<details class="panel backs"><summary><h2>탐사 장부</h2><span class="right">${rs.length}건</span></summary><div class="tw"><table class="grid"><thead><tr><th>조</th><th>구역</th><th class="n">계획</th><th class="n">실제</th><th class="n" title="사람 × 일한 날">인일</th><th class="n" title="캐 온 채집품(오늘 시세) + 전리품(평균 시세)">가져온 값</th><th class="n" title="들고 간 보급 · 수리 도구의 값 (남은 것은 검문소가 태운다)">채비</th><th class="n">배율</th></tr></thead><tbody>${rows}</tbody></table></div></details>`;
+  return `<details class="panel backs"><summary><h2>탐사 장부</h2><span class="right">${rs.length}건</span></summary><ul class="tls">${rows}</ul><p class="note">배율 = 가져온 값(채집품 오늘 시세 + 전리품 평균 시세) ÷ 들고 간 보급 · 수리 도구 값</p></details>`;
 }
 // 귀환 보고 창: 다음 날 아침 돌아온 조가 있으면 저절로 뜬다. 오늘 돌아온 조(조 장비 올리기)와 이달 앞서 돌아온 조
 export function backWinHtml(W: World, raw: Plan) {
