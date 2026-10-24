@@ -1,10 +1,11 @@
 // 용병단 시뮬레이터: 플레이어 봇 성향마다 여러 판을 돌려 평균 순위와 1위 분포를 본다.
 //   npm run sim                         기본 200판, 모든 성향
 //   npm run sim -- --games 500 --style smart
+//   npm run sim -- --gap --games 40 [--style smart] [--vs even]   달마다 평가액 차이가 언제, 어느 항목 · 결정에서 벌어지나
 // 성향: even(고르게) · deep(깊은 층 위주) · smart(시장을 읽는 숙련자, 근원에는 채굴장)
 //       smartNoGuide · smartSeal · smartNoRoot: 숙련 봇에서 지침을 빼거나 근원을 달리 다룬 것
 import { setSeed } from '../src/core/rng';
-import { type Mission, type Team, type Person, grOf, sqCost, sqLv, upgradeSquad, forecast, CO, TAX, FLOORS, potShock, cashK, aidAt, jobsExplore, churchPrice, ITEMS, type Filing, type Plan, type World, closeBooks, preview, setClerks, defaultPlan, dormCost, jobsSign, partyMargin, roomOf, demandMul, potsOf, probe, floorMons, mapOf, maxParties, newWorld, torchRate, torchOdds, sanitize, canTarget, rankOf, runMonth, succRate, us, worth, zoneKnown, zoneWay } from '../src/core/company';
+import { type CoResult, type Mission, type Team, type Person, grOf, sqCost, sqLv, upgradeSquad, forecast, CO, TAX, FLOORS, potShock, cashK, aidAt, jobsExplore, churchPrice, ITEMS, type Filing, type Plan, type World, closeBooks, preview, setClerks, defaultPlan, dormCost, jobsSign, partyMargin, roomOf, demandMul, potsOf, probe, floorMons, mapOf, maxParties, newWorld, torchRate, torchOdds, sanitize, canTarget, rankOf, runMonth, succRate, us, worth, zoneKnown, zoneWay } from '../src/core/company';
 import { zonesOn } from '../src/core/zones';
 import { demandSeen } from '../src/ui/co/book';
 import { ASK_KEYS, DEX, MAT_KEYS, type Dex, askable, badSure, keySure } from '../src/core/dex';
@@ -366,6 +367,9 @@ export function playGame(seed: number, bot: (W: World) => Plan, file: (W: World)
 if (process.argv[1] && process.argv[1].endsWith('company.ts') && process.argv.includes('--classes')) {
   // npm run sim -- --classes --games 100: 직업마다 현장 기록과, 신입을 그 직업으로 몰거나 빼 본 숙련 봇의 순위
   classes(games);
+} else if (process.argv[1] && process.argv[1].endsWith('company.ts') && process.argv.includes('--gap')) {
+  // npm run sim -- --gap --games 40 [--style smart] [--vs even]: 달마다 우리와 경쟁 용병단의 평가액이 언제, 어디서 벌어지나 (--vs: 같은 시드의 다른 봇과도)
+  gap(only || 'smart', games, arg('vs', ''));
 } else if (process.argv[1] && process.argv[1].endsWith('company.ts') && process.argv.includes('--metrics')) {
   // npm run sim -- --metrics --games 100 [--style smart]: 인력 손실 · 관리 부담 · 인원 지표
   for (const name of only ? [only] : ['smart', 'even']) metrics(name, games);
@@ -468,6 +472,80 @@ function metrics(name: string, games: number) {
   const at50 = members.filter(x => x >= 50).length, mid = members.filter(x => x >= 30 && x <= 40).length;
   const avg = (a: number[]) => a.reduce((x, y) => x + y, 0) / Math.max(1, a.length);
   console.log(`  [인원] 36개월 뒤 단원 평균 ${avg(members).toFixed(1)}명 · 50명(상한) ${pc(at50, games)} · 30~40명 ${pc(mid, games)} · 서기 ${avg(clerks).toFixed(1)}명 · 행정 여력 평균 ${Math.round(avg(adm) * 100)}% (넘친 달 ${pc(adm.filter(x => x > 1).length, adm.length)}, 70% 넘은 달 ${pc(adm.filter(x => x > CO.A_FREE).length, adm.length)})`);
+}
+
+// ---------- 차이: 언제, 어디서 벌어지나 ----------
+// 판마다 달 끝의 평가액 · 순위와, 그달의 수입 · 지출 항목 · 결정(인원 · 보낸 조 · 층 · 임무 · 사망)을 용병단마다 모은다.
+// 경쟁 용병단은 군소 용병대를 뺀 평균. --vs면 다른 봇을 같은 시드로 돌려 우리끼리도 견준다
+// (함수로 둔다: 맨 위의 실행 코드가 이 아래 상수보다 먼저 돈다)
+function gapCols() {
+  const GAP_IN: [string, (r: CoResult) => number][] = [
+  ['채집품 판매', r => r.lootSales || 0], ['전리품 판매', r => r.matSales || 0], ['의뢰 · 기타 수입', r => r.sales - (r.lootSales || 0) - (r.matSales || 0)]];
+const GAP_OUT: [string, (keyof CoResult['spend'])[]][] = [
+  ['급여 · 해고', ['wage', 'fire']], ['신입 · 계약', ['hire', 'recruit']], ['훈련', ['train']], ['채비', ['potion', 'torch', 'food', 'mend', 'gear', 'sortie']],
+  ['건물 · 조 장비 (유지 · 감가상각)', ['hq', 'dorm', 'base', 'sq', 'sqKeep', 'heal', 'admin']], ['세금 · 추징 · 헌금', ['tax', 'fine', 'donate']], ['조사 · 정보 · 의뢰', ['intel', 'probe', 'proc', 'tool', 'root', 'job']]];
+  return { GAP_IN, GAP_OUT };
+}
+type GapRow = { worth: number; rank: number; vals: number[]; members: number; sent: number; deep: number; deaths: number; mis: number[] };
+function gapRun(name: string, games: number) {
+  const { GAP_IN, GAP_OUT } = gapCols();
+  // [판][달] → 우리, 경쟁 평균, 경쟁 1위
+  const us_: GapRow[][] = [], rv: GapRow[][] = [], top: number[][] = [], vsTop: number[][] = [];
+  for (let g = 0; g < games; g++) {
+    const a: GapRow[] = [], b: GapRow[] = [], t: number[] = [], vt: number[] = [];
+    playGame(seed0 + g, BOT[name], FILER[name], (W, _P, M) => {
+      const row = (i: number): GapRow => {
+        const r = M.res[i], c = W.cos[i], sent = r.sent.reduce((x, y) => x + y, 0);
+        // 건물 · 조 장비: 공사비는 자산이라 빼고 감가상각을 넣는다 (항목의 합이 장부상 순이익 profitOf, 평가액의 변화와 맞는다)
+        const vals = [...GAP_IN.map(([, fn]) => fn(r)), ...GAP_OUT.map(([nm, ks]) => -ks.reduce((x, k) => x + (r.spend[k] || 0), 0) + (nm.startsWith('건물') ? (r.capex || 0) + (r.sqCap || 0) - (r.dep || 0) : 0))];
+        const mis = [0, 0, 0]; if (i === 0) M.ours.forEach(o => { mis[o.mission === 'hunt' ? 1 : o.mission === 'scout' ? 2 : 0]++; });
+        return { worth: worth(W, c), rank: M.rank.indexOf(c.id) + 1, vals, members: c.members, sent, deep: sent ? r.sent.reduce((x, y, f) => x + y * f, 0) / sent + 1 : 0, deaths: r.deaths, mis };
+      };
+      const ids = W.cos.map((c, i) => i).filter(i => i > 0 && W.cos[i].style !== 'crowd'), rows = ids.map(row);
+      const avg = (k: (x: GapRow) => number) => rows.reduce((x, y) => x + k(y), 0) / rows.length;
+      a.push(row(0));
+      b.push({ worth: avg(x => x.worth), rank: avg(x => x.rank), vals: rows[0].vals.map((_, j) => avg(x => x.vals[j])), members: avg(x => x.members), sent: avg(x => x.sent), deep: avg(x => x.deep), deaths: avg(x => x.deaths), mis: [0, 0, 0] });
+      const best = rows.reduce((x, y) => (y.worth > x.worth ? y : x)); t.push(best.worth); vt.push(a[a.length - 1].worth > best.worth ? 1 : 0);
+    });
+    us_.push(a); rv.push(b); top.push(t); vsTop.push(vt);
+  }
+  return { us: us_, rv, top, vsTop };
+}
+function gap(name: string, games: number, vs: string) {
+  const { GAP_IN, GAP_OUT } = gapCols(), A = gapRun(name, games), B = vs ? gapRun(vs, games) : null;
+  const mean = (f: (g: number) => number) => { let s = 0; for (let g = 0; g < games; g++) s += f(g); return s / games; };
+  const k = (n: number) => `${n < 0 ? '−' : ''}${Math.round(Math.abs(n)).toLocaleString()}`;
+  const sg = (n: number) => `${n < 0 ? '−' : '+'}${Math.round(Math.abs(n)).toLocaleString()}`;
+  console.log(`차이 '${name}'${vs ? ` vs '${vs}'` : ''} · ${games}판 · ${MONTHS}개월 (경쟁 = 군소 용병대를 뺀 용병단 평균, 한 달 = ${CO.MONTH_DAYS}일)`);
+  // 1. 달마다 평가액 · 순위
+  const MS = [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 18, 24, 30, 36].filter(m => m <= MONTHS);
+  console.log('\n[달 끝 평가액] 달 · 우리 순위 · 우리 · 경쟁 평균 · 경쟁 1위 · 우리−경쟁 평균 · 1위 비율' + (B ? ` · '${vs}' 순위 · '${vs}' 평가액 · 봇 차` : ''));
+  MS.forEach(m => {
+    const j = m - 1, w = mean(g => A.us[g][j].worth), r = mean(g => A.rv[g][j].worth);
+    let line = `  ${String(m).padStart(2)}월  ${mean(g => A.us[g][j].rank).toFixed(2)}위  ${k(w).padStart(7)}  ${k(r).padStart(7)}  ${k(mean(g => A.top[g][j])).padStart(7)}  ${sg(w - r).padStart(7)}  ${Math.round(mean(g => A.vsTop[g][j]) * 100)}%`;
+    if (B) { const wb = mean(g => B.us[g][j].worth); line += `  |  ${mean(g => B.us[g][j].rank).toFixed(2)}위  ${k(wb).padStart(7)}  ${sg(w - wb).padStart(7)}`; }
+    console.log(line);
+  });
+  // 갈라지는 달: 우리 평가액이 경쟁 평균을 넘어 그 뒤로 내려가지 않는 첫 달 (판 평균)
+  const cross = (X: typeof A) => { let at = 0; for (let j = MONTHS - 1; j >= 0; j--) { if (mean(g => X.us[g][j].worth - X.rv[g][j].worth) > 0) at = j + 1; else break; } return at; };
+  const cA = cross(A), cB = B ? cross(B) : 0;
+  console.log(`  경쟁 평균을 넘어 그대로 가는 첫 달: '${name}' ${cA ? `${cA}월` : '없음'}${B ? ` · '${vs}' ${cB ? `${cB}월` : '없음'}` : ''}`);
+  // 2. 시기마다 어디서 차이가 나나: 한 달 평균, 항목마다 (우리 − 비교 대상), 차가 큰 순
+  const PH: [number, number][] = [[1, 1], [2, 3], [4, 6], [7, 12], [13, 24], [25, 36]];
+  const names = [...GAP_IN.map(x => x[0]), ...GAP_OUT.map(x => x[0])];
+  const block = (title: string, X: GapRow[][], Y: GapRow[][]) => {
+    console.log(`\n[${title}] 시기마다 한 달 평균 (우리 · 상대 · 차), 차가 큰 항목부터`);
+    PH.filter(([a]) => a <= MONTHS).forEach(([a, b]) => {
+      const n = Math.min(b, MONTHS) - a + 1, at = (Z: GapRow[][], f: (x: GapRow) => number) => mean(g => { let s = 0; for (let j = a - 1; j < Math.min(b, MONTHS); j++) s += f(Z[g][j]); return s / n; });
+      const d = names.map((nm, i) => ({ nm, x: at(X, r => r.vals[i]), y: at(Y, r => r.vals[i]) })).map(o => ({ ...o, d: o.x - o.y })).sort((p, q) => Math.abs(q.d) - Math.abs(p.d));
+      const tot = d.reduce((s, o) => s + o.d, 0);
+      console.log(`  ${a === b ? `${a}월` : `${a}~${b}월`}: 한 달 장부상 순이익 차 ${sg(tot)} ← ${d.filter(o => Math.abs(o.d) >= 1).slice(0, 5).map(o => `${o.nm} ${sg(o.d)} (${k(o.x)} · ${k(o.y)})`).join(' · ')}`);
+      const beh = (f: (x: GapRow) => number, dig = 1) => `${at(X, f).toFixed(dig)} · ${at(Y, f).toFixed(dig)}`;
+      console.log(`      결정: 인원 ${beh(x => x.members, 0)} · 보낸 조 ${beh(x => x.sent)} · 평균 층 ${beh(x => x.deep)} · 사망 ${beh(x => x.deaths)}${X === A.us ? ` · 우리 임무 채집 / 사냥 / 탐색 ${[0, 1, 2].map(i => at(X, x => x.mis[i]).toFixed(1)).join(' / ')}` : ''}${Y === (B && B.us) ? ` (상대 ${[0, 1, 2].map(i => at(Y, x => x.mis[i]).toFixed(1)).join(' / ')})` : ''}`);
+    });
+  };
+  block(`'${name}' vs 경쟁 평균`, A.us, A.rv);
+  if (B) block(`'${name}' vs '${vs}' (같은 시드)`, A.us, B.us);
 }
 
 // ---------- 직업: 어떤 직업이 값을 하나 ----------

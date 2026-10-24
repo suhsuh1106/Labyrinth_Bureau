@@ -44,7 +44,8 @@ describe('몬스터와 편성 지침', () => {
     expect(W.notes[0]).toEqual({ m: 1, f: 0, t: MONSTERS[W.mons[0]].look[0] });
     for (let m = 0; m < 11; m++) runMonth(W, defaultPlan(W));
     // 오래된 기록일수록 흐려진다: 돌아온 날 더하고, 그믐마다 OBS_FADE를 곱한다
-    const faded = W.history.reduce((a, M) => (a + M.ours.filter(o => o.f === 0).length) * CO.OBS_FADE, 0);
+    // (그믐 다음 날 아침 돌아온 조는 새 달 기록이라 흐려지기 전에 더해 둔다)
+    const faded = W.history.reduce((a, M) => (a + M.ours.filter(o => o.f === 0).length) * CO.OBS_FADE, 0) + (W.back || []).filter(s => s.f === 0).length;
     expect(W.obs[0]['*'].n).toBeCloseTo(faded, 6);
   });
   it('약점은 그날 만난 몬스터의 것만 먹힌다: 주 몬스터의 약점을 갖추면 주 몬스터를 만난 날 더 해낸다', () => {
