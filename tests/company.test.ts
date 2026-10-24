@@ -293,10 +293,10 @@ describe('미궁의 압력과 근원', () => {
 });
 
 describe('첫날 장면', () => {
-  it('전제만 몇 줄 깔고 인물 대사 없이 결정표로 넘어가며, 게임 규칙을 건드리지 않는다', async () => {
+  it('전제만 몇 줄 깔고 단장의 한마디 뒤 판으로 넘어가며, 게임 규칙을 건드리지 않는다', async () => {
     const { ARRIVAL } = await import('../src/ui/co/arrival');
     expect(ARRIVAL.length).toBeGreaterThan(0);
-    expect(ARRIVAL.filter(l => l.who)).toEqual([]);
+    expect(ARRIVAL.filter(l => l.who).map(l => l.who)).toEqual(['브란 오스카']);
     // 장면은 DOM만 만지고 게임 규칙을 import하지 않는다
     const src = (await import('node:fs')).readFileSync('src/ui/co/arrival.ts', 'utf8');
     expect(src).not.toMatch(/core\/|rnd\(/);
@@ -1869,7 +1869,7 @@ describe('단장의 인계 (화면만, docs/plan.md)', () => {
     const ui = { phase: 0, tab: 'report', pins: [] as string[], duty: [] as string[] };
     expect(dutyDue(W, ui)).toEqual([]);
     expect(tabOpen(ui, 'crew', 'team') && tabOpen(ui, 'goods', 'buy')).toBe(true);
-    expect(tabOpen(ui, 'goods', 'sell') || tabOpen(ui, 'hq', 'board')).toBe(false);
+    expect(tabOpen(ui, 'goods', 'sell') || tabOpen(ui, 'rec', 'month') || tabOpen(ui, 'hq', 'board')).toBe(false);
     const h = boardShellHtml(W, P, { ...ui, menu: 'hq' });
     expect(h).toContain('단장이 맡고 있어요'); expect(h).not.toMatch(/undefined|NaN|\[object/);
     expect(JSON.stringify(W)).toBe(snap);

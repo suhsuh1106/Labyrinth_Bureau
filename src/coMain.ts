@@ -69,7 +69,7 @@ function start(fresh = false) {
   plan.intelUp = plan.intelUp || {};   // 정보망은 유지비를 저절로 내고, 넓히는 돈만 따로 정한다
   tidyTeams();
   render(); save();
-  if (!d) { toTop(); playArrival(toTop); }
+  if (!d) { toTop(); playArrival(() => openMenu('goods', 'buy')); }   // 단장이 바로 나가자고 하면 행정관은 보급부터 챙긴다
 }
 
 // 첫날 장면: 화면을 누르거나 다음 단추로 넘기고, 건너뛰기나 Esc로 닫는다

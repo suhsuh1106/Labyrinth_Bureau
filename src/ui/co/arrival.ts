@@ -1,4 +1,4 @@
-// 첫날 장면: 미궁이 열리고 용병단들이 몰려든 판의 전제를 몇 줄로 깔고, 첫 결정표로 넘어간다.
+// 첫날 장면: 미궁이 열리고, 아슬아슬한 흑자로 버텨 온 단장이 행정관을 들였다는 전제를 몇 줄로 깔고, 단장의 한마디 뒤 판으로 넘어간다.
 // 새 게임을 시작할 때만 나오고, 보여 주기만 할 뿐 게임 상태에는 아무것도 쓰지 않고 난수도 쓰지 않는다 (docs/world.md의 첫날 장면).
 // 인물이 말하는 줄(who)도 그릴 수 있게 틀은 남겨 둔다
 const $ = (id: string): any => document.getElementById(id);
@@ -6,11 +6,9 @@ const $ = (id: string): any => document.getElementById(id);
 // at: 등불이 비추는 자리 (말하는 사람 쪽으로 옮겨 간다)
 type Line = { t: string; who?: string; role?: string; seal?: string; color?: string; at?: string };
 export const ARRIVAL: Line[] = [
-  { t: '서부 변경 하르덴 백작령에 미궁이 열렸다. 제국은 미궁 관리국을 세워 입구를 지키고, 한 달에 한 번 면허를 가진 용병단만 들여보내기로 했다.' },
-  { t: '돈 냄새를 맡은 용병단들이 몰려들었다. 스무 명을 넘게 거느린 붉은 깃발단과 성흔 기사단, 깊은 층만 노리는 철모회, 그리고 한 파티짜리 군소 용병대가 수십.', at: '35%' },
-  { t: '단장과 여섯, 일곱 명뿐인 회색늑대 용병단은 그 사이에 끼어 있다. 단장은 칼을 들고 앞장선다. 돈과 사람과 물건을 나누는 일은 행정관인 당신의 몫이다.', at: '65%' },
-  { t: '미궁 일을 찾는 젊은이들이 숙소 문을 두드리기 시작했다. 한 조로 들어갈지, 사람을 들여 둘째 조를 꾸릴지는 행정관이 정한다.', at: '60%' },
-  { t: '단장은 새로 온 행정관에게 우선 사람과 보급, 조를 어느 구역에 보낼지만 맡겼다. 장부와 창고와 바깥 일은 일이 생기는 대로 하나씩 넘기겠다고 했다.', at: '50%' },
+  { t: '서부 변경 하르덴 백작령에 미궁이 열렸다. 백작이 탐사를 허가하자 용병단들이 입구 앞으로 몰려들었다.' },
+  { t: '회색늑대 용병단의 단장 브란 오스카는 혼자서도 단을 꾸려 왔지만, 장부는 늘 아슬아슬한 흑자였다. 그래서 행정관을 들였다. 계약 조건은 순이익 20% 이상.', at: '40%' },
+  { t: '이봐 행정관! 미궁이 열렸어, 우리도 바로 출발하자고!', who: '브란 오스카', role: '회색늑대 단장', seal: '브', color: '#a8322a', at: '30%' },
 ]
 
 let i = 0, typing: any = null, done: (() => void) | null = null;
@@ -23,7 +21,7 @@ function show(k: number) {
   box.classList.toggle('narr', !L.who);
   if (L.who) { $('ar-seal').style.background = L.color; $('ar-seal').textContent = L.seal; $('ar-who').innerHTML = `${L.who}<small>${L.role}</small>`; }
   $('ar-dots').innerHTML = ARRIVAL.map((_, j) => `<i class="${j <= k ? 'on' : ''}"></i>`).join('');
-  $('ar-next').textContent = k === ARRIVAL.length - 1 ? '결정표 받기' : '다음';
+  $('ar-next').textContent = k === ARRIVAL.length - 1 ? '잠깐, 보급부터' : '다음';
   $('ar-lamp').style.left = L.at || '50%';
   clearInterval(typing); typing = null;
   if (reduced()) { $('ar-line').textContent = L.t; return; }
