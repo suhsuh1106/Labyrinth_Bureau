@@ -1191,7 +1191,8 @@ describe('채비: 식량 · 정비 도구 · 해고', () => {
     setSeed(3); const W = old(newWorld()), c = us(W);
     W.unlocked = 5;
     const P = sanitize(W, c, defaultPlan(W)); P.teams!.forEach(T => { T.f = 4; }); P.parties = [0, 0, 0, 0, P.teams!.length]; P.food = FLOORS.map(() => 3); P.mend = FLOORS.map(() => 2);   // 5층은 닷새 탐사
-    const M = runMonth(W, P); closeBooks(W);
+    const rush = CO.RUSH; CO.RUSH = 1;   // (긴급 구매 값이 섞이면 산 개수를 지출 ÷ 값으로 셀 수 없어 이 테스트에선 정가로)
+    const M = runMonth(W, P); closeBooks(W); CO.RUSH = rush;
     const need = needOf(sanitize(W, c, P)), food = M.res[0].spend.food! / CO.FOOD_PRICE, mend = M.res[0].spend.mend! / CO.MEND_PRICE;
     expect(food).toBeGreaterThanOrEqual(need.food); expect(mend).toBeGreaterThanOrEqual(need.mend);
     const ate = M.ours.reduce((a, o) => a + (o.trip!.fu || 0), 0), used = M.ours.reduce((a, o) => a + (o.trip!.tk || 0), 0);

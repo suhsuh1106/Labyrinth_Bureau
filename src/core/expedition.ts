@@ -53,7 +53,8 @@ export type TripCfg = {
   gp: (m: number) => number;   // 조원 m이 채집 지점에서 해낼 확률
   tp: (m: number) => number;   // 조원 m이 흔적을 따라 해낼 확률
   hid?: (m: number) => number;   // 그 확률에 든 숨은 몫 (기대에서 뺀다: 기대는 행정관이 아는 것만으로)
-  injP: (m: number, j: number) => number;   // 해내지 못한 조원 m이 부상 주사위에 걸릴 확률 (j: 몬스터, −1 어둠 속 귀환, −2 흔적)
+  injP: (m: number, j: number) => number;   // 해내지 못한 조원 m이 부상 주사위에 걸릴 확률 (j: 몬스터, −1 어둠 속 귀환, −2 흔적, −3 채집 지점)
+  gatherDice?: boolean;   // 채집 지점에서도 못 해낸 사람이 부상 주사위를 굴린다 (구역 탐사: 모르는 구역일수록 위험, injP(−3))
   hurt: (m: number, day: number) => void;   // 처음 다쳤다 (다음 달 쉰다)
   usePot: () => false | 'pot' | 'holy';   // 주사위에 걸리면 먼저 포션 한 병으로 막는다 (포션이 없으면 false). 성수면 그 탐사 동안의 부상도 낫는다
   kill: (m: number, day: number) => boolean;   // 포션 없이 또 걸렸다: 죽으면 true (단장 · 의무실 · 강골은 버틸 수 있다)
@@ -124,7 +125,7 @@ function gather(C: TripCfg, S: TripState, up: number[], hungry: Set<number>, hel
     if (take < need) S.end = 'pack';
   }
   const ms = Array(C.size).fill('-');
-  up.forEach((m, x) => { ms[m] = dd[x] ? 'o' : 'x'; });
+  up.forEach((m, x) => { ms[m] = dd[x] ? 'o' : C.gatherDice ? dice(C, S, m, -3, S.day + 1, D) || 'x' : 'x'; });
   D.ms = ms.join('');
   if (!win && rnd() < C.ambush) S.amb = true;
   return D;
