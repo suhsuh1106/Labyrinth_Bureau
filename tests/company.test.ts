@@ -1833,3 +1833,28 @@ describe('인원 시트 (docs/board.md 2단계)', () => {
     expect(JSON.stringify(W)).toBe(snap);
   });
 });
+describe('물자 시트 (docs/board.md 3단계)', () => {
+  it('구매 · 배분 · 팔기는 깨지지 않고, 담은 만큼 금액이 보이며 판은 그대로다', async () => {
+    const { buyHtml, kitHtml, sellHtml } = await import('../src/ui/co/goods');
+    setSeed(33); const W = newWorld(); runMonth(W, BOT.even(W)); closeBooks(W);
+    const P = carryPlan(W, W.last!.plans[0]); P.buy = { pot: 4, food: 10 };
+    const snap = JSON.stringify(W), ui = { phase: 0, tab: 'report', pins: [] as string[] };
+    const h = [buyHtml(W, P), kitHtml(W, P, ui), sellHtml(W, P)];
+    h.forEach(x => expect(x).not.toMatch(/undefined|NaN|\[object/));
+    expect(h[0]).toContain('data-act="buy-now"'); expect(h[0]).toContain('data-k="buyPot"');
+    (sanitize(W, us(W), P).teams || []).forEach((_, t) => expect(h[1]).toContain(`data-k="tpots" data-i="${t}"`));
+    expect(JSON.stringify(W)).toBe(snap);
+  });
+});
+describe('기록 시트 (docs/board.md 4단계)', () => {
+  it('이달은 순이익 예측과 줄마다 이번 달 · 지난달, 구역은 열린 층의 구역마다 카드이고, 깨지지 않으며 판은 그대로다', async () => {
+    const { monthHtml, zoneCards } = await import('../src/ui/co/records');
+    setSeed(34); const W = newWorld(); for (let m = 0; m < 2; m++) { runMonth(W, BOT.even(W)); closeBooks(W); }
+    const P = carryPlan(W, W.last!.plans[0]), snap = JSON.stringify(W);
+    const h = [monthHtml(W, P), zoneCards(W, P)];
+    h.forEach(x => expect(x).not.toMatch(/undefined|NaN|\[object/));
+    expect(h[0]).toContain('순이익 예측'); expect(h[0]).toContain('data-act="bs-menu-tab"');
+    zonesOn(W.zones, 0).forEach(z => expect(h[1]).toContain(`data-z="${z.id}"`));
+    expect(JSON.stringify(W)).toBe(snap);
+  });
+});

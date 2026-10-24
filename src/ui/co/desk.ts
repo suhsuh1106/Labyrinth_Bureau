@@ -533,7 +533,7 @@ export function infoWeekHtml(W: World, raw: Plan, ui: DeskUi) {
 export function kitWarn(W: World, raw: Plan) {
   const T = sanitize(W, us(W), raw).teams || [], ready = T.map((_, t) => t).filter(t => teamReady(W, T[t])), go = ready.filter(t => T[t].go), ts = go.length ? go : ready;
   if (!ts.length) return '';
-  const K = kitShort(W, raw, ts), parts = [['포션', K.pot], ['횃불', K.torch], ['식량', K.food], ['정비 도구', K.mend], ...Object.entries(K.gear).map(([g, n]) => [g + ' 장비', n])].filter(x => +x[1] > 0);
+  const K = kitShort(W, raw, ts), parts = [['포션', K.pot], ['횃불', K.torch], ['보급', K.food], ['수리 도구', K.mend], ...Object.entries(K.gear).map(([g, n]) => [g + ' 장비', n])].filter(x => +x[1] > 0);
   if (!parts.length) return '';
   const auto = raw.autoBuy !== false;
   return `<div class="kitwarn"><b>채비 모자람</b><span>${go.length ? '보낼 예정' : '모두 보내면'} ${ts.map(t => `${t + 1}조`).join(' · ')} · ${parts.map(([n, v]) => `${n} ${v}`).join(' · ')}${auto ? ' · 떠날 때 자동 구매' : ' · 모자란 채로 떠남'}</span>${go.length && !auto ? `<button type="button" class="send" data-act="buy-short">${rushOn(W) ? '긴급 구매' : '사기'} −${fmt(K.cost)}G</button>` : ''}</div>`;

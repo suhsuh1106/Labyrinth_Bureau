@@ -5,10 +5,12 @@ import { CO, FLOORS, type Plan, type Team, type World, awayIds, dayAbs, rankOf, 
 import { type Zone, lvOf, lvProg, nextXp, viaOf, zonesOn } from '../../core/zones';
 import { KIND_NAME, nameOf } from './roster';
 import { agendaOf, backBodyHtml, nextDayBtn, todayBack } from './hall';
-import { type DeskUi, docBody, kitWarn, ledgerHtml, placeBody, staffBlds, storeHtml } from './desk';
+import { type DeskUi, docBody, kitWarn, placeBody, staffBlds } from './desk';
 import { candsHtml, listHtml, teamsHtml } from './crew';
+import { buyHtml, kitHtml, sellHtml } from './goods';
+import { monthHtml, zoneCards } from './records';
 import { askPanel } from './book';
-import { LV_SAYS, SECRET_NAME, zoneReportHtml } from './zones';
+import { LV_SAYS, SECRET_NAME } from './zones';
 import { stepper } from './view';
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
@@ -24,8 +26,8 @@ const riskWord = (v: number) => (v < 0.9 ? '낮음' : v < 1.15 ? '보통' : '높
 // 단추 시트: 단추마다 탭 (1단계는 지금 있는 창의 내용)
 export const MENUS: Record<string, { n: string; sub: string; tabs: [string, string][] }> = {
   crew: { n: '인원', sub: '보유 인원과 조 편성', tabs: [['team', '조 편성'], ['list', '명단'], ['cand', '지원자']] },
-  goods: { n: '물자', sub: '구매 · 창고와 팔기', tabs: [['buy', '구매'], ['store', '창고 · 팔기']] },
-  rec: { n: '기록', sub: '수입 · 지출과 모은 정보', tabs: [['month', '이달'], ['back', '귀환'], ['zone', '구역'], ['report', '보고서'], ['paper', '신문'], ['book', '도감'], ['probe', '조사']] },
+  goods: { n: '물자', sub: '구매 · 조마다 배분 · 창고와 팔기', tabs: [['buy', '구매'], ['kit', '배분'], ['sell', '팔기']] },
+  rec: { n: '기록', sub: '수입 · 지출과 모은 정보', tabs: [['month', '이달'], ['back', '귀환'], ['zone', '구역'], ['report', '지난달'], ['paper', '신문'], ['book', '도감'], ['probe', '정보']] },
   hq: { n: '본부', sub: '업그레이드와 바깥 상대', tabs: [['train', '본부'], ['board', '게시판 · 영주청'], ['church', '교회'], ['alley', '정보망']] },
 };
 // 옛 창을 여는 단추(장소 · 자료 · 창고 · 출정 · 귀환)가 가리키는 시트와 탭
@@ -108,7 +110,10 @@ function sheetHtml(W: World, raw: Plan, P: Plan, ui: DeskUi) {
   if (ui.zone != null && zoneAt(W, ui.zone)) return zoneSheet(W, P, zoneAt(W, ui.zone)!);
   return '';
 }
-const sheet = (body: string, label: string) => `<section class="bs-sheet" role="dialog" aria-label="${label}"><div class="grab" aria-hidden="true"></div>${body}</section>`;
+// (손잡이를 끌어 올리면 크게, 내리면 닫는다. 누르면 크게 ↔ 보통)
+let full = false;
+export const setSheetFull = (v: boolean) => { full = v; };
+const sheet = (body: string, label: string) => `<section class="bs-sheet${full ? ' full' : ''}" role="dialog" aria-label="${label}"><button type="button" class="grab" data-act="bs-grow" aria-label="${full ? '시트 줄이기' : '시트 키우기'}"></button>${body}</section>`;
 const zoneHead = (W: World, z: Zone, extra = '') => { const L = lvOf(z), nx = nextXp(z), k = L >= 1 ? z.kind : 'unk';
   return `<h2>${esc(z.nm)} <span class="kind ${k}">${L >= 1 ? KIND_NAME[z.kind] : '하는 일 모름'}</span><small>${FLOORS[z.f].name} · 이해도 ${L}단계${nx != null ? ` · ${f1(z.xp)}/${nx}인일` : ''}${extra}</small><button type="button" class="x" data-act="bs-close" aria-label="닫기">×</button></h2>`; };
 
@@ -150,11 +155,11 @@ function menuSheet(W: World, raw: Plan, P: Plan, ui: DeskUi) {
   const M = MENUS[ui.menu!], tab = M.tabs.some(x => x[0] === ui.mtab) ? ui.mtab! : M.tabs[0][0];
   const body = (() => {
     if (ui.menu === 'crew') return tab === 'team' ? teamsHtml(W, raw, ui) : tab === 'list' ? listHtml(W, raw, ui) : candsHtml(W);
-    if (ui.menu === 'goods') return tab === 'buy' ? placeBody(W, raw, ui, 'market') : storeHtml(W, raw, P);
+    if (ui.menu === 'goods') return tab === 'buy' ? buyHtml(W, raw) : tab === 'kit' ? kitHtml(W, raw, ui) : sellHtml(W, raw);
     if (ui.menu === 'rec') {
-      if (tab === 'month') return ledgerHtml(W, raw);
+      if (tab === 'month') return monthHtml(W, raw);
       if (tab === 'back') return backBodyHtml(W, raw, false);
-      if (tab === 'zone') return zoneReportHtml(W, P);
+      if (tab === 'zone') return zoneCards(W, P);
       return `<article class="co-sheet doc" id="${tab === 'report' ? 'results' : tab === 'probe' ? 'intel' : tab === 'book' ? 'book' : 'doc-' + tab}">${docBody(W, tab, P, ui)}</article>`;
     }
     return tab === 'train' ? `${staffBlds(W, raw)}${placeBody(W, raw, ui, tab)}` : placeBody(W, raw, ui, tab);
