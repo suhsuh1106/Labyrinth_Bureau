@@ -1640,3 +1640,7 @@ body.mode-board .toast { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); 
 .bs-sheet.tall.full { height: calc(100% - var(--bs-bot-h) - 8px); }
 @media (min-width: 980px) { .bs.has-sheet > .bs-sheet.tall { height: auto; } }
 .bs-sheet { grid-auto-rows: max-content; }   /* (높이를 정해도 탭 줄 · 카드가 눌리지 않게) */
+.bs-sheet .kit-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; border-top: 1px solid var(--bs-line); padding-top: 8px; }
+.bs-sheet .kit-h small { font-size: 11px; color: var(--bs-dim); }
+.bs-sheet .row small.dim { font-size: 11px; color: var(--bs-dim); }
+.bs-sheet .row select { background: var(--bs-desk); color: var(--bs-chalk); border: 1px solid var(--bs-line); border-radius: 6px; padding: 6px; font: 13px var(--f-body); min-width: 0; flex: 1; }

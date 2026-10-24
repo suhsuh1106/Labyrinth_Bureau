@@ -1,9 +1,10 @@
 // 판 (docs/board.md 1단계): 휴대폰을 세로로 든 한 화면. 위 요약 띠 · 가운데 작전 지도(구역에 깃발 말을 끌어다 놓는다) · 아래 단추 줄(인원 · 물자 · 기록 · 본부 · 다음 날).
 // 단추를 누르면 판 위로 시트가 올라온다 (1단계는 지금 있는 창의 내용을 시트 안에 그대로 띄운다).
 // 읽기만 한다 (상태를 쓰지 않고 난수를 쓰지 않는다). 지도 바탕은 구역 자리로만 그려 같은 판이면 같은 그림이다
-import { CO, FLOORS, type Plan, type Team, type World, awayIds, dayAbs, rankOf, richEst, riskEst, sanitize, stateOf, teamPots, teamReady, us, zoneAt, zoneKnown, zoneRate, zoneWay } from '../../core/company';
+import { CO, FLOORS, type Plan, type Team, type World, awayIds, dayAbs, rankOf, richEst, riskEst, sanitize, stateOf, teamPots, teamMend, teamReady, supOf, potsOf, us, zoneAt, zoneKnown, zoneRate, zoneWay } from '../../core/company';
 import { type Zone, lvOf, lvProg, nextXp, viaOf, zonesOn } from '../../core/zones';
 import { KIND_NAME, nameOf } from './roster';
+import { GEARS, PAIR_CLASS } from '../../core/data';
 import { agendaOf, backBodyHtml, nextDayBtn, todayBack } from './hall';
 import { type DeskUi, docBody, kitWarn, placeBody, staffBlds } from './desk';
 import { candsHtml, listHtml, teamsHtml } from './crew';
@@ -138,13 +139,17 @@ function orderSheet(W: World, raw: Plan, P: Plan, t: number) {
   if (!z) return '';
   const n = T.m.filter(x => x != null).length, way = zoneWay(W, z), d = T.days || CO.TRIP_DAYS[T.f], r = zoneRate(W, P, T), goal = !!T.goal, L = lvOf(z), k = riskEst(z);
   const c = us(W), lead = (c.crew || []).find(p => p.lead), hasLead = !!lead && T.m.includes(lead.id);
+  const S0 = supOf(c), H0 = potsOf(c);
   const chips = `<div class="chips"><span>거리 <b>${z.r}</b></span>${L >= 2 ? `<span>위험 <b>${riskWord(k.mid)}</b></span>` : ''}${L >= 3 && z.seen ? `<span>남은 양 <b>${Math.round(z.seen.v)}</b></span>` : ''}<span>한 조 하루 <b>${f1(r.lo)}~${f1(r.hi)}</b>개</span></div>`;
   const status = S.k === 'away' ? `<p class="note">미궁에 있어요 · ${Math.max(0, S.s.d1 - dayAbs(W))}일 뒤 아침 귀환</p>` : S.k === 'busy' ? `<p class="note neg">지금 나갈 수 없어요 · ${S.why}</p>` : '';
   return sheet(`${zoneHead(W, z, ` · ${t + 1}조 ${n}명`)}${chips}
     <div class="row"><span class="k">기준</span><span class="seg" role="group" aria-label="${t + 1}조 기준"><button type="button" data-act="tmode" data-t="${t}" data-m="days" aria-pressed="${!goal}">날</button><button type="button" data-act="tmode" data-t="${t}" data-m="goal" aria-pressed="${goal}">목표</button></span></div>
     <div class="row"><span class="k">${goal ? '목표량' : '일할 날'}</span>${goal ? stepper('tgoal', t, T.goal!, `${t + 1}조 목표량 (채집품)`) : stepper('tdays', t, d, `${t + 1}조 일할 날`)}</div>
-    <div class="row"><span class="k">여유</span>${stepper('tmargin', t, T.margin || 0, `${t + 1}조 여유 (보급 며칠치 더)`)}</div>
-    <div class="row"><span class="k">포션</span>${stepper('tpots', t, teamPots(P, T), `${t + 1}조 포션`)}</div>
+    <div class="kit-h"><b>채비</b><small>창고 · 보급 ${S0.food || 0} · 포션 ${H0.pot + H0.holy} · 수리 도구 ${S0.mend || 0}</small></div>
+    <div class="row"><span class="k">보급</span>${stepper('tmargin', t, T.margin || 0, `${t + 1}조 보급 여유 (며칠치 더)`)}<small class="dim">여유 일 · ${n * (T.food || 0)}개 = ${n}명 × ${T.food || 0}일</small></div>
+    <div class="row"><span class="k">포션</span>${stepper('tpots', t, teamPots(P, T), `${t + 1}조 포션`)}<small class="dim">쓰지 않으면 돌아온다</small></div>
+    <div class="row"><span class="k">수리 도구</span>${stepper('tmend', t, teamMend(P, T), `${t + 1}조 수리 도구`)}<small class="dim">진 날 하나</small></div>
+    <div class="row"><span class="k">장비</span><select data-k="teamG" data-i="${t}" aria-label="${t + 1}조 장비"><option value="">없음</option>${GEARS.filter(g => g !== '일반').map(g => `<option value="g:${g}"${T.g === 'g:' + g ? ' selected' : ''}>${g} (${PAIR_CLASS[g]} 대신) · 창고 ${S0.gear[g] || 0}</option>`).join('')}</select></div>
     <div class="calc"><div><span>오감</span><b>${2 * way}일</b></div><div><span>일</span><b>${d}일</b></div><div><span>보급</span><b>${n * (T.food || 0)}</b></div><div class="big"><span>예측</span><b>${Math.round(r.lo * d)}~${Math.round(r.hi * d)}</b></div></div>
     <p class="note">${2 * way + d}일 뒤 아침 귀환 · 한 사람 하루 보급 하나 · 남은 보급은 검문소가 태운다${L < 3 ? ' · 이해도가 낮아 예측 폭이 넓다' : ''}</p>
     ${hasLead ? askPanel(W, P) : ''}${status}${S.k === 'go' || S.k === 'home' ? kitWarn(W, raw) : ''}

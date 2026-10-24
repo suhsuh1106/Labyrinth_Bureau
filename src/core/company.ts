@@ -1832,7 +1832,10 @@ export function openMonth(W: World) {
         for (let m = 0; m < size; m++) { m0 = m; if (rnd() < Math.min(0.95, crP(did[m]) * (dark ? CO.DARK_CRISIS : 1))) hit(); }
         if (c.rook) rk.forEach((t, m) => { if (did[m]) c.rook![t]++; });
         // 캐 올 몫(해낸 사람 수로 센 값)은 돌아오는 날 층에서 캐 간다. 돌아오는 날은 그달 안에 흩는다
-        ev.push({ d: 1 + Math.floor(rnd() * CO.MONTH_DAYS), i, f, u: k / CO.PARTY * U.loot, ...(W.zones ? { z: rivalZone(W, f) } : {}) });
+        // 한 달 몫을 탐사 한 번씩 나눠 그달 날짜에 흩는다 (우리 조처럼 한 달에 여러 번 다녀온다: 귀환 보고 · 시장에 풀리는 한 번의 양이 탐사 한 번 몫)
+        // (구역은 그 조가 한 달 내내 다니는 한 곳)
+        const nT = W.zones ? tripsOf(f) : 1, zq = W.zones ? rivalZone(W, f) : undefined;
+        for (let j = 0; j < nT; j++) ev.push({ d: nT > 1 ? Math.min(CO.MONTH_DAYS, 1 + Math.floor((j + rnd()) * CO.MONTH_DAYS / nT)) : 1 + Math.floor(rnd() * CO.MONTH_DAYS), i, f, u: k / CO.PARTY * U.loot / nT, ...(zq != null ? { z: zq } : {}) });
         w += k / CO.PARTY;
         mapGain[i][f] += (1 + k / size) * CO.MAP_STEP[f] * (hqLv(c, 'rec') >= 1 ? 1.25 : 1) * (dark ? CO.DARK_MAP : 1);
         if (ok) okN++;
