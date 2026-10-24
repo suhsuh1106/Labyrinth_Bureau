@@ -1580,3 +1580,32 @@ body.mode-board .toast { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); 
 .bs-sheet .pcard small { color: var(--bs-dim); }
 .bs-sheet .trait { background: var(--bs-desk-3); color: var(--bs-chalk); border: 1px solid var(--bs-line); }
 .bs-sheet .trait.hid.up { color: var(--bs-green-l); } .bs-sheet .trait.hid.dn { color: #e0675c; }
+/* 시트 손잡이: 끌어 올리면 크게, 내리면 닫음 */
+.bs-sheet .grab { width: 100%; height: 22px; margin: -8px 0 -4px; padding: 0; border: 0; background: none; cursor: ns-resize; touch-action: none; display: grid; place-items: center; }
+.bs-sheet .grab::before { content: ""; width: 44px; height: 5px; border-radius: 3px; background: var(--bs-line); }
+.bs-sheet.full { max-height: calc(100% - var(--bs-bot-h) - 8px); }
+/* 판 안의 옛 창 내용도 갈색으로 (칠판 초록 대신) */
+.bs { --bl-1: #2a231c; --bl-2: #2f271f; --bl-3: #231d17; --bl-line: #4a3e31; --bl-ink: #efe6d2; --bl-soft: #b3a58c; --bl-good: #8fd0a1; --bl-bad: #f08a7e; --bl-accent: #c9993f; }
+/* 물자 시트 (docs/board.md 3단계) */
+.bs-sheet .gs-h { display: grid; gap: 2px; border-radius: 8px; padding: 8px 10px; font-size: 12px; background: var(--bs-desk); border: 1px solid var(--bs-line); }
+.bs-sheet .gs-h b { font-size: 14px; } .bs-sheet .gs-h.rush b { color: #f0a08e; } .bs-sheet .gs-h.ok b { color: var(--bs-green-l); }
+.bs-sheet .gs-h span { color: var(--bs-dim); }
+.bs-sheet .gc { background: var(--bs-desk); border: 1px solid var(--bs-line); border-radius: 8px; padding: 8px 10px; display: grid; gap: 6px; }
+.bs-sheet .gc header, .bs-sheet .gc summary { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; cursor: default; }
+.bs-sheet .gc summary { cursor: pointer; list-style: none; }
+.bs-sheet .gc header b, .bs-sheet .gc summary b { font: 700 15px var(--f-display); }
+.bs-sheet .gc header .dim, .bs-sheet .gc summary .dim { font-size: 12px; color: var(--bs-dim); }
+.bs-sheet .gc .note { margin: 0; }
+.bs-sheet .gc-r, .bs-sheet .gl { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.bs-sheet .gc-v { margin-left: auto; font: 600 14px var(--f-num); color: var(--bs-brass); }
+.bs-sheet .gls { display: grid; gap: 6px; padding-top: 6px; }
+.bs-sheet .gl > span { flex: 1 1 140px; font-size: 13px; }
+.bs-sheet .gc-k { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 12px; color: var(--bs-dim); }
+.bs-sheet .gc-k label { display: inline-flex; align-items: center; gap: 6px; }
+.bs-sheet .gc-k select { background: var(--bs-desk-2); color: var(--bs-chalk); border: 1px solid var(--bs-line); border-radius: 6px; padding: 4px 6px; font: 13px var(--f-body); max-width: 100%; }
+.bs-sheet .gs-f { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; position: sticky; bottom: -14px; background: var(--bs-desk-2); padding: 8px 0 2px; }
+.bs-sheet .gs-f .go { margin-left: auto; border-radius: 8px; padding: 10px 16px; cursor: pointer; font-weight: 700; border: 1px solid var(--bs-red); background: var(--bs-red); color: #fff; }
+.bs-sheet .gs-f .go:disabled { opacity: .5; cursor: default; }
+.bs-sheet .mini[aria-pressed="true"] { border-color: var(--bs-green-l); color: var(--bs-green-l); }
+.bs-sheet .step input { background: var(--bs-desk-2); color: var(--bs-chalk); border-color: var(--bs-line); }
+.bs-sheet .step button { background: var(--bs-desk-3); color: var(--bs-chalk); border-color: var(--bs-line); }

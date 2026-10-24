@@ -209,7 +209,7 @@ export function agendaOf(W: World, raw: Plan): Agenda[] {
   // 떠날 조의 채비가 창고에 모자람 (자동 구매를 끈 때)
   const go = ready.filter(x => x.T.go).map(x => x.t);
   if (raw.autoBuy === false && go.length) {
-    const K = kitShort(W, raw, go), parts = [['포션', K.pot], ['횃불', K.torch], ['식량', K.food], ['정비 도구', K.mend], ...Object.entries(K.gear).map(([g, n]) => [g + ' 장비', n])].filter(x => +x[1] > 0);
+    const K = kitShort(W, raw, go), parts = [['포션', K.pot], ['횃불', K.torch], ['보급', K.food], ['수리 도구', K.mend], ...Object.entries(K.gear).map(([g, n]) => [g + ' 장비', n])].filter(x => +x[1] > 0);
     if (parts.length) A.push({ k: 'kit', h: '채비 모자람', t: `${go.map(t => `${t + 1}조`).join(' · ')} · ${parts.map(([n, v]) => `${n} ${v}`).join(' · ')}`, btn: `<button type="button" class="send" data-act="buy-short">${rushOn(W) ? '긴급 구매' : '사기'} −${fmt(K.cost)}G</button>`, must: true });
   }
   // 나갈 수 있는 조: 보내면 예측 (예정을 잡은 조는 내일 출발, 다시 누르면 거둠)

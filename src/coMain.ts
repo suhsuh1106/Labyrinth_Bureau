@@ -8,7 +8,7 @@ import { CLASSES, GEARS } from './core/data';
 import { plaqueHtml } from './ui/co/view';
 import { type DeskUi, DOC_KEYS, PLACE_KEYS, fillOf, infoWeekHtml, orderOf, resultWeekHtml, weeksHtml } from './ui/co/desk';
 import { todayBack } from './ui/co/hall';
-import { MENUS, PLACE_MENU, boardShellHtml, drawTerrain } from './ui/co/board';
+import { MENUS, PLACE_MENU, boardShellHtml, drawTerrain, setSheetFull } from './ui/co/board';
 import { draftHtml } from './ui/co/draft';
 import { closeScene, openScene } from './ui/co/scene';
 import { advanceArrival, arrivalOpen, closeArrival, playArrival } from './ui/co/arrival';
@@ -51,7 +51,8 @@ function draw() {
 }
 function setPhase(p: number) { stopRun(); closeScene(); ui.phase = p; ui.open = false; ui.place = undefined; ui.store = false; ui.backs = false; closeSheet(); render(); save(); toTop(); }
 // 판의 시트를 닫는다 (구역 보고서 · 명령서 · 단추 시트)
-function closeSheet() { ui.menu = undefined; ui.order = undefined; ui.zone = undefined; }
+function closeSheet() { ui.menu = undefined; ui.order = undefined; ui.zone = undefined; sheetFull = false; setSheetFull(false); }
+let sheetFull = false;
 // 단추 시트의 탭을 연다 (옛 창을 여는 단추도 여기로)
 function openMenu(m: string, tab?: string) { ui.order = undefined; ui.zone = undefined; ui.menu = m; ui.mtab = tab || MENUS[m].tabs[0][0]; ui.exp = false; ui.place = undefined; ui.open = false; ui.store = false; render(); save(); }
 const toTop = () => { $('desk').scrollTop = 0; };
@@ -166,6 +167,7 @@ function act(b: HTMLElement) {
   if (a === 'bs-menu') { const m = b.dataset.m || 'crew'; if (ui.menu === m) { closeSheet(); render(); save(); return; } return openMenu(m, ui.mtab && MENUS[m].tabs.some(x => x[0] === ui.mtab) ? ui.mtab : undefined); }
   if (a === 'bs-tab') { ui.mtab = b.dataset.k; render(); save(); return; }
   if (a === 'bs-close') { closeSheet(); render(); save(); return; }
+  if (a === 'bs-grow') { sheetFull = !sheetFull; setSheetFull(sheetFull); render(); return; }
   if (a === 'bs-floor') { ui.floor = +(b.dataset.f || 0); ui.zone = undefined; render(); save(); return; }
   if (a === 'bs-zone') { const z = +(b.dataset.z || 0); ui.menu = undefined; ui.order = undefined; ui.zone = z; render(); save(); return; }
   if (a === 'bs-team') { const t = +(b.dataset.t || 0); ui.menu = undefined; ui.zone = undefined; ui.order = ui.order === t ? undefined : t; render(); save(); return; }
@@ -178,7 +180,7 @@ function act(b: HTMLElement) {
     if (a === 'exp') return openMenu('crew', 'team');
     if (a === 'place') { const [m, tb] = PLACE_MENU[b.dataset.place || ''] || ['hq', 'train']; return openMenu(m, tb); }
     if (a === 'open-doc') return openMenu('rec', b.dataset.tab || 'report');
-    if (a === 'store') return openMenu('goods', 'store');
+    if (a === 'store') return openMenu('goods', 'sell');
     if (a === 'backs') { ui.backs = false; return openMenu('rec', 'back'); }
     if (a === 'close-exp' || a === 'close-place' || a === 'close-doc' || a === 'close-store') { closeSheet(); render(); save(); return; }
   }
@@ -349,6 +351,28 @@ document.addEventListener('pointermove', (e: PointerEvent) => {
   if (z !== drag.hot) { document.querySelectorAll('.bz.hot').forEach(x => x.classList.remove('hot')); if (z != null) document.querySelector(`.bz[data-z="${z}"]`)?.classList.add('hot'); drag.hot = z; }
   e.preventDefault();
 }, { passive: false });
+// 시트 손잡이를 끌기: 내리면(90px 넘게) 닫고, 올리면 크게. 짧게 누르면 click이 크게 ↔ 보통을 맡는다
+let pull: { y0: number; el: HTMLElement; dy: number } | null = null;
+$('desk').addEventListener('pointerdown', (e: any) => {
+  const g = e.target.closest('.bs-sheet .grab'); if (!g) return;
+  pull = { y0: e.clientY, el: g.closest('.bs-sheet') as HTMLElement, dy: 0 }; g.setPointerCapture(e.pointerId);
+});
+$('desk').addEventListener('pointermove', (e: any) => {
+  if (!pull) return;
+  pull.dy = e.clientY - pull.y0;
+  if (pull.dy > 0) pull.el.style.transform = `translateY(${pull.dy}px)`;
+  else pull.el.style.maxHeight = `calc(100% - var(--bs-bot-h) - ${Math.max(8, 96 + pull.dy)}px)`;
+});
+$('desk').addEventListener('pointerup', () => {
+  if (!pull) return;
+  const { dy, el } = pull; pull = null;
+  if (Math.abs(dy) < 8) return;   // (누른 것: click이 맡는다)
+  dragged = true; setTimeout(() => { dragged = false; }, 50);
+  if (dy > 90) { closeSheet(); render(); save(); return; }
+  if (dy < -40) { sheetFull = true; setSheetFull(true); }
+  else if (dy > 40) { sheetFull = false; setSheetFull(false); }
+  el.style.transform = ''; el.style.maxHeight = ''; render();
+});
 const endDrag = () => {
   if (!drag) return;
   const d = drag; drag = null;
