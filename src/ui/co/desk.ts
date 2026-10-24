@@ -23,7 +23,8 @@ export type DeskUi = { phase: number; tab: string; seen?: number; dexMon?: strin
   pick?: { t?: number; s?: number; id?: number } | null;
   sort?: Record<string, string>;   // 명단 정렬 (rs 인원 명단 · cd 지원자 · as 편성표): "열:방향"
   place?: string; town?: boolean; exp?: boolean; store?: boolean; who?: number; backs?: boolean;
-  floor?: number; zone?: number; order?: number; menu?: string; mtab?: string };   // 판: 보는 층 · 펼친 구역 보고서 · 명령서를 연 조 · 연 단추 시트와 탭 (docs/board.md)   // backs: 귀환 보고 창   // who: 인원 창에서 기록 카드를 펼친 단원   // store: 창고 창   // exp: 출정 편성 창   // town: 길드 홀 대신 마을 지도와 결재안을 펼쳐 둔다   // 내정에서 열어 둔 장소 창 (인원 · 건물 · 상단 거리 · 교회 · 정보망)   // 편성판에서 집어 든 사람 (조의 자리, 또는 대기 인원)
+  floor?: number; zone?: number; order?: number; menu?: string; mtab?: string;
+  duty?: string[]; dutyNew?: string[] };   // 단장에게서 넘겨받은 업무 · 아직 펼쳐 보지 않은 인계 (duty.ts, 없으면 모두 넘겨받음)   // 판: 보는 층 · 펼친 구역 보고서 · 명령서를 연 조 · 연 단추 시트와 탭 (docs/board.md)   // backs: 귀환 보고 창   // who: 인원 창에서 기록 카드를 펼친 단원   // store: 창고 창   // exp: 출정 편성 창   // town: 길드 홀 대신 마을 지도와 결재안을 펼쳐 둔다   // 내정에서 열어 둔 장소 창 (인원 · 건물 · 상단 거리 · 교회 · 정보망)   // 편성판에서 집어 든 사람 (조의 자리, 또는 대기 인원)
 const lvOf = (W: World, k: keyof typeof INTEL.BASE) => (W.intel ? W.intel.lv[k] : INTEL.BASE[k]);
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');

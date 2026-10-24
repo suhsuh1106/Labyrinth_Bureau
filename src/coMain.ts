@@ -12,6 +12,7 @@ import { MENUS, PLACE_MENU, boardShellHtml, drawTerrain, setSheetFull } from './
 import { draftHtml } from './ui/co/draft';
 import { closeScene, openScene } from './ui/co/scene';
 import { advanceArrival, arrivalOpen, closeArrival, playArrival } from './ui/co/arrival';
+import { DUTIES, dutyDue, hasDuty } from './ui/co/duty';
 
 const $ = (id: string): any => document.getElementById(id);
 const KEY = 'lb-co', VERSION = 41, MONTHS = 36;   // 41: 세로 한 화면 판 · 본 남의 구역 (이전 판은 새 게임으로)
@@ -32,6 +33,9 @@ function render() {
   if ($('desk').scrollTop !== y) $('desk').scrollTop = y;
 }
 function draw() {
+  // 단장의 인계: 조건이 찬 업무를 넘겨받고, 판 위에 인계 한 장을 띄운다
+  const due = dutyDue(W, ui);
+  if (due.length) { ui.duty!.push(...due); ui.dutyNew = [...(ui.dutyNew || []), ...due]; }
   $('stats').innerHTML = plaqueHtml(W);
   // 신고서를 아직 내지 않았으면 가정산에 머문다. 임기가 끝나면 정산만
   if (ui.phase === 1) { ui.phase = 0; ui.exp = true; }   // 출정은 길드 위의 창
@@ -44,7 +48,7 @@ function draw() {
   $('desk').className = `co-desk ph${ui.phase}`;
   // 날마다의 본 화면은 판 (docs/board.md): 명패는 판의 위 띠가 맡는다
   document.body.classList.toggle('mode-board', ui.phase === 0);
-  $('desk').innerHTML = ui.phase === 0 ? boardShellHtml(W, plan, ui) : ui.phase === 2 ? draftHtml(W, ui.file || {}, live) : resultWeekHtml(W, live, !!ui.mute);
+  $('desk').innerHTML = ui.phase === 0 ? boardShellHtml(W, plan, ui) : ui.phase === 2 ? draftHtml(W, ui.file || {}, live, !hasDuty(ui, 'books')) : resultWeekHtml(W, live, !!ui.mute);
   const cv = document.getElementById('bs-terrain') as HTMLCanvasElement | null;
   if (cv) drawTerrain(cv, W, +(cv.parentElement!.dataset.f || 0));
   if (over) { const b = document.querySelector('#desk .resultwrap .btn-next') as HTMLButtonElement | null; if (b) { b.disabled = true; b.textContent = `임기가 끝났어요. 최종 ${rankOf(W)}위`; } }
@@ -61,7 +65,7 @@ function start(fresh = false) {
   const d = fresh ? null : load();
   if (d) { W = d.W; plan = d.plan; ui = d.ui || { phase: 0, tab: 'report', pins: [] }; }
   // 첫 결정표: 포션 상한 0병(처음 받은 포션은 창고에), 신입 없음, 교관 없음. 돈 드는 것은 모두 고르는 것
-  else { setSeed((Date.now() ^ 0x5bd1e995) >>> 0); W = newWorld(); plan = carryPlan(W, null); plan.pots = plan.pots.map(() => 0); plan.pick = []; plan.train = 0; plan.coach = 0; plan.autoSell = false; plan.autoBuy = false; plan.matSell = {}; ui = { phase: 0, tab: 'report', pins: [] }; }
+  else { setSeed((Date.now() ^ 0x5bd1e995) >>> 0); W = newWorld(); plan = carryPlan(W, null); plan.pots = plan.pots.map(() => 0); plan.pick = []; plan.train = 0; plan.coach = 0; plan.autoSell = false; plan.autoBuy = false; plan.matSell = {}; ui = { phase: 0, tab: 'report', pins: [], duty: [], dutyNew: [] }; }
   plan.intelUp = plan.intelUp || {};   // 정보망은 유지비를 저절로 내고, 넓히는 돈만 따로 정한다
   tidyTeams();
   render(); save();
@@ -175,6 +179,7 @@ function act(b: HTMLElement) {
   if (a === 'bs-place') return placeTeam(+(b.dataset.t || 0), +(b.dataset.z || 0));
   if (a === 'bs-home') { tidyTeams(); const T = (plan.teams || [])[+(b.dataset.t || 0)]; if (T) delete T.go; closeSheet(); render(); save(); return; }
   if (a === 'bs-backs') { ui.backs = false; return openMenu('rec', 'back'); }
+  if (a === 'duty-go' || a === 'duty-ok') { const d = DUTIES.find(x => x.k === b.dataset.k); ui.dutyNew = (ui.dutyNew || []).filter(k => k !== b.dataset.k); if (a === 'duty-go' && d) return openMenu(d.go[0], d.go[1]); render(); save(); return; }
   if (a === 'newgame-ask') { if (W.month === 1 || confirm('지금 판을 버리고 새 게임을 시작할까요?')) start(true); return; }
   // 옛 창을 여는 단추는 판의 시트로
   if (ui.phase === 0) {
@@ -317,7 +322,7 @@ function advance() {
 function file() {
   if (!W.draft) return;
   clearTimeout(runTimer); runTimer = null;   // 가정산의 귀환 연출이 아직 돌고 있으면 멈춘다
-  const m = W.draft.m, F = closeBooks(W, ui.file || {});
+  const m = W.draft.m, F = closeBooks(W, hasDuty(ui, 'books') ? ui.file || {} : {});   // 첫 신고서는 단장이 장부 그대로
   ui.file = undefined; ui.phase = 3; live = true; render(); save(); toTop();
   playRun();
   const M = W.history.find(x => x.month === m)!, r = M.res[0];
