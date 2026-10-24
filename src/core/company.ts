@@ -180,7 +180,7 @@ export const CO = {
   TRAIN_MAX: 0.2, TRAIN_K: 20,
   // 미궁의 압력: 모두가 꺼낸 전리품 값(기준 시세)이 PRESS_DIV마다 1씩 차고 매달 PRESS_DECAY만큼 빠진다.
   // ANOM_AT마다 이상 징후가 돌고, OVER를 넘으면 달마다 OVER_CHANCE로 범람한다. 범람하면 1·2층에 있던 파티가 당하고 두 층이 쑥대밭이 된다
-  PRESS_DIV: 6000, PRESS_DECAY: 0.03, ANOM_AT: [55, 75, 90], OVER: 100, OVER_CHANCE: 0.4, OVER_KILL: 0.2, OVER_POOL: 0.4, OVER_LEFT: 0.35,
+  PRESS_DIV: 4500, PRESS_DECAY: 0.03, ANOM_AT: [55, 75, 90], OVER: 100, OVER_CHANCE: 0.4, OVER_KILL: 0.2, OVER_POOL: 0.4, OVER_LEFT: 0.35,
   // 근원: 약점을 갖춘 우리 직영 파티가 그 층에서 ROOT_WINS번 성공하면, 약점대로 들어간 달에 근원을 찾는다.
   // 기금이 ROOT_COST에 차면 봉인이나 채굴장이 된다. 봉인: 교회가 같은 돈을 보태고(SEAL_MATCH), 압력이 SEAL_DRAIN 빠지고,
   // 그 층 압력 ×SEAL_PRESS, 층 크기 ×SEAL_MAX, 길을 아는 우리 파티 성공률 +SEAL_SUCC. 채굴장: 우리 조당 채집 +MINE_TAKE, 그 층 압력 ×MINE_PRESS
@@ -1761,8 +1761,15 @@ function dig(W: World, f: number, want: number, zid?: number) {
 // 성공 한 번에 캐 오는 양: 층의 기본 양 × 전리품 비율(숙련 · 장비) + 거점 + 채굴장 (우리만)
 const takeOf = (W: World, c: Company, f: number, tool = 0) => FLOORS[f].take * lootMul(c, f, tool) + Math.floor(Math.min(CO.BASE_MAX, c.bases[f]) / 2) * CO.BASE_TAKE + (rootOf(W, f).done === 'mine' && c.style === 'player' ? CO.MINE_TAKE : 0);
 
-// 경쟁 조 하나가 탐사 한 번에 지고 나올 수 있는 채집품 (우리 조의 lootK / PARTY 단위): 넷의 짐 칸에서 보급 · 수리 도구 · 횃불 한 칸을 빼고 채집품만 채운 만큼
-export const rivalBag = (f: number) => Math.max(0, CO.PARTY * CO.SLOT_PP - Math.ceil(CO.PARTY * (CO.TRIP_DAYS[f] + 1) / CO.FOOD_SLOT) - CO.MEND0[f] - 1) / CO.LOOT_SLOT[f] / (CO.DAYS * CO.ENC_DAY) * CO.FIND;
+// 경쟁 조 하나가 탐사 한 번에 지고 나올 수 있는 채집품 (우리 조의 lootK / PARTY 단위): 넷의 짐 칸에서 보급 · 수리 도구 · 포션과,
+// 그 구역에서 같은 짐을 나눠 쓸 전리품 · 지도 기록의 기대 칸(구간 × 조우 · 흔적 비율)을 빼고 채집품으로 채운 만큼 (우리 조와 같은 짐 칸)
+export const rivalBag = (f: number, Z?: Zone, pots = 0) => {
+  const w = Z ? Z.w : [1, 0, 0], segs = CO.SEGS[f], other = segs * (w[1] * 0.6 * CO.MAT_SLOT[f] + w[2] * 0.7 * CO.TRAIL_SLOT);
+  return Math.max(0, CO.PARTY * CO.SLOT_PP - CO.PARTY * (CO.TRIP_DAYS[f] + 1) / CO.FOOD_SLOT - CO.MEND0[f] - pots - other) / CO.LOOT_SLOT[f] / (CO.DAYS * CO.ENC_DAY) * CO.FIND;
+};
+// 경쟁 조 탐사 한 번의 몫 (같은 단위): 우리 조가 그 구역에서 그 층 하루(TRIP_DAYS)를 일한 만큼과 같은 식
+// (구간 × 채집 지점 비율 × 해낸 비율 × 구간 몫 segK × GATHER_K × 채집 몫, 옛 마주침 DAYS × ENC_DAY개가 한 몫)
+export const rivalTrip = (f: number, Z: Zone, did: number) => CO.SEGS[f] * Z.w[0] * did * segK(f) * CO.GATHER_K * Z.rich / (CO.DAYS * CO.ENC_DAY) * CO.FIND;
 export function openMonth(W: World) {
   W.wit = {}; syncZones(W);   // (이달 우리 조가 본 짐: 밀고의 근거)
   // 우리 조 수는 지난달만큼으로 본다 (붐빔 셈에만 쓴다)
@@ -1842,8 +1849,9 @@ export function openMonth(W: World) {
         // 한 달 몫을 탐사 한 번씩 나눠 그달 날짜에 흩는다 (우리 조처럼 한 달에 여러 번 다녀온다: 귀환 보고 · 시장에 풀리는 한 번의 양이 탐사 한 번 몫)
         // (구역은 그 조가 한 달 내내 다니는 한 곳)
         const nT = W.zones ? tripsOf(f) : 1, zq = W.zones ? rivalZone(W, f) : undefined;
-        // 한 번에 지고 나오는 양은 우리 조와 같은 짐 칸 한도 (rivalBag)
-        const uT = W.zones ? Math.min(k / CO.PARTY / nT, rivalBag(f)) * U.loot : k / CO.PARTY * U.loot;
+        // 탐사 한 번은 우리 조가 그 구역에서 그 층 하루(TRIP_DAYS)를 일한 몫과 같은 식이고(rivalTrip), 우리 조와 같은 짐 칸 한도(rivalBag)에 걸린다
+        const Zq = zq != null ? W.zones![zq] : undefined;
+        const uT = Zq ? Math.min(rivalTrip(f, Zq, k / size), rivalBag(f, Zq, P.pots[f] || 0)) * U.loot : k / CO.PARTY * U.loot;
         for (let j = 0; j < nT; j++) ev.push({ d: nT > 1 ? Math.min(CO.MONTH_DAYS, 1 + Math.floor((j + rnd()) * CO.MONTH_DAYS / nT)) : 1 + Math.floor(rnd() * CO.MONTH_DAYS), i, f, u: uT, ...(zq != null ? { z: zq } : {}) });
         w += k / CO.PARTY;
         mapGain[i][f] += (1 + k / size) * CO.MAP_STEP[f] * (hqLv(c, 'rec') >= 1 ? 1.25 : 1) * (dark ? CO.DARK_MAP : 1);
