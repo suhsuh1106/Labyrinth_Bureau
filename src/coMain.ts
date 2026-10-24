@@ -362,7 +362,7 @@ $('desk').addEventListener('pointermove', (e: any) => {
   if (!pull) return;
   pull.dy = e.clientY - pull.y0;
   if (pull.dy > 0) pull.el.style.transform = `translateY(${pull.dy}px)`;
-  else pull.el.style.maxHeight = `calc(100% - var(--bs-bot-h) - ${Math.max(8, 96 + pull.dy)}px)`;
+  else { const h = `calc(100% - var(--bs-bot-h) - ${Math.max(8, 96 + pull.dy)}px)`; pull.el.style.maxHeight = h; if (pull.el.classList.contains('tall')) pull.el.style.height = h; }
 });
 $('desk').addEventListener('pointerup', () => {
   if (!pull) return;
@@ -372,7 +372,7 @@ $('desk').addEventListener('pointerup', () => {
   if (dy > 90) { closeSheet(); render(); save(); return; }
   if (dy < -40) { sheetFull = true; setSheetFull(true); }
   else if (dy > 40) { sheetFull = false; setSheetFull(false); }
-  el.style.transform = ''; el.style.maxHeight = ''; render();
+  el.style.transform = ''; el.style.maxHeight = ''; el.style.height = ''; render();
 });
 const endDrag = () => {
   if (!drag) return;

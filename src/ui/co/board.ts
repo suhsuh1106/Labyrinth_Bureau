@@ -113,7 +113,8 @@ function sheetHtml(W: World, raw: Plan, P: Plan, ui: DeskUi) {
 // (손잡이를 끌어 올리면 크게, 내리면 닫는다. 누르면 크게 ↔ 보통)
 let full = false;
 export const setSheetFull = (v: boolean) => { full = v; };
-const sheet = (body: string, label: string) => `<section class="bs-sheet${full ? ' full' : ''}" role="dialog" aria-label="${label}"><button type="button" class="grab" data-act="bs-grow" aria-label="${full ? '시트 줄이기' : '시트 키우기'}"></button>${body}</section>`;
+// tall: 단추 시트는 내용이 적어도 같은 높이로 올라온다 (탭을 바꿔도 시트가 들썩이지 않게, 남는 아래는 여백)
+const sheet = (body: string, label: string, tall = false) => `<section class="bs-sheet${tall ? ' tall' : ''}${full ? ' full' : ''}" role="dialog" aria-label="${label}"><button type="button" class="grab" data-act="bs-grow" aria-label="${full ? '시트 줄이기' : '시트 키우기'}"></button>${body}</section>`;
 const zoneHead = (W: World, z: Zone, extra = '') => { const L = lvOf(z), nx = nextXp(z), k = L >= 1 ? z.kind : 'unk';
   return `<h2>${esc(z.nm)} <span class="kind ${k}">${L >= 1 ? KIND_NAME[z.kind] : '하는 일 모름'}</span><small>${FLOORS[z.f].name} · 이해도 ${L}단계${nx != null ? ` · ${f1(z.xp)}/${nx}인일` : ''}${extra}</small><button type="button" class="x" data-act="bs-close" aria-label="닫기">×</button></h2>`; };
 
@@ -166,7 +167,7 @@ function menuSheet(W: World, raw: Plan, P: Plan, ui: DeskUi) {
   })();
   return sheet(`<h2>${M.n}<small>${M.sub}</small><button type="button" class="x" data-act="bs-close" aria-label="닫기">×</button></h2>
     <div class="tabs" role="tablist">${M.tabs.map(([k, n]) => `<button type="button" role="tab" data-act="bs-tab" data-k="${k}" aria-selected="${k === tab}">${n}</button>`).join('')}</div>
-    <div class="bs-body">${body}</div>`, M.n);
+    <div class="bs-body">${body}</div>`, M.n, true);
 }
 
 // ---------- 지도 바탕 (화면에 붙은 뒤 크기를 알고 그린다) ----------
