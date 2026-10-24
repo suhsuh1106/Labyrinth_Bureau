@@ -14,7 +14,7 @@ import { closeScene, openScene } from './ui/co/scene';
 import { advanceArrival, arrivalOpen, closeArrival, playArrival } from './ui/co/arrival';
 
 const $ = (id: string): any => document.getElementById(id);
-const KEY = 'lb-co', VERSION = 41, MONTHS = 36;   // 41: 세로 한 화면 판 · 본 남의 구역 (이전 판은 새 게임으로)
+const KEY = 'lb-co', VERSION = 42, MONTHS = 36;   // 42: 귀환 기록에 계획한 일할 날 (이전 판은 새 게임으로)
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
 let W: World, plan: Plan, ui: DeskUi;
 // 도장을 막 찍은 결과 화면이면 귀환 장부를 한 줄씩 띄운다 (저장하지 않는 화면 상태)
