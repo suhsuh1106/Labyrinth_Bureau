@@ -1548,3 +1548,35 @@ body.dragging, body.dragging * { cursor: grabbing !important; user-select: none;
 @media (prefers-reduced-motion: reduce) { .bs-arrows path.go { animation: none; } }
 
 body.mode-board .toast { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+/* 인원 시트 (docs/board.md 2단계): 세로 카드 */
+.bs-sheet .crew-h { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; }
+.bs-sheet .crew-h select, .bs-sheet .pps select, .bs-sheet .tc-l select { background: var(--bs-desk); color: var(--bs-chalk); border: 1px solid var(--bs-line); border-radius: 6px; padding: 4px 6px; font: 13px var(--f-body); max-width: 100%; }
+.bs-sheet .crew-sum { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--bs-dim); }
+.bs-sheet .crew-sum b { color: var(--bs-chalk); font-family: var(--f-num); }
+.bs-sheet .tc { background: var(--bs-desk); border: 1px solid var(--bs-line); border-radius: 8px; padding: 8px 10px; display: grid; gap: 6px; }
+.bs-sheet .tc header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.bs-sheet .tc header b { font: 700 15px var(--f-display); }
+.bs-sheet .tc header .link { margin-left: auto; background: none; border: 0; color: var(--bs-brass); cursor: pointer; font-size: 12px; }
+.bs-sheet .tc-l { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 12px; }
+.bs-sheet .tc-sq { display: inline-flex; align-items: center; gap: 6px; }
+.bs-sheet .chip { font-size: 11px; border-radius: 9px; padding: 1px 8px; background: var(--bs-desk-3); color: var(--bs-chalk); }
+.bs-sheet .chip.out { background: #2f5c3b; } .bs-sheet .chip.go { background: var(--bs-red); } .bs-sheet .chip.hurt { background: #6e2a24; } .bs-sheet .chip.ok { background: #4a3e31; }
+.bs-sheet .pps { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.bs-sheet .pp { border-top: 1px solid var(--bs-line); padding: 6px 0 4px; display: grid; gap: 3px; min-width: 0; }
+.bs-sheet .pp:first-child { border-top: 0; }
+.bs-sheet .pp.on { background: rgba(63,125,78,.12); }
+.bs-sheet .pp.empty { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; }
+.bs-sheet .pp .fill { display: flex; flex-wrap: wrap; gap: 4px; }
+.bs-sheet .pp-h { display: flex; align-items: center; gap: 8px; }
+.bs-sheet .pp-n { display: flex; align-items: baseline; gap: 6px; background: none; border: 0; padding: 0; color: inherit; cursor: pointer; text-align: left; min-width: 0; flex: 1; font: inherit; }
+.bs-sheet .pp-n b { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bs-sheet .pp-c { font-size: 12px; color: var(--bs-dim); }
+.bs-sheet .pp-r { margin-left: auto; flex: none; }
+.bs-sheet .pp-t { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; font-size: 12px; }
+.bs-sheet .pp-x { font-size: 12px; color: var(--bs-dim); }
+.bs-sheet .mini.on { background: var(--bs-green); border-color: var(--bs-green); color: #fff; }
+.bs-sheet .pcard { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; font-size: 12px; }
+.bs-sheet .pcard > div { background: var(--bs-desk-2); border-radius: 6px; padding: 6px 8px; display: grid; gap: 2px; min-width: 0; }
+.bs-sheet .pcard small { color: var(--bs-dim); }
+.bs-sheet .trait { background: var(--bs-desk-3); color: var(--bs-chalk); border: 1px solid var(--bs-line); }
+.bs-sheet .trait.hid.up { color: var(--bs-green-l); } .bs-sheet .trait.hid.dn { color: #e0675c; }

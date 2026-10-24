@@ -1820,3 +1820,16 @@ describe('판 (docs/board.md 1단계)', () => {
     W.history.flatMap(M => M.ours).flatMap(o => o.seen || []).forEach(x => { expect(x.z).toBeDefined(); expect(W.zones![x.z!].f).toBe(x.f); });
   });
 });
+describe('인원 시트 (docs/board.md 2단계)', () => {
+  it('조 편성 · 명단 · 지원자는 사람마다 한 줄이고, 기록 카드를 펼쳐도 깨지지 않으며 판은 그대로다', async () => {
+    const { teamsHtml, listHtml, candsHtml } = await import('../src/ui/co/crew');
+    setSeed(32); const W = newWorld(); runMonth(W, BOT.even(W)); closeBooks(W);
+    const P = carryPlan(W, W.last!.plans[0]), snap = JSON.stringify(W), c = us(W), who = c.crew![1].id;
+    const ui = { phase: 0, tab: 'report', pins: [] as string[], who };
+    const h = [teamsHtml(W, P, ui), listHtml(W, P, ui), candsHtml(W)];
+    h.forEach(x => expect(x).not.toMatch(/undefined|NaN|\[object/));
+    c.crew!.forEach(p => { expect(h[0]).toContain(`data-id="${p.id}"`); expect(h[1]).toContain(`data-id="${p.id}"`); });
+    expect(h[0]).toContain('pcard'); expect(h[0]).toContain('data-k="assign"');
+    expect(JSON.stringify(W)).toBe(snap);
+  });
+});

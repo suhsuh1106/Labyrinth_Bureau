@@ -334,6 +334,17 @@ function boardPanel(W: World, raw: Plan) {
 // (우리는 날마다 지원자 명단에서 계약한다: 이번 달 계약한 사람 수와 이미 낸 계약금)
 const recruitOf = (W: World, raw: Plan) => (us(W).crew ? (boughtOf(W).hired || []).length : raw.recruit == null ? roomOf(us(W)) : Math.min(roomOf(us(W)), raw.recruit));
 const recruitCost = (W: World, raw: Plan) => (us(W).crew ? boughtOf(W).cost.recruit || 0 : recruitOf(W, raw) * CO.RECRUIT);
+// 숙소 증축 · 서기 (인원 창과 판의 본부 시트)
+export function staffBlds(W: World, raw: Plan) {
+  const c = us(W), beds = bedsOf(c), pend = c.pendingBeds || 0, want = c.crew ? (c.hireQ || []).length : recruitOf(W, raw), build = !!raw.dorm && !pend;
+  return `<div class="blds">
+      ${c.hq ? bldCard('house', '숙소', `${hqLv(c, 'dorm') + 1}단계 · 침상 ${beds}`, c.pendingHq === 'dorm' ? '증축 공사 중 · 다음 달 정산 때 완공' : hqCost(c, 'dorm') ? `다음 단계 침상 ${CO.HQ_BEDS[hqLv(c, 'dorm') + 1]} · 공사비 ${fmt(hqCost(c, 'dorm'))}G · 본부(건물 창)에서 올려요` : '끝까지 올렸어요 (50명)', '<button type="button" class="link" data-act="place" data-place="train">본부 보기</button>') : bldCard('house', '숙소', `침상 ${beds}${pend ? ` → ${beds + pend}` : ''}`, pend ? `증축 공사 중 · 다음 달 정산 때 침상 +${pend}` : `증축하면 다음 달 침상 +${CO.DORM_ADD} · 공사비 ${fmt(dormCost(c))}G · 침상마다 유지비 월 ${CO.DORM_KEEP}G`,
+        pend ? '<span class="lvl dim">공사 중</span>' : `<button type="button" class="tog" data-act="dorm" aria-pressed="${build}">${build ? '증축 취소' : '증축하기'}</button>`)}
+      ${c.crew ? bldCard('scroll', '서기', `${c.clerks || 0}명 · 1인 ${CO.CLERK_WAGE}G`, `미궁에 가지 않고 장부 · 창고 · 편성을 챙긴다 · 행정 역량 +${CO.A_CLERK} · 침상 하나`, `<span class="ctl2">${stepper('clerks', 0, c.clerks || 0, '서기 수')}</span>`) : ''}
+      ${c.crew ? '' : bldCard('recruit', '신입 모집', `1인 ${CO.RECRUIT}G부터`, `빈 침상 ${roomOf(c)}개까지 · 다음 달부터 수습으로 조에 끼고, 낀 조가 ${CO.ROOK_WINS}번 성공하면 대원`,
+        `<span class="ctl2">${stepper('recruit', 0, want, '뽑을 신입 수')}${raw.recruit == null ? '<small>빈 침상만큼</small>' : '<button type="button" class="link" data-act="auto-recruit">빈 침상만큼</button>'}</span>`)}
+    </div>`;
+}
 function staffPanel(W: World, raw: Plan, ui: DeskUi) {
   const c = us(W), beds = bedsOf(c), rook = rookCount(c), hurtN = (c.crew || []).filter(x => x.hurt).length, pend = c.pendingBeds || 0, L = W.last;
   const want = c.crew ? (c.hireQ || []).length : recruitOf(W, raw), build = !!raw.dorm && !pend, est = W.intel && W.intel.est.apps;
@@ -350,13 +361,7 @@ function staffPanel(W: World, raw: Plan, ui: DeskUi) {
     </div>
     <div class="beds" role="img" aria-label="침상 ${beds}개 중 대원 ${c.members - rook}, 수습 ${rook}, 이번 달 뽑을 신입 ${want}">${cells.map((k, i) => `<i class="bed ${k}${i && i % 4 === 0 ? ' gap' : ''}"></i>`).join('')}</div>
     <div class="legend"><span><i class="bed vet"></i>대원</span><span><i class="bed rook"></i>수습</span><span><i class="bed new"></i>${c.crew ? '내일 들어올 신입' : '이번 달 신입'}</span><span><i class="bed"></i>빈 침상</span><span><i class="bed build"></i>공사 중</span></div>
-    <div class="blds">
-      ${c.hq ? bldCard('house', '숙소', `${hqLv(c, 'dorm') + 1}단계 · 침상 ${beds}`, c.pendingHq === 'dorm' ? '증축 공사 중 · 다음 달 정산 때 완공' : hqCost(c, 'dorm') ? `다음 단계 침상 ${CO.HQ_BEDS[hqLv(c, 'dorm') + 1]} · 공사비 ${fmt(hqCost(c, 'dorm'))}G · 본부(건물 창)에서 올려요` : '끝까지 올렸어요 (50명)', '<button type="button" class="link" data-act="place" data-place="train">본부 보기</button>') : bldCard('house', '숙소', `침상 ${beds}${pend ? ` → ${beds + pend}` : ''}`, pend ? `증축 공사 중 · 다음 달 정산 때 침상 +${pend}` : `증축하면 다음 달 침상 +${CO.DORM_ADD} · 공사비 ${fmt(dormCost(c))}G · 침상마다 유지비 월 ${CO.DORM_KEEP}G`,
-        pend ? '<span class="lvl dim">공사 중</span>' : `<button type="button" class="tog" data-act="dorm" aria-pressed="${build}">${build ? '증축 취소' : '증축하기'}</button>`)}
-      ${c.crew ? bldCard('scroll', '서기', `${c.clerks || 0}명 · 1인 ${CO.CLERK_WAGE}G`, `미궁에 가지 않고 장부 · 창고 · 편성을 챙긴다 · 행정 역량 +${CO.A_CLERK} · 침상 하나`, `<span class="ctl2">${stepper('clerks', 0, c.clerks || 0, '서기 수')}</span>`) : ''}
-      ${c.crew ? '' : bldCard('recruit', '신입 모집', `1인 ${CO.RECRUIT}G부터`, `빈 침상 ${roomOf(c)}개까지 · 다음 달부터 수습으로 조에 끼고, 낀 조가 ${CO.ROOK_WINS}번 성공하면 대원`,
-        `<span class="ctl2">${stepper('recruit', 0, want, '뽑을 신입 수')}${raw.recruit == null ? '<small>빈 침상만큼</small>' : '<button type="button" class="link" data-act="auto-recruit">빈 침상만큼</button>'}</span>`)}
-    </div>
+    ${staffBlds(W, raw)}
     ${c.crew ? `<h3 class="rs-h">단원 명단</h3>${rosterHtml(W, (ui.sort || {}).rs, raw, ui.who)}<h3 class="rs-h">지원자 명단 <span class="dim">오늘까지 우리 문을 두드린 사람</span></h3>${candHtml(W, raw, (ui.sort || {}).cd)}` : ''}
     <p class="note">마을 지원자 이번 달 ${est ? (est.lo === est.hi ? `${est.lo}명` : `${est.lo}~${est.hi}명`) : '?'}${L ? (lastW ? ` · 지난달엔 모두 ${lastW}명을 찾아 ${lastG}명이 들어갔고 1인 ${fmt(L.res[0].recruitPrice || CO.RECRUIT)}G` : ' · 지난달엔 신입을 찾은 곳이 없었어요') : ''}. 찾는 사람이 더 많으면 값이 오르고, 명성이 높은 곳에 먼저 가요.</p>
   </div>`;
