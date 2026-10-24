@@ -246,6 +246,9 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
     const D = dex[M.name]; if (!D || !keySure(D) || badSure(D)) continue;
     const k = ASK_KEYS.find(x => askable(D, { mon: M.name, k: x, b: true })); if (k) { Q.ask = { mon: M.name, k, b: true }; break; }
   }
+  // 구역 탐사에서 구역을 스스로 고르지 않으면 편성은 결정표 그대로 두고 단장 조사만 얹는다: 보내는 날마다 그날 남은 양으로 구역 · 편성을 고른다
+  // (달 첫날에 굳혀 두면 남들이 먼저 판 구역에 간다. 임무 · 노릴 몬스터는 구역이 정한다)
+  if (W.zones && !ZONE_PICK) return { ...P, ...(Q.ask ? { ask: Q.ask } : {}) };
   return Q;
 }
 

@@ -30,6 +30,8 @@ export const CO = {
   // 교회 성수: 우리가 한 달에 바로 살 수 있는 병 수 (교회와 사이가 좋으면 더). 횃불 기본 채비 (층마다 조당)
   CHURCH_US: 60, TORCH0: [1, 2, 3, 3, 4],
   // SORTIE: 경쟁 용병단 · 계약 조가 조마다 내는 채비비 (우리 조는 식량 · 정비 도구를 사서 들고 간다)
+  ELITE_SUCC: 0.1,   // 소수 정예(깊은 층 성향)의 조원 성공 덤
+  CROWD_MIN: 12, CROWD_MAX: 24,   // 군소 용병대 인원 (3 ~ 6조)
   PARTY: 4, WAGE: 30, SORTIE: 50, POTION0: 35, POTION_Q0: 500,
   // 채비 (우리 조): 식량은 하루 한 사람에 하나(FOOD_PRICE, 짐 한 칸에 FOOD_SLOT개, 기본 FOOD_DAYS일치). 굶은 사람은 그날 성공 −HUNGER_PEN.
   // 정비 도구(MEND_PRICE, 한 칸에 하나, 층마다 기본 MEND0개)는 진 날 하나 써서 무기를 고친다. 없으면 무뎌져 그 뒤로 날마다 성공 −MEND_PEN씩 쌓인다
@@ -87,7 +89,7 @@ export const CO = {
   // 사망을 더 줄인다 (모두 교회 포션이면 한 병이 1+HOLY병 몫)
   POTION_C0: 32, CHURCH_CAP: 360, HOLY: 0.25,
   // 담합: 포션 수요와 사망이 쌓이면 긴장이 차고, 넘치면 상단과 교회가 함께 값을 올린다. 교회 후원이 쌓이면 교회가 빠진다
-  CARTEL_MARKUP: 1.4, CARTEL_MONTHS: 5, CARTEL_COOL: 8, BREAK_DONATION: 3000, TENSION_Q: 110,
+  CARTEL_MARKUP: 1.4, CARTEL_MONTHS: 5, CARTEL_COOL: 8, BREAK_DONATION: 3000, TENSION_Q: 55,
   // 신입 계약금 (한 명당). 지원자보다 찾는 사람이 많으면 모자란 비율 × RECRUIT_UP만큼 오른다 (RECRUIT_MAX배까지)
   RECRUIT: 80, RECRUIT_UP: 0.5, RECRUIT_MAX: 2,
   // 숙소: 인원은 침상 수를 넘지 못한다. 처음엔 인원보다 BED_SPARE개 많다. 증축하면 침상 DORM_ADD개가 다음 달에 생기고(한 번에 한 채),
@@ -180,11 +182,11 @@ export const CO = {
   TRAIN_MAX: 0.2, TRAIN_K: 20,
   // 미궁의 압력: 모두가 꺼낸 전리품 값(기준 시세)이 PRESS_DIV마다 1씩 차고 매달 PRESS_DECAY만큼 빠진다.
   // ANOM_AT마다 이상 징후가 돌고, OVER를 넘으면 달마다 OVER_CHANCE로 범람한다. 범람하면 1·2층에 있던 파티가 당하고 두 층이 쑥대밭이 된다
-  PRESS_DIV: 4500, PRESS_DECAY: 0.03, ANOM_AT: [55, 75, 90], OVER: 100, OVER_CHANCE: 0.4, OVER_KILL: 0.2, OVER_POOL: 0.4, OVER_LEFT: 0.35,
+  PRESS_DIV: 2200, PRESS_DECAY: 0.03, ANOM_AT: [55, 75, 90], OVER: 100, OVER_CHANCE: 0.4, OVER_KILL: 0.2, OVER_POOL: 0.4, OVER_LEFT: 0.35,
   // 근원: 약점을 갖춘 우리 직영 파티가 그 층에서 ROOT_WINS번 성공하면, 약점대로 들어간 달에 근원을 찾는다.
   // 기금이 ROOT_COST에 차면 봉인이나 채굴장이 된다. 봉인: 교회가 같은 돈을 보태고(SEAL_MATCH), 압력이 SEAL_DRAIN 빠지고,
   // 그 층 압력 ×SEAL_PRESS, 층 크기 ×SEAL_MAX, 길을 아는 우리 파티 성공률 +SEAL_SUCC. 채굴장: 우리 조당 채집 +MINE_TAKE, 그 층 압력 ×MINE_PRESS
-  ROOT_WINS: 12, ROOT_COST: 5000, SEAL_PRESS: 0.3, SEAL_MAX: 0.9, SEAL_SUCC: 0.15, SEAL_MATCH: 1, SEAL_DRAIN: 25,
+  ROOT_WINS: 12, ROOT_COST: 2500, SEAL_PRESS: 0.3, SEAL_MAX: 0.9, SEAL_SUCC: 0.15, SEAL_MATCH: 1, SEAL_DRAIN: 25,
   MINE_TAKE: 20, MINE_PRESS: 2.5,
   // 전리품 비율: 성공 한 번에 캐 오는 양 = 층의 기본 양 × (1 + 탐사 숙련도 + 갈무리장 + 채집 장비)
   // 숙련도는 그 층에서 쌓은 성공 수에서 나오고 갈수록 덜 오른다: EXP_MAX × 성공 / (성공 + EXP_K)
@@ -328,11 +330,11 @@ const LEARN_AT: Record<string, number> = { deep: 5, steady: 6, shallow: 6, secon
 // harm: 포션을 들고 위기를 맞았을 때 죽는 몫 (나머지는 다친다). 깊은 층은 포션으로 다 막지 못한다
 export type Floor = { name: string; max: number; take: number; base: number; risk: number; cap: number; harm: number };
 export const FLOORS: Floor[] = [
-  { name: '1층', max: 2400, take: 50, base: 0.86, risk: 0.04, cap: 90, harm: 0.08 },
-  { name: '2층', max: 1200, take: 40, base: 0.70, risk: 0.13, cap: 35, harm: 0.1 },
-  { name: '3층', max: 700, take: 30, base: 0.55, risk: 0.24, cap: 18, harm: 0.18 },
-  { name: '4층', max: 360, take: 30, base: 0.42, risk: 0.36, cap: 10, harm: 0.3 },
-  { name: '5층', max: 160, take: 20, base: 0.28, risk: 0.55, cap: 6, harm: 0.5 },
+  { name: '1층', max: 1200, take: 50, base: 0.86, risk: 0.04, cap: 90, harm: 0.08 },
+  { name: '2층', max: 600, take: 40, base: 0.70, risk: 0.13, cap: 35, harm: 0.1 },
+  { name: '3층', max: 350, take: 30, base: 0.55, risk: 0.24, cap: 18, harm: 0.18 },
+  { name: '4층', max: 180, take: 30, base: 0.42, risk: 0.36, cap: 10, harm: 0.3 },
+  { name: '5층', max: 80, take: 20, base: 0.28, risk: 0.55, cap: 6, harm: 0.5 },
 ];
 // 층마다 채집품(기본 소재) 한 가지: 채집 지점에서 캔다. 판마다 같고 변하지 않는다(층에 다시 차는 양도 정해져 있다). P0는 수요(D)만큼 팔렸을 때의 시세다.
 // (코드의 loot · ITEMS는 채집품이다. 몬스터에게서 갈무리하는 전리품(사냥 소재)은 mat · monsters.ts)
@@ -344,11 +346,11 @@ export const FLOORS: Floor[] = [
 // 모두가 1층에 몰려도 값이 무너지지 않는다. 천장은 그대로라 1층이 나중에 더 좋아지지는 않는다
 export type Item = { name: string; buyer: string; P0: number; D: number; el: number; lo: number; hi: number };
 export const ITEMS: Item[] = [
-  { name: '황동석', buyer: '상단 경매장 · 대장간', P0: 9.6, D: 850, el: 0.35, lo: 1, hi: 1.15 },
-  { name: '철광석', buyer: '대장간 · 상단', P0: 23, D: 550, el: 0.45, lo: 0.75, hi: 1.25 },
-  { name: '저급 마석', buyer: '마법학교 · 상단', P0: 34, D: 300, el: 0.5, lo: 0.7, hi: 1.3 },
-  { name: '고급 마석', buyer: '마법학교', P0: 56, D: 150, el: 0.55, lo: 0.65, hi: 1.35 },
-  { name: '미스릴 원석', buyer: '수도 · 마법학교', P0: 120, D: 60, el: 0.6, lo: 0.6, hi: 1.4 },
+  { name: '황동석', buyer: '상단 경매장 · 대장간', P0: 9.6, D: 425, el: 0.35, lo: 1, hi: 1.15 },
+  { name: '철광석', buyer: '대장간 · 상단', P0: 23, D: 275, el: 0.45, lo: 0.75, hi: 1.25 },
+  { name: '저급 마석', buyer: '마법학교 · 상단', P0: 34, D: 150, el: 0.5, lo: 0.7, hi: 1.3 },
+  { name: '고급 마석', buyer: '마법학교', P0: 56, D: 75, el: 0.55, lo: 0.65, hi: 1.35 },
+  { name: '미스릴 원석', buyer: '수도 · 마법학교', P0: 120, D: 30, el: 0.6, lo: 0.6, hi: 1.4 },
 ];
 const NF = FLOORS.length;
 export const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
@@ -446,15 +448,14 @@ export type Probe = { m: number; k: 'mkt' | 'riv'; id?: string; cost: number; de
 export const ROSTER: { id: string; name: string; style: Style; size: number }[] = [
   // 미궁이 막 열려 모두 작게 시작한다. size는 처음 들어온 인원이다
   { id: 'us', name: '회색늑대 용병단', style: 'player', size: 7 },
-  // (경쟁 용병단은 조 하나의 벌이 · 짐이 우리와 같은 대신 머릿수로 앞선다: 2026-10 우리의 두 배로)
-  { id: 'red', name: '붉은 깃발단', style: 'volume', size: 44 },
-  { id: 'holy', name: '성흔 기사단', style: 'steady', size: 40 },
-  { id: 'iron', name: '철모회', style: 'deep', size: 28 },
-  { id: 'crow', name: '까마귀단', style: 'chaser', size: 28 },
-  { id: 'silver', name: '은빛 창', style: 'hoarder', size: 28 },
-  { id: 'fox', name: '여우굴 패', style: 'shallow', size: 16 },
-  { id: 'bridge', name: '돌다리 형제단', style: 'second', size: 16 },
-  { id: 'free', name: '군소 용병대', style: 'crowd', size: 30 },
+  // 경쟁 용병단 다섯: 조 하나의 벌이 · 짐은 우리와 같고 머릿수로 앞선다. 층 다섯 · 층마다 구역 여덟이라 길드마다 조 4 ~ 12개(평균 8개 안팎).
+  // 붉은 깃발단은 다수(8조로 시작해 12조까지), 철모회는 소수 정예(4조 → 6조). 군소 용병대는 3 ~ 6조로 층을 붐비게만 한다 (2026-10-24)
+  { id: 'red', name: '붉은 깃발단', style: 'volume', size: 32 },
+  { id: 'holy', name: '성흔 기사단', style: 'steady', size: 28 },
+  { id: 'iron', name: '철모회', style: 'deep', size: 16 },
+  { id: 'crow', name: '까마귀단', style: 'chaser', size: 24 },
+  { id: 'silver', name: '은빛 창', style: 'hoarder', size: 20 },
+  { id: 'free', name: '군소 용병대', style: 'crowd', size: 12 },
 ];
 
 export type CoResult = { tip?: { i: number; nm: string; aud: boolean; fine: number; dirty: boolean; d: number }; tipBack?: string[];
@@ -1182,8 +1183,8 @@ const STYLE: Record<Style, { prior: (W: World, f: number) => number; resp: numbe
 // 성향마다 몸집을 불리는 정도: build는 증축할 때 금고가 증축 값의 몇 배여야 하는지(0이면 짓지 않는다), cap은 그 이상 짓지 않는 인원
 // margin은 조 하나를 더 보냈을 때 남아야 하는 돈
 const GROW: Record<Style, { build: number; cap: number; margin: number }> = {
-  volume: { build: 1.5, cap: 140, margin: 30 }, steady: { build: 2.5, cap: 100, margin: 36 }, deep: { build: 3.5, cap: 48, margin: 45 }, chaser: { build: 2, cap: 80, margin: 30 },
-  hoarder: { build: 3, cap: 64, margin: 36 }, shallow: { build: 3, cap: 20, margin: 36 }, second: { build: 3, cap: 16, margin: 36 }, crowd: { build: 0, cap: 0, margin: 0 }, player: { build: 0, cap: 0, margin: 0 },
+  volume: { build: 1.5, cap: 48, margin: 30 }, steady: { build: 2.5, cap: 40, margin: 36 }, deep: { build: 3.5, cap: 24, margin: 45 }, chaser: { build: 2, cap: 36, margin: 30 },
+  hoarder: { build: 3, cap: 32, margin: 36 }, shallow: { build: 3, cap: 20, margin: 36 }, second: { build: 3, cap: 16, margin: 36 }, crowd: { build: 0, cap: 0, margin: 0 }, player: { build: 0, cap: 0, margin: 0 },
 };
 // 조 하나를 더 보냈을 때 남을 돈 예측: 지난달 그 용병단이 보낸 층들의 조당 벌이(평균) − 출정비와 포션 − 늘어날 급여
 export function partyMargin(W: World, i: number) {
@@ -1847,7 +1848,7 @@ export function openMonth(W: World) {
         const pp = clamp(p + U.succ + kw * CO.KEY_BONUS - bw * CO.BAD_PEN - rooks * CO.ROOK_PEN, 0.05, 0.97);
         // 명단이 없는 쪽은 손발 · 실력이 붙는 만큼을 숫자로: 처음 AI_VET0, AI_VET_M달에 걸쳐 AI_VET까지
         const vet = CO.AI_VET0 + (CO.AI_VET - CO.AI_VET0) * Math.min(1, W.month / CO.AI_VET_M);
-        const pm = () => clamp(pp + vet, 0.05, 0.97);
+        const pm = () => clamp(pp + vet + (c.style === 'deep' ? CO.ELITE_SUCC : 0), 0.05, 0.97);   // (철모회는 소수 정예: 실력 덤)
         const crP = (ok: boolean) => Math.min(0.95, F.risk * (ok ? CO.CRISIS_OK : CO.CRISIS_FAIL) * U.crisis);
         // 위기: 위기마다 들고 간 포션을 한 병 쓴다. 포션이 있으면 대개 다치고 층의 harm만큼만 죽는다 (성수는 그보다 덜). 포션이 없으면 CRISIS_DEATH만큼 죽는다
         let potsIn = P.pots[f], dq = 0, hq = 0, m0 = 0;
@@ -2173,7 +2174,7 @@ function settleMonth(W: World, playerPlan: Plan): MonthResult {
     c.fame = Math.max(0, (c.fame || 0) * CO.FAME_FADE + r.win.reduce((a, n, f) => a + n * CO.FAME_F[f], 0) - r.deaths * CO.FAME_DEATH + (r.jobFame || 0));
     if (c.style === 'crowd') {
       const sent = r.sent.reduce((a, b) => a + b, 0) || 1;
-      c.members = clamp(c.members - r.deaths + Math.round(r.net / sent / 25) * CO.PARTY, 16, 200);
+      c.members = clamp(c.members - r.deaths + Math.round(r.net / sent / 25) * CO.PARTY, CO.CROWD_MIN, CO.CROWD_MAX);
       c.cash = 0;   // 군소 용병대는 버는 대로 쓴다
       return;
     }

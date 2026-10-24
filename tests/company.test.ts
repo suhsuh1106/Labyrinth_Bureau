@@ -1498,7 +1498,7 @@ describe('날 단위 턴 · 길드 홀', () => {
     let drops = 0;
     for (const seed of [14, 15]) {
     setSeed(seed); const W = newWorld(), P = sanitize(W, us(W), defaultPlan(W)); P.autoSell = false;
-    W.mq = ITEMS.map(it => it.D * 0.6);   // (1층 황동석은 바닥 값에 붙어 있는 날이 많다: 시장이 마른 채로 시작해 값이 움직이게)
+    W.mq = ITEMS.map(it => it.D * 0.8);   // (시세가 천장 · 바닥에 붙지 않은 데서 시작해 값이 움직이게)
     for (let d = 1; d < CO.MONTH_DAYS; d++) {
       const pool = [...W.pool], before = W.sales ? W.sales.length : 0;
       nextDay(W, P);
