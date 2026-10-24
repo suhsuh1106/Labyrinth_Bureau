@@ -1800,3 +1800,23 @@ describe('구역 탐사 (docs/zones.md)', () => {
   });
 });
 const D = (o: { days?: import('../src/core/expedition').Day[] }) => o.days || [];
+
+describe('판 (docs/board.md 1단계)', () => {
+  it('판은 열린 층의 구역 · 깃발 · 단추 줄을 그리고, 시트(구역 보고서 · 명령서 · 단추 탭)마다 깨지지 않으며, 그려도 판은 그대로다', async () => {
+    const { boardShellHtml, MENUS } = await import('../src/ui/co/board');
+    setSeed(31); const W = newWorld();
+    for (let m = 0; m < 2; m++) { runMonth(W, BOT.even(W)); closeBooks(W); }
+    const P = carryPlan(W, W.last!.plans[0]), snap = JSON.stringify(W);
+    const base = { phase: 0, tab: 'report', pins: [] as string[] };
+    const h = boardShellHtml(W, P, base);
+    zonesOn(W.zones, 0).forEach(z => expect(h).toContain(`data-z="${z.id}"`));
+    expect(h).toContain('data-act="bs-team"'); expect(h).toContain('data-act="next-day"');
+    const all = [h, boardShellHtml(W, P, { ...base, zone: zonesOn(W.zones, 0)[0].id }), boardShellHtml(W, P, { ...base, order: 0 }),
+      ...Object.entries(MENUS).flatMap(([m, M]) => M.tabs.map(([k]) => boardShellHtml(W, P, { ...base, menu: m, mtab: k })))];
+    all.forEach(x => expect(x).not.toMatch(/undefined|NaN|\[object/));
+    expect(all[2]).toContain('data-act="send"');
+    expect(JSON.stringify(W)).toBe(snap);
+    // 우리 조가 본 남의 조는 본 구역을 적는다 (판의 남의 깃발)
+    W.history.flatMap(M => M.ours).flatMap(o => o.seen || []).forEach(x => { expect(x.z).toBeDefined(); expect(W.zones![x.z!].f).toBe(x.f); });
+  });
+});

@@ -22,7 +22,8 @@ export type DeskUi = { phase: number; tab: string; seen?: number; dexMon?: strin
   file?: Partial<Filing>;   // 가정산에서 고치는 신고서
   pick?: { t?: number; s?: number; id?: number } | null;
   sort?: Record<string, string>;   // 명단 정렬 (rs 인원 명단 · cd 지원자 · as 편성표): "열:방향"
-  place?: string; town?: boolean; exp?: boolean; store?: boolean; who?: number; backs?: boolean };   // backs: 귀환 보고 창   // who: 인원 창에서 기록 카드를 펼친 단원   // store: 창고 창   // exp: 출정 편성 창   // town: 길드 홀 대신 마을 지도와 결재안을 펼쳐 둔다   // 내정에서 열어 둔 장소 창 (인원 · 건물 · 상단 거리 · 교회 · 정보망)   // 편성판에서 집어 든 사람 (조의 자리, 또는 대기 인원)
+  place?: string; town?: boolean; exp?: boolean; store?: boolean; who?: number; backs?: boolean;
+  floor?: number; zone?: number; order?: number; menu?: string; mtab?: string };   // 판: 보는 층 · 펼친 구역 보고서 · 명령서를 연 조 · 연 단추 시트와 탭 (docs/board.md)   // backs: 귀환 보고 창   // who: 인원 창에서 기록 카드를 펼친 단원   // store: 창고 창   // exp: 출정 편성 창   // town: 길드 홀 대신 마을 지도와 결재안을 펼쳐 둔다   // 내정에서 열어 둔 장소 창 (인원 · 건물 · 상단 거리 · 교회 · 정보망)   // 편성판에서 집어 든 사람 (조의 자리, 또는 대기 인원)
 const lvOf = (W: World, k: keyof typeof INTEL.BASE) => (W.intel ? W.intel.lv[k] : INTEL.BASE[k]);
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
@@ -53,7 +54,7 @@ function rumorHtml(W: World) {
 }
 
 export const DOC_TABS: [string, string][] = [['report', '보고서'], ['paper', '신문'], ['book', '도감'], ['probe', '조사 결과']];
-function docBody(W: World, tab: string, P?: Plan, ui?: DeskUi) {
+export function docBody(W: World, tab: string, P?: Plan, ui?: DeskUi) {
   if (tab === 'report') return resultsHtml(W);
   if (tab === 'paper') return (W.last ? paperHtml(W) : '<p class="note">첫 정산이 끝나면 변경 일보가 나와요.</p>') + rumorHtml(W);
   if (tab === 'book') return bookHtml(W, P, ui && ui.dexMon);
@@ -451,7 +452,7 @@ function sealsOf(W: World, raw: Plan): Record<string, string> {
     paper: W.last ? '새' : '', book: news ? String(news) : '', probe: docCount(W, 'probe') ? String(docCount(W, 'probe')) : '',
   };
 }
-function placeBody(W: World, raw: Plan, ui: DeskUi, k: string) {
+export function placeBody(W: World, raw: Plan, ui: DeskUi, k: string) {
   const P = sanitize(W, us(W), raw);
   if (k === 'board') return boardPanel(W, raw);
   if (k === 'staff') return staffPanel(W, raw, ui);
@@ -469,7 +470,7 @@ export function placeHtml(W: World, raw: Plan, ui: DeskUi) {
     <div class="place-body">${placeBody(W, raw, ui, k)}</div></div></div>`;
 }
 // 결재안: 들어올 돈(수입 예측)과 나갈 돈 줄마다 이번 달 · 지난달. 줄 이름을 누르면 그 장소 창이 열린다
-function ledgerHtml(W: World, raw: Plan) {
+export function ledgerHtml(W: World, raw: Plan) {
   const c = us(W), P = sanitize(W, c, raw), fc = monthFc(W, P), L = W.last, ls = costLines(W, raw), G = taxGuess(W, P, fc), gov = G.sub + G.aid + G.adv;
   const govL = L ? L.res[0].sales - (L.res[0].lootSales ?? 0) - L.res[0].matSales - (L.res[0].jobPay || 0) - (L.res[0].mapSale || 0) : 0;
   const out = ls.reduce((a, l) => a + l.now, 0), outL = ls.reduce((a, l) => a + l.last, 0);
@@ -524,7 +525,7 @@ export function infoWeekHtml(W: World, raw: Plan, ui: DeskUi) {
     ${ui.store ? storeWin(W, raw) : ''}${ui.exp ? expHtml(W, raw, ui) : ''}${readerHtml(W, ui, raw)}${placeHtml(W, raw, ui)}${ui.backs ? backWinHtml(W, raw) : ''}`;
 }
 // 출정 편성 창의 채비 경고: 보낼 예정인 조(없으면 나갈 수 있는 조 모두)가 떠나면 창고에서 모자랄 채비. 사는 것은 지금 값(1일 정가, 그 뒤 긴급 구매)
-function kitWarn(W: World, raw: Plan) {
+export function kitWarn(W: World, raw: Plan) {
   const T = sanitize(W, us(W), raw).teams || [], ready = T.map((_, t) => t).filter(t => teamReady(W, T[t])), go = ready.filter(t => T[t].go), ts = go.length ? go : ready;
   if (!ts.length) return '';
   const K = kitShort(W, raw, ts), parts = [['포션', K.pot], ['횃불', K.torch], ['식량', K.food], ['정비 도구', K.mend], ...Object.entries(K.gear).map(([g, n]) => [g + ' 장비', n])].filter(x => +x[1] > 0);

@@ -8,12 +8,13 @@ import { CLASSES, GEARS } from './core/data';
 import { plaqueHtml } from './ui/co/view';
 import { type DeskUi, DOC_KEYS, PLACE_KEYS, fillOf, infoWeekHtml, orderOf, resultWeekHtml, weeksHtml } from './ui/co/desk';
 import { todayBack } from './ui/co/hall';
+import { MENUS, PLACE_MENU, boardShellHtml, drawTerrain } from './ui/co/board';
 import { draftHtml } from './ui/co/draft';
 import { closeScene, openScene } from './ui/co/scene';
 import { advanceArrival, arrivalOpen, closeArrival, playArrival } from './ui/co/arrival';
 
 const $ = (id: string): any => document.getElementById(id);
-const KEY = 'lb-co', VERSION = 40, MONTHS = 36;   // 40: 구역 탐사 · 인일 셈 (이전 판은 새 게임으로)
+const KEY = 'lb-co', VERSION = 41, MONTHS = 36;   // 41: 세로 한 화면 판 · 본 남의 구역 (이전 판은 새 게임으로)
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
 let W: World, plan: Plan, ui: DeskUi;
 // 도장을 막 찍은 결과 화면이면 귀환 장부를 한 줄씩 띄운다 (저장하지 않는 화면 상태)
@@ -41,10 +42,18 @@ function draw() {
   if (over) ui.phase = 3;
   $('weeks').innerHTML = weeksHtml(W, ui.phase);
   $('desk').className = `co-desk ph${ui.phase}`;
-  $('desk').innerHTML = ui.phase === 0 ? infoWeekHtml(W, plan, ui) : ui.phase === 2 ? draftHtml(W, ui.file || {}, live) : resultWeekHtml(W, live, !!ui.mute);
+  // 날마다의 본 화면은 판 (docs/board.md): 명패는 판의 위 띠가 맡는다
+  document.body.classList.toggle('mode-board', ui.phase === 0);
+  $('desk').innerHTML = ui.phase === 0 ? boardShellHtml(W, plan, ui) : ui.phase === 2 ? draftHtml(W, ui.file || {}, live) : resultWeekHtml(W, live, !!ui.mute);
+  const cv = document.getElementById('bs-terrain') as HTMLCanvasElement | null;
+  if (cv) drawTerrain(cv, W, +(cv.parentElement!.dataset.f || 0));
   if (over) { const b = document.querySelector('#desk .resultwrap .btn-next') as HTMLButtonElement | null; if (b) { b.disabled = true; b.textContent = `임기가 끝났어요. 최종 ${rankOf(W)}위`; } }
 }
-function setPhase(p: number) { stopRun(); closeScene(); ui.phase = p; ui.open = false; ui.place = undefined; ui.store = false; ui.backs = false; render(); save(); toTop(); }
+function setPhase(p: number) { stopRun(); closeScene(); ui.phase = p; ui.open = false; ui.place = undefined; ui.store = false; ui.backs = false; closeSheet(); render(); save(); toTop(); }
+// 판의 시트를 닫는다 (구역 보고서 · 명령서 · 단추 시트)
+function closeSheet() { ui.menu = undefined; ui.order = undefined; ui.zone = undefined; }
+// 단추 시트의 탭을 연다 (옛 창을 여는 단추도 여기로)
+function openMenu(m: string, tab?: string) { ui.order = undefined; ui.zone = undefined; ui.menu = m; ui.mtab = tab || MENUS[m].tabs[0][0]; ui.exp = false; ui.place = undefined; ui.open = false; ui.store = false; render(); save(); }
 const toTop = () => { $('desk').scrollTop = 0; };
 
 function start(fresh = false) {
@@ -75,6 +84,7 @@ document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   if (arrivalOpen()) closeArrival();
   else if (document.querySelector('.sc-wrap')) return;   // 탐사 재생 장면은 제 손으로 닫는다
+  else if (ui && (ui.menu || ui.order != null || ui.zone != null)) { closeSheet(); render(); save(); }
   else if (ui && ui.backs) { ui.backs = false; render(); save(); }
   else if (ui && ui.open) { ui.open = false; render(); save(); }
   else if (ui && ui.place) { ui.place = undefined; render(); save(); }
@@ -111,6 +121,15 @@ function teamAct(a: string, b: HTMLElement) {
   }
   tidyTeams(); render(); save();
 }
+// 판: t번 조를 구역 z로 (층도 그 구역의 층으로) 옮기고 명령서를 연다
+function placeTeam(t: number, z: number) {
+  tidyTeams(); const T = (plan.teams || [])[t], Z = W.zones && W.zones[z];
+  if (T && Z) { T.z = Z.id; T.f = Z.f; tidyTeams(); }
+  ui.menu = undefined; ui.zone = undefined; ui.order = t; render(); save();
+}
+// 끌어다 놓기: 본부의 깃발을 누른 채 움직이면 따라오고, 구역 위에서 놓으면 그 구역으로. 그냥 누르면 명령서 (click이 맡는다)
+let drag: { t: number; x0: number; y0: number; el: HTMLElement | null; hot: number | null } | null = null, dragged = false;
+function zoneUnder(x: number, y: number) { const el = document.elementsFromPoint(x, y).find(e => (e as HTMLElement).dataset && (e as HTMLElement).dataset.z != null && e.classList.contains('bz')) as HTMLElement | undefined; return el ? +el.dataset.z! : null; }
 // 편성표 배치 칸: 사람을 t번 조의 빈자리에 넣는다 ('new'면 새 조를 만들고, '-1'이면 대기로)
 function assignTo(id: number, t: string) {
   const T = plan.teams || (plan.teams = []);
@@ -143,6 +162,26 @@ function say(t: string) {
 function act(b: HTMLElement) {
   const a = b.dataset.act;
   if (a === 'phase') return setPhase(+(b.dataset.phase || 0));
+  // 판 (docs/board.md)
+  if (a === 'bs-menu') { const m = b.dataset.m || 'crew'; if (ui.menu === m) { closeSheet(); render(); save(); return; } return openMenu(m, ui.mtab && MENUS[m].tabs.some(x => x[0] === ui.mtab) ? ui.mtab : undefined); }
+  if (a === 'bs-tab') { ui.mtab = b.dataset.k; render(); save(); return; }
+  if (a === 'bs-close') { closeSheet(); render(); save(); return; }
+  if (a === 'bs-floor') { ui.floor = +(b.dataset.f || 0); ui.zone = undefined; render(); save(); return; }
+  if (a === 'bs-zone') { const z = +(b.dataset.z || 0); ui.menu = undefined; ui.order = undefined; ui.zone = z; render(); save(); return; }
+  if (a === 'bs-team') { const t = +(b.dataset.t || 0); ui.menu = undefined; ui.zone = undefined; ui.order = ui.order === t ? undefined : t; render(); save(); return; }
+  if (a === 'bs-place') return placeTeam(+(b.dataset.t || 0), +(b.dataset.z || 0));
+  if (a === 'bs-home') { tidyTeams(); const T = (plan.teams || [])[+(b.dataset.t || 0)]; if (T) delete T.go; closeSheet(); render(); save(); return; }
+  if (a === 'bs-backs') { ui.backs = false; return openMenu('rec', 'back'); }
+  if (a === 'newgame-ask') { if (W.month === 1 || confirm('지금 판을 버리고 새 게임을 시작할까요?')) start(true); return; }
+  // 옛 창을 여는 단추는 판의 시트로
+  if (ui.phase === 0) {
+    if (a === 'exp') return openMenu('crew', 'team');
+    if (a === 'place') { const [m, tb] = PLACE_MENU[b.dataset.place || ''] || ['hq', 'train']; return openMenu(m, tb); }
+    if (a === 'open-doc') return openMenu('rec', b.dataset.tab || 'report');
+    if (a === 'store') return openMenu('goods', 'store');
+    if (a === 'backs') { ui.backs = false; return openMenu('rec', 'back'); }
+    if (a === 'close-exp' || a === 'close-place' || a === 'close-doc' || a === 'close-store') { closeSheet(); render(); save(); return; }
+  }
   if (a === 'exp') { ui.exp = true; ui.place = undefined; ui.open = false; render(); save(); (document.querySelector('.reader.exp .close') as HTMLElement | null)?.focus(); return; }
   if (a === 'backs') { ui.backs = true; render(); save(); (document.querySelector('.reader.back-w .close') as HTMLElement | null)?.focus(); return; }
   if (a === 'close-backs') { ui.backs = false; render(); save(); return; }
@@ -293,10 +332,36 @@ $('desk').addEventListener('pointerdown', (e: any) => {
   hold = { tm: window.setTimeout(tick, 420), n: 0 };
 });
 ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => $('desk').addEventListener(ev, stopHold));
+$('desk').addEventListener('pointerdown', (e: any) => {
+  const f = e.target.closest('.bf'); if (!f || f.classList.contains('away')) return;
+  drag = { t: +f.dataset.t, x0: e.clientX, y0: e.clientY, el: null, hot: null };
+});
+document.addEventListener('pointermove', (e: PointerEvent) => {
+  if (!drag) return;
+  if (!drag.el) {
+    if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 8) return;
+    const src = document.querySelector(`.bf[data-t="${drag.t}"]`) as HTMLElement | null; if (!src) { drag = null; return; }
+    const g = src.cloneNode(true) as HTMLElement; g.classList.add('bf-ghost'); document.body.appendChild(g); drag.el = g;
+    document.body.classList.add('dragging');
+  }
+  drag.el.style.left = e.clientX + 'px'; drag.el.style.top = e.clientY + 'px';
+  const z = zoneUnder(e.clientX, e.clientY);
+  if (z !== drag.hot) { document.querySelectorAll('.bz.hot').forEach(x => x.classList.remove('hot')); if (z != null) document.querySelector(`.bz[data-z="${z}"]`)?.classList.add('hot'); drag.hot = z; }
+  e.preventDefault();
+}, { passive: false });
+const endDrag = () => {
+  if (!drag) return;
+  const d = drag; drag = null;
+  if (!d.el) return;
+  d.el.remove(); document.body.classList.remove('dragging'); dragged = true; setTimeout(() => { dragged = false; }, 50);
+  if (d.hot != null) placeTeam(d.t, d.hot); else render();
+};
+document.addEventListener('pointerup', endDrag); document.addEventListener('pointercancel', endDrag);
 $('desk').addEventListener('click', (e: any) => {
   // 버튼과, 지도 · 책상 위 물건(SVG의 data-act)을 누른다
   const t = e.target.closest('button, .spot[data-act], th[data-act]'); if (!t || t.disabled) return;
   if (held && t.dataset.d) { held = false; return; }   // 길게 눌러 되풀이한 뒤의 click은 넘긴다
+  if (dragged) return;   // 끌어다 놓은 뒤의 click은 넘긴다
   if (t.dataset.act) return act(t);
   if (t.dataset.tab) { ui.tab = t.dataset.tab; render(); save(); return; }
   if (t.dataset.k) edit(t.dataset.k, +t.dataset.i, (v: number) => v + +t.dataset.d, +(t.dataset.j || 0));
@@ -484,6 +549,9 @@ function finishRun() {
 $('newgame').addEventListener('click', () => { if (W.month === 1 || confirm('지금 판을 버리고 새 게임을 시작할까요?')) start(true); });
 
 start();
+// 화면 크기가 바뀌면 지도 바탕을 다시 그린다
+let rz: any = null;
+addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { const cv = document.getElementById('bs-terrain') as HTMLCanvasElement | null; if (cv) drawTerrain(cv, W, +(cv.parentElement!.dataset.f || 0)); }, 120); });
 
 // 그래프 위에 마우스를 올리면 그달 숫자를 보여 준다 (data-tip: "제목|줄|줄")
 const tip = $('tip');

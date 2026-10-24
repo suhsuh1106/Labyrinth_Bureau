@@ -479,7 +479,8 @@ export type CoResult = { tip?: { i: number; nm: string; aud: boolean; fine: numb
 // 우리 조 하나의 귀환 보고. d0 · d1: 나간 날 · 돌아온 날 (그달의 며칠째)
 // sn · sw · se: 조원마다 나선 구간 · 해낸 구간 · 해낼 기대 (nm과 같은 순서)
 // 미궁에서 본 남들: 경쟁 용병단 자리 · 이름 · 층 · 돌아오는 날(판 전체) · 지고 나올 채집품 짐작 · 조 수 · 우리 조가 돌아온 날과의 차(+면 그 뒤에 돌아온다)
-export type Seen = { i: number; nm: string; f: number; d: number; q: number; n: number; rel: number };
+// z: 본 구역 (경쟁 조가 굴린 구역, 판의 남의 깃발)
+export type Seen = { i: number; nm: string; f: number; d: number; q: number; n: number; rel: number; z?: number };
 // z: 구역 · zx: 그 구역 이해도 경험치 (다녀오기 전 · 뒤) · way · wk: 한쪽 길 · 일한 날 · goal: 목표량 · burn: 검문소가 태운 채비 (포션 · 보급 · 수리 도구 · 값)
 export type Ours = { zn?: string; z?: number; zx?: [number, number]; way?: number; wk?: number; goal?: number; burn?: { pot: number; food: number; mend: number; v: number }; seen?: Seen[]; sn?: number[]; sw?: number[]; se?: number[]; f: number; keys: string[]; ok: boolean; d: number; mats: [string, number][]; first: string[]; kit: number; g: string; crisis?: number; pots?: number; n?: number; k?: number; hurt?: number; days?: Day[]; trip?: Trip; dead?: { n: string; day: number; pot: boolean; tk?: number; ex?: number; mt?: number }[]; cls?: string[]; potC?: number; t?: number; nm?: string[]; ld?: number; d0?: number; d1?: number; tk?: number[]; mi?: number[]; got?: number; mission?: Mission; mp?: number };   // got: 캐 와 창고에 넣은 채집품 · mission: 임무(없으면 채집) · mp: 그려 온 지도(%p)   // mi: 간 사람들의 단원 번호   // tk: 간 사람들의 실력 단계 (보낼 때). 죽은 사람의 tk · ex · mt: 실력 단계 · 층 경험 합 · 조직력 짝 수 (잃은 자산)
 export type MonthResult = {
@@ -1868,7 +1869,7 @@ function sightings(W: World, s: Sortie): Seen[] {
     const eA = base + e.d, ov = Math.min(s.d1 - 1, eA - 1) - Math.max(s.d0, eA - L) + 1;
     if (ov <= 0 || rnd() >= Math.min(0.9, p0 + ov * 0.05) * (s.z != null && e.z != null && e.z !== s.z ? CO.SEE_ZONE : 1)) return;
     const q = e.u * takeOf(W, W.cos[e.i], e.f, mo.plans[e.i].tool || 0) * (0.7 + rnd() * 0.6), k = `${e.i}:${eA}`;
-    const x = by.get(k) || { i: e.i, nm: W.cos[e.i].name, f: e.f, d: eA, q: 0, n: 0, rel: eA - s.d1 }; x.q += q; x.n++; by.set(k, x);
+    const x = by.get(k) || { i: e.i, nm: W.cos[e.i].name, f: e.f, d: eA, q: 0, n: 0, rel: eA - s.d1, ...(e.z != null ? { z: e.z } : {}) }; x.q += q; x.n++; by.set(k, x);
   });
   return [...by.values()].map(x => ({ ...x, q: Math.round(x.q) })).sort((a, b) => a.d - b.d);
 }
