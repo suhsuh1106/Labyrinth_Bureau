@@ -15,7 +15,7 @@ import { advanceArrival, arrivalOpen, closeArrival, playArrival } from './ui/co/
 import { DUTIES, dutyDue, hasDuty } from './ui/co/duty';
 
 const $ = (id: string): any => document.getElementById(id);
-const KEY = 'lb-co', VERSION = 41, MONTHS = 36;   // 41: 세로 한 화면 판 · 본 남의 구역 (이전 판은 새 게임으로)
+const KEY = 'lb-co', VERSION = 43, MONTHS = 36;   // 43: 경쟁 용병단의 구역 이해도 · 사냥, 본 남들의 사냥 · 전리품 (이전 판은 새 게임으로)
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
 let W: World, plan: Plan, ui: DeskUi;
 // 도장을 막 찍은 결과 화면이면 귀환 장부를 한 줄씩 띄운다 (저장하지 않는 화면 상태)

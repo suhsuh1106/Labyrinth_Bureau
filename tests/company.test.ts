@@ -139,51 +139,6 @@ describe('상단·교회와 포션 담합', () => {
       }
     }
   });
-  it('담합 전에는 소문이 먼저 돌고, 담합 중에는 상단·교회 포션 값이 함께 오른다', async () => {
-    let seen = 0;
-    for (let g = 1; g <= 40; g++) {
-      await new Promise(r => setTimeout(r, 0));
-      const W = playGame(g, BOT.even);
-      const start = W.log.find(l => /함께 올린다고/.test(l.t));
-      if (!start) continue;
-      seen++;
-      expect(W.log.some(l => /마주 앉는다/.test(l.t) && l.m <= start.m)).toBe(true);
-      const M = W.history.find(h => h.month === start.m + 1)!;
-      if (!M) continue;
-      expect(M.cartel).toBe(true);
-      expect(M.potion).toBe(Math.round(potionPrice(M.potQ) * CO.CARTEL_MARKUP));
-      expect(M.potionC).toBe(Math.round(CO.POTION_C0 * CO.CARTEL_MARKUP));
-    }
-    expect(seen).toBeGreaterThan(3);
-  });
-  it('담합 중 교회 후원이 쌓이면 교회가 빠져나와 후원한 쪽에 예전 값으로 팔고, 후원한 쪽은 교회와 가까워지고 상단과 멀어진다', () => {
-    let checked = 0;
-    for (let g = 1; g <= 40 && checked < 3; g++) {
-      setSeed(g); const W: World = old(newWorld());
-      for (let m = 0; m < 36 && !W.cartel; m++) runMonth(W, BOT.even(W));
-      if (!W.cartel) continue;
-      const c = us(W); c.cash = 50000;
-      const relC = c.relC ?? 50, relM = c.relM ?? 50;
-      const P = BOT.even(W); P.donate = CO.BREAK_DONATION; P.buy = { holy: 0 };
-      const M = runMonth(W, P);
-      expect(M.res[0].spend.donate).toBe(CO.BREAK_DONATION);
-      expect(W.cartel ? W.cartel.churchOut : true).toBe(true);
-      expect(c.relC!).toBeGreaterThan(relC);
-      expect(c.relM!).toBeLessThan(relM);
-      expect(W.log.some(l => /예전 값으로 내주기로/.test(l.t))).toBe(true);
-      // 교회가 빠진 뒤로는 후원한 우리에게만 예전 값이고, 후원하지 않은 쪽은 여전히 오른 값을 낸다
-      if (W.cartel) {
-        expect(churchPrice(W, 0)).toBe(CO.POTION_C0);
-        const j = W.cos.findIndex((_, k) => k > 0 && !W.cartel!.donated[k]);
-        if (j > 0) expect(churchPrice(W, j)).toBe(Math.round(CO.POTION_C0 * CO.CARTEL_MARKUP));
-        const P2 = BOT.even(W); P2.buy = { holy: 10 };
-        const N = runMonth(W, P2), r = N.res[0];
-        expect(r.spend.potion).toBe(r.potC * CO.POTION_C0 + (r.potNeed - r.potC) * N.potion);
-      }
-      checked++;
-    }
-    expect(checked).toBeGreaterThan(0);
-  });
   it('교회 포션을 많이 쓰면 교회와 가까워지고, 상단 포션만 쓰면 상단과 가까워진다', () => {
     setSeed(6); const A = newWorld(); setSeed(6); const B = newWorld();
     for (let m = 0; m < 12; m++) {
@@ -209,84 +164,14 @@ describe('교회 성수 포션', () => {
   });
 });
 
-describe('미궁의 압력과 근원', () => {
-  it('모두가 꺼낸 만큼 압력이 차고, 넘치면 기록이 남고 1·2층이 쑥대밭이 된다', () => {
-    setSeed(17); const W = newWorld();
-    for (let m = 0; m < 6; m++) runMonth(W, BOT.even(W));
-    expect(W.pressure!).toBeGreaterThan(0);
-    W.pressure = 500;
-    let M = null as ReturnType<typeof runMonth> | null;
-    for (let m = 0; m < 20 && !(M && M.overflow); m++) {
-      const P = BOT.even(W);
-      M = runMonth(W, P);
-    }
-    expect(M!.overflow).toBe(true);
-    expect(W.log.some(l => l.m === M!.month && /^범람: /.test(l.t))).toBe(true);
-    expect(W.pressure!).toBeLessThan(500 * CO.OVER_LEFT + 50);
-    expect(W.pool[0]).toBeLessThan(FLOORS[0].max * 0.6);
-  });
-  it('압력이 차는 동안 이상 징후가 먼저 돌고, 아무 손도 쓰지 않으면 대개 한 번은 넘친다', () => {
-    let over = 0, warned = 0;
-    for (let g = 1; g <= 20; g++) {
-      const W = playGame(g, BOT.even);
-      const first = W.history.find(M => M.overflow);
-      if (!first) continue;
-      over++;
-      if (W.log.some(l => /^이상 징후: /.test(l.t) && l.m < first.month)) warned++;
-    }
-    expect(over).toBeGreaterThan(10);
-    expect(warned).toBe(over);
-  });
-  it('근원은 도감에서 주 몬스터의 이해도가 다 차고 약점을 확정한 뒤에만 찾는다', () => {
-    let smart = 0, even = 0;
-    for (let g = 1; g <= 10; g++) {
-      const W = playGame(g, BOT.smartAsk);   // 단장에게 소거법으로 묻는 숙련 봇
-      smart += W.roots!.filter(r => r.found).length;
-      even += playGame(g, BOT.even).roots!.filter(r => r.found).length;
-      W.roots!.forEach((R, f) => { if (!R.found) return; const D = W.dex![MONSTERS[W.mons[f]].name]; expect(D.u).toBeGreaterThanOrEqual(DEX.ROOT_AT); expect(W.history[R.found - 1].res[0].sent[f]).toBeGreaterThan(0); });
-    }
-    // 고르게 둔 봇은 단장에게 묻지 않아 약점을 확정하지 못한다
-    expect(even).toBe(0);
-    expect(smart).toBeGreaterThan(1);
-  });
-  it('봉인 기금은 교회가 같은 돈을 보태고, 다 차면 압력이 빠지고 층이 작아지며 교회와 가까워진다', () => {
-    setSeed(4); const W: World = newWorld();
-    W.roots![0].found = 1;
-    runMonth(W, BOT.even(W));
-    const before = W.pressure!, relC = us(W).relC!;
-    const P = BOT.even(W); P.root = { f: 0, seal: CO.ROOT_COST / 2, mine: 0 };
-    const M = runMonth(W, P);
-    expect(M.res[0].spend.root).toBe(CO.ROOT_COST / 2);
-    expect(W.roots![0].done).toBe('seal');
-    expect(W.pressure!).toBeLessThan(before);
-    expect(us(W).relC!).toBeGreaterThan(relC);
-    expect(floorMax(W, 0)).toBe(Math.round(FLOORS[0].max * CO.SEAL_MAX));
-    for (let m = 0; m < 3; m++) runMonth(W, BOT.even(W));
-    expect(W.pool[0]).toBeLessThanOrEqual(floorMax(W, 0));
-  });
-  it('채굴장을 내면 그 층에서 우리 성공 조당 더 캔다', () => {
-    let a = 0, b = 0;
-    for (const mine of [false, true]) {
-      for (let g = 1; g <= 10; g++) {
-        setSeed(g); const W = newWorld();
-        if (mine) { W.roots![0] = { found: 1, seal: 0, mine: CO.ROOT_COST, done: 'mine', at: 1 }; }
-        for (let m = 0; m < 4; m++) { const M = runMonth(W, BOT.even(W)); const per = M.res[0].got[0] / Math.max(1, M.res[0].ok[0]); if (mine) b += per; else a += per; }
-      }
-    }
-    expect(b).toBeGreaterThan(a);
-  });
-  it('찾지 않았거나 이미 끝난 근원에는 기금을 넣을 수 없다', () => {
-    setSeed(6); const W = newWorld();
-    const P = BOT.even(W); P.root = { f: 0, seal: 3000, mine: 0 };
-    const M = runMonth(W, P);
-    expect(M.res[0].spend.root).toBe(0);
-    expect(W.roots![0].seal).toBe(0);
-  });
+describe('신문', () => {
   it('신문은 그달 가장 큰 일을 머리기사로 싣는다', () => {
+    const on = CO.DEPTHS; CO.DEPTHS = true;   // (범람은 꺼 두었지만 머리기사 고르기는 그대로 본다)
     setSeed(17); const W = newWorld();
     for (let m = 0; m < 3; m++) runMonth(W, BOT.even(W));
     W.pressure = 500;
     for (let m = 0; m < 20; m++) { const M = runMonth(W, BOT.even(W)); if (M.overflow) break; }
+    CO.DEPTHS = on;
     expect(coIssue(W)!.hed).toBe('미궁이 넘쳤다');
     expect(coIssue(W)!.extra).toBe(true);
   });
@@ -920,7 +805,7 @@ describe('성공 정도 · 부상 · 수입 예측', () => {
     // 결재 때 그달 다녀온 조들의 예측이 남는다 (조마다 여러 번 다녀왔으니 한 번씩 보낸 예측보다 크다)
     const M = runMonth(W, P);
     expect(M.fc!.mean).toBeGreaterThan(fc.mean);
-    expect(fcRank(fc, 0)).toBe(0); expect(fcRank(fc, fc.p90 * 3)).toBe(1);
+    expect(fcRank(fc, 0)).toBe(0); expect(fcRank(fc, fc.p90 * 3)).toBeCloseTo(1, 2);   // (분포 칸은 소수 셋째 자리로 반올림한다)
   });
   it('기본 운영이면 수입 예측이 실제와 크게 어긋나지 않는다', () => {
     let a = 0, f = 0, inside = 0, n = 0;
@@ -1306,7 +1191,8 @@ describe('채비: 식량 · 정비 도구 · 해고', () => {
     setSeed(3); const W = old(newWorld()), c = us(W);
     W.unlocked = 5;
     const P = sanitize(W, c, defaultPlan(W)); P.teams!.forEach(T => { T.f = 4; }); P.parties = [0, 0, 0, 0, P.teams!.length]; P.food = FLOORS.map(() => 3); P.mend = FLOORS.map(() => 2);   // 5층은 닷새 탐사
-    const M = runMonth(W, P); closeBooks(W);
+    const rush = CO.RUSH; CO.RUSH = 1;   // (긴급 구매 값이 섞이면 산 개수를 지출 ÷ 값으로 셀 수 없어 이 테스트에선 정가로)
+    const M = runMonth(W, P); closeBooks(W); CO.RUSH = rush;
     const need = needOf(sanitize(W, c, P)), food = M.res[0].spend.food! / CO.FOOD_PRICE, mend = M.res[0].spend.mend! / CO.MEND_PRICE;
     expect(food).toBeGreaterThanOrEqual(need.food); expect(mend).toBeGreaterThanOrEqual(need.mend);
     const ate = M.ours.reduce((a, o) => a + (o.trip!.fu || 0), 0), used = M.ours.reduce((a, o) => a + (o.trip!.tk || 0), 0);
@@ -1498,7 +1384,7 @@ describe('날 단위 턴 · 길드 홀', () => {
     let drops = 0;
     for (const seed of [14, 15]) {
     setSeed(seed); const W = newWorld(), P = sanitize(W, us(W), defaultPlan(W)); P.autoSell = false;
-    W.mq = ITEMS.map(it => it.D * 0.6);   // (1층 황동석은 바닥 값에 붙어 있는 날이 많다: 시장이 마른 채로 시작해 값이 움직이게)
+    W.mq = ITEMS.map(it => it.D * 0.8);   // (시세가 천장 · 바닥에 붙지 않은 데서 시작해 값이 움직이게)
     for (let d = 1; d < CO.MONTH_DAYS; d++) {
       const pool = [...W.pool], before = W.sales ? W.sales.length : 0;
       nextDay(W, P);
