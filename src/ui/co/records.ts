@@ -17,9 +17,9 @@ export function zoneCards(W: World, P: Plan) {
     const zs = zonesOn(W.zones, f).filter(z => zoneKnown(W, z)).sort((a, b) => b.xp - a.xp || a.r - b.r || a.id - b.id);
     return `<h3 class="mt">${F.name} <small>구역 ${zs.length} · 이해도 높은 순</small></h3><ul class="zcs">${zs.map(z => {
       const L = lvOf(z), r = richEst(z), k = riskEst(z), rc = z.rec, n = on(z), way = zoneWay(W, z);
-      const bits = [`거리 ${z.r}${way ? ` · 오감 ${2 * way}일` : ''}`, L >= 2 ? `위험 ${riskWord(k.mid)}` : '', L >= 3 ? `채집 몫 ×${f1(r.lo)}~${f1(r.hi)}` : '', L >= 3 && z.seen ? `남은 양 ${Math.round(z.seen.v)} (${now - z.seen.d <= 0 ? '오늘' : `${now - z.seen.d}일 전`})` : '', rc.md ? `실적 ${f1(rc.md)}인일 · 하루 ${f1(rc.got / rc.md)}개/인` : ''].filter(Boolean);
+      const bits = [`거리 ${z.r}${way ? ` · 오감 ${2 * way}일` : ''}`, L >= 2 ? `위험 ${riskWord(k.mid)}` : '', L >= 3 ? `채집 몫 ×${f1(r.lo)}~${f1(r.hi)}` : '', L >= 3 && z.seen ? `남은 양 ${Math.round(z.seen.v)} (${now - z.seen.d <= 0 ? '오늘' : `${now - z.seen.d}일 전`})` : '', rc.md ? `일손 ${f1(rc.md)}일 · 한 사람 하루 ${f1(rc.got / rc.md)}개` : '', rc.dry != null && rc.dry === rc.last ? '지난 귀환 바닥' : ''].filter(Boolean);
       return `<li><button type="button" class="zc" data-act="bs-zone" data-z="${z.id}"><span class="zc-h"><b>${esc(z.nm)}</b>${L >= 1 ? `<span class="zk ${z.kind}">${KIND_NAME[z.kind]}</span>` : '<span class="dim">하는 일 ?</span>'}${n ? `<span class="chip go">우리 ${n}조</span>` : ''}${lvBar(z)}</span>
         <span class="zc-b">${bits.join(' · ')}</span>${L >= 5 ? `<span class="zc-b ok">${SECRET_NAME[z.secret]}</span>` : ''}</button></li>`;
     }).join('')}</ul>`;
-  }).join('') + `<p class="note">일한 인일이 이해도 경험치 · 단계마다 보고서가 한 겹씩 는다 · 구역을 누르면 판에서 그 구역 보고서</p>`;
+  }).join('') + `<p class="note">일손(사람 × 날)이 이해도 경험치 · 단계마다 보고서가 한 겹씩 는다 · 구역을 누르면 판에서 그 구역 보고서</p>`;
 }

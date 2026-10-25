@@ -144,7 +144,7 @@ function workCell(W: World, P: Plan, T: Team, t: number) {
   const way = zoneWay(W, z), r = zoneRate(W, P, T), d = T.days || CO.TRIP_DAYS[T.f], goal = !!T.goal;
   const mode = `<span class="seg sm" role="group" aria-label="${t + 1}조 기준"><button type="button" data-act="tmode" data-t="${t}" data-m="days" aria-pressed="${!goal}" title="일할 날을 정한다">날</button><button type="button" data-act="tmode" data-t="${t}" data-m="goal" aria-pressed="${goal}" title="목표량을 정하면 보수적인 산출(범위의 아래)로 날을 잡고, 채우면 일찍 돌아선다">목표</button></span>`;
   const st = goal ? stepper('tgoal', t, T.goal!, `${t + 1}조 목표량 (채집품)`) : stepper('tdays', t, d, `${t + 1}조 일할 날`);
-  return `${mode}${st}<small class="dim" title="오가는 날은 먹기만 한다 · 산출은 우리가 아는 범위 (이해도가 오를수록 좁아진다)">${way ? `오감 ${2 * way}일 + ` : ''}일 ${d}일 · ${Math.round(r.lo * d)}~${Math.round(r.hi * d)}개</small>`;
+  return `${mode}${st}<small class="dim" title="오가는 날은 먹기만 한다 · 산출은 우리가 아는 범위 (이해도가 오를수록 좁아진다)">${way ? `오감 ${2 * way}일 + ` : ''}일 ${d}일${lvOf(z) >= 1 ? ` · ${Math.round(r.lo * d)}~${Math.round(r.hi * d)}개` : ' · 벌이 모름'}</small>`;
 }
 const MISSION_TIP: Record<Mission, string> = Object.fromEntries((['gather', 'hunt', 'scout'] as Mission[]).map(k => [k, `${{ gather: '채집: 몬스터를 피해 채집 지점 위주 · 안전', hunt: '사냥: 조우 위주 · 전리품과 도감', scout: '탐색: 흔적을 따라 지도 위주 · 흔적에서 다칠 수 있음' }[k]} · 채집 지점 ${Math.round(CO.MISSION_W[k][0] * 100)}% · 조우 ${Math.round(CO.MISSION_W[k][1] * 100)}% · 흔적 ${Math.round(CO.MISSION_W[k][2] * 100)}%`])) as Record<Mission, string>;
 // 조 요약 줄: 층, 사람 수, 직업, 조직력, 성공률 예측, 장비, 살필 것. 아래 명단의 배치 칸으로 사람을 넣고 뺀다
