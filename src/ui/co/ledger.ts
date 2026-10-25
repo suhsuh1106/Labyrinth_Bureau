@@ -2,7 +2,8 @@
 // 이달 순이익 예측 · 열흘 달력 위의 조마다 막대(나간 날 → 돌아올 날, 끝에 손익) · 귀환 손익 · 들어올 돈과 나갈 돈 · 본부 공사의 투자 크기.
 // 귀환 손익 = 가져온 값(채집품 오늘 시세 + 전리품 평균 시세) − 쓴 채비(정가) − 다녀온 날만큼의 급여 몫. 읽기만 한다 (상태를 쓰지 않고 난수를 쓰지 않는다)
 import { CO, FLOORS, type Plan, type Sortie, type Team, type World, adminFee, bagDays, bedsOf, boughtOf, dayAbs, hqCost, hqLv, personWage, priceNow, profitOf, sanitize, taxGuess, teamMend, teamReady, unitPrice, us, zoneAt, zoneRate, zoneWay, matRefOf } from '../../core/company';
-import { adminProj, costLines, monthFc } from './desk';
+import { adminProj, costLines, homePlan, monthFc } from './desk';
+import { lvOf } from '../../core/zones';
 import { PLACE_MENU } from './board';
 import { nameOf } from './roster';
 
@@ -40,12 +41,12 @@ function calHtml(W: World, P: Plan) {
     const ids = T.m.filter((x): x is number => x != null), ld = (c.crew || []).find(p => p.id === ids[0]);
     const done = (W.back || []).filter(s => s.t === t), away = (W.away || []).filter(s => s.t === t || s.m.some(id => ids.includes(id)));
     let bars = done.map(s => { const L = tripPL(W, s); return bar(L.net >= 0 ? 'won' : 'lost', s.d0, s.d1, `${sgn(L.net)}${L.dead ? ' †' : ''}`, `data-act="bs-menu-tab" data-m="rec" data-k="back"`, `${s.rep && s.rep.zn ? s.rep.zn : FLOORS[s.f].name} · ${s.d1 - s.d0}일 · 손익 ${sgn(L.net)}G`, s.d0 <= m0); }).join('');
-    bars += away.map(s => { const z = zoneAt(W, s.z); const L = z ? teamPL(W, P, { ...T, z: s.z, f: s.f }, s.d1 - s.d0, s.work || 1, s) : null;
+    bars += away.map(s => { const z = zoneAt(W, s.z); const L = z && lvOf(z) >= 1 ? teamPL(W, P, { ...T, z: s.z, f: s.f }, s.d1 - s.d0, s.work || 1, s) : null;   // (이해도 0단계 구역은 손익을 짐작하지 못한다)
       return bar('out', s.d0, s.d1, L ? `~${sgn(L.net)}` : '미궁', `data-act="bs-team" data-t="${t}"`, `${z ? z.nm : FLOORS[s.f].name} · 늦어도 ${s.d1 - m0 > D ? '다음 달' : `${s.d1 - m0}일`} 아침 귀환${L ? ` · 손익 예측 ${sgn(L.lo)} ~ ${sgn(L.hi)}G` : ''}`, s.d0 <= m0); }).join('');
     if (T.go && teamReady(W, T) && zoneAt(W, T.z)) {
-      const z = zoneAt(W, T.z)!, d = T.days || CO.TRIP_DAYS[T.f], bd = bagDays(W, P, T), work = !T.goal && bd < d - 0.5 ? Math.max(1, Math.round(bd)) : d, len = 2 * zoneWay(W, z) + work;
-      const L = teamPL(W, P, T, len, work);
-      bars += bar('plan', now + 1, now + 1 + len, `~${sgn(L.net)}`, `data-act="bs-team" data-t="${t}"`, `${z.nm} · 내일 출발 · ${len}일 · 손익 예측 ${sgn(L.lo)} ~ ${sgn(L.hi)}G`);
+      const z = zoneAt(W, T.z)!, d = T.days || CO.TRIP_DAYS[T.f], bd = bagDays(W, P, T), work = lvOf(z) >= 1 && !T.goal && bd < d - 0.5 ? Math.max(1, Math.round(bd)) : d, len = 2 * zoneWay(W, z) + work;
+      const L = lvOf(z) >= 1 ? teamPL(W, P, T, len, work) : null;
+      bars += bar('plan', now + 1, now + 1 + len, L ? `~${sgn(L.net)}` : '출발', `data-act="bs-team" data-t="${t}"`, `${z.nm} · 내일 출발 · ${L ? `${len}일 · 손익 예측 ${sgn(L.lo)} ~ ${sgn(L.hi)}G` : `늦어도 ${len}일 · 손익 모름`}`);
     }
     return `<div class="lg-row"><button type="button" class="lg-who" data-act="bs-team" data-t="${t}"><b>${t + 1}조</b><small>${ld ? esc(nameOf(ld)) : '빈 조'}</small></button><div class="lg-track" style="--today:${today}">${bars || ''}</div></div>`;
   }).join('');
@@ -69,7 +70,7 @@ function plHtml(W: World) {
 
 // 들어올 돈 · 나갈 돈: 줄마다 한 막대 (가장 큰 줄에 맞춤), 누르면 그 줄을 정하는 시트
 function moneyHtml(W: World, raw: Plan, P: Plan) {
-  const fc = monthFc(W, P), ls = costLines(W, raw).filter(l => l.now || l.last), G = taxGuess(W, P, fc), gov = G.sub + G.aid + G.adv;
+  const fc = monthFc(W, P, true), ls = costLines(W, raw).filter(l => l.now || l.last), G = taxGuess(W, P, fc), gov = G.sub + G.aid + G.adv;
   const ins: [string, number, string][] = [['채집품 · 전리품 (예측)', fc.mean, 'gate'], ...(gov ? [['영주청 지원금 · 선금', gov, 'board'] as [string, number, string]] : [])];
   const max = Math.max(1, ...ins.map(x => x[1]), ...ls.map(l => l.now)), w = (v: number) => `${Math.max(v > 0 ? 2 : 0, Math.round(v / max * 100))}%`;
   const out = ls.reduce((a, l) => a + l.now, 0);
@@ -108,12 +109,15 @@ export function investHtml(W: World, P: Plan, k: string, name: string) {
 }
 
 export function ledgerHtml(W: World, raw: Plan) {
-  const c = us(W), P = sanitize(W, c, raw), fc = monthFc(W, P), ls = costLines(W, raw), G = taxGuess(W, P, fc), gov = G.sub + G.aid + G.adv;
+  const c = us(W), P = sanitize(W, c, raw), fc = monthFc(W, P, true), ls = costLines(W, raw), G = taxGuess(W, P, fc), gov = G.sub + G.aid + G.adv;
+  // 이해도 0단계 구역에 나가 있거나 나갈 조 (벌이를 짐작하지 못해 예측에서 뺀다)
+  const end = W.month * CO.MONTH_DAYS, bz = (z?: number) => { const q = z != null ? zoneAt(W, z) : undefined; return !!q && lvOf(q) < 1; };
+  const blindN = (W.away || []).filter(s => s.d1 <= end && bz(s.z)).length + (homePlan(W, P).teams || []).filter(T => T.m.some(x => x != null) && bz(T.z)).length;
   const out = ls.reduce((a, l) => a + l.now, 0), net = fc.mean + gov - out, spent = Object.values(boughtOf(W).cost).reduce((a, b) => a + (b || 0), 0);
   const L = W.last ? W.last.res[0] : null, inc = fc.mean + gov, margin = inc > 0 ? net / inc : 0;
   const build = P.build && CO.HQ_COST[P.build] ? P.build : P.dorm ? 'dorm' : '';
   const NAME: Record<string, string> = { dorm: '숙소 증축', train: '훈련장', rec: '기록실', med: '의무실' };
-  return `<section class="lg-head"><div><small>이달 순이익 예측</small><b class="${net < 0 ? 'neg' : 'pos'}">${sgn(net)}G</b><span>범위 ${sgn(fc.p10 + gov - out)} ~ ${sgn(fc.p90 + gov - out)} · 수입의 ${pc(margin)}${L ? ` · 지난달 ${sgn(profitOf(L))}` : ''}</span></div>
+  return `<section class="lg-head"><div><small>이달 순이익 예측</small><b class="${net < 0 ? 'neg' : 'pos'}">${sgn(net)}G</b><span>범위 ${sgn(fc.p10 + gov - out)} ~ ${sgn(fc.p90 + gov - out)} · 수입의 ${pc(margin)}${L ? ` · 지난달 ${sgn(profitOf(L))}` : ''}${blindN ? ` · 처음 가는 구역 ${blindN}조는 모름` : ''}</span></div>
       <div><small>금고</small><b>${fmt(c.cash)}G</b><span>그믐 뒤 예측 ${fmt(c.cash + net + spent)}G</span></div></section>
     ${calHtml(W, P)}${plHtml(W)}${moneyHtml(W, raw, P)}${build ? `<section class="lg-inv"><h3>이달 공사</h3>${investHtml(W, P, build, NAME[build])}</section>` : ''}
     <p class="note">들어올 돈: 이번 달 돌아온 조 · 그믐 전에 돌아올 조 · 본부의 조가 남은 ${CO.MONTH_DAYS - (W.day || 1) + 1}일 동안 나갈 예측 · 급여 · 유지비 · 영주세는 그믐에</p>`;

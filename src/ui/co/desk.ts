@@ -8,6 +8,7 @@ import { teamDays, buyPrice, kitShort, monthNeed, rushOn, adminFee, adminOf, set
 import { CLASSES, GEARS, BUYERS, PAIR_CLASS } from '../../core/data';
 import { askPanel, bookHtml, condLabel, demandsNow, kitHint } from './book';
 import { SRC_INFO, intelHtml, rumorsHtml } from './intel';
+import { lvOf as zLv } from '../../core/zones';
 import { coIssue, paperHtml } from './paper';
 import { revealHtml } from './reveal';
 import { fcChart, fmtG } from './charts';
@@ -128,10 +129,16 @@ function netPanel(W: World, raw: Plan) {
         ${lv < 3 ? `<span>다음 단계 <b>${fmt(acc)} / ${fmt(need)}G</b></span><label class="exp">영향력 넓히기 ${stepper('intelUp', i, up, `${SRC_INFO[k].n} 확장 투자`, 50)}</label>` : ''}</div>
     </div>`;
   }).join('');
+  // 0단계: 마을 소문은 늘 열려 있고, 입구 출입 기록 단계만큼 더 잘 들린다 (장례 수는 교회 장례 기록 1단계부터)
+  const gate = lvOf(W, 'gate'), town = `<div class="nt-track">
+      <div class="src-h">${icon('people')}<b>마을 소문</b><span class="lvl">0단계</span><span class="st">늘 열림</span></div>
+      <div class="nt-nodes"><div class="nt-node on" title="마을 소문 · 경쟁 조의 귀환 · 장례 · 구역의 옛말">${icon('people')}<b>0</b><span>귀환 · 장례 · 옛말</span></div></div>
+      <div class="src-c"><span>들리는 귀환 <b>약 ${Math.round(CO.RUM_P[Math.min(3, gate)] * 100)}%</b> · 입구 출입 기록 ${gate}단계</span><span>비용 없음</span></div>
+    </div>`;
   const slots = Math.max(1, lvOf(W, 'spy')), on = raw.spyOn || [];
   const sel = Array.from({ length: slots }, (_, s) => `<select data-k="spyOn" data-i="${s}" aria-label="정보원 ${s + 1}"><option value="">붙이지 않음</option>${rivals.map(c => `<option value="${c.id}"${on[s] === c.id ? ' selected' : ''}>${c.name}</option>`).join('')}</select>`).join(' ');
   return `<div class="panel"><header><h2>정보망</h2><span class="right">이번 달 <b>${fmt(intelCost(P))}G</b></span></header>
-    <div class="nt-tree">${rows}</div>
+    <div class="nt-tree">${town}${rows}</div>
     <div class="spyrow">${icon('mask')}<span>정보원 붙일 곳</span>${sel}</div></div>`;
 }
 
@@ -398,9 +405,11 @@ export function costLines(W: World, raw: Plan): CostLine[] {
   ];
 }
 // 이번 달 수입 예측: 이번 달 돌아온 조 · 그믐 전에 돌아올 조 (짐은 그믐 정산 때 판다)와, 지금 본부에 있는 조가 남은 날 동안 나갈 예측
-export function monthFc(W: World, P: Plan) {
-  const end = W.month * CO.MONTH_DAYS, trips = [...(W.back || []), ...(W.away || []).filter(s => s.d1 <= end)];
-  const home = homePlan(W, P), left = CO.MONTH_DAYS - (W.day || 1) + 1;
+// seen: 이해도 0단계 구역에 나가 있거나 나갈 조는 빼고 셈한다 (벌이를 짐작하지 못한다. 장부의 머리)
+export function monthFc(W: World, P: Plan, seen = false) {
+  const blind = (z?: number) => seen && z != null && !!W.zones && !!W.zones[z] && zLv(W.zones[z]) < 1;
+  const end = W.month * CO.MONTH_DAYS, trips = [...(W.back || []), ...(W.away || []).filter(s => s.d1 <= end && !blind(s.z))];
+  const home0 = homePlan(W, P), home = { ...home0, teams: (home0.teams || []).filter(T => !blind(T.z)) }, left = CO.MONTH_DAYS - (W.day || 1) + 1;
   // 본부의 조는 남은 날 동안 (탐사 + 쉬는 날)마다 한 번씩 나간다고 본다
   const reps = (home.teams || []).flatMap(T => Array.from({ length: Math.floor(left / (teamDays(T) + CO.REST_DAYS) + (left >= teamDays(T) ? 0.5 : 0)) }, () => T));
   const sorties = trips.map(s => ({ ...s }));

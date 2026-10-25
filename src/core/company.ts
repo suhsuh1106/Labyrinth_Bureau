@@ -18,6 +18,9 @@ export const CO = {
   // 탐사 하루의 벌이 · 숙련 · 지도는 옛 한 달 탐사(DAYS일)의 하루 몫이다. 경쟁 용병단 · 계약 조는 달에 한 번 숫자로 굴린다
   // 미궁에서 본 남들: 같은 층에 함께 있던 경쟁 조를 볼 확률 (탐색 임무 +SEE_SCOUT, 사냥 +⅓)
   SEE_P: 0.45, SEE_SCOUT: 0.3,
+  // 마을 소문 (정보망 0단계): 경쟁 조가 돌아온 날 마을이 보는 것(어느 구역 · 짐 · 장례)을 RUM_P[입구 기록 단계]의 확률로 듣는다. 숫자 없이 낱말로.
+  // 짐은 층마다 채집품 RUM_LOAD[f] = [이하면 가벼움, 이상이면 무거움] (탐사 한 번 몫의 아래 · 위 3분위쯤). 층이 열리면 구역 RUM_OLD곳에 옛말 하나씩(RUM_WRONG만큼 틀린 말). 들은 소문은 RUM_KEEP일 남는다
+  RUM_P: [0.15, 0.2, 0.3, 0.4], RUM_LOAD: [[1, 4], [1, 4], [1, 4], [0, 3], [0, 2]] as [number, number][], RUM_OLD: 4, RUM_WRONG: 0.2, RUM_KEEP: 30,
   // 밀고: 영주청에 경쟁 용병단 하나를 일러바치면 그 쪽 의심이 TIP_SUS(+ 우리 조가 이달 본 짐 TIP_SEE G당 1까지 TIP_EV)만큼 오른다.
   // 추징이 나오면 회계관 신뢰 +TIP_WIN, 헛걸음이면 −TIP_MISS, 장부가 깨끗했으면 −TIP_LOSE · 그쪽이 앙심을 품고 다음 달 우리를 일러바친다(+TIP_BACK). 신뢰 50에서 1마다 우리 의심이 TIP_REL씩 덜(더) 쌓인다
   TIP_SUS: 3, TIP_EV: 35, TIP_SEE: 60, TIP_WIN: 12, TIP_MISS: 5, TIP_LOSE: 10, TIP_BACK: 15, TIP_REL: 0.15,
@@ -488,6 +491,9 @@ export type CoResult = { tip?: { i: number; nm: string; aud: boolean; fine: numb
 // 미궁에서 본 남들: 경쟁 용병단 자리 · 이름 · 층 · 돌아오는 날(판 전체) · 지고 나올 채집품 짐작 · 조 수 · 우리 조가 돌아온 날과의 차(+면 그 뒤에 돌아온다)
 // z: 본 구역 (경쟁 조가 굴린 구역, 판의 남의 깃발)
 // h: 그중 사냥 조(사냥터 · 계단), mt: 지고 나올 전리품 짐작(점), zn: 본 구역 이름
+// 마을 소문: 경쟁 조의 귀환(k 'back': 누가 i · 짐 ld 0 가벼움 · 1 보통 · 2 무거움 · 짐 가득 full(층 깊이만큼의 날에 다녀온다) · 장례 dead · 다친 사람 hurt · 사냥 h · 전리품 mt) 또는 구역의 옛말(k 'old': say). d는 들은 날(판 전체 날)
+export type RumSay = 'rich' | 'poor' | 'risk' | 'safe' | 'den';
+export type Rumor = { k: 'back' | 'old'; d: number; f: number; z?: number; i?: number; ld?: 0 | 1 | 2; full?: 1; dead?: number; hurt?: number; h?: 1; mt?: 1; say?: RumSay };
 export type Seen = { i: number; nm: string; f: number; d: number; q: number; n: number; rel: number; z?: number; zn?: string; h?: number; mt?: number };
 // z: 구역 · zx: 그 구역 이해도 경험치 (다녀오기 전 · 뒤) · way · wk · pw: 한쪽 길 · 일한 날 · 계획한 일할 날 · goal: 목표량 · burn: 검문소가 태운 채비 (포션 · 보급 · 수리 도구 · 값)
 export type Ours = { pw?: number; zn?: string; z?: number; zx?: [number, number]; way?: number; wk?: number; goal?: number; burn?: { pot: number; food: number; mend: number; v: number }; seen?: Seen[]; sn?: number[]; sw?: number[]; se?: number[]; f: number; keys: string[]; ok: boolean; d: number; mats: [string, number][]; first: string[]; kit: number; g: string; crisis?: number; pots?: number; n?: number; k?: number; hurt?: number; days?: Day[]; trip?: Trip; dead?: { n: string; day: number; pot: boolean; tk?: number; ex?: number; mt?: number }[]; cls?: string[]; potC?: number; t?: number; nm?: string[]; ld?: number; d0?: number; d1?: number; tk?: number[]; mi?: number[]; got?: number; mission?: Mission; mp?: number };   // got: 캐 와 창고에 넣은 채집품 · mission: 임무(없으면 채집) · mp: 그려 온 지도(%p)   // mi: 간 사람들의 단원 번호   // tk: 간 사람들의 실력 단계 (보낼 때). 죽은 사람의 tk · ex · mt: 실력 단계 · 층 경험 합 · 조직력 짝 수 (잃은 자산)
@@ -533,6 +539,7 @@ export type World = {
   // 날 단위 시장: 이번 달 경쟁 용병단의 출정 (달 첫날 굴린 것), 시장에 풀린 양(시세), 우리 창고의 전리품(층마다 개수), 시장 소식(최근 판매)
   mo?: MonthOpen; mq?: number[]; stock?: number[]; sales?: Sale[]; pp?: number[];   // pp: 어제 시세
   seen?: Seen[];
+  rum?: Rumor[];   // 마을 소문 (정보망 0단계): 경쟁 조의 귀환과 구역의 옛말
   wit?: Record<number, number>;   // 이달 우리 조가 본 경쟁 용병단의 짐 (밀고의 근거, 그믐에 비움)   // 우리 조가 미궁에서 본, 아직 돌아오지 않은 경쟁 용병단 조 (곧 풀릴 물량)
   zones?: Zone[];   // 층마다 구역 여덟 (docs/zones.md). 층 매장량 W.pool은 구역 남은 양의 합
   mbox?: Record<string, number>;   // 우리 창고의 전리품 (돌아온 날 들어오고, 그믐에 팔 양 plan.matSell만큼 판다. 상하지 않는다)
@@ -604,6 +611,7 @@ export function newWorld(): World {
   ];
   W.jobSeq = 2;
   W.zones = genZones(FLOORS.length, f => FLOORS[f].max);
+  W.day = 1; oldSayings(W, 0);
   // 첫 달: 경쟁 용병단의 출정을 굴려 두고, 첫날 아침 돌아온 조를 받는다
   W.day = 1; openMonth(W); rivalsArrive(W);
   return W;
@@ -1732,7 +1740,7 @@ export type MonthOpen = { m: number; plans: Plan[]; res: CoResult[]; potion: num
   cost: { potion: number; gear: number; torch: number; food: number; mend: number }[]; potNeed: number[]; potC: number[]; potUsed: number[]; potShort: number[];
   map0?: number[];   // 달 첫날의 우리 지도
   mapGain: number[][]; rookDead: number[][]; wins: number[][]; crowd: number[]; pool0: number[]; want: number[]; taken: number[];
-  ev: { d: number; i: number; f: number; u: number; z?: number; h?: 1; mt?: [string, number][] }[];   // 경쟁 용병단 조 하나: 돌아오는 날(그달 며칠째), 층, 캐 올 몫, 구역, 사냥(h), 지고 나올 전리품
+  ev: { d: number; i: number; f: number; u: number; z?: number; h?: 1; mt?: [string, number][]; dq?: number; hq?: number; full?: 1 }[];   // 경쟁 용병단 조 하나: 돌아오는 날(그달 며칠째), 층, 캐 올 몫, 구역, 사냥(h), 지고 나올 전리품, 그 조의 장례 · 다친 사람(그달 마지막 탐사에), 짐이 차서 두고 온 것이 있다(full)
   income: number;   // 우리가 이번 달 판 전리품 값 (금고에 이미 들어왔다)
 };
 // 시장 소식: 판 날(판 전체 날 번호), 물품, 양, 판 쪽(용병단 자리), 그날 값이 얼마나 움직였나
@@ -1892,7 +1900,7 @@ export function openMonth(W: World) {
           for (let j = 0; j < nT; j++) {
             const mt: [string, number][] = H.mt.map(([m, e]) => [m, Math.floor(e) + (rnd() < e - Math.floor(e) ? 1 : 0)] as [string, number]).filter(([, n]) => n > 0);
             mt.forEach(([m, n]) => { res[i].matSold[m] = (res[i].matSold[m] || 0) + n; });
-            ev.push({ d: Math.min(CO.MONTH_DAYS, 1 + Math.floor((j + rnd()) * CO.MONTH_DAYS / nT)), i, f, u: H.u * U.loot, z: Zq.id, ...(huntZone(Zq) ? { h: 1 as const } : {}), ...(mt.length ? { mt } : {}) });
+            ev.push({ d: Math.min(CO.MONTH_DAYS, 1 + Math.floor((j + rnd()) * CO.MONTH_DAYS / nT)), i, f, u: H.u * U.loot, z: Zq.id, ...(huntZone(Zq) ? { h: 1 as const } : {}), ...(mt.length ? { mt } : {}), ...(j === nT - 1 && dq ? { dq } : {}), ...(j === nT - 1 && hq ? { hq } : {}), ...(H.cut < 1 ? { full: 1 as const } : {}) });
           }
           const zk = c.zk || (c.zk = {}); zk[Zq.id] = Math.round(((zk[Zq.id] || 0) + size * CO.TRIP_DAYS[f] * nT) * 100) / 100;
         } else ev.push({ d: 1 + Math.floor(rnd() * CO.MONTH_DAYS), i, f, u: k / CO.PARTY * U.loot });
@@ -1950,10 +1958,32 @@ function rivalsArrive(W: World, ours: Sortie[] = []) {
     const e = x as MonthOpen['ev'][number];
     const c = W.cos[e.i], r = mo.res[e.i], P = mo.plans[e.i];
     const got = dig(W, e.f, e.u * takeOf(W, c, e.f, P.tool || 0), e.z);
+    hearBack(W, e, got, now);
     if (!got) return;
     const p0 = priceNow(W, e.f), v = sellLoot(W, e.f, got, favorOf(c, e.f));
     r.got[e.f] += got; r.sold[e.f] += got; r.sales += v; r.lootSales = (r.lootSales || 0) + v; (r.soldV || (r.soldV = zeros()))[e.f] += v;
     logSale(W, { d: now, j: e.f, q: got, i: e.i, p0, p1: priceNow(W, e.f) });
+  });
+}
+// 마을 소문: 돌아온 경쟁 조를 마을이 본다 (입구 기록 단계만큼 잘 듣는다). 군소 용병대도 보인다
+function hearBack(W: World, e: MonthOpen['ev'][number], got: number, now: number) {
+  if (!W.zones || rnd() >= CO.RUM_P[Math.min(3, W.intel ? W.intel.lv.gate : INTEL.BASE.gate)]) return;
+  const [lo, hi] = CO.RUM_LOAD[e.f], ld = got >= hi ? 2 : got <= lo ? 0 : 1;
+  const R = W.rum || (W.rum = []);
+  R.push({ k: 'back', d: now, f: e.f, i: e.i, ld, ...(e.full ? { full: 1 as const } : {}), ...(e.z != null ? { z: e.z } : {}), ...(e.dq ? { dead: e.dq } : {}), ...(e.hq ? { hurt: e.hq } : {}), ...(e.h ? { h: 1 as const } : {}), ...(e.mt && e.mt.length ? { mt: 1 as const } : {}) });
+  const keep = now - CO.RUM_KEEP; if (R.some(r => r.k === 'back' && r.d < keep)) W.rum = R.filter(r => r.k === 'old' || r.d >= keep);
+}
+// 구역의 옛말: 층이 열리면 그 층 구역 몇 곳에 마을에 도는 말 하나씩. 참값에서 나오지만 RUM_WRONG만큼 거꾸로 돈다
+export function oldSayings(W: World, f: number) {
+  if (!W.zones) return;
+  const Z = W.zones.filter(z => z.f === f), R = W.rum || (W.rum = []), now = dayAbs(W);
+  for (let k = Z.length - 1; k > 0; k--) { const j = Math.floor(rnd() * (k + 1)); [Z[k], Z[j]] = [Z[j], Z[k]]; }
+  const FLIP: Record<RumSay, RumSay> = { rich: 'poor', poor: 'rich', risk: 'safe', safe: 'risk', den: 'den' };
+  Z.slice(0, CO.RUM_OLD).forEach(z => {
+    const cand: RumSay[] = [...(z.rich >= 1.15 ? ['rich' as const] : z.rich <= 0.9 ? ['poor' as const] : []), ...(z.risk >= 1.2 ? ['risk' as const] : z.risk <= 0.9 ? ['safe' as const] : []), ...(z.kind === 'den' ? ['den' as const] : [])];
+    if (!cand.length) return;
+    const say = cand[Math.floor(rnd() * cand.length)];
+    R.push({ k: 'old', d: now, f, z: z.id, say: rnd() < CO.RUM_WRONG ? FLIP[say] : say });
   });
 }
 function logSale(W: World, s: Sale) {
@@ -2245,7 +2275,7 @@ function settleMonth(W: World, playerPlan: Plan): MonthResult {
   let opened: number | null = null;
   if (W.unlocked < NF) {
     W.prog += deepWins;
-    if (W.prog >= CO.OPEN_WINS[W.unlocked - 1]) { opened = W.unlocked; W.unlocked++; W.prog = 0; W.log.push({ m: W.month, t: `${FLOORS[opened].name}이 열렸다` }); }
+    if (W.prog >= CO.OPEN_WINS[W.unlocked - 1]) { opened = W.unlocked; W.unlocked++; W.prog = 0; W.log.push({ m: W.month, t: `${FLOORS[opened].name}이 열렸다` }); oldSayings(W, opened); }
   }
   const perParty = FLOORS.map((_, f) => { const n = plans.reduce((a, P) => a + P.parties[f] + P.hire[f], 0); return n ? res.reduce((a, r) => a + r.got[f], 0) * price[f] / n : 0; });
   W.price = price; W.potion = potion; W.potionC = potionC;

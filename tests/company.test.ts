@@ -8,6 +8,7 @@ import { CO, FLOORS, ITEMS, defaultPlan, emptyPlan, newWorld, potionPrice, price
 import { FILE_KEYS, TAX, detOf, auditChance, billOf, closeBooks, fileFix, gainOf, jobsExplore, lawsAt, preview } from '../src/core/company';
 import { draftHtml } from '../src/ui/co/draft';
 import { booksRumorHtml } from '../src/ui/co/intel';
+import { zoneRumHtml } from '../src/ui/co/rumor';
 import { BOT, FILER, fileSmart, playGame } from '../sim/company';
 import { aiPlan, carryPlan, maxParties, outlook, rankOf, rollParty } from '../src/core/company';
 import { candPrice, candWants, churchPrice, cohesion, hqCost, hqLv, mapOf, roomOf, supOf, torchOf, memberMods, teamUnd, tierOf, undMods, wageOf, type Plan, type World } from '../src/core/company';
@@ -1791,5 +1792,19 @@ describe('단장의 인계 (화면만, docs/plan.md)', () => {
     expect(dutyDue(W, ui)).toContain('books');
     const dn = boardShellHtml(W, carryPlan(W, W.last!.plans[0]), { ...ui, dutyNew: ['sell'] });
     expect(dn).toContain('data-act="duty-go"');
+  });
+});
+
+describe('마을 소문 (정보망 0단계)', () => {
+  it('새 판엔 1층 구역의 옛말이 있고, 경쟁 조가 돌아오면 일부를 낱말로 듣는다 (화면은 숫자 없이)', () => {
+    setSeed(11); const W = newWorld();
+    const old = (W.rum || []).filter(r => r.k === 'old');
+    expect(old.length).toBeGreaterThan(0); old.forEach(r => { expect(r.f).toBe(0); expect(W.zones![r.z!].f).toBe(0); });
+    const P = emptyPlan(); let M = null; while (!M) M = nextDay(W, P);
+    const back = (W.rum || []).filter(r => r.k === 'back');
+    expect(back.length).toBeGreaterThan(0);
+    back.forEach(r => { expect([0, 1, 2]).toContain(r.ld); expect(W.cos[r.i!].crew).toBeUndefined(); });
+    const z = W.zones![back[0].z!], h = zoneRumHtml(W, z);
+    expect(h).toContain('마을 소문'); expect(h).toMatch(/만에 · 짐 (가벼움|보통|무거움|가득)/);
   });
 });
