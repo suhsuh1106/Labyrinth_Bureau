@@ -1498,7 +1498,10 @@ body.dragging, body.dragging * { cursor: grabbing !important; user-select: none;
 /* 시트: 판 위로 올라온다 (넓은 화면에선 판 오른쪽에 붙는다) */
 .bs-sheet { position: absolute; left: 0; right: 0; bottom: var(--bs-bot-h); max-height: calc(100% - var(--bs-bot-h) - 96px); overflow: auto; overscroll-behavior: contain; z-index: 20;
   background: var(--bs-desk-2); border-top: 1px solid var(--bs-brass); border-radius: 12px 12px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,.55);
-  padding: 8px max(14px, env(safe-area-inset-right, 0px)) 14px max(14px, env(safe-area-inset-left, 0px)); display: grid; gap: 10px; align-content: start; }
+  padding: 8px max(14px, env(safe-area-inset-right, 0px)) 0 max(14px, env(safe-area-inset-left, 0px)); display: grid; gap: 10px; align-content: start; }
+/* 아래 여백은 패딩 대신 빈 칸으로 (gap 10 + 4): 붙박이 단추 줄(bottom: 0)이 패딩 안쪽에 멈추는지 바깥에 멈추는지가 브라우저마다 달라
+   bottom: -14px로 패딩을 메우던 것이 iOS Safari에선 14px 아래로 밀려 잘렸다 */
+.bs-sheet::after { content: ""; height: 4px; }
 .bs-sheet .grab { width: 40px; height: 4px; border-radius: 2px; background: var(--bs-line); justify-self: center; }
 .bs-sheet { --x: 0; }
 .bs-sheet h2 { margin: 0; padding-right: 38px; position: relative; font: 700 18px var(--f-display); display: flex; align-items: baseline; gap: 4px 8px; flex-wrap: wrap; }
@@ -1533,7 +1536,7 @@ body.dragging, body.dragging * { cursor: grabbing !important; user-select: none;
 /* 계획보다 일찍 돌아온 조: 까닭을 눈에 띄게 (버그가 아니라 짐 가득 · 후퇴 · 목표) */
 .early { font-weight: 600; color: var(--warn); }
 .bs-sheet .zpick { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; }
-.bs-sheet .acts { display: grid; grid-template-columns: 1fr 2fr; gap: 8px; position: sticky; bottom: -14px; background: var(--bs-desk-2); padding: 8px 0 2px; }
+.bs-sheet .acts { display: grid; grid-template-columns: 1fr 2fr; gap: 8px; position: sticky; bottom: 0; background: var(--bs-desk-2); padding: 8px 0 10px; }
 .bs-sheet .acts button { border-radius: 8px; padding: 12px; cursor: pointer; font-weight: 700; border: 1px solid var(--bs-line); background: var(--bs-desk-3); color: var(--bs-chalk); }
 .bs-sheet .acts .go { background: var(--bs-red); border-color: var(--bs-red); color: #fff; }
 .bs-sheet .acts .go[aria-pressed="true"] { background: var(--bs-green); border-color: var(--bs-green); }
@@ -1682,7 +1685,7 @@ body.mode-board .toast { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); 
 .bs-sheet .gc-k { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 12px; color: var(--bs-dim); }
 .bs-sheet .gc-k label { display: inline-flex; align-items: center; gap: 6px; }
 .bs-sheet .gc-k select { background: var(--bs-desk-2); color: var(--bs-chalk); border: 1px solid var(--bs-line); border-radius: 6px; padding: 4px 6px; font: 13px var(--f-body); max-width: 100%; }
-.bs-sheet .gs-f { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; position: sticky; bottom: -14px; background: var(--bs-desk-2); padding: 8px 0 2px; }
+.bs-sheet .gs-f { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; position: sticky; bottom: 0; background: var(--bs-desk-2); padding: 8px 0 10px; }
 .bs-sheet .gs-f .go { margin-left: auto; border-radius: 8px; padding: 10px 16px; cursor: pointer; font-weight: 700; border: 1px solid var(--bs-red); background: var(--bs-red); color: #fff; }
 .bs-sheet .gs-f .go:disabled { opacity: .5; cursor: default; }
 .bs-sheet .mini[aria-pressed="true"] { border-color: var(--bs-green-l); color: var(--bs-green-l); }
