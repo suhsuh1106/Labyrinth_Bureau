@@ -310,8 +310,9 @@ export const demandMul = (W: World, m: string) => (W.mat ? W.mat.dem.filter(d =>
 export type Src = 'ret' | 'mkt' | 'chu' | 'gate' | 'spy';
 export const SRCS: Src[] = ['ret', 'mkt', 'chu', 'gate', 'spy'];
 export const INTEL = {
-  KEEP: { ret: [0, 0, 60, 120], mkt: [0, 60, 150, 250], chu: [0, 60, 120, 200], gate: [0, 0, 120, 220], spy: [0, 150, 300, 450] } as Record<Src, number[]>,
-  UP: { ret: [0, 300, 500], mkt: [300, 500, 800], chu: [300, 500, 700], gate: [0, 400, 600], spy: [400, 600, 900] } as Record<Src, number[]>,
+  // (1단계는 초반 적자 달에도 맛볼 수 있게 싸게: 2026-10-25 상단 장부 · 교회 300 → 100G · 월 60 → 20G, 정보원 400 → 200G · 월 150 → 80G. 2 · 3단계는 중반의 큰 결정으로 그대로)
+  KEEP: { ret: [0, 0, 60, 120], mkt: [0, 20, 150, 250], chu: [0, 20, 120, 200], gate: [0, 0, 120, 220], spy: [0, 80, 300, 450] } as Record<Src, number[]>,
+  UP: { ret: [0, 300, 500], mkt: [100, 500, 800], chu: [100, 500, 700], gate: [0, 400, 600], spy: [200, 600, 900] } as Record<Src, number[]>,
   BASE: { ret: 1, mkt: 0, chu: 0, gate: 1, spy: 0 } as Record<Src, number>,
   REL: 55,
   // 세력(상단·교회와의 사이) 시스템은 지금 닫아 두었다. 닫혀 있는 동안 2단계부터의 사이 조건을 따지지 않는다

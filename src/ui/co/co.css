@@ -144,6 +144,10 @@ table.grid.cards { min-width: 0; }
 .fp h3 { font-family: var(--f-display); font-size: 17px; margin: 0; }
 .fp h3 small { font: 400 12px var(--f-body); color: var(--ink-soft); margin-left: 6px; }
 .fp .chip b { font-weight: 600; }
+.fp .zgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 4px; }
+.fp .zg { border: 1px solid var(--rule); border-radius: 3px; padding: 4px 6px; display: grid; gap: 1px; font-size: 11px; font-variant-numeric: tabular-nums; min-width: 0; }
+.fp .zg b { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fp .zg.dry { border-color: var(--neg, #a8322a); } .fp .zg.dry span:nth-of-type(2) { color: var(--neg, #a8322a); }
 .fp .chip.ok { border-color: var(--good); } .fp .chip.ok b { color: var(--good); }
 .fp .chip.warn { border-color: var(--warn); } .fp .chip.warn b { color: var(--warn); }
 .fp .chip.bad { border-color: var(--bad); } .fp .chip.bad b { color: var(--bad); }
