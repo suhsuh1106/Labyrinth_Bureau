@@ -1554,7 +1554,7 @@ body.dragging, body.dragging * { cursor: grabbing !important; user-select: none;
 .bs-sheet .bs-body > * { min-width: 0; }
 .bs-sheet .bs-body .tw, .bs-sheet .bs-body .co-sheet { overflow-x: auto; }
 .mini { border: 1px solid currentColor; background: none; color: inherit; border-radius: 6px; padding: 4px 10px; cursor: pointer; font: 600 12px var(--f-body); }
-/* 본 화면: 휴대폰은 지도 ↔ 장부를 갈아 보고, 넓은 화면은 지도 옆에 장부를 늘 펼친다 (시트는 장부 자리, 아주 넓으면 그 옆) */
+/* 본 화면: 휴대폰 · PC 모두 위 띠의 지도 ↔ 장부로 갈아 본다. 넓은 화면은 시트만 판 오른쪽에 붙는다 */
 .bs-top .bs-view { display: inline-flex; margin-left: auto; border: 1px solid var(--bs-line); border-radius: 12px; overflow: hidden; }
 .bs-top .bs-view button { border: 0; background: none; color: var(--bs-dim); padding: 2px 12px; font: 600 12px var(--f-body); cursor: pointer; }
 .bs-top .bs-view button[aria-pressed="true"] { background: var(--bs-brass); color: #2a1d08; }
@@ -1563,20 +1563,10 @@ body.dragging, body.dragging * { cursor: grabbing !important; user-select: none;
 .bs.v-ledger > .bs-mid { display: none; }
 .bs.v-ledger > .bs-ledger { display: grid; gap: 14px; align-content: start; }
 @media (min-width: 980px) {
-  .bs { max-width: 1500px; grid-template-columns: 560px minmax(0, 1fr); column-gap: 14px; }
-  .bs > .bs-top, .bs > .bs-mid, .bs > .bs-bot { grid-column: 1; }
-  .bs.v-ledger > .bs-mid { display: grid; }
-  .bs > .bs-ledger { display: grid; gap: 14px; align-content: start; grid-column: 2; grid-row: 1 / 4; border-left: 1px solid var(--bs-line); padding-top: 14px; }
-  .bs-top .bs-view { display: none; }
-  .bs.has-sheet > .bs-ledger { display: none; }
+  .bs.has-sheet { max-width: 1500px; grid-template-columns: 560px minmax(0, 1fr); column-gap: 14px; }
+  .bs.has-sheet > .bs-top, .bs.has-sheet > .bs-mid, .bs.has-sheet > .bs-ledger, .bs.has-sheet > .bs-bot { grid-column: 1; }
   .bs.has-sheet > .bs-sheet { position: static; grid-column: 2; grid-row: 1 / 4; max-height: none; border-radius: 0; border-top: 0; border-left: 1px solid var(--bs-brass); box-shadow: none; }
   .bs.has-sheet > .bs-sheet .grab { display: none; }
-}
-@media (min-width: 1400px) {
-  .bs { max-width: 1900px; }
-  .bs.has-sheet { grid-template-columns: 560px minmax(0, 1fr) minmax(400px, 1fr); }
-  .bs.has-sheet > .bs-ledger { display: grid; }
-  .bs.has-sheet > .bs-sheet { grid-column: 3; }
 }
 /* 장부 */
 .bs-ledger h3 { margin: 0 0 6px; font: 700 14px var(--f-display); display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
