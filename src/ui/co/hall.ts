@@ -139,7 +139,7 @@ function zoneLine(r: Ours) {
   if (!r.zx || r.wk == null) return '';
   const md = (r.n || 0) * r.wk, [x0, x1] = r.zx, L0 = LZ.LV.filter(t => x0 >= t).length, L1 = LZ.LV.filter(t => x1 >= t).length, b = r.burn;
   const z = { xp: x1 } as LZone;
-  return `<div class="bk-z"><span>일손 ${md}일 · 한 사람 하루 <b>${md ? (Math.round((r.got || 0) / md * 10) / 10) : 0}</b>개${r.goal ? ` · 목표 ${r.goal}개${(r.got || 0) >= r.goal ? ' 채움' : ''}` : ''}</span>
+  return `<div class="bk-z"><span>일손 ${md}일 · 한 사람 하루 <b>${md ? (Math.round((r.got || 0) / md * 10) / 10) : 0}</b>개${r.goal ? ` · 목표 ${r.goal}개${(r.got || 0) >= r.goal ? ' 채움' : ''}` : ''}</span>${r.dry ? `<b class="neg" title="구역에 남은 양이 캐려던 것보다 적어 남은 만큼만 캤다 (남의 조도 캐 간다 · 그믐에 빈 만큼의 절반이 다시 찬다)">구역 바닥 · 캐려던 ${r.dry}개 중 ${r.got || 0}개</b>` : ''}
     <span class="zx">이해도 ${lvBar(z)} <small class="pos">+${Math.round((x1 - x0) * 10) / 10}</small></span>${L1 > L0 ? `<b class="lvup">이해도 ${L1}단계 · ${LV_SAYS[L1]}이 보인다</b>` : ''}
     ${b && (b.food || b.mend) ? `<span class="dim" title="미궁에 들고 간 보급 · 수리 도구는 기운이 스며 검문소가 거둬 태운다">검문소 태움 ${[b.food ? `보급 ${b.food}` : '', b.mend ? `수리 도구 ${b.mend}` : ''].filter(Boolean).join(' · ')} (${b.v}G)</span>` : ''}</div>`;
 }

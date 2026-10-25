@@ -15,7 +15,7 @@ import { askPanel } from './book';
 import { LV_SAYS, SECRET_NAME } from './zones';
 import { stepper } from './view';
 import { DUTIES, hasDuty, tabOpen } from './duty';
-import { zoneMark, zoneRumHtml } from './rumor';
+import { digHtml, zoneMark, zoneRumHtml } from './rumor';
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
@@ -139,7 +139,7 @@ function zoneSheet(W: World, P: Plan, z: Zone) {
   return sheet(`${zoneHead(W, z)}
     <dl class="facts">${facts.map(([a, b, n]) => `<div><dt>${a}</dt><dd class="${b == null ? 'lock' : ''}">${b == null ? `${n}단계에` : esc(b)}</dd></div>`).join('')}</dl>
     <div class="xp"><i><b style="width:${Math.round(lvProg(z) * 100)}%"></b></i><p>${nx != null ? `다음 단계 <b>${LV_SAYS[lvOf(z) + 1]}</b>까지 일손 ${f1(nx - z.xp)}일 · ` : ''}우리 기록 ${rc.trips ? `${rc.trips}번 · 한 사람 하루 ${f1(rc.got / Math.max(1e-9, rc.md))}개` : '없음'}</p></div>
-    ${zoneRumHtml(W, z)}
+    ${digHtml(W, z)}${zoneRumHtml(W, z)}
     ${home.length ? `<div class="zpick"><span class="dim">이 구역으로</span>${home.map(({ t }) => `<button type="button" class="mini" data-act="bs-place" data-t="${t}" data-z="${z.id}">${t + 1}조</button>`).join('')}</div>` : '<p class="note">본부에 나갈 수 있는 조가 없어요</p>'}`, `${z.nm} 구역 보고서`);
 }
 

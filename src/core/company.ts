@@ -496,7 +496,7 @@ export type RumSay = 'rich' | 'poor' | 'risk' | 'safe' | 'den';
 export type Rumor = { k: 'back' | 'old'; d: number; f: number; z?: number; i?: number; ld?: 0 | 1 | 2; full?: 1; dead?: number; hurt?: number; h?: 1; mt?: 1; say?: RumSay };
 export type Seen = { i: number; nm: string; f: number; d: number; q: number; n: number; rel: number; z?: number; zn?: string; h?: number; mt?: number };
 // z: 구역 · zx: 그 구역 이해도 경험치 (다녀오기 전 · 뒤) · way · wk · pw: 한쪽 길 · 일한 날 · 계획한 일할 날 · goal: 목표량 · burn: 검문소가 태운 채비 (포션 · 보급 · 수리 도구 · 값)
-export type Ours = { pw?: number; zn?: string; z?: number; zx?: [number, number]; way?: number; wk?: number; goal?: number; burn?: { pot: number; food: number; mend: number; v: number }; seen?: Seen[]; sn?: number[]; sw?: number[]; se?: number[]; f: number; keys: string[]; ok: boolean; d: number; mats: [string, number][]; first: string[]; kit: number; g: string; crisis?: number; pots?: number; n?: number; k?: number; hurt?: number; days?: Day[]; trip?: Trip; dead?: { n: string; day: number; pot: boolean; tk?: number; ex?: number; mt?: number }[]; cls?: string[]; potC?: number; t?: number; nm?: string[]; ld?: number; d0?: number; d1?: number; tk?: number[]; mi?: number[]; got?: number; mission?: Mission; mp?: number };   // got: 캐 와 창고에 넣은 채집품 · mission: 임무(없으면 채집) · mp: 그려 온 지도(%p)   // mi: 간 사람들의 단원 번호   // tk: 간 사람들의 실력 단계 (보낼 때). 죽은 사람의 tk · ex · mt: 실력 단계 · 층 경험 합 · 조직력 짝 수 (잃은 자산)
+export type Ours = { dry?: number; pw?: number; zn?: string; z?: number; zx?: [number, number]; way?: number; wk?: number; goal?: number; burn?: { pot: number; food: number; mend: number; v: number }; seen?: Seen[]; sn?: number[]; sw?: number[]; se?: number[]; f: number; keys: string[]; ok: boolean; d: number; mats: [string, number][]; first: string[]; kit: number; g: string; crisis?: number; pots?: number; n?: number; k?: number; hurt?: number; days?: Day[]; trip?: Trip; dead?: { n: string; day: number; pot: boolean; tk?: number; ex?: number; mt?: number }[]; cls?: string[]; potC?: number; t?: number; nm?: string[]; ld?: number; d0?: number; d1?: number; tk?: number[]; mi?: number[]; got?: number; mission?: Mission; mp?: number };   // got: 캐 와 창고에 넣은 채집품 · mission: 임무(없으면 채집) · mp: 그려 온 지도(%p)   // mi: 간 사람들의 단원 번호   // tk: 간 사람들의 실력 단계 (보낼 때). 죽은 사람의 tk · ex · mt: 실력 단계 · 층 경험 합 · 조직력 짝 수 (잃은 자산)
 export type MonthResult = {
   month: number; res: CoResult[]; plans: Plan[]; Q: number[]; price: number[]; potion: number; potQ: number; potionC: number; cartel: boolean;
   floors: { before: number; taken: number; crowd: number; cut?: number }[]; perParty: number[]; opened: number | null; rank: string[];
@@ -1625,14 +1625,17 @@ function takeBack(W: World, s: Sortie) {
   // 갈무리한 전리품: 창고에 넣는다 (팔 양은 그믐에 plan.matSell)
   { const B = W.mbox || (W.mbox = {}); o.mats.forEach(([m, k]) => { B[m] = (B[m] || 0) + k; }); }
   // 캐 온 짐: 그 층에 남은 양에서 캐 와 창고에 넣는다 (먼저 온 쪽이 더 캔다. 파는 날은 고른다)
-  const got = W.mo ? dig(W, s.f, o.loot * takeOf(W, c, s.f), s.z) : 0, st = W.stock || (W.stock = zeros());
+  // 구역에 남은 양이 캐려던 것보다 적으면 남은 만큼만 캔다 (바닥: 우리 조가 겪은 것이라 귀환 보고 · 구역 보고서에 적는다)
+  const want = W.mo ? o.loot * takeOf(W, c, s.f) : 0, r0 = Z ? Z.res : Infinity, dry = !!Z && want >= 1 && want > r0;
+  const got = W.mo ? dig(W, s.f, want, s.z) : 0, st = W.stock || (W.stock = zeros());
   // 구역 이해도: 일한 인일만큼 경험치, 지나간 구역은 오갈 때 사람마다 PASS씩. 실적 · 잰 남은 양을 적는다
   let zx: [number, number] | undefined;
   if (Z) {
     const n = s.m.length, wk = o.trip.wk ?? o.fd, x0 = Z.xp, now = dayAbs(W);
     Z.xp = Math.round((Z.xp + n * wk) * 100) / 100; zx = [x0, Z.xp];
     viaOf(W.zones!, Z).forEach(v => { v.xp = Math.round((v.xp + n * ZONE.PASS * ((o.trip.go || 0) > 0 ? 1 : 0) + n * ZONE.PASS * ((o.trip.wb || 0) > 0 ? 1 : 0)) * 100) / 100; });
-    Z.rec = { trips: Z.rec.trips + 1, md: Z.rec.md + n * wk, got: Z.rec.got + got, hurt: Z.rec.hurt + o.hq, last: now };
+    const gl = [...(Z.rec.gl || []), n * wk > 0 ? Math.round(got / (n * wk) * 10) / 10 : 0].slice(-4);
+    Z.rec = { trips: Z.rec.trips + 1, md: Z.rec.md + n * wk, got: Z.rec.got + got, hurt: Z.rec.hurt + o.hq, last: now, gl, ...(dry ? { dry: now } : {}) };
     Z.seen = { v: Math.round(Z.res), d: now };
   }
   st[s.f] += got; s.got = got; if (W.mo) W.mo.res[0].got[s.f] += got;
@@ -1645,7 +1648,7 @@ function takeBack(W: World, s: Sortie) {
   const ld = s.who.findIndex(x => x.lead);
   s.rep = { f: s.f, keys: o.keys, ok: o.ok, d: o.dq, mats: o.mats, first: o.mats.filter(([m]) => !before.has(m)).map(([m]) => m), kit: -1, g: s.kit.gear ? 'g:' + s.kit.gear : '', crisis: o.crisis, pots: o.pu, n: s.m.length, k: o.k, hurt: o.hq,
     days: o.days, trip: o.trip, ...(o.sn ? { sn: o.sn, sw: o.sw, se: o.se } : {}), ...(o.dead.length ? { dead: o.dead.map(x => ({ n: x.n, day: x.day, pot: x.pot, ...lost.get(x.id) })) } : {}), cls: o.cls, potC: s.kit.pots, nm: s.who.map(x => x.n || x.c), mi: [...s.m], tk: s.who.map(tierOf), ld, t: s.t, d0: dayOf(s.d0), d1: dayOf(s.d1), ...(s.got != null ? { got: s.got } : {}), ...(s.mission ? { mission: s.mission } : {}), mp: Math.round(((c.map ? c.map[s.f] : 0) - map0) * 10) / 10,
-    ...(Z ? { z: Z.id, zn: Z.nm, zx, way: s.way || 0, wk: o.trip.wk ?? o.fd, ...(s.work ? { pw: s.work } : {}), ...(s.goal ? { goal: s.goal } : {}), burn } : {}) };
+    ...(Z ? { z: Z.id, zn: Z.nm, zx, way: s.way || 0, wk: o.trip.wk ?? o.fd, ...(s.work ? { pw: s.work } : {}), ...(s.goal ? { goal: s.goal } : {}), burn, ...(dry ? { dry: Math.round(want) } : {}) } : {}) };
   // 찾는 곳의 소재 기록 (해낸 탐사만)
   if (o.ok && B0) {
     const cs = ['*', ...condsOf(o.keys)];

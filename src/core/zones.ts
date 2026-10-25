@@ -17,7 +17,7 @@ export type Zone = {
   stair?: number;                // 아래층 계단 (돌파의 어려움, 3단계에서 쓴다)
   xp: number; known: boolean;    // 우리 이해도 경험치(인일) · 지도에 있는지
   seen?: { v: number; d: number };   // 우리가 마지막으로 잰 남은 양과 그날(판 전체 날)
-  rec: { trips: number; md: number; got: number; hurt: number; last?: number };   // 우리 실적: 다녀온 번, 일한 인일, 캐 온 채집품, 다친 사람, 마지막으로 돌아온 날
+  rec: { trips: number; md: number; got: number; hurt: number; last?: number; gl?: number[]; dry?: number };   // 우리 실적: 다녀온 번, 일한 인일, 캐 온 채집품, 다친 사람, 마지막으로 돌아온 날, 최근 귀환마다 한 사람 하루 몫(넷까지), 남은 양이 모자라 덜 캔 날(마지막 귀환이 그랬으면)
 };
 
 export const ZONE = {

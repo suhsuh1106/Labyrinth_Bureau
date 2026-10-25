@@ -33,6 +33,15 @@ export function zoneMark(W: World, z: Zone) {
   if (R.some(r => r.ld === 2 || r.full)) return '<span class="rm heavy" title="최근 무거운 짐 소문">◆</span>';
   return '';
 }
+// 구역 보고서의 캐 온 양: 최근 귀환마다 한 사람 하루 몫의 흐름, 마지막 귀환이 바닥이었으면 왜 · 어떻게 (우리 조가 겪은 것)
+export function digHtml(W: World, z: Zone) {
+  const gl = z.rec.gl || [], dry = z.rec.dry != null && z.rec.dry === z.rec.last;
+  if (!gl.length) return '';
+  const others = (W.rum || []).filter(r => r.k === 'back' && r.z === z.id && dayAbs(W) - r.d < CO.MONTH_DAYS).length;
+  const down = gl.length >= 2 && gl[gl.length - 1] < gl[0] * 0.75;
+  return `<div class="zdig"><b>최근 귀환</b><span>한 사람 하루 ${gl.map(v => `<b>${v}</b>`).join(' → ')}개${down ? ' <em class="neg">줄어듦</em>' : ''}</span>
+    ${dry ? `<p class="neg">지난 귀환에 바닥 · 남은 만큼만 캠${others ? ` · 최근 열흘 남의 조 귀환 ${others}번 들림` : ''}</p><p class="note">그믐에 빈 만큼의 절반이 다시 찬다 · 그 전엔 다른 구역으로</p>` : down ? `<p class="note">구역이 비어 가는 중일 수 있다 (남의 조도 캐 간다 · 그믐에 다시 찬다)</p>` : ''}</div>`;
+}
 // 정보실의 마을 소문: 최근 열흘에 들은 귀환 (새것부터)
 export function townHtml(W: World) {
   const now = dayAbs(W), R = (W.rum || []).filter(r => r.k === 'back' && now - r.d < CO.MONTH_DAYS).sort((a, b) => b.d - a.d).slice(0, 12);

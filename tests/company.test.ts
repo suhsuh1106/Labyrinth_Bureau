@@ -1808,3 +1808,15 @@ describe('마을 소문 (정보망 0단계)', () => {
     expect(h).toContain('마을 소문'); expect(h).toMatch(/만에 · 짐 (가벼움|보통|무거움|가득)/);
   });
 });
+
+describe('구역 바닥', () => {
+  it('구역에 남은 양이 캐려던 것보다 적으면 남은 만큼만 캐고, 귀환 보고 · 구역 실적에 적는다', () => {
+    setSeed(13); const W = newWorld(); W.pool[0] = 3; syncZones(W);
+    const M = runMonth(W, BOT.smart(W));
+    const dry = M.ours.filter(o => o.dry != null);
+    expect(dry.length).toBeGreaterThan(0);
+    dry.forEach(o => expect(o.got || 0).toBeLessThan(o.dry!));
+    const z = W.zones!.find(q => q.rec.dry != null)!;
+    expect(z.rec.gl!.length).toBeGreaterThan(0);
+  });
+});
