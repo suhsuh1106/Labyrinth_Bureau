@@ -1433,13 +1433,13 @@ describe('날 단위 턴 · 길드 홀', () => {
     }
     expect(drops).toBeGreaterThan(0);
   });
-  it('우리 전리품은 창고에 들어와 날마다 조금씩 상하고, 팔면 금고에 바로 들어오며, 남은 것은 평가액에 든다', () => {
+  it('우리 채집품은 창고에 들어와 (상하지 않고) 남으며, 팔면 금고에 바로 들어오며, 남은 것은 평가액에 든다', () => {
     setSeed(15); const W = newWorld(), P = sanitize(W, us(W), defaultPlan(W)); P.autoSell = false;
     sendReady(W, P); nextDay(W, P); nextDay(W, P);
     const st = W.stock!, n = st[0];
     expect(n).toBeGreaterThan(0);
     expect(worth(W, us(W))).toBe(us(W).cash + (us(W).book || 0) + stockValue(W));
-    nextDay(W, P); expect(W.stock![0]).toBeLessThan(n + 1e-9 + (W.back || []).filter(x => (W.today || []).includes(x.id)).reduce((a, x) => a + (x.got || 0), 0));
+    nextDay(W, P); expect(W.stock![0]).toBeGreaterThanOrEqual(n - 1e-9);
     const cash = us(W).cash, have = Math.floor(W.stock![0] + 1e-9), v = sellStock(W, 0);
     expect(v).toBeGreaterThan(0); expect(us(W).cash).toBe(cash + v); expect(Math.floor(W.stock![0] + 1e-9)).toBe(0);
     expect(W.mo!.res[0].sold[0]).toBeGreaterThanOrEqual(have);

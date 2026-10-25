@@ -335,7 +335,7 @@ export function lootStock(W: World, P: Plan) {
   const pp = W.pp || W.price, total = rows.reduce((a, x) => a + x.n * priceNow(W, x.j), 0);
   const row = ({ it, j, n }: { it: typeof ITEMS[number]; j: number; n: number }) => {
     const p = priceNow(W, j), d = p - (pp[j] ?? p), vs = p / it.P0 - 1;
-    return `<tr><td><b>${esc(it.name)}</b><small>${FLOORS[j].name}${n ? ` · 하루 −${Math.round(CO.LOOT_ROT[j] * 1000) / 10}% 상함` : ''}</small></td><td class="n">${fmt(n)}</td>
+    return `<tr><td><b>${esc(it.name)}</b><small>${FLOORS[j].name}${n && CO.LOOT_ROT[j] ? ` · 하루 −${Math.round(CO.LOOT_ROT[j] * 1000) / 10}% 상함` : ''}</small></td><td class="n">${fmt(n)}</td>
       <td class="n">${p.toFixed(1)}G<small class="${vs > 0.02 ? 'pos' : vs < -0.02 ? 'neg' : 'dim'}">기준 ${vs >= 0 ? '+' : '−'}${Math.round(Math.abs(vs) * 100)}%${Math.abs(d) >= 0.05 ? ` · 어제 ${d > 0 ? '+' : '−'}${Math.abs(d).toFixed(1)}` : ''}</small></td>
       <td class="n">${n ? `<button type="button" class="send sm" data-act="sell" data-j="${j}" data-n="all" title="${fmt(n * p)}G">${fmt(n * p)}G</button>${n > 1 ? `<button type="button" class="link" data-act="sell" data-j="${j}" data-n="half">반만</button>` : ''}` : '<span class="dim">-</span>'}</td></tr>`;
   };
