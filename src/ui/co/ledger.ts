@@ -1,4 +1,4 @@
-// 장부 (본 화면의 둘째 판): 휴대폰에선 지도 ↔ 장부를 갈아 보고, 넓은 화면에선 지도 옆에 늘 펼친다.
+// 장부 (본 화면의 둘째 판): 휴대폰 · PC 모두 위 띠의 지도 ↔ 장부로 갈아 본다.
 // 이달 순이익 예측 · 열흘 달력 위의 조마다 막대(나간 날 → 돌아올 날, 끝에 손익) · 귀환 손익 · 들어올 돈과 나갈 돈 · 본부 공사의 투자 크기.
 // 귀환 손익 = 가져온 값(채집품 오늘 시세 + 전리품 평균 시세) − 쓴 채비(정가) − 다녀온 날만큼의 급여 몫. 읽기만 한다 (상태를 쓰지 않고 난수를 쓰지 않는다)
 import { CO, FLOORS, type Plan, type Sortie, type Team, type World, adminFee, bagDays, bedsOf, boughtOf, dayAbs, hqCost, hqLv, personWage, priceNow, profitOf, sanitize, taxGuess, teamMend, teamReady, unitPrice, us, zoneAt, zoneRate, zoneWay, matRefOf } from '../../core/company';

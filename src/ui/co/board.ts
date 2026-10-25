@@ -111,7 +111,7 @@ export function boardShellHtml(W: World, raw: Plan, ui: DeskUi) {
     ${btn('rec', '<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11M9 8h6"/>')}
     ${btn('hq', '<path d="M3 10l9-6 9 6v10H3z"/><path d="M9 20v-6h6v6"/>')}
     ${nextDayBtn(W, 'bs-next', goN, must)}</nav>`;
-  // 장부: 휴대폰은 지도와 갈아 보고, 넓은 화면은 늘 옆에 (단장이 맡고 있으면 잠김)
+  // 장부: 지도와 갈아 본다 (단장이 맡고 있으면 잠김)
   const ledger = `<div class="bs-ledger" aria-label="장부">${tabOpen(ui, 'main', 'ledger') ? ledgerHtml(W, raw) : `<p class="note">장부는 단장이 맡고 있어요 · 첫 귀환 뒤에 넘겨받아요</p>`}</div>`;
   return `<div class="bs${led ? ' v-ledger' : ''}${ui.menu || ui.order != null || ui.zone != null || ui.study != null ? ' has-sheet' : ''}">${top}${mid}${ledger}${sheetHtml(W, raw, P, ui)}${bot}</div>`;
 }
