@@ -15,6 +15,8 @@ import { askPanel } from './book';
 import { LV_SAYS, SECRET_NAME } from './zones';
 import { stepper } from './view';
 import { DUTIES, hasDuty, tabOpen } from './duty';
+import { studyChip, studySheet } from './study';
+import { studiesOpen } from '../../core/company';
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
@@ -63,6 +65,7 @@ export function boardShellHtml(W: World, raw: Plan, ui: DeskUi) {
   const top = `<header class="bs-top">
     <div class="r1"><h1>${esc(c.name)}</h1><span class="when">제${W.month}월 ${day}일</span><span class="bs-view" role="group" aria-label="본 화면"><button type="button" data-act="bs-view" data-v="map" aria-pressed="${!led}">지도</button><button type="button" data-act="bs-view" data-v="ledger" aria-pressed="${led}">장부</button></span><button type="button" class="opt" data-act="newgame-ask" aria-label="새 게임">⋯</button></div>
     <div class="r2"><span>금고 <b>${fmt(c.cash)}</b>G</span><span>순위 <b>${rankOf(W) || '−'}</b>/${W.cos.filter(x => x.style !== 'crowd').length}</span><span>본부 <b>${c.members - out}</b></span><span>미궁 <b>${out}</b></span></div>
+    ${studyChip(W)}
     <div class="days" role="img" aria-label="제${W.month}월 ${day}일 / ${CO.MONTH_DAYS}일">${Array.from({ length: CO.MONTH_DAYS }, (_, j) => `<i class="${j + 1 < day ? 'past' : j + 1 === day ? 'now' : ''}${due.get(j + 1) ? ' ret' : ''}" title="${j + 1}일${due.get(j + 1) ? ` · ${due.get(j + 1)}조 귀환 예정` : ''}${j + 1 === CO.MONTH_DAYS ? ' · 그믐' : ''}"></i>`).join('')}</div></header>`;
   // 지도: 이 층의 구역 · 길 · 우리 깃발(미궁 · 명령 받음) · 남의 깃발
   const Z = zonesOn(W.zones, f).filter(z => zoneKnown(W, z)), P2 = (z: Zone) => [zx(z), zy(z)];
@@ -109,7 +112,7 @@ export function boardShellHtml(W: World, raw: Plan, ui: DeskUi) {
     ${nextDayBtn(W, 'bs-next', goN, must)}</nav>`;
   // 장부: 휴대폰은 지도와 갈아 보고, 넓은 화면은 늘 옆에 (단장이 맡고 있으면 잠김)
   const ledger = `<div class="bs-ledger" aria-label="장부">${tabOpen(ui, 'main', 'ledger') ? ledgerHtml(W, raw) : `<p class="note">장부는 단장이 맡고 있어요 · 첫 귀환 뒤에 넘겨받아요</p>`}</div>`;
-  return `<div class="bs${led ? ' v-ledger' : ''}${ui.menu || ui.order != null || ui.zone != null ? ' has-sheet' : ''}">${top}${mid}${ledger}${sheetHtml(W, raw, P, ui)}${bot}</div>`;
+  return `<div class="bs${led ? ' v-ledger' : ''}${ui.menu || ui.order != null || ui.zone != null || ui.study != null ? ' has-sheet' : ''}">${top}${mid}${ledger}${sheetHtml(W, raw, P, ui)}${bot}</div>`;
 }
 
 // ---------- 시트 ----------
@@ -117,6 +120,8 @@ function sheetHtml(W: World, raw: Plan, P: Plan, ui: DeskUi) {
   if (ui.menu && MENUS[ui.menu]) return menuSheet(W, raw, P, ui);
   if (ui.order != null && P.teams && P.teams[ui.order]) return orderSheet(W, raw, P, ui.order, hasDuty(ui, 'book'));
   if (ui.zone != null && zoneAt(W, ui.zone)) return zoneSheet(W, P, zoneAt(W, ui.zone)!);
+  const S = ui.study != null ? studiesOpen(W).find(x => x.id === ui.study) : undefined;
+  if (S) return sheet(studySheet(W, S, hasDuty(ui, 'book')), '영주청 조사 보고서');
   return '';
 }
 // (손잡이를 끌어 올리면 크게, 내리면 닫는다. 누르면 크게 ↔ 보통)

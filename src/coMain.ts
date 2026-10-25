@@ -2,7 +2,7 @@
 import './ui/co/base.css';
 import './ui/co/co.css';
 import { setSeed } from './core/rng';
-import { kitShort, sellStock, setClerks, buyNow, fireNow, hireNow, promote, upgradeSquad, setLeader, nextDay, sendQueued, teamReady, CO, FILE_KEYS, teamPots, teamTorch, teamMend, carryOf, foodDays, mendOf, FLOORS, type Plan, SRCS, type World, carryPlan, closeBooks, fileFix, fillTeams, formTeams, newWorld, probe, rankOf, roomOf, sanitize, awayIds, us, MISSIONS, type Mission, zoneRate, teamDays } from './core/company';
+import { submitStudy, kitShort, sellStock, setClerks, buyNow, fireNow, hireNow, promote, upgradeSquad, setLeader, nextDay, sendQueued, teamReady, CO, FILE_KEYS, teamPots, teamTorch, teamMend, carryOf, foodDays, mendOf, FLOORS, type Plan, SRCS, type World, carryPlan, closeBooks, fileFix, fillTeams, formTeams, newWorld, probe, rankOf, roomOf, sanitize, awayIds, us, MISSIONS, type Mission, zoneRate, teamDays } from './core/company';
 import { DESC_FIRST, packBar } from './ui/co/roster';
 import { CLASSES, GEARS } from './core/data';
 import { plaqueHtml } from './ui/co/view';
@@ -15,7 +15,7 @@ import { advanceArrival, arrivalOpen, closeArrival, playArrival } from './ui/co/
 import { DUTIES, dutyDue, hasDuty } from './ui/co/duty';
 
 const $ = (id: string): any => document.getElementById(id);
-const KEY = 'lb-co', VERSION = 43, MONTHS = 36;   // 43: 경쟁 용병단의 구역 이해도 · 사냥, 본 남들의 사냥 · 전리품 (이전 판은 새 게임으로)
+const KEY = 'lb-co', VERSION = 44, MONTHS = 36;   // 44: 영주청 조사 의뢰 (이전 판은 새 게임으로)
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
 let W: World, plan: Plan, ui: DeskUi;
 // 도장을 막 찍은 결과 화면이면 귀환 장부를 한 줄씩 띄운다 (저장하지 않는 화면 상태)
@@ -55,10 +55,10 @@ function draw() {
 }
 function setPhase(p: number) { stopRun(); closeScene(); ui.phase = p; ui.open = false; ui.place = undefined; ui.store = false; ui.backs = false; closeSheet(); render(); save(); toTop(); }
 // 판의 시트를 닫는다 (구역 보고서 · 명령서 · 단추 시트)
-function closeSheet() { ui.menu = undefined; ui.order = undefined; ui.zone = undefined; sheetFull = false; setSheetFull(false); }
+function closeSheet() { ui.menu = undefined; ui.order = undefined; ui.zone = undefined; ui.study = undefined; sheetFull = false; setSheetFull(false); }
 let sheetFull = false;
 // 단추 시트의 탭을 연다 (옛 창을 여는 단추도 여기로)
-function openMenu(m: string, tab?: string) { ui.order = undefined; ui.zone = undefined; ui.menu = m; ui.mtab = tab || MENUS[m].tabs[0][0]; ui.exp = false; ui.place = undefined; ui.open = false; ui.store = false; render(); save(); }
+function openMenu(m: string, tab?: string) { ui.order = undefined; ui.zone = undefined; ui.study = undefined; ui.menu = m; ui.mtab = tab || MENUS[m].tabs[0][0]; ui.exp = false; ui.place = undefined; ui.open = false; ui.store = false; render(); save(); }
 const toTop = () => { $('desk').scrollTop = 0; };
 
 function start(fresh = false) {
@@ -175,7 +175,10 @@ function act(b: HTMLElement) {
   if (a === 'bs-grow') { sheetFull = !sheetFull; setSheetFull(sheetFull); render(); return; }
   if (a === 'bs-floor') { ui.floor = +(b.dataset.f || 0); ui.zone = undefined; render(); save(); return; }
   if (a === 'bs-view') { ui.view = b.dataset.v === 'ledger' ? 'ledger' : undefined; render(); save(); return; }
-  if (a === 'bs-zone') { const z = +(b.dataset.z || 0); ui.menu = undefined; ui.order = undefined; ui.zone = z; render(); save(); return; }
+  if (a === 'bs-zone') { const z = +(b.dataset.z || 0); ui.menu = undefined; ui.order = undefined; ui.study = undefined; ui.zone = z; render(); save(); return; }
+  if (a === 'study') { const id = +(b.dataset.id || 0); closeSheet(); ui.study = id; render(); save(); return; }
+  if (a === 'study-go') { submitStudy(W, +(b.dataset.id || 0)); render(); save(); return; }
+  if (a === 'study-dex') { ui.dexMon = b.dataset.mon; return openMenu('rec', 'book'); }
   if (a === 'bs-team') { const t = +(b.dataset.t || 0); ui.menu = undefined; ui.zone = undefined; ui.order = ui.order === t ? undefined : t; render(); save(); return; }
   if (a === 'bs-place') return placeTeam(+(b.dataset.t || 0), +(b.dataset.z || 0));
   if (a === 'bs-home') { tidyTeams(); const T = (plan.teams || [])[+(b.dataset.t || 0)]; if (T) delete T.go; closeSheet(); render(); save(); return; }

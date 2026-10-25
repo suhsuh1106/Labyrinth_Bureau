@@ -27,6 +27,8 @@ import { floorMax, keyOf } from '../src/core/company';
 import { fcRank, forecast, gradeOf } from '../src/core/company';
 import { bedsOf, classCap, dormCost, dormKeep, formTeams, recruitPrice, recruitWants, rookCount, rookSlots, shareOut } from '../src/core/company';
 import { CLASSES } from '../src/core/data';
+import { studyCan, studyDone, submitStudy } from '../src/core/company';
+import { ASK_KEYS, newDex } from '../src/core/dex';
 import { needOf, tripOdds, potShock, profitOf, drillGain, weakShare, badShare, classBad, synOf, synTags, teamSlots } from '../src/core/company';
 import { WEAK_KEYS } from '../src/core/data';
 import { DEX, askable, badSure } from '../src/core/dex';
@@ -741,7 +743,7 @@ describe('숙소 · 신입 모집 · 수습 · 명성', () => {
   it('명성은 성공한 층만큼 오르고, 다음 달 지원자는 판매 수입을 따라 정해진다', () => {
     setSeed(2); const W = newWorld();
     const M = runMonth(W, defaultPlan(W)), r = M.res[0];
-    expect(us(W).fame).toBeCloseTo(Math.max(0, r.win[0] * CO.FAME_F[0] - r.deaths * CO.FAME_DEATH));
+    expect(us(W).fame).toBeCloseTo(Math.max(0, r.win[0] * CO.FAME_F[0] - r.deaths * CO.FAME_DEATH + (r.jobFame || 0)));   // (영주청 조사 보고서의 명성)
     const sales = M.res.reduce((a, x) => a + x.sales, 0), base = CO.APP_BASE + CO.APP_PER * sales / 1000;
     expect(W.apps!).toBeGreaterThanOrEqual(Math.floor(base * 0.8)); expect(W.apps!).toBeLessThanOrEqual(Math.ceil(base * 1.2));
     expect(M.apps).toBe(CO.APP0);
@@ -811,7 +813,8 @@ describe('성공 정도 · 부상 · 수입 예측', () => {
     let a = 0, f = 0, inside = 0, n = 0;
     for (let g = 1; g <= 12; g++) {
       const W = playGame(g, BOT.even);
-      W.history.forEach(M => { if (!M.fc || !M.fc.mean) return; a += M.res[0].sales; f += M.fc.mean; n++; if (M.res[0].sales >= M.fc.p10 && M.res[0].sales <= M.fc.p90) inside++; });
+      // (조사 보고서 상금은 예측 밖: 판 것만 견준다)
+      W.history.forEach(M => { if (!M.fc || !M.fc.mean) return; const s = M.res[0].sales - (M.res[0].study || []).reduce((t, x) => t + x.pay, 0); a += s; f += M.fc.mean; n++; if (s >= M.fc.p10 && s <= M.fc.p90) inside++; });
     }
     // (구역에 남은 양은 숨긴 정보라 남들이 먼저 파 간 몫을 예측이 다 알지 못한다: 아래쪽 폭을 조금 넓게.
     //  경쟁 조가 한 달에 여러 번 나눠 캐면서 0.84 → 0.80)
@@ -938,6 +941,39 @@ describe('층 이해도 · 지도 완성도', () => {
   });
 });
 
+describe('영주청 조사 의뢰', () => {
+  it('판 시작에 1층 주 몬스터의 조사 의뢰가 걸리고, 도감이 찬 만큼(목격 · 전적 · 약점) 낸다', () => {
+    setSeed(4); const W = newWorld(), S = W.studies![0], mon = MONSTERS[W.mons[0]].name;
+    expect(W.studies!.length).toBe(1); expect(S.f).toBe(0); expect(S.mon).toBe(mon); expect(S.sub).toEqual([]);
+    expect(studyCan(W, S)).toBe(0); expect(submitStudy(W, S.id)).toBe(0);
+    const D = newDex(1); (W.dex || (W.dex = {}))[mon] = D;
+    D.n = 1; D.u = 3; expect(studyCan(W, S)).toBe(1);
+    D.u = DEX.REC_AT; expect(studyCan(W, S)).toBe(2);
+    D.key = { [ASK_KEYS[0]]: 'yes' }; expect(studyCan(W, S)).toBe(3);
+    expect(submitStudy(W, S.id)).toBe(3); expect(studyDone(S, 0)).toBe(3); expect(submitStudy(W, S.id)).toBe(0);
+  });
+  it('먼저 낸 단계는 상금 전부를 그믐에 받고(약점은 회계관 신뢰도), 늦게 낸 쪽은 STUDY_LATE배', () => {
+    setSeed(5); const W = newWorld(), S = W.studies![0], c = us(W), rel0 = c.relL ?? 50;
+    const D = newDex(1); D.n = 1; D.u = DEX.REC_AT; D.key = { [ASK_KEYS[0]]: 'yes' }; (W.dex || (W.dex = {}))[S.mon] = D;
+    const r = runMonth(W, defaultPlan(W)).res[0];
+    expect(r.study!.map(x => [x.s, x.pay, x.first])).toEqual([[1, CO.STUDY_PAY[0], true], [2, CO.STUDY_PAY[1], true], [3, CO.STUDY_PAY[2], true]]);
+    expect(r.jobPay).toBeGreaterThanOrEqual(CO.STUDY_PAY.reduce((a, b) => a + b, 0));
+    expect(c.relL).toBe(Math.min(100, rel0 + CO.STUDY_REL));
+    // 경쟁 용병단은 그 층에 드나든 달로 낸다 (달 첫날). 우리보다 늦었으니 절반
+    const i = W.cos.findIndex((o, k) => k > 0 && o.style !== 'crowd'), o = W.cos[i];
+    expect(studyDone(S, i)).toBeGreaterThanOrEqual(1);
+    o.learned[0] = true; openMonth(W); expect(studyDone(S, i)).toBe(3);
+    const R = runMonth(W, carryPlan(W, defaultPlan(W))).res[i];
+    expect((R.study || []).find(x => x.s === 3)).toEqual({ id: S.id, s: 3, pay: Math.round(CO.STUDY_PAY[2] * CO.STUDY_LATE), first: false });
+  });
+  it('새 층이 열리면 그 층 주 몬스터의 조사 의뢰가 붙는다', () => {
+    setSeed(6); const W = newWorld(), P = defaultPlan(W);
+    for (let m = 0; m < 24 && W.unlocked < 2; m++) runMonth(W, carryPlan(W, P));
+    if (W.unlocked < 2) return;
+    expect(W.studies!.some(S => S.f === 1 && S.mon === MONSTERS[W.mons[1]].name)).toBe(true);
+  });
+});
+
 describe('관리국 게시판: 의뢰', () => {
   // 공표된 경쟁 · 납품 의뢰는 지금 닫아 두었다 (CO.JOBS_OPEN). 규칙은 남아 있어 열고 확인한다
   beforeEach(() => { CO.JOBS_OPEN = true; });
@@ -950,7 +986,7 @@ describe('관리국 게시판: 의뢰', () => {
     expect(sanitize(W, us(W), P).take![J.id]).toBe(300);   // 50개 단위
     const r = runMonth(W, P).res[0];
     expect(J.take[0]).toBeLessThanOrEqual(300); expect(J.done[0]).toBe(Math.min(J.take[0], r.sold[0]));
-    expect(r.jobPay).toBe(Math.round(J.done[0] * J.prem) + 0);
+    expect(r.jobPay).toBe(Math.round(J.done[0] * J.prem) + (r.study || []).reduce((t, x) => t + x.pay, 0));   // (영주청 조사 보고서 상금도 의뢰 수입)
     expect(r.jobs!.find(x => x.id === J.id)!.got).toBe(J.done[0]);
   });
   it('맡은 양을 다 못 채우면 끝나는 달에 위약금이 나가고, 경쟁 포상은 순위대로 나간다', () => {

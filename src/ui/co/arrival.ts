@@ -8,7 +8,7 @@ type Line = { t: string; who?: string; role?: string; seal?: string; color?: str
 export const ARRIVAL: Line[] = [
   { t: '서부 변경 하르덴 백작령에 미궁이 열렸다. 백작이 탐사를 허가하자 용병단들이 입구 앞으로 몰려들었다.' },
   { t: '회색늑대 용병단의 단장 브란 오스카는 혼자서도 단을 꾸려 왔지만, 장부는 늘 아슬아슬한 흑자였다. 그래서 행정관을 들였다. 계약 조건은 순이익 20% 이상.', at: '40%' },
-  { t: '이봐 행정관! 미궁이 열렸어, 우리도 바로 출발하자고!', who: '브란 오스카', role: '회색늑대 단장', seal: '브', color: '#a8322a', at: '30%' },
+  { t: '이봐 행정관! 미궁이 열렸어, 우리도 바로 출발하자고! 영주청에서 1층 그놈 조사 보고서도 받는대. 우리가 제일 먼저 내 보자!', who: '브란 오스카', role: '회색늑대 단장', seal: '브', color: '#a8322a', at: '30%' },
 ]
 
 let i = 0, typing: any = null, done: (() => void) | null = null;
