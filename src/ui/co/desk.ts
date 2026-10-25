@@ -44,7 +44,7 @@ function probesHtml(W: World) {
       return `<section class="pr"><h3>시장 조사</h3>${ds.length ? `<div class="tw"><table class="grid slim"><thead><tr><th>찾는 곳</th><th>소재</th><th class="n">값</th><th>기한</th></tr></thead><tbody>${ds.map(d => `<tr><td>${BUYERS[d.who].who}</td><td><b>${d.m}</b></td><td class="n pos">평소 +${Math.round(d.mul * 100)}%</td><td>제${d.until}월까지</td></tr>`).join('')}</tbody></table></div>` : '<p class="note">지금 웃돈을 얹어 찾는 소재는 없대요.</p>'}</section>`;
     }
     const c = W.cos.find(y => y.id === x.id), n = (x.parties || []).map((v, f) => v + ((x.hire || [])[f] || 0));
-    return `<section class="pr"><h3>${c ? c.name : x.id} 조사</h3><p>이번 달 ${n.map((v, f) => (v ? `${FLOORS[f].name} ${v}조` : '')).filter(Boolean).join(' · ') || '출정하지 않음'}을 보낼 채비를 한다.${(x.guide || []).some(Boolean) ? ` ${(x.guide || []).map((g, f) => (g ? `${FLOORS[f].name}에 ${condLabel(g)}` : '')).filter(Boolean).join(', ')}을 챙긴다.` : ''}</p></section>`;
+    return `<section class="pr"><h3>${c ? c.name : x.id} 조사</h3><p>이번 달 ${n.map((v, f) => (v ? `${FLOORS[f].name} ${v}조` : '')).filter(Boolean).join(' · ') || '보낼 조 없음'}을 보낼 채비를 한다.${(x.guide || []).some(Boolean) ? ` ${(x.guide || []).map((g, f) => (g ? `${FLOORS[f].name}에 ${condLabel(g)}` : '')).filter(Boolean).join(', ')}을 챙긴다.` : ''}</p></section>`;
   }).join('');
 }
 
@@ -61,7 +61,7 @@ export function docBody(W: World, tab: string, P?: Plan, ui?: DeskUi) {
   if (tab === 'report') return resultsHtml(W);
   if (tab === 'paper') return (W.last ? paperHtml(W) : '<p class="note">첫 정산이 끝나면 변경 일보가 나와요.</p>') + rumorHtml(W);
   if (tab === 'book') return bookHtml(W, P, ui && ui.dexMon);
-  return `<h3>이번 주 조사</h3>${probesHtml(W)}${intelHtml(W)}`;
+  return `<h3>이달 조사</h3>${probesHtml(W)}${intelHtml(W)}`;
 }
 const docCount = (W: World, tab: string) => (tab === 'probe' ? (W.probes || []).filter(x => x.m === W.month).length : 0);
 // 작전 메모: 고정한 자료를 한두 줄로 줄여 탐험 주차 옆에 둔다
@@ -106,10 +106,10 @@ const ICON: Record<string, string> = {
 const icon = (k: string) => `<svg class="ico" viewBox="0 0 16 16" aria-hidden="true">${ICON[k] || ''}</svg>`;
 // 출처마다: 대표 그림, 단계마다 그림과 짧은 이름
 export const NET_TREE: Record<string, { ico: string; lv: [string, string][] }> = {
-  ret: { ico: 'scroll', lv: [['scroll', '조당 캐 온 양'], ['grid', '구성별 성공률'], ['eye', '몬스터가 바뀐 달']] },
+  ret: { ico: 'scroll', lv: [['scroll', '하루 캐 온 양'], ['grid', '장비별 성공률'], ['eye', '몬스터가 바뀐 달']] },
   mkt: { ico: 'bars', lv: [['bars', '시장 전체 판매'], ['flags', '용병단별 판매'], ['letter', '다음 달 주문']] },
   chu: { ico: 'candle', lv: [['candle', '층별 장례'], ['flags', '용병단별 장례'], ['cross', '부상자까지']] },
-  gate: { ico: 'door', lv: [['door', '층별 파티 수'], ['flags', '용병단별 파티 수'], ['people', '파티 구성']] },
+  gate: { ico: 'door', lv: [['door', '층별 조 수'], ['flags', '용병단별 조 수'], ['people', '조 구성']] },
   spy: { ico: 'mask', lv: [['mask', '한 곳'], ['mask', '두 곳'], ['mask', '세 곳']] },
 };
 function netPanel(W: World, raw: Plan) {

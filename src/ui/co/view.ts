@@ -210,7 +210,7 @@ export function fieldHtml(W: World) {
       const off = all.n - v.n, offR = off ? (all.w - v.w) / off : 0, r = v.w / v.n, d = off >= 3 ? r - offR : 0;
       return { k, n: v.n, r, d, off };
     }).sort((a, b) => b.d - a.d);
-    return `<div class="fblock"><b>${F.name}</b> <span class="dim">최근 우리 파티 ${all ? Math.round(all.n) : 0}조 · 성공 ${all && all.n ? pct(all.w / all.n) : '-'}${lvOf(W, 'ret') < 2 ? ' · 구성별 성공률은 귀환 보고 2단계부터' : ''}</span>
+    return `<div class="fblock"><b>${F.name}</b> <span class="dim">최근 우리 조 ${all ? Math.round(all.n) : 0}조 · 성공 ${all && all.n ? pct(all.w / all.n) : '-'}${lvOf(W, 'ret') < 2 ? ' · 구성별 성공률은 귀환 보고 2단계부터' : ''}</span>
       <ul class="notes">${notes.map(n => `<li><span class="dim">제${n.m}월</span> ${n.t}</li>`).join('')}</ul>
       ${rows.length ? `<div class="chips">${rows.map(x => `<span class="chip ${x.off >= 3 && x.d >= 0.12 ? 'up' : x.off >= 3 && x.d <= -0.12 ? 'dn' : ''}" title="갖춘 파티 ${Math.round(x.n)}조 성공 ${pct(x.r)}">${keyLabel(x.k)} ${pct(x.r)}${x.off >= 3 ? ` (${x.d >= 0 ? '+' : '−'}${Math.round(Math.abs(x.d) * 100)}%p)` : ''}</span>`).join('')}</div>` : ''}</div>`;
   });

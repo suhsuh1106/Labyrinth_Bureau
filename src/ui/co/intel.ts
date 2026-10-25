@@ -1,18 +1,18 @@
-// 정보실: 정보망 단계만큼 보이는 기록을 그래프로 모은다. 층에 남은 양 짐작, 누가 캐 갔나, 장례, 교차 확인, 경쟁 용병단의 다음 수.
+// 정보실: 정보망 단계만큼 보이는 기록을 그래프로 모은다. 마을 소문, 층 매장량 짐작(구역마다 우리가 잰 남은 양 · 캐 온 양 흐름 · 들린 남의 귀환), 누가 캐 갔나, 장례, 정보 맞대기, 경쟁 용병단의 다음 수.
 // 지난 기록(W.history, W.log)과 엔진이 매달 만든 짐작(W.intel.est)만 읽는다. 상태를 쓰지 않고 난수도 쓰지 않는다.
 // 정보는 단계가 오르면 지난 달 것까지 함께 열린다 (장부·기록을 열람하는 셈이다)
-import { CO, FLOORS, ITEMS, INTEL, TAX, type Src, SRCS, type World, auditChance, guideParts, intelBlock, keyOf, pressureOf } from '../../core/company';
-import { keyLabel } from '../../core/util';
+import { CO, FLOORS, ITEMS, INTEL, TAX, type Src, SRCS, type World, auditChance, dayAbs, intelBlock, pressureOf, zoneKnown } from '../../core/company';
+import { lvOf as zLv, zonesOn } from '../../core/zones';
 import { townHtml } from './rumor';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
 const esc = (t: string) => t.replace(/"/g, '&quot;');
 
 export const SRC_INFO: Record<Src, { n: string; lv: string[]; how: string }> = {
-  ret: { n: '귀환 보고', lv: ['—', '우리 성공 조당 캐 온 양', '구성별 성공률 (지침이 아직 맞나)', '몬스터가 바뀐 달을 짚어 냄'], how: '기록관 급여' },
+  ret: { n: '귀환 보고', lv: ['—', '우리 조 한 사람 하루 캐 온 양', '장비별 성공률 (약점 장비가 아직 먹히나)', '몬스터가 바뀐 달을 짚어 냄'], how: '기록관 급여' },
   mkt: { n: '상단 장부', lv: ['시세만', '전체 판매량 (우리와 남들)', '용병단별 판매량', '다음 달 주문 (경쟁자 계획)'], how: `상단과 사이 ${INTEL.REL} 이상 (2단계부터) · 장부 열람료` },
   chu: { n: '교회 장례 기록', lv: ['—', '층별 장례 합계', '층 × 용병단 장례', '부상자까지'], how: `교회와 사이 ${INTEL.REL} 이상 (2단계부터) · 기부` },
-  gate: { n: '입구 출입 기록', lv: ['—', '층별 전체 파티 수', '용병단별 파티 수', '파티 구성까지'], how: '관리국 서기 사례금' },
+  gate: { n: '입구 출입 기록', lv: ['—', '층별 전체 조 수', '용병단별 조 수', '조 구성까지'], how: '관리국 서기 사례금' },
   spy: { n: '정보원', lv: ['—', '한 곳 · 엉성함', '두 곳 · 쓸 만함', '세 곳 · 오래 쓸수록 정확'], how: '정보원 몸값' },
 };
 // 경쟁자 색: 용병단을 따라간다. 이름 있는 셋만 따로 칠하고 나머지는 '그 밖'
@@ -28,7 +28,8 @@ type Ser = { n: string; c: string; v: (number | null)[] };
 function floorData(W: World, f: number) {
   const H = W.history.slice(-WIN), mkt = lvOf(W, 'mkt');
   const months = H.map(M => M.month), open = (M: typeof H[0]) => M.floors[f] && (M.floors[f].crowd > 0 || M.res[0].sent[f] > 0);
-  const haul = H.map(M => (M.res[0].ok[f] ? +(M.res[0].got[f] / M.res[0].ok[f]).toFixed(1) : null));
+  // 우리 조가 그달 그 층에서 한 사람 하루에 캐 온 양 (귀환 보고: 캐 온 채집품 ÷ 일손)
+  const haul = H.map(M => { const os = M.ours.filter(o => o.f === f && o.wk != null), md = os.reduce((a, o) => a + (o.n || 0) * (o.wk || 0), 0); return md ? +(os.reduce((a, o) => a + (o.got || 0), 0) / md).toFixed(1) : null; });
   const got = (M: typeof H[0], i: number) => M.res[i].got[f];
   const take: Ser[] = [{ n: '우리', c: '--c-us', v: H.map(M => (open(M) ? got(M, 0) : null)) }];
   if (mkt === 1) take.push({ n: '남들', c: '--c-etc', v: H.map(M => (open(M) ? M.res.reduce((a, r, i) => a + (i ? r.got[f] : 0), 0) : null)) });
@@ -52,7 +53,7 @@ function haulChart(name: string, months: number[], haul: (number | null)[], yMax
   const pts = haul.map((v, k) => (v == null ? null : [X(k), y(v)])).filter(Boolean) as number[][];
   const ticks = [0, yMax / 2, yMax];
   const best = Math.max(0, ...haul.filter((v): v is number => v != null)), lastK = haul.map((v, k) => (v == null ? -1 : k)).filter(k => k >= 0).pop();
-  return `<svg viewBox="0 0 ${W_} ${H}" role="img" aria-label="${name} 우리 성공 조당 캐 온 양">
+  return `<svg viewBox="0 0 ${W_} ${H}" role="img" aria-label="${name} 우리 조 한 사람 하루 캐 온 양">
     ${ticks.map(v => `<line class="gl" x1="${L}" x2="${W_ - R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 4}" y="${y(v) + 3}" text-anchor="end">${+v.toFixed(1)}</text>`).join('')}
     ${best ? `<line class="ref" x1="${L}" x2="${W_ - R}" y1="${y(best)}" y2="${y(best)}"/><text class="lab" x="${L + 3}" y="${y(best) - 3}">가장 많이 캐 온 달 ${best}개</text>` : ''}
     ${pts.length > 1 ? `<polyline class="ln" points="${pts.map(p => p.join(',')).join(' ')}"/>` : ''}
@@ -78,24 +79,17 @@ function deadChart(name: string, months: number[], dead: (number | null)[], yMax
   return `<svg viewBox="0 0 ${W_} ${H}" role="img" aria-label="${name} 달마다 장례 건수"><line class="ax" x1="${L}" x2="${W_ - R}" y1="${y(0)}" y2="${y(0)}"/><text x="${L - 4}" y="${y(yMax) + 6}" text-anchor="end">${yMax}</text>${bars}${hits(months, X, colW, H, tip)}</svg>`;
 }
 
-// 지침 상태: 구성별 성공률(귀환 보고 2단계)로 지금 지침을 갖춘 조와 안 갖춘 조를 견준다. 3단계면 바뀐 달을 짚는다
-function guideChip(W: World, f: number) {
-  const gs = guideParts(W.last ? W.last.plans[0].guide[f] : '');
-  if (!gs.length) return '<span class="chip">지침 없음</span>';
-  return gs.map(g => keyChip(W, f, g)).join(' ');
+// 구역마다: 우리가 잰 남은 양(이해도 3단계부터) · 우리 조 귀환마다 한 사람 하루 몫의 흐름 · 지난 귀환이 바닥이었나 · 최근 열흘 들린 남의 귀환
+function zoneGrid(W: World, f: number) {
+  if (!W.zones) return '';
+  const now = dayAbs(W), zs = zonesOn(W.zones, f).filter(z => zoneKnown(W, z)).sort((a, b) => a.r - b.r || a.id - b.id);
+  const rum = (id: number) => (W.rum || []).filter(r => r.k === 'back' && r.z === id && now - r.d < CO.MONTH_DAYS).length;
+  return `<div class="zgrid">${zs.map(z => {
+    const gl = z.rec.gl || [], dry = z.rec.dry != null && z.rec.dry === z.rec.last, n = rum(z.id);
+    const left = zLv(z) >= 3 && z.seen ? `남은 ${Math.round(z.seen.v)} · ${now - z.seen.d <= 0 ? '오늘' : `${now - z.seen.d}일 전`}` : '남은 양 ?';
+    return `<div class="zg${dry ? ' dry' : ''}" title="${esc(z.nm)} · 이해도 ${zLv(z)}단계"><b>${z.nm}</b><span>${left}</span><span>${gl.length ? `하루 ${gl.join('→')}` : '다녀온 적 없음'}${dry ? ' · 바닥' : ''}</span>${n ? `<span class="dim">남의 귀환 ${n}</span>` : ''}</div>`;
+  }).join('')}</div>`;
 }
-function keyChip(W: World, f: number, g: string) {
-  const ret = lvOf(W, 'ret');
-  if (ret < 2) return `<span class="chip">지침 ${keyLabel(g)}</span>`;
-  const all = W.obs[f]['*'], o = W.obs[f][g];
-  if (!all || !o || o.n < 2 || all.n - o.n < 2) return `<span class="chip">지침 ${keyLabel(g)} · <b>기록 모자람</b></span>`;
-  const d = o.w / o.n - (all.w - o.w) / (all.n - o.n);
-  const adapted = W.adapted && W.adapted[f], keyNow = keyOf(W, f);
-  if (ret >= 3 && adapted && g !== keyNow) return `<span class="chip bad">지침 ${keyLabel(g)} · <b>제${adapted}월부터 안 먹힘</b></span>`;
-  const [cls, t] = d >= 0.12 ? ['ok', '아직 맞음'] : d >= 0.03 ? ['warn', '약해지는 중'] : ['bad', '안 먹히는 듯'];
-  return `<span class="chip ${cls}">지침 ${keyLabel(g)} · <b>${t}</b></span>`;
-}
-
 function floorsHtml(W: World) {
   const openF = FLOORS.map((_, f) => f).filter(f => f < W.unlocked);
   const data = openF.map(f => floorData(W, f));
@@ -106,14 +100,15 @@ function floorsHtml(W: World) {
   const chu = lvOf(W, 'chu');
   return openF.map((f, j) => {
     const F = FLOORS[f], d = data[j], e = W.intel && W.intel.est.floors[f];
-    const tip = (k: number) => [`${F.name} · 제${d.months[k]}월`, `우리 성공 조당 ${d.haul[k] ?? '-'}개`, ...d.take.map(s => `${s.n} ${s.v[k] ?? '-'}개`), ...(chu ? [`장례 ${d.dead[k] ?? '-'}건`] : [])].join('|');
+    const tip = (k: number) => [`${F.name} · 제${d.months[k]}월`, `우리 한 사람 하루 ${d.haul[k] ?? '-'}개`, ...d.take.map(s => `${s.n} ${s.v[k] ?? '-'}개`), ...(chu ? [`장례 ${d.dead[k] ?? '-'}건`] : [])].join('|');
     const w = e ? e.hi - e.lo : 100;
     return `<article class="fp" aria-label="${F.name}">
-      <header><h3>${F.name}<small>${ITEMS[f].name}</small></h3>${guideChip(W, f)}</header>
+      <header><h3>${F.name}<small>${ITEMS[f].name}</small></h3></header>
       <div class="est"><div class="row"><span>다음 달 남은 양 짐작 (가득 대비)</span><b>${e ? `${e.lo}–${e.hi}%` : '모름'}</b></div>
         <div class="track" role="img" aria-label="${F.name} 남은 양 ${e ? `${e.lo}에서 ${e.hi}퍼센트` : '모름'}">${e ? `<span class="band" style="left:${e.lo}%;width:${w}%"></span><span class="dot" style="left:${e.mid}%"></span>` : ''}<span class="tick" style="left:0%">0</span><span class="tick" style="left:50%">50</span><span class="tick" style="left:100%">100%</span></div>
-        <div class="why">${!e ? '' : w >= 40 ? '근거가 모자람: 우리 귀환 보고뿐' : w >= 15 ? '귀환 보고 × 시장 전체 판매' : '귀환 보고 × 용병단별 판매'}</div></div>
-      <div class="ct">우리 성공 조당 캐 온 양 (개)</div>${d.months.length ? haulChart(F.name, d.months, d.haul, hMax, tip) : '<div class="lockbox">아직 기록이 없어요</div>'}
+        <div class="why">${!e ? '' : w >= 40 ? '근거: 우리 귀환 보고뿐' : w >= 15 ? '근거: 귀환 보고 × 시장 전체 판매' : '근거: 귀환 보고 × 용병단별 판매'}</div></div>
+      ${zoneGrid(W, f)}
+      <div class="ct">우리 조 한 사람 하루 캐 온 양 (개)</div>${d.months.length ? haulChart(F.name, d.months, d.haul, hMax, tip) : '<div class="lockbox">아직 기록이 없어요</div>'}
       <div class="ct">누가 캐 갔나 (개)<small>상단 장부 ${lvOf(W, 'mkt')}단계</small></div>${d.months.length ? stackChart(F.name, d.months, d.take, tMax, tip) : ''}
       <div class="ct">장례 (건)<small>${chu ? `교회 기록 ${chu}단계` : ''}</small></div>${chu ? (d.months.length ? deadChart(F.name, d.months, d.dead, dMax, tip) : '') : '<div class="lockbox">교회 장례 기록 1단계부터 보여요</div>'}
     </article>`;
@@ -121,7 +116,7 @@ function floorsHtml(W: World) {
 }
 
 function legendHtml(W: World) {
-  const mkt = lvOf(W, 'mkt'), out = ['<span><i class="line" style="--c:var(--c-us)"></i>우리 성공 조당 캐 온 양</span>', '<span><i style="--c:var(--c-us)"></i>우리</span>'];
+  const mkt = lvOf(W, 'mkt'), out = ['<span><i class="line" style="--c:var(--c-us)"></i>우리 한 사람 하루 캐 온 양</span>', '<span><i style="--c:var(--c-us)"></i>우리</span>'];
   if (mkt === 1) out.push('<span><i style="--c:var(--c-etc)"></i>남들 (시장 판매로 짐작)</span>');
   if (mkt >= 2) { NAMED.forEach(x => out.push(`<span><i style="--c:var(${x.c})"></i>${W.cos.find(c => c.id === x.id)!.name}</span>`)); out.push('<span><i style="--c:var(--c-etc)"></i>그 밖</span>'); }
   if (lvOf(W, 'chu')) out.push('<span><i style="--c:var(--c-etc)"></i>장례 (교회 기록)</span>');
@@ -150,7 +145,7 @@ function crossHtml(W: World) {
     } },
     { need: { ret: 3, chu: 2 }, t: '몬스터가 바뀐 달', body: () => {
       const a = (W.adapted || []).map((m, f) => (m ? `${FLOORS[f].name} 제${m}월` : '')).filter(Boolean);
-      return [a.join(' · ') || '아직 없음', a.length ? '그달부터 예전 지침을 갖춘 조의 성공률이 떨어지고 장례가 늘었어요' : '약점대로 들어가는 파티가 몰리면 몬스터가 적응해요'];
+      return [a.join(' · ') || '아직 없음', a.length ? '그달부터 예전 약점 장비를 갖춘 조의 성공률이 떨어지고 장례가 늘었어요' : '약점대로 들어가는 조가 몰리면 몬스터가 적응해요'];
     } },
     { need: { mkt: 3, spy: 2 }, t: '경쟁자 다음 달 계획 (확실)', body: () => {
       const on = W.intel ? W.intel.spyOn : [];
@@ -230,12 +225,12 @@ export function booksRumorHtml(W: World) {
 export function intelHtml(W: World) {
   return `<h3>마을 소문</h3>${townHtml(W)}
     <h3>장부 소문</h3>${booksRumorHtml(W)}
-    <h3>층은 얼마나 남았나</h3>
+    <h3>층 매장량 짐작</h3>
     <div class="legend">${legendHtml(W)}</div>
     <div class="floors">${floorsHtml(W)}</div>
-    <h3>교차 확인</h3>
+    <h3>정보 맞대기</h3>
     <div class="cross">${crossHtml(W)}</div>
-    <h3>다음 달 누가 어디로 오나</h3>
+    <h3>다음 달 경쟁 조</h3>
     <div class="legend"><span><i style="--c:var(--c-etc)"></i>지난달</span><span><i class="line" style="--c:var(--ink-soft)"></i>다음 달 짐작</span></div>
     <div class="tw">${rivalsHtml(W)}</div>`;
 }
