@@ -153,6 +153,8 @@ export const CO = {
   MAP_STEP: [1, 2, 3, 4, 5], MAP_COPY: 1500, MAP_GIVE: 30,
   // 의뢰: 공표된 경쟁의 포상(1 · 2 · 3등)과 명성, 납품은 TAKE_STEP개 단위로 맡는다. 맡겠다는 쪽이 물량보다 많으면 명성 무게로 나눈다
   RACE_PRIZE: [900, 500, 250], RACE_FAME: [6, 3, 0], TAKE_STEP: 50, JOB_MAX: 2,
+  // 조사 의뢰(영주청): 단계(목격 · 전적 · 약점)마다 상금과 명성, 약점 보고서엔 회계관 신뢰. 그 단계를 먼저 낸 쪽이 다 받고, 늦게 낸 쪽은 STUDY_LATE배. STUDY_LEN달 동안 받는다
+  STUDY_PAY: [100, 150, 250], STUDY_FAME: [2, 4, 8], STUDY_REL: 8, STUDY_LATE: 0.5, STUDY_LEN: 12,
   // 교관: 달마다 내는 급료(훈련비). 효과는 훈련도가 차오르는 만큼 (지금 훈련비와 같은 원리)
   COACH_PAY: [0, 150, 300, 600],
   // 대기 = 본부 훈련: 그달 나가지 않은 사람(다치지 않은)은 실력이 교관 단계마다 DRILL_SK만큼 오른다 (훈련장 1단계면 ×TRAIN_GROW, 2단계면 신입은 두 배).
@@ -478,7 +480,8 @@ export type CoResult = { tip?: { i: number; nm: string; aud: boolean; fine: numb
   recruitWant: number; recruitPrice: number; rookDone: number; rookDead: number; fired?: string[]; drilled?: number;
   recruitC?: Record<string, number>; newP?: number[]; mapSale?: number; left?: string[];   // left: 불만으로 떠난 사람
   torchUsed?: number; torchShort?: number;   // 태운 횃불(경쟁 용병단은 들고 간 만큼), 횃불 없이 간 조 (경쟁 용병단)
-  jobPay?: number; jobFame?: number; jobs?: { id: number; got: number; pay: number; pen: number; rank?: number }[];   // 의뢰로 받은 돈 · 명성, 의뢰마다 이번 달   // 우리가 직업별로 들인 신입, 들어온 지원자 id   // 찾은 신입 수와 한 명 값, 대원이 된 수습과 죽은 수습
+  jobPay?: number; jobFame?: number; jobs?: { id: number; got: number; pay: number; pen: number; rank?: number }[];
+  study?: { id: number; s: number; pay: number; first: boolean }[];   // 이번 달 낸 조사 보고서 (단계 · 상금(jobPay에 들어 있다) · 먼저 냈나)   // 의뢰로 받은 돈 · 명성, 의뢰마다 이번 달   // 우리가 직업별로 들인 신입, 들어온 지원자 id   // 찾은 신입 수와 한 명 값, 대원이 된 수습과 죽은 수습
   potSpoil: number;   // 기한이 지나 버린 포션 (행정력이 넘쳐 더 상한 것 adminSpoil 포함)
   adminSpoil?: number; admin?: { load: number; cap: number };   // 우리 행정력: 이번 달 부하 · 역량
   potUsed: number; potShort: number; gearUsed: Record<string, number>; gearLost: Record<string, number>;   // 꺼내 쓴 포션과 모자랐던 병, 들고 간 장비와 망가진 것
@@ -529,6 +532,7 @@ export type World = {
   apps?: number;   // 이번 달 정산 때 마을에 와 있을 지원자 (지난달 말에 정해 둔다)
   cand?: Person[];   // 이번 달 우리 문을 두드린 지원자 명단 (지난달 말에 정해 둔다)
   jobs?: Job[]; jobSeq?: number;   // 관리국 게시판의 의뢰 (끝난 것도 남는다)
+  studies?: Study[];   // 영주청의 조사 의뢰 (끝난 것도 남는다)
   laws?: Law[]; lawSeq?: number; subPaid?: number;   // 영주청 법령 (끝난 것도 남는다), 모두에게 준 보급 지원금 누적
   draft?: Draft | null;   // 출정이 끝나고 아직 신고서를 내지 않은 우리 가정산
   dex?: Record<string, Dex>;   // 미궁 도감: 몬스터마다 우리 조가 만난 기록 · 이해도 · 단장 조사의 답
@@ -610,6 +614,8 @@ export function newWorld(): World {
     { id: 2, by: '상단', kind: 'deliver', title: '황동석 납품', f: 0, qty: 1200, prem: 2, pen: 1, from: 1, until: 3, take: Array(N).fill(0), done: Array(N).fill(0) },
   ];
   W.jobSeq = 2;
+  // 판 시작: 아무도 1층 주 몬스터를 모르니 영주청이 그 조사 보고서를 받는다
+  postStudy(W, 0, false);
   W.zones = genZones(FLOORS.length, f => FLOORS[f].max);
   W.day = 1; oldSayings(W, 0);
   // 첫 달: 경쟁 용병단의 출정을 굴려 두고, 첫날 아침 돌아온 조를 받는다
@@ -1710,7 +1716,7 @@ export function runMonth(W: World, playerPlan: Plan, grow = false): MonthResult 
   if (plan.autoBuy !== false) stockUp(W, plan);
   for (let n0 = us(W).members; ;) {
     const c = us(W);
-    if (c.crew) { hireAuto(W, plan); if (!plan.teams) plan.teams = sanitize(W, c, plan).teams; if (grow && c.members > n0) growTeams(W, plan); n0 = c.members; sendReady(W, plan); }
+    if (c.crew) { studyAuto(W); hireAuto(W, plan); if (!plan.teams) plan.teams = sanitize(W, c, plan).teams; if (grow && c.members > n0) growTeams(W, plan); n0 = c.members; sendReady(W, plan); }
     const M = nextDay(W, plan);
     if (M) return M;
   }
@@ -1817,7 +1823,7 @@ function rivalPick(W: World, c: Company, f: number, take: number, keys: string[]
   return Z[Z.length - 1];
 }
 export function openMonth(W: World) {
-  W.wit = {}; syncZones(W);   // (이달 우리 조가 본 짐: 밀고의 근거)
+  W.wit = {}; syncZones(W); rivalStudy(W);   // (이달 우리 조가 본 짐: 밀고의 근거)
   // 우리 조 수는 지난달만큼으로 본다 (붐빔 셈에만 쓴다)
   const L = W.last, plans = W.cos.map((c, i) => (c.crew ? { ...emptyPlan(), pots: zeros(), parties: L ? [...L.plans[0].parties] : zeros() } : aiPlan(W, i)));
   // 보급 사기 (경쟁 용병단): 교회 성수는 찾은 만큼(한도 안에서, 사이가 좋은 쪽부터), 상단 포션은 정한 만큼. 비워 둔 상단 칸은 쓸 만큼에서 창고와 교회 몫을 뺀 만큼
@@ -2154,6 +2160,14 @@ function settleMonth(W: World, playerPlan: Plan): MonthResult {
         } else r.jobs!.push({ id: J.id, got: Math.round(J.score[i] * 10) / 10, pay: 0, pen: 0 });
       }
     });
+    // 조사 보고서: 이번 달 낸 단계마다 상금 · 명성 (먼저 낸 쪽이 다, 늦으면 STUDY_LATE배). 우리는 약점 보고서에 회계관 신뢰
+    (W.studies || []).forEach(S => S.sub.forEach((e, k) => {
+      if (e[0] !== i || e[2] !== W.month) return;
+      const s = e[1], first = S.sub.findIndex(x => x[1] === s) === k, mul = first ? 1 : CO.STUDY_LATE, pay = Math.round(CO.STUDY_PAY[s - 1] * mul);
+      jobPay += pay; r.jobFame = (r.jobFame || 0) + CO.STUDY_FAME[s - 1] * mul;
+      if (s === 3 && c.style === 'player') c.relL = clamp((c.relL ?? 50) + CO.STUDY_REL * mul, 0, 100);
+      (r.study || (r.study = [])).push({ id: S.id, s, pay, first });
+    }));
     r.jobPay = jobPay; r.sales += jobPay;
     // 탐사 계획서의 선금: 적어 낸 조마다 바로 받는다 (덜 보냈으면 가정산에서 돌려낸다)
     const EX = jobsExplore(W)[0];
@@ -2436,6 +2450,48 @@ function postExplore(W: World, f: number) {
   (W.jobs || (W.jobs = [])).push({ id: W.jobSeq, by: '영주', kind: 'explore', title: `${FLOORS[f].name} 탐사 계획서`, f, qty: 0, prem: Math.round(floorUnit(f) * TAX.ADV_K), pen: TAX.ADV_REFUND,
     from: m, until: m + TAX.ADV_LEN - 1, take: Array(N).fill(0), done: Array(N).fill(0) });
   W.log.push({ m: m - 1, t: `영주청이 ${FLOORS[f].name} 탐사 계획서를 받는다고 고시했다. 적어 낸 조마다 선금을 먼저 내준다고 한다.` });
+  postStudy(W, f);
+}
+
+// ---------- 조사 의뢰 (영주청) ----------
+// 영주청이 그 층 주 몬스터의 조사 보고서를 단계마다 받는다: 1 목격(만남) · 2 전적(이해도 DEX.REC_AT) · 3 약점(확정).
+// 날짜가 아니라 상태로 건다: 판 시작(아무도 1층 주 몬스터를 모른다)과 새 층이 열릴 때. 모든 용병단에 같고, 단계마다 먼저 낸 쪽이 다 받는다.
+// 우리는 도감이 차면 내고(화면의 단추, 봇은 날마다 studyAuto), 경쟁 용병단은 도감이 없으니 달 첫날 그 층에 드나든 달(know)로 낸다: 한 달 · 깨치는 데 드는 달의 절반 · 깨침(learned).
+// 상금 · 명성은 그믐에 (r.study, 상금은 jobPay에)
+// sub: [용병단(W.cos 순서), 단계, 낸 달]을 낸 차례대로
+export type Study = { id: number; f: number; mon: string; from: number; until: number; sub: [number, number, number][] };
+function postStudy(W: World, f: number, log = true) {
+  const m = W.month, S = W.studies || (W.studies = []), mon = MONSTERS[W.mons[f]].name;
+  S.push({ id: S.length + 1, f, mon, from: m, until: m + CO.STUDY_LEN - 1, sub: [] });
+  if (log) W.log.push({ m: m - 1, t: `영주청이 ${FLOORS[f].name} ${mon}의 조사 보고서를 받는다고 고시했다. 먼저 내는 쪽에 상금을 더 얹는다고 한다.` });
+}
+export const studiesOpen = (W: World) => (W.studies || []).filter(S => S.from <= W.month && S.until >= W.month);
+// i번 용병단이 낸 단계 (0 ~ 3)
+export const studyDone = (S: Study, i: number) => S.sub.reduce((a, e) => (e[0] === i ? Math.max(a, e[1]) : a), 0);
+// 우리 도감으로 낼 수 있는 단계 (0 ~ 3)
+export function studyCan(W: World, S: Study) {
+  const D = (W.dex || {})[S.mon];
+  return !D || !D.n ? 0 : D.u < DEX.REC_AT ? 1 : keySure(D) ? 3 : 2;
+}
+// 그 단계를 이미 낸 용병단 (낸 차례대로)
+export const studyBy = (S: Study, s: number) => S.sub.filter(e => e[1] === s).map(e => e[0]);
+// 우리가 보고서를 낸다: 도감이 찬 단계까지 한꺼번에. 낸 단계 수
+export function submitStudy(W: World, id: number) {
+  const S = studiesOpen(W).find(x => x.id === id); if (!S) return 0;
+  const d = studyDone(S, 0), can = studyCan(W, S);
+  for (let s = d + 1; s <= can; s++) S.sub.push([0, s, W.month]);
+  if (can > d) W.log.push({ m: W.month, t: `${us(W).name}이 영주청에 ${S.mon} 조사 보고서 ${can}단계를 냈다.` });
+  return Math.max(0, can - d);
+}
+// 봇 · 시뮬레이션: 낼 수 있는 보고서를 모두 낸다
+export const studyAuto = (W: World) => studiesOpen(W).reduce((a, S) => a + submitStudy(W, S.id), 0);
+// 경쟁 용병단 (달 첫날): 그 층에 드나든 달로 단계를 센다 (군소 용병대는 내지 않는다)
+function rivalStudy(W: World) {
+  studiesOpen(W).forEach(S => W.cos.forEach((c, i) => {
+    const at = LEARN_AT[c.style]; if (!i || !at || !c.know) return;
+    const k = c.know[S.f], can = c.learned[S.f] ? 3 : k >= Math.ceil(at / 2) ? 2 : k >= 1 ? 1 : 0;
+    for (let s = studyDone(S, i) + 1; s <= can; s++) S.sub.push([i, s, W.month]);
+  }));
 }
 // 법령: 영주청은 상태만 보고 정한다 (난수 없이). 고시한 다음 달부터 효력이 난다
 function legislate(W: World) {
