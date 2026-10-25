@@ -9,7 +9,8 @@ import { agendaOf, backBodyHtml, nextDayBtn, todayBack } from './hall';
 import { type DeskUi, docBody, kitWarn, placeBody, staffBlds } from './desk';
 import { candsHtml, listHtml, teamsHtml } from './crew';
 import { buyHtml, kitHtml, sellHtml } from './goods';
-import { monthHtml, zoneCards } from './records';
+import { zoneCards } from './records';
+import { ledgerHtml, teamPL, tripPL } from './ledger';
 import { askPanel } from './book';
 import { LV_SAYS, SECRET_NAME } from './zones';
 import { stepper } from './view';
@@ -23,13 +24,14 @@ const SYM: Record<string, string> = { ore: '⛏', den: '⚔', mix: '◐', stair:
 export const zx = (z: { x: number }) => 14 + (z.x - 10) * 0.9;   // (가장자리 구역의 이름 · 깃발이 판 밖으로 나가지 않게)
 export const zy = (z: { y: number }) => z.y * 1.33;
 const GATE = { x: 50, y: 92 };
+const pl = (n: number) => `${Math.round(n) < 0 ? '−' : '+'}${fmt(Math.abs(n))}G`;
 const riskWord = (v: number) => (v < 0.9 ? '낮음' : v < 1.15 ? '보통' : '높음');
 
 // 단추 시트: 단추마다 탭 (1단계는 지금 있는 창의 내용)
 export const MENUS: Record<string, { n: string; sub: string; tabs: [string, string][] }> = {
   crew: { n: '인원', sub: '보유 인원과 조 편성', tabs: [['team', '조 편성'], ['list', '명단'], ['cand', '지원자']] },
   goods: { n: '물자', sub: '구매 · 조마다 배분 · 창고와 팔기', tabs: [['buy', '구매'], ['kit', '배분'], ['sell', '팔기']] },
-  rec: { n: '기록', sub: '수입 · 지출과 모은 정보', tabs: [['month', '이달'], ['back', '귀환'], ['zone', '구역'], ['report', '지난달'], ['paper', '신문'], ['book', '도감'], ['probe', '정보']] },
+  rec: { n: '기록', sub: '귀환 보고와 모은 정보', tabs: [['back', '귀환'], ['zone', '구역'], ['report', '지난달'], ['paper', '신문'], ['book', '도감'], ['probe', '정보']] },
   hq: { n: '본부', sub: '업그레이드와 바깥 상대', tabs: [['train', '본부'], ['board', '게시판 · 영주청'], ['church', '교회'], ['alley', '정보망']] },
 };
 // 옛 창을 여는 단추(장소 · 자료 · 창고 · 출정 · 귀환)가 가리키는 시트와 탭
@@ -52,14 +54,14 @@ function teamState(W: World, T: Team) {
 
 export function boardShellHtml(W: World, raw: Plan, ui: DeskUi) {
   const c = us(W), P = sanitize(W, c, raw), teams = P.teams || [], now = dayAbs(W), day = W.day || 1;
-  const f = Math.min(Math.max(0, ui.floor ?? 0), W.unlocked - 1);
+  const f = Math.min(Math.max(0, ui.floor ?? 0), W.unlocked - 1), led = ui.view === 'ledger';
   const ag = agendaOf(W, P), badge: Record<string, number> = {};
   ag.forEach(a => { const m = AGENDA_MENU[a.k]; if (m) badge[m] = (badge[m] || 0) + 1; });
   const back = todayBack(W); if (back.length) badge.rec = back.length;
   const out = (W.away || []).reduce((a, s) => a + s.m.length, 0), due = new Map<number, number>();
   (W.away || []).forEach(s => { const d = s.d1 - (W.month - 1) * CO.MONTH_DAYS; due.set(d, (due.get(d) || 0) + 1); });
   const top = `<header class="bs-top">
-    <div class="r1"><h1>${esc(c.name)}</h1><span class="when">제${W.month}월 ${day}일</span><button type="button" class="opt" data-act="newgame-ask" aria-label="새 게임">⋯</button></div>
+    <div class="r1"><h1>${esc(c.name)}</h1><span class="when">제${W.month}월 ${day}일</span><span class="bs-view" role="group" aria-label="본 화면"><button type="button" data-act="bs-view" data-v="map" aria-pressed="${!led}">지도</button><button type="button" data-act="bs-view" data-v="ledger" aria-pressed="${led}">장부</button></span><button type="button" class="opt" data-act="newgame-ask" aria-label="새 게임">⋯</button></div>
     <div class="r2"><span>금고 <b>${fmt(c.cash)}</b>G</span><span>순위 <b>${rankOf(W) || '−'}</b>/${W.cos.filter(x => x.style !== 'crowd').length}</span><span>본부 <b>${c.members - out}</b></span><span>미궁 <b>${out}</b></span></div>
     <div class="days" role="img" aria-label="제${W.month}월 ${day}일 / ${CO.MONTH_DAYS}일">${Array.from({ length: CO.MONTH_DAYS }, (_, j) => `<i class="${j + 1 < day ? 'past' : j + 1 === day ? 'now' : ''}${due.get(j + 1) ? ' ret' : ''}" title="${j + 1}일${due.get(j + 1) ? ` · ${due.get(j + 1)}조 귀환 예정` : ''}${j + 1 === CO.MONTH_DAYS ? ' · 그믐' : ''}"></i>`).join('')}</div></header>`;
   // 지도: 이 층의 구역 · 길 · 우리 깃발(미궁 · 명령 받음) · 남의 깃발
@@ -85,7 +87,7 @@ export function boardShellHtml(W: World, raw: Plan, ui: DeskUi) {
   const onMap = teams.map((T, t) => { const S = st[t], z = S.k === 'away' ? zoneAt(W, S.s.z) : S.k === 'go' ? zoneAt(W, T.z) : undefined; return z && z.f === f ? `<span class="bfp" style="left:${zx(z)}%;top:${zy(z)}%">${flag(T, t, true)}</span>` : ''; }).join('');
   const tray = teams.map((T, t) => (st[t].k === 'home' || st[t].k === 'busy' ? flag(T, t, false) : '')).join('');
   const elsewhere = teams.filter((T, t) => { const S = st[t], z = S.k === 'away' ? zoneAt(W, S.s.z) : S.k === 'go' ? zoneAt(W, T.z) : undefined; return z && z.f !== f; }).length;
-  const backBar = back.length && ui.backs ? `<div class="bs-ret" role="status"><b>아침 귀환 ${back.length}조</b><span>${back.map(s => { const r = s.rep!; const up = r.zx && Math.floor(lvOf({ xp: r.zx[1] } as Zone)) > lvOf({ xp: r.zx[0] } as Zone); return `${(r.t ?? 0) + 1}조 ${r.zn ? esc(r.zn) : FLOORS[r.f].name}${r.got ? ` · 채집품 ${r.got}` : ''}${(r.dead || []).length ? ' · †' : ''}${up ? ' · 이해도 오름' : ''}`; }).join(' / ')}</span><button type="button" class="mini" data-act="bs-backs">보고</button><button type="button" class="x" data-act="close-backs" aria-label="접기">×</button></div>` : '';
+  const backBar = back.length && ui.backs ? `<div class="bs-ret" role="status"><b>아침 귀환 ${back.length}조</b><span>${back.map(s => { const r = s.rep!; const up = r.zx && Math.floor(lvOf({ xp: r.zx[1] } as Zone)) > lvOf({ xp: r.zx[0] } as Zone); return `${(r.t ?? 0) + 1}조 ${r.zn ? esc(r.zn) : FLOORS[r.f].name}${r.got ? ` · 채집품 ${r.got}` : ''}${(r.dead || []).length ? ' · †' : ''}${up ? ' · 이해도 오름' : ''} <em class="${tripPL(W, s).net < 0 ? 'neg' : 'pos'}">${pl(tripPL(W, s).net)}</em>`; }).join(' / ')}</span><button type="button" class="mini" data-act="bs-backs">보고</button><button type="button" class="x" data-act="close-backs" aria-label="접기">×</button></div>` : '';
   // 단장의 인계: 새로 넘겨받은 업무 한 장 (열면 그 탭으로, ×로 접는다)
   const dn = (ui.dutyNew || []).map(k => DUTIES.find(d => d.k === k)).filter(Boolean)[0];
   const dutyBar = dn ? `<div class="bs-ret duty" role="status"><b>단장 브란 · ${dn.n}</b><span>${esc(dn.memo)}</span><button type="button" class="mini" data-act="duty-go" data-k="${dn.k}">열기</button><button type="button" class="x" data-act="duty-ok" data-k="${dn.k}" aria-label="접기">×</button></div>` : '';
@@ -105,7 +107,9 @@ export function boardShellHtml(W: World, raw: Plan, ui: DeskUi) {
     ${btn('rec', '<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11M9 8h6"/>')}
     ${btn('hq', '<path d="M3 10l9-6 9 6v10H3z"/><path d="M9 20v-6h6v6"/>')}
     ${nextDayBtn(W, 'bs-next', goN, must)}</nav>`;
-  return `<div class="bs${ui.menu || ui.order != null || ui.zone != null ? ' has-sheet' : ''}">${top}${mid}${sheetHtml(W, raw, P, ui)}${bot}</div>`;
+  // 장부: 휴대폰은 지도와 갈아 보고, 넓은 화면은 늘 옆에 (단장이 맡고 있으면 잠김)
+  const ledger = `<div class="bs-ledger" aria-label="장부">${tabOpen(ui, 'main', 'ledger') ? ledgerHtml(W, raw) : `<p class="note">장부는 단장이 맡고 있어요 · 첫 귀환 뒤에 넘겨받아요</p>`}</div>`;
+  return `<div class="bs${led ? ' v-ledger' : ''}${ui.menu || ui.order != null || ui.zone != null ? ' has-sheet' : ''}">${top}${mid}${ledger}${sheetHtml(W, raw, P, ui)}${bot}</div>`;
 }
 
 // ---------- 시트 ----------
@@ -158,6 +162,7 @@ function orderSheet(W: World, raw: Plan, P: Plan, t: number, ask = true) {
     <div class="row"><span class="k">장비</span><select data-k="teamG" data-i="${t}" aria-label="${t + 1}조 장비"><option value="">없음</option>${GEARS.filter(g => g !== '일반').map(g => `<option value="g:${g}"${T.g === 'g:' + g ? ' selected' : ''}>${g} (${PAIR_CLASS[g]} 대신) · 창고 ${S0.gear[g] || 0}</option>`).join('')}</select></div>
     ${early ? `<p class="bag-w"><b>짐 ~${dE}일째 가득</b><span>짐이 차면 그날 돌아온다 · 일할 날 ${d}일 중 ${dE}일쯤</span></p>` : ''}
     <div class="calc"><div><span>오감</span><b>${2 * way}일</b></div><div><span>일</span><b>${early ? `~${dE}/${d}` : d}일</b></div><div><span>보급</span><b>${n * (T.food || 0)}</b></div><div class="big"><span>예측</span><b>${Math.round(r.lo * dE)}~${Math.round(r.hi * dE)}</b></div></div>
+    ${(() => { const X = teamPL(W, P, T, 2 * way + dE, dE); return `<p class="pl-w"><span>손익 예측</span><b class="${X.net < 0 ? 'neg' : 'pos'}">${pl(X.net)}</b><small>${pl(X.lo)} ~ ${pl(X.hi)} · 채집품 오늘 시세 − 보급 · 수리 도구 ${fmt(X.kit)} − 급여 몫 ${fmt(X.wage)}</small></p>`; })()}
     <p class="note">${early ? `${2 * way + dE}일 뒤 아침 귀환 예측 (늦어도 ${2 * way + d}일)` : `${2 * way + d}일 뒤 아침 귀환`} · 한 사람 하루 보급 하나 · 남은 보급은 검문소가 태운다${L < 3 ? ' · 이해도가 낮아 예측 폭이 넓다' : ''}</p>
     ${hasLead && ask ? askPanel(W, P) : ''}${status}${S.k === 'go' || S.k === 'home' ? kitWarn(W, raw) : ''}
     <div class="acts"><button type="button" data-act="bs-home" data-t="${t}">${S.k === 'go' ? '명령 거두기' : '닫기'}</button>${S.k === 'home' || S.k === 'go' ? `<button type="button" class="go" data-act="send" data-t="${t}" aria-pressed="${S.k === 'go'}">${S.k === 'go' ? '내일 아침 출발 ✓' : '내일 아침 출발'}</button>` : ''}</div>`, `${t + 1}조 명령서`);
@@ -171,7 +176,6 @@ function menuSheet(W: World, raw: Plan, P: Plan, ui: DeskUi) {
     if (ui.menu === 'crew') return tab === 'team' ? teamsHtml(W, raw, ui) : tab === 'list' ? listHtml(W, raw, ui) : candsHtml(W);
     if (ui.menu === 'goods') return tab === 'buy' ? buyHtml(W, raw) : tab === 'kit' ? kitHtml(W, raw, ui) : sellHtml(W, raw);
     if (ui.menu === 'rec') {
-      if (tab === 'month') return monthHtml(W, raw);
       if (tab === 'back') return backBodyHtml(W, raw, false);
       if (tab === 'zone') return zoneCards(W, P);
       return `<article class="co-sheet doc" id="${tab === 'report' ? 'results' : tab === 'probe' ? 'intel' : tab === 'book' ? 'book' : 'doc-' + tab}">${docBody(W, tab, P, ui)}</article>`;

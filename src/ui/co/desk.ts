@@ -3,6 +3,7 @@
 // 탐험 주차 — 이번 달 조사를 옆에 두고 층마다 몇 조를 무엇을 챙겨 보낼지 정하고 도장을 찍는다. 결과는 다음 달 보고서가 된다.
 // 화면은 HTML 문자열만 만든다. 상태를 쓰지 않고 난수도 쓰지 않는다
 import { zoneReportHtml } from './zones';
+import { investHtml } from './ledger';
 import { teamDays, buyPrice, kitShort, monthNeed, rushOn, adminFee, adminOf, setClerks, awayIds, boughtOf, holyRoom, teamReady, forecastTrips, type Team, floorMons, CO, FLOORS, INTEL, ITEMS, TAX, type Filing, type Job, type Person, clamp, jobsExplore, mapOf, torchOf, undMods, jobsOpen, jobsSign, taxGuess, torchBuy, fireCost, potShock, potionNow, foodBuy, mendBuy, carryOf, foodDays, mendOf, torchRate, torchOdds, wageCo, candNow, grOf, hqCost, hqKeep, hqLv, fcRank, forecast, townOf, type Plan, SRCS, type World, bedsOf, isRook, rookCount, churchPrice, dormCost, dormKeep, roomOf, wageOf, gearBuy, intelBlock, intelCost, lootMul, maxParties, needOf, potsExpiring, potsOf, probeCost, probesLeft, sanitize, sortieCost, succRate, supOf, toolCost, trainBonus, us } from '../../core/company';
 import { CLASSES, GEARS, BUYERS, PAIR_CLASS } from '../../core/data';
 import { askPanel, bookHtml, condLabel, demandsNow, kitHint } from './book';
@@ -23,7 +24,7 @@ export type DeskUi = { phase: number; tab: string; seen?: number; dexMon?: strin
   pick?: { t?: number; s?: number; id?: number } | null;
   sort?: Record<string, string>;   // 명단 정렬 (rs 인원 명단 · cd 지원자 · as 편성표): "열:방향"
   place?: string; town?: boolean; exp?: boolean; store?: boolean; who?: number; backs?: boolean;
-  floor?: number; zone?: number; order?: number; menu?: string; mtab?: string;
+  floor?: number; zone?: number; order?: number; menu?: string; mtab?: string; view?: string;
   duty?: string[]; dutyNew?: string[] };   // 단장에게서 넘겨받은 업무 · 아직 펼쳐 보지 않은 인계 (duty.ts, 없으면 모두 넘겨받음)   // 판: 보는 층 · 펼친 구역 보고서 · 명령서를 연 조 · 연 단추 시트와 탭 (docs/board.md)   // backs: 귀환 보고 창   // who: 인원 창에서 기록 카드를 펼친 단원   // store: 창고 창   // exp: 출정 편성 창   // town: 길드 홀 대신 마을 지도와 결재안을 펼쳐 둔다   // 내정에서 열어 둔 장소 창 (인원 · 건물 · 상단 거리 · 교회 · 정보망)   // 편성판에서 집어 든 사람 (조의 자리, 또는 대기 인원)
 const lvOf = (W: World, k: keyof typeof INTEL.BASE) => (W.intel ? W.intel.lv[k] : INTEL.BASE[k]);
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
@@ -154,7 +155,7 @@ function hqPanel(W: World, raw: Plan) {
       const done = i <= lv, next = i === lv + 1, cost = CO.HQ_COST[k][i - 1];
       return `<div class="lv${done ? ' done' : next ? ' next' : ' lock'}"><b>${k === 'dorm' ? i + 1 : i}</b><span>${t}${next && !pend ? `<br><button type="button" class="tog" data-act="build" data-k="${k}" aria-pressed="${pick === k}">${pick === k ? '공사 취소' : '증축 결재'}</button>` : ''}${next && pend === k ? '<br><small>공사 중 · 다음 달 완공</small>' : ''}</span><span class="c">${done ? '완공' : `${fmt(cost)}G${k !== 'dorm' ? `<br>유지 +${CO.HQ_KEEP}/달` : ''}`}</span></div>`;
     }).join('');
-    return `<div class="br"><h4>${HQ_NAME[k]}</h4><p class="why">${HQ_WHY[k]} · ${lv >= top ? '끝까지 올림' : `${k === 'dorm' ? lv + 1 : lv}단계`}</p>${rows}</div>`;
+    return `<div class="br"><h4>${HQ_NAME[k]}</h4><p class="why">${HQ_WHY[k]} · ${lv >= top ? '끝까지 올림' : `${k === 'dorm' ? lv + 1 : lv}단계`}</p>${rows}${lv < top && !pend ? investHtml(W, sanitize(W, c, raw), k, `다음 ${HQ_NAME[k]}`) : ''}</div>`;
   };
   const sell = hqLv(c, 'rec') >= 3 ? FLOORS.slice(0, W.unlocked).map((F, f) => (c.map && c.map[f] >= 100 && !(c.mapSold && c.mapSold[f]) ? `<button type="button" class="tog" data-act="sellmap" data-f="${f}" aria-pressed="${raw.sellMap === f}">${F.name} 지도 사본 팔기 +${fmt(CO.MAP_COPY)}G</button>` : '')).filter(Boolean).join('') : '';
   return `<div class="panel"><header><h2>회색늑대 본부</h2><span class="sub">한 달에 공사 하나 · 다음 달 정산 때 완공${pend ? ` · 지금 ${HQ_NAME[pend]} 공사 중` : ''} · 본부 유지비 월 ${fmt(hqKeep(c))}G · 건물 장부가 ${fmt(c.book || 0)}G (공사비는 자산, 월 ${Math.round(CO.DEP * 100)}% 감가)</span></header>
