@@ -1517,7 +1517,7 @@ body.dragging, body.dragging * { cursor: grabbing !important; user-select: none;
 .bs-sheet .facts dd { margin: 0; font: 600 13px var(--f-num); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .bs-sheet .facts dd.lock { color: var(--bs-dim); font: 500 12px var(--f-body); }
 .bs-sheet .xp i { display: block; height: 8px; border-radius: 4px; background: var(--bs-desk); overflow: hidden; }
-.bs-sheet .xp b { display: block; height: 100%; background: var(--bs-green); }
+.bs-sheet .xp i b { display: block; height: 100%; background: var(--bs-green); }
 .bs-sheet .xp p, .bs-sheet .note { margin: 4px 0 0; font-size: 12px; color: var(--bs-dim); }
 .bs-sheet .chips { display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px; color: var(--bs-dim); }
 .bs-sheet .chips span { background: var(--bs-desk); border-radius: 6px; padding: 2px 8px; }
@@ -1776,3 +1776,15 @@ body.mode-board .toast { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); 
 .study-l .h b.pos { margin-left: auto; }
 .study-l p { margin: 0; font-size: 12px; color: var(--bs-dim); }
 .study-l p b { color: var(--bs-chalk); }
+/* 마을 소문 (정보망 0단계): 구역 칸의 표식 · 구역 보고서 · 정보실 */
+.bz .rm { position: absolute; top: -4px; left: calc(50% + 10px); width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center; font: 700 10px var(--f-body); color: #fff; background: #7d6b55; }
+.bz .rm.dead { background: #3a2f28; } .bz .rm.heavy { background: #8a6418; }
+.bs-sheet .zrum { margin-top: 8px; font-size: 12px; }
+.bs-sheet .zrum ul, .town-rum { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 3px; }
+.bs-sheet .zrum li, .town-rum li { display: flex; gap: 8px; align-items: baseline; }
+.bs-sheet .zrum .when, .town-rum .when { flex: 0 0 auto; min-width: 3.2em; color: var(--bs-dim, #7d6b55); font-size: 11px; }
+.bs-sheet .zrum li.dead { color: #a8322a; } .bs-sheet .zrum li.heavy { color: #8a6418; }
+.town-rum { font-size: 13px; }
+.bs-sheet .zdig { margin-top: 8px; font-size: 12px; display: grid; gap: 2px; }
+.bs-sheet .zdig > span b { font-variant-numeric: tabular-nums; }
+.bs-sheet .zdig p { margin: 0; } .bs-sheet .zdig em { font-style: normal; font-weight: 700; }

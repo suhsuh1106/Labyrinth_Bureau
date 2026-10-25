@@ -17,6 +17,7 @@ import { stepper } from './view';
 import { DUTIES, hasDuty, tabOpen } from './duty';
 import { studyChip, studySheet } from './study';
 import { studiesOpen } from '../../core/company';
+import { digHtml, zoneMark, zoneRumHtml } from './rumor';
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
@@ -76,7 +77,7 @@ export function boardShellHtml(W: World, raw: Plan, ui: DeskUi) {
   const zones = Z.map(z => {
     const L = lvOf(z), k = zoneKnown(W, z) && L >= 1 ? z.kind : 'unk', pr = lvProg(z), on = ui.zone === z.id || (ui.order != null && teams[ui.order] && teams[ui.order].z === z.id);
     const ticks = Array.from({ length: 5 }, (_, i) => `<i class="${i < L ? 'on' : i === L && pr > 0 ? 'part' : ''}"></i>`).join('');
-    return `<button type="button" class="bz ${k}${on ? ' sel' : ''}" data-act="bs-zone" data-z="${z.id}" style="left:${zx(z)}%;top:${zy(z)}%" aria-label="${esc(z.nm)}, 거리 ${z.r}, 이해도 ${L}단계"><span class="sym">${k === 'unk' ? '?' : SYM[z.kind]}</span><span class="nm">${esc(z.nm)}</span><span class="tk" aria-hidden="true">${ticks}</span></button>`;
+    return `<button type="button" class="bz ${k}${on ? ' sel' : ''}" data-act="bs-zone" data-z="${z.id}" style="left:${zx(z)}%;top:${zy(z)}%" aria-label="${esc(z.nm)}, 거리 ${z.r}, 이해도 ${L}단계"><span class="sym">${k === 'unk' ? '?' : SYM[z.kind]}</span><span class="nm">${esc(z.nm)}</span><span class="tk" aria-hidden="true">${ticks}</span>${zoneMark(W, z)}</button>`;
   }).join('');
   const rivs = new Map<number, number>(); (W.seen || []).filter(x => x.d > now && x.z != null).forEach(x => rivs.set(x.z!, (rivs.get(x.z!) || 0) + x.n));
   const rivHtml = [...rivs].map(([id, n]) => { const z = zoneAt(W, id); return z && z.f === f ? `<span class="briv" style="left:${zx(z)}%;top:${zy(z)}%" title="우리 조가 본 남의 조 ${n} (아직 미궁에)">${rivSvg(n)}</span>` : ''; }).join('');
@@ -130,7 +131,7 @@ export const setSheetFull = (v: boolean) => { full = v; };
 // tall: 단추 시트는 내용이 적어도 같은 높이로 올라온다 (탭을 바꿔도 시트가 들썩이지 않게, 남는 아래는 여백)
 const sheet = (body: string, label: string, tall = false) => `<section class="bs-sheet${tall ? ' tall' : ''}${full ? ' full' : ''}" role="dialog" aria-label="${label}"><button type="button" class="grab" data-act="bs-grow" aria-label="${full ? '시트 줄이기' : '시트 키우기'}"></button>${body}</section>`;
 const zoneHead = (W: World, z: Zone, extra = '') => { const L = lvOf(z), nx = nextXp(z), k = L >= 1 ? z.kind : 'unk';
-  return `<h2>${esc(z.nm)} <span class="kind ${k}">${L >= 1 ? KIND_NAME[z.kind] : '하는 일 모름'}</span><small>${FLOORS[z.f].name} · 이해도 ${L}단계${nx != null ? ` · ${f1(z.xp)}/${nx}인일` : ''}${extra}</small><button type="button" class="x" data-act="bs-close" aria-label="닫기">×</button></h2>`; };
+  return `<h2>${esc(z.nm)} <span class="kind ${k}">${L >= 1 ? KIND_NAME[z.kind] : '하는 일 모름'}</span><small>${FLOORS[z.f].name} · 이해도 ${L}단계${extra}</small><button type="button" class="x" data-act="bs-close" aria-label="닫기">×</button></h2>`; };
 
 // 구역 보고서: 이해도 단계마다 한 겹씩 (잠긴 칸은 "N단계에"), 경험치 막대, 이 구역으로 보낼 본부의 조
 function zoneSheet(W: World, P: Plan, z: Zone) {
@@ -142,7 +143,8 @@ function zoneSheet(W: World, P: Plan, z: Zone) {
   const home = (P.teams || []).map((T, t) => ({ T, t })).filter(x => teamState(W, x.T).k === 'home');
   return sheet(`${zoneHead(W, z)}
     <dl class="facts">${facts.map(([a, b, n]) => `<div><dt>${a}</dt><dd class="${b == null ? 'lock' : ''}">${b == null ? `${n}단계에` : esc(b)}</dd></div>`).join('')}</dl>
-    <div class="xp"><i><b style="width:${Math.round(lvProg(z) * 100)}%"></b></i><p>${nx != null ? `다음 단계에 <b>${LV_SAYS[lvOf(z) + 1]}</b> · ` : ''}실적 ${rc.md ? `${f1(rc.md)}인일 · 한 사람 하루 ${f1(rc.got / rc.md)}개` : '없음'}</p></div>
+    <div class="xp"><i><b style="width:${Math.round(lvProg(z) * 100)}%"></b></i><p>${nx != null ? `다음 단계 <b>${LV_SAYS[lvOf(z) + 1]}</b>까지 일손 ${f1(nx - z.xp)}일 · ` : ''}우리 기록 ${rc.trips ? `${rc.trips}번 · 한 사람 하루 ${f1(rc.got / Math.max(1e-9, rc.md))}개` : '없음'}</p></div>
+    ${digHtml(W, z)}${zoneRumHtml(W, z)}
     ${home.length ? `<div class="zpick"><span class="dim">이 구역으로</span>${home.map(({ t }) => `<button type="button" class="mini" data-act="bs-place" data-t="${t}" data-z="${z.id}">${t + 1}조</button>`).join('')}</div>` : '<p class="note">본부에 나갈 수 있는 조가 없어요</p>'}`, `${z.nm} 구역 보고서`);
 }
 
@@ -154,8 +156,9 @@ function orderSheet(W: World, raw: Plan, P: Plan, t: number, ask = true) {
   const c = us(W), lead = (c.crew || []).find(p => p.lead), hasLead = !!lead && T.m.includes(lead.id);
   const S0 = supOf(c), H0 = potsOf(c);
   // 짐: 계획한 날보다 먼저 찰 것 같으면 그날 돌아온다 (예측 · 귀환 날도 그만큼)
-  const bd = bagDays(W, P, T), early = !goal && bd < d - 0.5, dE = early ? Math.max(1, Math.round(bd)) : d;
-  const chips = `<div class="chips"><span>거리 <b>${z.r}</b></span>${L >= 2 ? `<span>위험 <b>${riskWord(k.mid)}</b></span>` : ''}${L >= 3 && z.seen ? `<span>남은 양 <b>${Math.round(z.seen.v)}</b></span>` : ''}<span>한 조 하루 <b>${f1(r.lo)}~${f1(r.hi)}</b>개</span></div>`;
+  // 이해도 0단계 구역은 벌이 · 짐이 찰 날을 짐작하지 못한다 (마을 소문과 다녀온 기록으로 익힌다)
+  const blind = L < 1, bd = bagDays(W, P, T), early = !blind && !goal && bd < d - 0.5, dE = early ? Math.max(1, Math.round(bd)) : d;
+  const chips = `<div class="chips"><span>거리 <b>${z.r}</b></span>${L >= 2 ? `<span>위험 <b>${riskWord(k.mid)}</b></span>` : ''}${L >= 3 && z.seen ? `<span>남은 양 <b>${Math.round(z.seen.v)}</b></span>` : ''}${blind ? '<span>벌이 <b>모름</b></span>' : `<span>한 조 하루 <b>${f1(r.lo)}~${f1(r.hi)}</b>개</span>`}</div>`;
   const status = S.k === 'away' ? `<p class="note">미궁에 있어요 · 늦어도 ${Math.max(0, S.s.d1 - dayAbs(W))}일 뒤 아침 귀환 (짐이 차거나 물러나면 더 일찍)</p>` : S.k === 'busy' ? `<p class="note neg">지금 나갈 수 없어요 · ${S.why}</p>` : '';
   return sheet(`${zoneHead(W, z, ` · ${t + 1}조 ${n}명`)}${chips}
     <div class="row"><span class="k">기준</span><span class="seg" role="group" aria-label="${t + 1}조 기준"><button type="button" data-act="tmode" data-t="${t}" data-m="days" aria-pressed="${!goal}">날</button><button type="button" data-act="tmode" data-t="${t}" data-m="goal" aria-pressed="${goal}">목표</button></span></div>
@@ -166,9 +169,9 @@ function orderSheet(W: World, raw: Plan, P: Plan, t: number, ask = true) {
     <div class="row"><span class="k">수리 도구</span>${stepper('tmend', t, teamMend(P, T), `${t + 1}조 수리 도구`)}<small class="dim">진 날 하나</small></div>
     <div class="row"><span class="k">장비</span><select data-k="teamG" data-i="${t}" aria-label="${t + 1}조 장비"><option value="">없음</option>${GEARS.filter(g => g !== '일반').map(g => `<option value="g:${g}"${T.g === 'g:' + g ? ' selected' : ''}>${g} (${PAIR_CLASS[g]} 대신) · 창고 ${S0.gear[g] || 0}</option>`).join('')}</select></div>
     ${early ? `<p class="bag-w"><b>짐 ~${dE}일째 가득</b><span>짐이 차면 그날 돌아온다 · 일할 날 ${d}일 중 ${dE}일쯤</span></p>` : ''}
-    <div class="calc"><div><span>오감</span><b>${2 * way}일</b></div><div><span>일</span><b>${early ? `~${dE}/${d}` : d}일</b></div><div><span>보급</span><b>${n * (T.food || 0)}</b></div><div class="big"><span>예측</span><b>${Math.round(r.lo * dE)}~${Math.round(r.hi * dE)}</b></div></div>
-    ${(() => { const X = teamPL(W, P, T, 2 * way + dE, dE); return `<p class="pl-w"><span>손익 예측</span><b class="${X.net < 0 ? 'neg' : 'pos'}">${pl(X.net)}</b><small>${pl(X.lo)} ~ ${pl(X.hi)} · 채집품 오늘 시세 − 보급 · 수리 도구 ${fmt(X.kit)} − 급여 몫 ${fmt(X.wage)}</small></p>`; })()}
-    <p class="note">${early ? `${2 * way + dE}일 뒤 아침 귀환 예측 (늦어도 ${2 * way + d}일)` : `${2 * way + d}일 뒤 아침 귀환`} · 한 사람 하루 보급 하나 · 남은 보급은 검문소가 태운다${L < 3 ? ' · 이해도가 낮아 예측 폭이 넓다' : ''}</p>
+    <div class="calc"><div><span>오감</span><b>${2 * way}일</b></div><div><span>일</span><b>${early ? `~${dE}/${d}` : d}일</b></div><div><span>보급</span><b>${n * (T.food || 0)}</b></div><div class="big"><span>예측</span><b>${blind ? '?' : `${Math.round(r.lo * dE)}~${Math.round(r.hi * dE)}`}</b></div></div>
+    ${blind ? '<p class="pl-w"><span>손익 예측</span><b>?</b><small>이해도 0단계 · 한 번 다녀오면 보인다</small></p>' : (() => { const X = teamPL(W, P, T, 2 * way + dE, dE); return `<p class="pl-w"><span>손익 예측</span><b class="${X.net < 0 ? 'neg' : 'pos'}">${pl(X.net)}</b><small>${pl(X.lo)} ~ ${pl(X.hi)} · 채집품 오늘 시세 − 보급 · 수리 도구 ${fmt(X.kit)} − 급여 몫 ${fmt(X.wage)}</small></p>`; })()}
+    <p class="note">${early ? `${2 * way + dE}일 뒤 아침 귀환 예측 (늦어도 ${2 * way + d}일)` : `${2 * way + d}일 뒤 아침 귀환`} · 한 사람 하루 보급 하나 · 남은 보급은 검문소가 태운다${blind ? ' · 짐이 차면 그날 돌아온다' : L < 3 ? ' · 이해도가 낮아 예측 폭이 넓다' : ''}</p>
     ${hasLead && ask ? askPanel(W, P) : ''}${status}${S.k === 'go' || S.k === 'home' ? kitWarn(W, raw) : ''}
     <div class="acts"><button type="button" data-act="bs-home" data-t="${t}">${S.k === 'go' ? '명령 거두기' : '닫기'}</button>${S.k === 'home' || S.k === 'go' ? `<button type="button" class="go" data-act="send" data-t="${t}" aria-pressed="${S.k === 'go'}">${S.k === 'go' ? '내일 아침 출발 ✓' : '내일 아침 출발'}</button>` : ''}</div>`, `${t + 1}조 명령서`);
 }

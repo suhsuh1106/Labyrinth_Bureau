@@ -3,6 +3,7 @@
 // 정보는 단계가 오르면 지난 달 것까지 함께 열린다 (장부·기록을 열람하는 셈이다)
 import { CO, FLOORS, ITEMS, INTEL, TAX, type Src, SRCS, type World, auditChance, guideParts, intelBlock, keyOf, pressureOf } from '../../core/company';
 import { keyLabel } from '../../core/util';
+import { townHtml } from './rumor';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
 const esc = (t: string) => t.replace(/"/g, '&quot;');
@@ -227,7 +228,8 @@ export function booksRumorHtml(W: World) {
 }
 
 export function intelHtml(W: World) {
-  return `<h3>장부 소문</h3>${booksRumorHtml(W)}
+  return `<h3>마을 소문</h3>${townHtml(W)}
+    <h3>장부 소문</h3>${booksRumorHtml(W)}
     <h3>층은 얼마나 남았나</h3>
     <div class="legend">${legendHtml(W)}</div>
     <div class="floors">${floorsHtml(W)}</div>

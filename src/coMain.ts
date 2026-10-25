@@ -15,7 +15,7 @@ import { advanceArrival, arrivalOpen, closeArrival, playArrival } from './ui/co/
 import { DUTIES, dutyDue, hasDuty } from './ui/co/duty';
 
 const $ = (id: string): any => document.getElementById(id);
-const KEY = 'lb-co', VERSION = 44, MONTHS = 36;   // 44: 영주청 조사 의뢰 (이전 판은 새 게임으로)
+const KEY = 'lb-co', VERSION = 45, MONTHS = 36;   // 45: 영주청 조사 의뢰 · 44: 마을 소문 W.rum (정보망 0단계) · 43: 경쟁 용병단의 구역 이해도 · 사냥, 본 남들의 사냥 · 전리품 (이전 판은 새 게임으로)
 const GEAR_NAMES = GEARS.filter(g => g !== '일반');
 let W: World, plan: Plan, ui: DeskUi;
 // 도장을 막 찍은 결과 화면이면 귀환 장부를 한 줄씩 띄운다 (저장하지 않는 화면 상태)
