@@ -2,8 +2,9 @@
 //   npm run sim:bureau                     기본 200판, 봇 셋
 //   npm run sim:bureau -- --games 50 --curve   한 판의 날마다 저량 곡선도
 //   npm run sim:bureau -- --noCheck        B3 견제를 끈 판과 견준다
-// 봇: idle(손 놓음) · normal(위험 수위 보고를 보면 보조금) · smart(늦은 보고를 추세로 메우고, 예산 · 조항 · 영주 몫까지)
-import { B, type World, newWorld, run, seenLevel } from '../src/bureau/engine';
+// 봇: idle(손 놓음, 요청서도 답하지 않음) · normal(위험 수위 보고를 보면 보조금, 요청서는 다 들어줌, 사이가 크게 틀어지면 두 길드만 불러 회의)
+//     smart(늦은 보고를 추세로 메우고, 예산 · 조항 · 영주 몫, 청은 신세를 받아 둔 쪽엔 반만, 사이가 틀어지기 전에 영주까지 불러 회의)
+import { B, type World, answer, meet, newWorld, relOf, run, seenLevel, willOf } from '../src/bureau/engine';
 
 // 숫자를 바꿔 보며 잴 때: B_CLEAR=0.14 B_GRANT=1000 npm run sim:bureau
 for (const k of Object.keys(B) as (keyof typeof B)[]) if (process.env['B_' + k]) (B as any)[k] = +process.env['B_' + k]!;
@@ -12,6 +13,8 @@ export const BOT: Record<string, (W: World) => void> = {
   idle: () => {},
   normal: W => {
     W.dungeons.forEach((d, i) => { d.sub = seenLevel(W, i) >= B.DANGER && W.budget > 0 ? 15 : 0; });
+    for (const a of W.asks) if (a.got == null) answer(W, a.id, W.budget > a.want * 2 ? a.want : 0);
+    if (relOf(W, 'big', 'small') < -40) meet(W, ['big', 'small']);
   },
   smart: W => {
     // 보고는 거리만큼 늦다: 추세를 더해 오늘 수위를 어림하고, 위험 수위에 닿기 전에 들인다.
@@ -30,6 +33,10 @@ export const BOT: Record<string, (W: World) => void> = {
     const G = W.guilds;
     W.prio = Math.round(Math.max(30, Math.min(60, 50 - (G.big.infl - G.small.infl) / 4)));
     W.lordShare = W.lord.fav < 45 ? Math.min(25, W.lordShare + 1) : W.lord.fav > 60 ? Math.max(5, W.lordShare - 1) : W.lordShare;
+    // 독촉은 갚고, 청은 신세를 이미 받아 둔 쪽에는 반만 들어준다(예산을 아껴 회의 서명에 쓸 신세를 고루 모은다)
+    for (const a of W.asks) if (a.got == null && W.budget > a.want) answer(W, a.id, a.kind === 'dun' || W.owe[a.from] < 5 ? a.want : a.want / 2);
+    // 사이가 틀어지기 전에, 두 길드가 서명할 마음이 있을 때 영주까지 불러 회의
+    if (relOf(W, 'big', 'small') < -25 && Math.min(willOf(W, 'big'), willOf(W, 'small')) >= B.SIGN_AT - 5) meet(W, ['big', 'small', 'lord']);
   },
 };
 
@@ -37,9 +44,9 @@ export function playGame(seed: number, bot: string, o: { noCheck?: boolean } = {
   return run(newWorld(seed, o), BOT[bot]);
 }
 
-export interface Sum { games: number; floods: number; dead: number; standing: number; budgetEnd: number; toFlood: number[]; pinned: Record<string, number>; loops: Record<string, number>; bigPeak: number; bigEnd: number; bigAt: number[] }
+export interface Sum { games: number; floods: number; dead: number; standing: number; budgetEnd: number; toFlood: number[]; pinned: Record<string, number>; loops: Record<string, number>; bigPeak: number; bigEnd: number; bigAt: number[]; clashes: number; meets: number; relEnd: number; relMin: number; asks: number; sides: number; owe: number }
 export function summarize(bot: string, games: number, o: { noCheck?: boolean } = {}): Sum {
-  const S: Sum = { games, floods: 0, dead: 0, standing: 0, budgetEnd: 0, toFlood: [], pinned: {}, loops: {}, bigPeak: 0, bigEnd: 0, bigAt: [0, 0, 0, 0, 0] };
+  const S: Sum = { games, floods: 0, dead: 0, standing: 0, budgetEnd: 0, toFlood: [], pinned: {}, loops: {}, bigPeak: 0, bigEnd: 0, bigAt: [0, 0, 0, 0, 0], clashes: 0, meets: 0, relEnd: 0, relMin: 0, asks: 0, sides: 0, owe: 0 };
   for (let g = 0; g < games; g++) {
     const W = playGame(1000 + g, bot, o), s = W.stats;
     S.floods += s.floods / games; S.dead += s.dead / games;
@@ -49,6 +56,9 @@ export function summarize(bot: string, games: number, o: { noCheck?: boolean } =
     for (const k in s.loops) S.loops[k] = (S.loops[k] ?? 0) + s.loops[k] / games;
     S.bigPeak += W.guilds.big.peak / games; S.bigEnd += W.guilds.big.size / games;
     [0, 89, 179, 269, 359].forEach((d, i) => { S.bigAt[i] += s.bigSize[d] / games; });
+    S.clashes += s.clashes / games; S.meets += s.meets / games; S.asks += s.asks / games; S.sides += s.sides / games;
+    S.relEnd += relOf(W, 'big', 'small') / games; S.relMin += s.relMin / games;
+    S.owe += Object.values(W.owe).reduce((a, b) => a + b, 0) / games;
   }
   return S;
 }
@@ -62,7 +72,7 @@ function main() {
   const games = +(args[args.indexOf('--games') + 1] || 0) || 200;
   const o = { noCheck: args.includes('--noCheck') };
   const f1 = (v: number) => v.toFixed(1), pct = (v: number) => (v * 100).toFixed(1) + '%';
-  console.log(`미궁관리국 엔진 0단계 · ${games}판 · ${B.DAYS}일${o.noCheck ? ' · B3 끔' : ''}\n`);
+  console.log(`미궁관리국 엔진 1단계 · ${games}판 · ${B.DAYS}일${o.noCheck ? ' · B3 끔' : ''}\n`);
   console.log('봇      범람  죽음   입지  예산끝  위험→범람(날)  가장 큰 길드의 조(0·90·180·270·360일 / 최대)');
   const sums: Record<string, Sum> = {};
   for (const bot of Object.keys(BOT)) {
@@ -72,6 +82,12 @@ function main() {
   }
   console.log('\n저량이 끝에 붙은 날의 비율');
   for (const bot of Object.keys(BOT)) console.log(`${bot.padEnd(7)} ${Object.entries(sums[bot].pinned).map(([k, v]) => `${k} ${pct(v)}`).join(' · ') || '없음'}`);
+  console.log('\n세력 사이 · 신세 (판당)');
+  console.log('봇      다툼  회의  두 길드 사이(끝 / 가장 낮을 때)  요청서(하루)  편들기  받은 신세 합');
+  for (const bot of Object.keys(BOT)) {
+    const S = sums[bot];
+    console.log(`${bot.padEnd(7)} ${f1(S.clashes).padStart(4)} ${f1(S.meets).padStart(5)}  ${f1(S.relEnd).padStart(10)} / ${f1(S.relMin).padStart(6)}         ${(S.asks / B.DAYS).toFixed(2).padStart(5)}    ${f1(S.sides).padStart(4)}   ${f1(S.owe).padStart(6)}`);
+  }
   console.log('\n고리마다 켜진 날 (판당)');
   for (const bot of Object.keys(BOT)) console.log(`${bot.padEnd(7)} ${Object.entries(sums[bot].loops).map(([k, v]) => `${k} ${f1(v)}`).join(' · ')}`);
   if (args.includes('--curve')) {
@@ -81,6 +97,7 @@ function main() {
       console.log(`\n[${bot}]`);
       W.dungeons.forEach((d, i) => console.log(`  ${d.name.padEnd(6)} 수위 ${spark(W.hist[i], 0, 100)} 끝 ${f1(d.level)} · 범람 ${d.floods}`));
       console.log(`  가장 큰 길드 ${spark(W.stats.bigSize, 0, 40)} 끝 ${f1(W.guilds.big.size)}`);
+      console.log(`  두 길드 사이 ${spark(W.stats.relHist, -100, 100)} 끝 ${f1(relOf(W, 'big', 'small'))}`);
     }
   }
 }
