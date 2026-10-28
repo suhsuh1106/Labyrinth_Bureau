@@ -45,6 +45,7 @@ export const B = {
 };
 
 export type GuildId = 'big' | 'small';
+export type LoopId = 'R1' | 'B1' | 'R3' | 'B3' | 'R4' | 'B4' | 'R5' | 'B5';
 export type FacId = GuildId | 'lord';
 export const FACS: FacId[] = ['big', 'small', 'lord'];
 // 세력 둘의 사이를 적는 열쇠 (순서 없이 같은 열쇠)
@@ -69,7 +70,8 @@ export interface Stats {
   floods: number; dead: number; spent: number;
   toFlood: number[];              // 위험 수위부터 범람까지 날 수
   pinned: Record<string, number>; // 저량이 끝에 붙은 날
-  loops: Record<'R1' | 'B1' | 'R3' | 'B3' | 'R4' | 'B4' | 'R5' | 'B5', number>; // 고리가 켜진 날
+  loops: Record<LoopId, number>;  // 고리가 켜진 날
+  litHist: LoopId[][];            // 날마다 켜진 고리 (개발용 확인 화면이 그림 위에 불을 켠다)
   clashes: number; meets: number; asks: number; answered: number; sides: number; relMin: number;
   relHist: number[];              // 날마다 두 길드 사이
   bigSize: number[];              // 날마다 가장 큰 길드의 조 수
@@ -91,6 +93,7 @@ export interface World {
   pact: { from: number; until: number; k: number } | null; // 두 길드의 협정
   meetAt: number;                 // 마지막 회의 날
   asks: Ask[]; later: Later[]; askN: number;
+  lit: LoopId[];                  // 오늘 켜진 고리 (국장의 손은 그날 아침, 엔진은 그날 안에 켠다)
 }
 export type Opts = { noCheck?: boolean; noFear?: boolean };
 
@@ -118,16 +121,18 @@ export function newWorld(seed: number, o: Opts = {}): World {
     lord: { name: '영주들', money: 0, infl: 0, fav: 45 + Math.round((rnd() - 0.5) * 12) },
     seen: dungeons.map(d => [d.level]), hist: dungeons.map(d => [d.level]),
     reports: [{ day: 0, from: '왕도일보', title: '폐광 아래 미궁 범람, 미궁관리국 신설', chips: ['범람 직후'] }],
-    stats: { floods: 0, dead: 0, spent: 0, toFlood: [], pinned: {}, loops: { R1: 0, B1: 0, R3: 0, B3: 0, R4: 0, B4: 0, R5: 0, B5: 0 }, bigSize: [], clashes: 0, meets: 0, asks: 0, answered: 0, sides: 0, relMin: 0, relHist: [] },
+    stats: { floods: 0, dead: 0, spent: 0, toFlood: [], pinned: {}, loops: { R1: 0, B1: 0, R3: 0, B3: 0, R4: 0, B4: 0, R5: 0, B5: 0 }, bigSize: [], clashes: 0, meets: 0, asks: 0, answered: 0, sides: 0, relMin: 0, relHist: [], litHist: [] },
     rel: { 'big:small': -10 + Math.round((rnd() - 0.5) * 10), 'big:lord': 10, 'lord:small': 0 },
     owe: { big: 0, small: 0, lord: 0 }, fowe: { big: {}, small: {}, lord: {} },
-    pact: null, meetAt: -99, asks: [], later: [], askN: 0,
+    pact: null, meetAt: -99, asks: [], later: [], askN: 0, lit: [],
     ...o,
   };
   return W;
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+// 고리가 오늘 켜졌다: 날마다 한 번만 센다
+const lit = (W: World, id: LoopId) => { if (!W.lit.includes(id)) W.lit.push(id); };
 const fav = (o: { fav: number }, v: number) => { o.fav = clamp(o.fav + v, 0, 100); };
 export const facOf = (W: World, f: FacId) => f === 'lord' ? W.lord : W.guilds[f];
 export const nameOf = (W: World, f: FacId) => facOf(W, f).name;
@@ -203,8 +208,8 @@ export function step(W: World) {
     const sn = W.seen[i];
     if (sn.at(-1)! >= B.DANGER && sn.at(-2)! < B.DANGER) W.reports.push({ day: W.day, from: '관리국 조사관', title: `${d.name} 위험 수위`, chips: [`${d.name} 수위`, `${d.dist}일 전 보고`] });
     // R1: 위험 수위 위에서 조가 빠지고 있다 / B1: 보조금이 조를 들이고 있다
-    if (d.level >= B.DANGER && n < r1Before[i] - 0.01) S.loops.R1++;
-    if (d.sub > 0 && n > r1Before[i] + 0.01) S.loops.B1++;
+    if (d.level >= B.DANGER && n < r1Before[i] - 0.01) lit(W, 'R1');
+    if (d.sub > 0 && n > r1Before[i] + 0.01) lit(W, 'B1');
   });
   // 세력의 돈: 판매 − 급여·보급 − 세금(견제). 넉넉하면 조를 늘리고 모자라면 줄인다
   const top = G.big.size >= G.small.size ? G.big : G.small, topBefore = top.size;
@@ -225,18 +230,18 @@ export function step(W: World) {
     f.infl = inflOf(f.size * B.INFL_SIZE + f.money * B.INFL_MONEY);
     f.peak = Math.max(f.peak, f.size);
   }
-  if (top.size > topBefore) S.loops.R3++;
+  if (top.size > topBefore) lit(W, 'R3');
   // B3 견제: 눈에 띈 길드에 쌓이고(영주의 세금 · 다른 쪽의 결집), 시간이 지나면 빠진다
   if (!W.noCheck) {
     for (const f of [G.big, G.small]) f.check = f.check * B.CHECK_FADE + Math.max(0, f.infl - B.NOTICE) * B.CHECK_K;
-    if (G.big.check > B.CHECK_ON || G.small.check > B.CHECK_ON) S.loops.B3++;
+    if (G.big.check > B.CHECK_ON || G.small.check > B.CHECK_ON) lit(W, 'B3');
   }
   // 세력 사이: 다툼만큼 벌어지고(R4), 아주 천천히 0쪽으로
   S.clashes += clashes;
   relAdd(W, 'big', 'small', -clashes * B.CLASH_REL);
   for (const k of Object.keys(W.rel) as PairKey[]) W.rel[k] -= W.rel[k] * B.REL_FADE;
-  if (clashes > 0.02 && relOf(W, 'big', 'small') < relBefore) S.loops.R4++;
-  if (pactK(W) > 0) S.loops.B4++;
+  if (clashes > 0.02 && relOf(W, 'big', 'small') < relBefore) lit(W, 'R4');
+  if (pactK(W) > 0) lit(W, 'B4');
   S.relMin = Math.min(S.relMin, ...Object.values(W.rel));
   S.relHist.push(relOf(W, 'big', 'small'));
   dueLater(W);
@@ -269,6 +274,9 @@ export function step(W: World) {
   pin('입지', W.standing <= 0 || W.standing >= 100);
   pin('세력 사이', Object.values(W.rel).some(v => v <= -100 || v >= 100));
   S.bigSize.push(Math.max(G.big.size, G.small.size));
+  for (const id of W.lit) S.loops[id]++;
+  S.litHist.push(W.lit);
+  W.lit = [];
 }
 
 // 늦게 도착하는 결과를 그날 적용한다
@@ -327,13 +335,13 @@ export function answer(W: World, id: number, v: number) {
     fav(o, 10 * r - 4);
     W.owe[a.from] += 6 * r;
     for (const f of FACS) if (f !== a.from) fav(facOf(W, f), -2 * r);
-    if (r > 0) W.stats.loops.R5++;
+    if (r > 0) lit(W, 'R5');
   } else {
     W.owe[a.from] += v / B.DUN_G;
     fav(o, 6 * r - 6);
     for (const f of FACS) if (f !== a.from) fav(facOf(W, f), -1.5 * r);
     if (r < 0.5) W.standing = clamp(W.standing - 2, 0, 100);
-    W.stats.loops.B5++;
+    lit(W, 'B5');
   }
   W.asks = W.asks.filter(x => x.got == null || x.day > W.day - 30);
 }

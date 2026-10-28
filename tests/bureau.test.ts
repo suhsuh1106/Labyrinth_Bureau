@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { B, answer, meet, newWorld, pactK, relOf, run, step } from '../src/bureau/engine';
 import { BOT, playGame } from '../sim/bureau';
+import { EDGES, LINKS, LOOPS, NODES, checkLoops } from '../src/bureau/loops';
 
 const SEEDS = Array.from({ length: 30 }, (_, i) => 1000 + i);
 const avg = (bot: string, f: (W: ReturnType<typeof playGame>) => number, o = {}) =>
@@ -144,5 +145,25 @@ describe('미궁관리국 엔진 1단계: 세력 사이 · 신세', () => {
       step(W);
       for (const f of ['big', 'small', 'lord']) expect(W.asks.filter(a => a.from === f && a.got == null).length).toBeLessThanOrEqual(1);
     }
+  });
+});
+
+describe('인과 루프 그림 (loops.ts)', () => {
+  it('고리마다 길이 정의된 화살표로 닫히고, 음 화살표 수가 R · B와 맞는다', () => {
+    for (const c of checkLoops()) expect(c.why, c.id).toEqual([]);
+    const ids = new Set(NODES.map(n => n.id));
+    for (const e of [...EDGES, ...LINKS]) expect(ids.has(e.from) && ids.has(e.to), `${e.from}→${e.to}`).toBe(true);
+  });
+
+  it('엔진이 켜는 고리가 모두 그림에 있고, smart 봇 판에서 모두 켜진다', () => {
+    const W0 = newWorld(1000);
+    expect(LOOPS.map(l => l.id).sort()).toEqual(Object.keys(W0.stats.loops).sort());
+    const on: Record<string, number> = {};
+    for (let g = 0; g < 10; g++) {
+      const W = run(newWorld(1000 + g), BOT.smart);
+      expect(W.stats.litHist.length).toBe(B.DAYS);
+      for (const l of LOOPS) on[l.id] = (on[l.id] ?? 0) + W.stats.loops[l.id];
+    }
+    for (const l of LOOPS) expect(on[l.id], l.id).toBeGreaterThan(0);
   });
 });
