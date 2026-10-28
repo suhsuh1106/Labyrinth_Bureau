@@ -13,5 +13,5 @@
     "allowImportingTsExtensions": false,
     "resolveJsonModule": true
   },
-  "include": ["src", "sim", "tests", "vite.config.ts"]
+  "include": ["src", "sim", "tests", "dev", "vite.config.ts"]
 }

@@ -1,9 +1,15 @@
-// 미궁관리국 배경 엔진 0단계: 저량 넷(수위 · 세력의 돈 · 영향력 · 호감)과 인과 루프 두 쌍
+// 미궁관리국 배경 엔진. 0단계: 저량 넷(수위 · 세력의 돈 · 영향력 · 호감)과 인과 루프 두 쌍
 //   R1 범람 소용돌이 ↔ B1 개입: 수위가 오르면 사고가 늘어 조가 발을 빼고, 덜 들어가니 수위가 더 오른다.
 //                              국장은 출입 보조금(예산)으로 조를 다시 들인다.
 //   R3 몸집 ↔ B3 견제: 커진 길드는 영향력으로 몫을 더 가져가 더 커진다.
 //                      눈에 띄면 영주의 세금 · 다른 길드의 결집이 붙잡는다(어느 길드든).
-// 국장은 고리를 직접 돌리지 않고 숫자(보조금 · 우선권 조항 · 영주 몫)로 연결을 조금 휜다.
+// 1단계: 세력 사이 · 신세와 인과 루프 두 쌍
+//   R4 원한 ↔ B4 회의 · 중재: 같은 미궁에 겹친 길드는 부딪치고, 부딪칠수록 사이가 벌어져 더 부딪친다.
+//                              국장이 회의를 열어 협정을 맺게 한다(빠진 쪽은 앙금, 마지못한 쪽은 이행이 늦다).
+//   R5 신세 굴리기 ↔ B5 빚 독촉: 청을 들어주면 신세를 받고, 받은 신세로 회의 서명을 얻는다.
+//                                 내가 진 빚은 독촉 요청서로 돌아와 예산과 다른 쪽 호감을 쓴다.
+//   세력끼리도 빚을 지고, 빚진 쪽은 엿새쯤 뒤 빌려준 쪽 편을 든다.
+// 국장은 고리를 직접 돌리지 않고 숫자(보조금 · 우선권 조항 · 영주 몫 · 요청서에 줄 값)와 회의로 연결을 조금 휜다.
 // 화면이 없다. 하루가 한 턴이고, 그날의 보고는 거리만큼 늦게 도착한다(`seen`).
 // 숫자는 모두 자리표시: `npm run sim:bureau`로 돌려 보고 정한다. 설계는 docs/bureau.md.
 import { rnd, setSeed } from '../core/rng';
@@ -27,9 +33,28 @@ export const B = {
   LORD_SPEND: 0.01,                       // 영주가 날마다 쓰는 돈의 몫
   GRANT: 1000, GRANT_K: 20,               // 달마다 중앙의 배정 = 1000 + 입지 × 20
   FAV_BACK: 0.01, STAND_FLOOD: 18, STAND_POL: 1 / 30000, STAND_OUT: 0.1, // 입지: 범람마다 깎임 · 영향력 × 호감 · 물량
+  // 1단계: 세력 사이(-100 ~ 100) · 신세
+  CLASH_K: 0.04, CLASH_REL: 1.5, CLASH_DEAD: 0.05, CLASH_OUT: 0.1, // R4: 겹친 조 하나당 다툼 · 다툼 하나에 사이 · 죽음 · 덜 캐는 몫
+  REL_FADE: 0.003,                        // 세력 사이가 0쪽으로 돌아가는 몫 (아주 천천히)
+  PACT: 0.8, PACT_DAYS: 40, MEET_REL: 15, MEET_COOL: 10, MEET_OWE: 5, // B4: 협정이 줄이는 다툼 · 기간 · 사이 회복 · 다시 열 날 · 부탁한 값(신세)
+  GRUDGE_DAYS: 2, GRUDGE: 6, SLOW_DAYS: 4, // 빠진 쪽의 앙금(이틀 뒤) · 마지못한 서명은 나흘 뒤 이행
+  SIGN_AT: 45, SIGN_OWE: 2,               // 서명할 마음 = 호감 + 받은 신세 × 2. 이보다 낮으면 마지못해, 20 더 낮으면 거절
+  ASK_DUE: 5, OWE_FADE: 0.995,            // 요청서는 닷새 안에 답한다 · 신세는 오래 두면 흐려진다
+  DUN_AT: -6, DUN_EVERY: 15, DUN_G: 20,  // B5: 내가 진 빚이 이보다 크면 보름마다 독촉, 신세 1 = 20G
+  LEND: 100, LEND_OWE: 10, SIDE_DAYS: 6, SIDE_REL: 8, // 세력끼리 빌려줌 · 그 빚 · 편들기까지 날 · 편들기 한 번에 사이
 };
 
 export type GuildId = 'big' | 'small';
+export type LoopId = 'R1' | 'B1' | 'R3' | 'B3' | 'R4' | 'B4' | 'R5' | 'B5';
+export type FacId = GuildId | 'lord';
+export const FACS: FacId[] = ['big', 'small', 'lord'];
+// 세력 둘의 사이를 적는 열쇠 (순서 없이 같은 열쇠)
+export type PairKey = 'big:small' | 'big:lord' | 'lord:small';
+export const pairOf = (a: FacId, b: FacId) => [a, b].sort().join(':') as PairKey;
+// 요청서: 세력이 국장에게 보내는 청(aid)과 독촉(dun). 국장은 숫자(줄 값)로 답한다
+export interface Ask { id: number; day: number; due: number; from: FacId; kind: 'aid' | 'dun'; want: number; chips: string[]; got?: number }
+// 늦게 도착하는 결과: 앙금 · 마지못한 서명의 이행 · 편들기
+export interface Later { day: number; kind: 'grudge' | 'pact' | 'side'; who: FacId; vs?: FacId; chips: string[] }
 export interface Dungeon {
   id: string; name: string; lord: string; dist: number;
   rise: number; yld: number; cap: number;
@@ -45,7 +70,10 @@ export interface Stats {
   floods: number; dead: number; spent: number;
   toFlood: number[];              // 위험 수위부터 범람까지 날 수
   pinned: Record<string, number>; // 저량이 끝에 붙은 날
-  loops: Record<'R1' | 'B1' | 'R3' | 'B3', number>; // 고리가 켜진 날
+  loops: Record<LoopId, number>;  // 고리가 켜진 날
+  litHist: LoopId[][];            // 날마다 켜진 고리 (개발용 확인 화면이 그림 위에 불을 켠다)
+  clashes: number; meets: number; asks: number; answered: number; sides: number; relMin: number;
+  relHist: number[];              // 날마다 두 길드 사이
   bigSize: number[];              // 날마다 가장 큰 길드의 조 수
 }
 export interface World {
@@ -59,7 +87,15 @@ export interface World {
   stats: Stats;
   noCheck?: boolean;              // B3를 끈 판 (고리 확인용)
   noFear?: boolean;               // R1의 꺼림을 끈 판
+  rel: Record<PairKey, number>;   // 세력 사이
+  owe: Record<FacId, number>;     // 신세: 세력이 국장에게 진 것(+) · 국장이 진 것(−)
+  fowe: Record<FacId, Partial<Record<FacId, number>>>; // 세력끼리의 빚: fowe[빚진 쪽][빌려준 쪽]
+  pact: { from: number; until: number; k: number } | null; // 두 길드의 협정
+  meetAt: number;                 // 마지막 회의 날
+  asks: Ask[]; later: Later[]; askN: number;
+  lit: LoopId[];                  // 오늘 켜진 고리 (국장의 손은 그날 아침, 엔진은 그날 안에 켠다)
 }
+export type Opts = { noCheck?: boolean; noFear?: boolean };
 
 const DUNGEONS: Omit<Dungeon, 'teams' | 'fear' | 'floods' | 'dead' | 'sub' | 'dangerAt'>[] = [
   { id: 'pit', name: '폐광', lord: '로이드 백작령', dist: 1, rise: 1.25, yld: 6, cap: 12, level: 84 },
@@ -67,7 +103,7 @@ const DUNGEONS: Omit<Dungeon, 'teams' | 'fear' | 'floods' | 'dead' | 'sub' | 'da
   { id: 'sunk', name: '수몰 갱도', lord: '로이드 백작령', dist: 2, rise: 1.5, yld: 12, cap: 10, level: 55 },
 ];
 
-export function newWorld(seed: number, o: { noCheck?: boolean; noFear?: boolean } = {}): World {
+export function newWorld(seed: number, o: Opts = {}): World {
   setSeed(seed);
   // 첫 미궁(폐광)은 판마다 같다. 나머지는 성질이 판마다 조금 다르다
   const dungeons = DUNGEONS.map((d, i) => ({
@@ -85,14 +121,25 @@ export function newWorld(seed: number, o: { noCheck?: boolean; noFear?: boolean 
     lord: { name: '영주들', money: 0, infl: 0, fav: 45 + Math.round((rnd() - 0.5) * 12) },
     seen: dungeons.map(d => [d.level]), hist: dungeons.map(d => [d.level]),
     reports: [{ day: 0, from: '왕도일보', title: '폐광 아래 미궁 범람, 미궁관리국 신설', chips: ['범람 직후'] }],
-    stats: { floods: 0, dead: 0, spent: 0, toFlood: [], pinned: {}, loops: { R1: 0, B1: 0, R3: 0, B3: 0 }, bigSize: [] },
+    stats: { floods: 0, dead: 0, spent: 0, toFlood: [], pinned: {}, loops: { R1: 0, B1: 0, R3: 0, B3: 0, R4: 0, B4: 0, R5: 0, B5: 0 }, bigSize: [], clashes: 0, meets: 0, asks: 0, answered: 0, sides: 0, relMin: 0, relHist: [], litHist: [] },
+    rel: { 'big:small': -10 + Math.round((rnd() - 0.5) * 10), 'big:lord': 10, 'lord:small': 0 },
+    owe: { big: 0, small: 0, lord: 0 }, fowe: { big: {}, small: {}, lord: {} },
+    pact: null, meetAt: -99, asks: [], later: [], askN: 0, lit: [],
     ...o,
   };
   return W;
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+// 고리가 오늘 켜졌다: 날마다 한 번만 센다
+const lit = (W: World, id: LoopId) => { if (!W.lit.includes(id)) W.lit.push(id); };
 const fav = (o: { fav: number }, v: number) => { o.fav = clamp(o.fav + v, 0, 100); };
+export const facOf = (W: World, f: FacId) => f === 'lord' ? W.lord : W.guilds[f];
+export const nameOf = (W: World, f: FacId) => facOf(W, f).name;
+export const relOf = (W: World, a: FacId, b: FacId) => W.rel[pairOf(a, b)];
+const relAdd = (W: World, a: FacId, b: FacId, v: number) => { const k = pairOf(a, b); W.rel[k] = clamp(W.rel[k] + v, -100, 100); };
+// 협정이 지금 줄이는 다툼의 몫
+export const pactK = (W: World) => W.pact && W.day >= W.pact.from && W.day < W.pact.until ? W.pact.k : 0;
 export const teamsIn = (d: Dungeon) => d.teams.big + d.teams.small;
 // 국장이 아는 수위: 거리만큼 늦은 보고
 export const seenLevel = (W: World, i: number) => W.seen[i].at(-1)!;
@@ -110,7 +157,9 @@ export function lure(W: World, d: Dungeon) {
 export const otherOf = (g: GuildId): GuildId => g === 'big' ? 'small' : 'big';
 export function weightOf(W: World, g: GuildId) {
   const G = W.guilds, tilt = (W.prio - 50) / 100 * (g === 'big' ? 1 : -1);
-  return Math.max(0.3, 1 + tilt + G[g].infl * B.R3 + (W.noCheck ? 0 : G[otherOf(g)].check * B.CHECK_RALLY));
+  // 사이가 나쁠수록 상대를 견제하는 결집이 세다
+  const rally = W.noCheck ? 0 : G[otherOf(g)].check * B.CHECK_RALLY * (1 + Math.max(0, -relOf(W, 'big', 'small')) / 100);
+  return Math.max(0.3, 1 + tilt + G[g].infl * B.R3 + rally);
 }
 
 export function step(W: World) {
@@ -120,7 +169,8 @@ export function step(W: World) {
   // 조가 어디로 가나: 미궁마다 바라는 조 수, 길드 크기만큼만
   const want = W.dungeons.map(d => clamp(lure(W, d) * B.WANT_K, 0, d.cap * 1.6));
   const sum = want.reduce((a, b) => a + b, 0);
-  let fees = 0, subs = 0;
+  let fees = 0, subs = 0, clashes = 0;
+  const relBefore = relOf(W, 'big', 'small');
   const haul: Record<GuildId, number> = { big: 0, small: 0 };
   W.dungeons.forEach((d, i) => {
     for (const g of ['big', 'small'] as GuildId[]) {
@@ -130,11 +180,15 @@ export function step(W: World) {
     const n = teamsIn(d);
     d.level = Math.max(0, d.level + d.rise * (0.85 + rnd() * 0.3) - clearOf(d.level) * n);
     // 캐는 양은 붐비면 덜 는다. 나누는 몫은 길드의 무게대로
-    const out = d.cap * (1 - Math.exp(-n / d.cap)) * d.yld * richOf(d.level) * (1 - d.level / 250);
+    // R4: 두 길드가 겹친 만큼 부딪친다. 사이가 나쁠수록 잦고, 협정이 있으면 드물다. 다툼은 사람을 잃고 덜 캐게 한다
+    const hostile = clamp(0.3 - relOf(W, 'big', 'small') / 100, 0, 1.3);
+    const clash = Math.min(d.teams.big, d.teams.small) * hostile * B.CLASH_K * (1 - pactK(W)) * (0.5 + rnd());
+    clashes += clash;
+    const out = d.cap * (1 - Math.exp(-n / d.cap)) * d.yld * richOf(d.level) * (1 - d.level / 250) * (1 - Math.min(0.5, clash * B.CLASH_OUT));
     const wb = d.teams.big * weightOf(W, 'big'), ws = d.teams.small * weightOf(W, 'small');
     if (wb + ws > 0) { haul.big += out * wb / (wb + ws); haul.small += out * ws / (wb + ws); }
     // 사고: 위험 수위 언저리부터 죽는다. 죽음은 꺼림으로 남아 조를 밀어낸다(R1)
-    const dead = n * Math.max(0, d.level - B.RISK_AT) * B.RISK_K * (0.5 + rnd());
+    const dead = n * Math.max(0, d.level - B.RISK_AT) * B.RISK_K * (0.5 + rnd()) + clash * B.CLASH_DEAD;
     d.dead += dead; S.dead += dead;
     d.fear = d.fear * B.FEAR_FADE + dead * B.FEAR;
     for (const g of ['big', 'small'] as GuildId[]) if (n > 0) G[g].size = Math.max(B.SIZE_MIN, G[g].size - dead * d.teams[g] / n);
@@ -154,26 +208,46 @@ export function step(W: World) {
     const sn = W.seen[i];
     if (sn.at(-1)! >= B.DANGER && sn.at(-2)! < B.DANGER) W.reports.push({ day: W.day, from: '관리국 조사관', title: `${d.name} 위험 수위`, chips: [`${d.name} 수위`, `${d.dist}일 전 보고`] });
     // R1: 위험 수위 위에서 조가 빠지고 있다 / B1: 보조금이 조를 들이고 있다
-    if (d.level >= B.DANGER && n < r1Before[i] - 0.01) S.loops.R1++;
-    if (d.sub > 0 && n > r1Before[i] + 0.01) S.loops.B1++;
+    if (d.level >= B.DANGER && n < r1Before[i] - 0.01) lit(W, 'R1');
+    if (d.sub > 0 && n > r1Before[i] + 0.01) lit(W, 'B1');
   });
   // 세력의 돈: 판매 − 급여·보급 − 세금(견제). 넉넉하면 조를 늘리고 모자라면 줄인다
   const top = G.big.size >= G.small.size ? G.big : G.small, topBefore = top.size;
   for (const g of ['big', 'small'] as GuildId[]) {
-    const f = G[g], sale = haul[g] * B.PRICE * 0.06, tax = W.noCheck ? 0 : clamp(f.check * B.CHECK_TAX, 0, 0.4);
+    // 영주는 사이가 나쁜 길드에서 더 떼어 가고, 떼인 길드는 영주와 사이가 벌어진다
+    const f = G[g], sale = haul[g] * B.PRICE * 0.06;
+    const tax = W.noCheck ? 0 : clamp(f.check * B.CHECK_TAX * (1 + Math.max(0, -relOf(W, g, 'lord')) / 100), 0, 0.4);
     f.money += sale * (1 - tax) - f.size * B.UPKEEP;
     W.lord.money += sale * tax;
+    relAdd(W, g, 'lord', -tax * 0.5);
+    // 돈이 바닥난 길드에 사이가 괜찮은 영주가 빌려준다: 세력끼리의 빚. 사이가 나쁘면 국장에게 청이 온다
+    if (f.money < 0 && relOf(W, g, 'lord') > -20 && W.lord.money > B.LEND * 2 && (W.fowe[g].lord ?? 0) < B.LEND_OWE * 2) {
+      f.money += B.LEND; W.lord.money -= B.LEND;
+      W.fowe[g].lord = (W.fowe[g].lord ?? 0) + B.LEND_OWE;
+    }
     if (f.money > B.GROW) { f.size++; f.money -= B.GROW_COST; }
     if (f.money < B.SHRINK && f.size > B.SIZE_MIN) { f.size--; f.money += 60; }
     f.infl = inflOf(f.size * B.INFL_SIZE + f.money * B.INFL_MONEY);
     f.peak = Math.max(f.peak, f.size);
   }
-  if (top.size > topBefore) S.loops.R3++;
+  if (top.size > topBefore) lit(W, 'R3');
   // B3 견제: 눈에 띈 길드에 쌓이고(영주의 세금 · 다른 쪽의 결집), 시간이 지나면 빠진다
   if (!W.noCheck) {
     for (const f of [G.big, G.small]) f.check = f.check * B.CHECK_FADE + Math.max(0, f.infl - B.NOTICE) * B.CHECK_K;
-    if (G.big.check > B.CHECK_ON || G.small.check > B.CHECK_ON) S.loops.B3++;
+    if (G.big.check > B.CHECK_ON || G.small.check > B.CHECK_ON) lit(W, 'B3');
   }
+  // 세력 사이: 다툼만큼 벌어지고(R4), 아주 천천히 0쪽으로
+  S.clashes += clashes;
+  relAdd(W, 'big', 'small', -clashes * B.CLASH_REL);
+  for (const k of Object.keys(W.rel) as PairKey[]) W.rel[k] -= W.rel[k] * B.REL_FADE;
+  if (clashes > 0.02 && relOf(W, 'big', 'small') < relBefore) lit(W, 'R4');
+  if (pactK(W) > 0) lit(W, 'B4');
+  S.relMin = Math.min(S.relMin, ...Object.values(W.rel));
+  S.relHist.push(relOf(W, 'big', 'small'));
+  dueLater(W);
+  sideWith(W);
+  makeAsks(W);
+  for (const f of FACS) W.owe[f] *= B.OWE_FADE;
   // 예산: 입장료(영주 몫을 뺀 나머지) − 보조금, 달마다 중앙의 배정
   W.lord.money += fees * W.lordShare / 100;
   W.budget += fees * (1 - W.lordShare / 100) - subs;
@@ -198,7 +272,104 @@ export function step(W: World) {
   pin('영향력', [G.big, G.small, W.lord].some(o => o.infl <= 0 || o.infl >= 100));
   pin('호감', [G.big, G.small, W.lord].some(o => o.fav <= 0 || o.fav >= 100));
   pin('입지', W.standing <= 0 || W.standing >= 100);
+  pin('세력 사이', Object.values(W.rel).some(v => v <= -100 || v >= 100));
   S.bigSize.push(Math.max(G.big.size, G.small.size));
+  for (const id of W.lit) S.loops[id]++;
+  S.litHist.push(W.lit);
+  W.lit = [];
+}
+
+// 늦게 도착하는 결과를 그날 적용한다
+function dueLater(W: World) {
+  const now = W.later.filter(l => l.day <= W.day);
+  W.later = W.later.filter(l => l.day > W.day);
+  for (const l of now) {
+    if (l.kind === 'grudge') fav(facOf(W, l.who), -B.GRUDGE);
+    if (l.kind === 'pact' && W.pact) W.pact.from = W.day;
+    if (l.kind === 'side' && l.vs) { relAdd(W, l.who, l.vs, -B.SIDE_REL); W.stats.sides++; }
+    W.reports.push({ day: W.day, from: nameOf(W, l.who), title: l.kind === 'grudge' ? '회의 결과에 서운함' : l.kind === 'pact' ? '협정 이행 시작' : `${nameOf(W, l.vs!)}와 등을 짐`, chips: l.chips });
+  }
+}
+
+// 세력끼리의 빚 → 편들기: 빌려준 쪽이 누군가와 사이가 나쁘면 빚진 쪽이 엿새쯤 뒤 그 편을 든다
+function sideWith(W: World) {
+  for (const a of FACS) for (const c of FACS) {
+    const debt = W.fowe[a][c] ?? 0;
+    if (a === c || debt < B.LEND_OWE) continue;
+    const foe = FACS.find(x => x !== a && x !== c && relOf(W, c, x) < -20);
+    if (!foe || W.later.some(l => l.kind === 'side' && l.who === a)) continue;
+    W.fowe[a][c] = debt - B.LEND_OWE;
+    W.later.push({ day: W.day + B.SIDE_DAYS, kind: 'side', who: a, vs: foe, chips: [`${nameOf(W, c)}에 진 빚을 갚느라`] });
+  }
+}
+
+// 요청서: 길드는 돈이 바닥나면 청(aid)을, 국장이 진 빚이 크면 보름마다 독촉(dun)을 보낸다. 세력마다 한 장씩만 열려 있다
+function makeAsks(W: World) {
+  for (const f of FACS) {
+    if (W.asks.some(a => a.from === f && a.got == null)) continue;
+    const o = facOf(W, f);
+    let ask: Omit<Ask, 'id' | 'day' | 'due' | 'from'> | null = null;
+    if (W.owe[f] <= B.DUN_AT && W.day % B.DUN_EVERY === 0) ask = { kind: 'dun', want: Math.round(-W.owe[f] * B.DUN_G), chips: ['회의에 서명해 준 일'] };
+    else if (f !== 'lord' && (o as Guild).money < 0 && W.day % 5 === 0) ask = { kind: 'aid', want: 200, chips: [`${o.name} 금고 바닥`] };
+    else if (f === 'lord' && o.fav < 45 && W.day % 10 === 0) ask = { kind: 'aid', want: 150, chips: ['영주 몫이 적어서'] };
+    if (!ask) continue;
+    W.asks.push({ id: ++W.askN, day: W.day, due: W.day + B.ASK_DUE, from: f, ...ask });
+    W.stats.asks++;
+  }
+  // 답하지 않고 기한이 지난 요청서는 0으로 답한 것
+  for (const a of W.asks) if (a.got == null && W.day >= a.due) answer(W, a.id, 0);
+}
+
+// 요청서에 숫자로 답한다: 줄 값(G). 청을 들어주면 호감과 신세를 받고(R5) 다른 쪽은 편애로 본다.
+// 독촉에 갚으면 빚이 준다. 덜 주면 그만큼 호감을 잃고, 독촉을 모른 척하면 입지도 깎인다(B5)
+export function answer(W: World, id: number, v: number) {
+  const a = W.asks.find(x => x.id === id);
+  if (!a || a.got != null) return;
+  v = clamp(Math.round(v), 0, Math.max(0, Math.min(a.want, W.budget)));
+  a.got = v;
+  W.stats.answered += v > 0 ? 1 : 0;
+  const r = a.want > 0 ? v / a.want : 0, o = facOf(W, a.from);
+  W.budget -= v;
+  if (a.kind === 'aid') {
+    if (a.from === 'lord') W.lord.money += v; else W.guilds[a.from].money += v;
+    fav(o, 10 * r - 4);
+    W.owe[a.from] += 6 * r;
+    for (const f of FACS) if (f !== a.from) fav(facOf(W, f), -2 * r);
+    if (r > 0) lit(W, 'R5');
+  } else {
+    W.owe[a.from] += v / B.DUN_G;
+    fav(o, 6 * r - 6);
+    for (const f of FACS) if (f !== a.from) fav(facOf(W, f), -1.5 * r);
+    if (r < 0.5) W.standing = clamp(W.standing - 2, 0, 100);
+    lit(W, 'B5');
+  }
+  W.asks = W.asks.filter(x => x.got == null || x.day > W.day - 30);
+}
+
+// 서명할 마음: 호감과 받은 신세
+export const willOf = (W: World, f: FacId) => facOf(W, f).fav + W.owe[f] * B.SIGN_OWE;
+
+// 회의: 부른 세력끼리 협정을 맺게 한다. 두 길드를 다 불러야 협정이 선다.
+// 부르는 것은 부탁이라 부른 세력마다 신세를 쓴다(모자라면 빚이 된다, B5). 빠진 세력은 이틀 뒤 앙금을 남긴다.
+// 마음이 모자란 길드는 마지못해 서명해 나흘 뒤에야 이행하고, 많이 모자라면 거절한다
+export function meet(W: World, who: FacId[]) {
+  if (W.day - W.meetAt < B.MEET_COOL || !who.includes('big') || !who.includes('small')) return false;
+  W.meetAt = W.day;
+  W.stats.meets++;
+  const will = (['big', 'small'] as GuildId[]).map(g => willOf(W, g) + (who.includes('lord') ? 5 : 0));
+  for (const f of who) W.owe[f] -= B.MEET_OWE;
+  for (const f of FACS) if (!who.includes(f)) W.later.push({ day: W.day + B.GRUDGE_DAYS, kind: 'grudge', who: f, chips: ['자기를 빼고 정해서'] });
+  if (Math.min(...will) < B.SIGN_AT - 20) {
+    W.reports.push({ day: W.day, from: '관리국', title: '회의 결렬', chips: ['서명 거절'] });
+    return false;
+  }
+  const slow = Math.min(...will) < B.SIGN_AT;
+  W.pact = { from: slow ? W.day + 999 : W.day, until: W.day + B.PACT_DAYS, k: B.PACT + (who.includes('lord') ? 0.1 : 0) };
+  if (slow) W.later.push({ day: W.day + B.SLOW_DAYS, kind: 'pact', who: will[0] < will[1] ? 'big' : 'small', chips: ['마지못해 서명해서'] });
+  relAdd(W, 'big', 'small', B.MEET_REL);
+  if (who.includes('lord')) { relAdd(W, 'big', 'lord', 3); relAdd(W, 'lord', 'small', 3); }
+  W.reports.push({ day: W.day, from: '관리국', title: '미궁 출입 협정', chips: who.map(f => nameOf(W, f)) });
+  return true;
 }
 
 export const over = (W: World) => W.day >= B.DAYS;
