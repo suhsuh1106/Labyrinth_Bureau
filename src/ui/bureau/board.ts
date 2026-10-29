@@ -5,11 +5,13 @@ import { askLetter, dateOf, docOf, floodNews, govHtml, introNews, letterHtml, ne
 import { B, type FacId, FACS, type Report, type World, pnlAvg, depOf, docsOut, escrowOf, trustOf, withdrawFav, facOf, levelOf, nameOf, pactK, relOf, seenLevel, subAt, teamsIn, willOf } from '../../bureau/engine';
 import { CLAUSE, CLAUSES, CLAUSE_MAX, type Clause, type Clauses, type ClauseId, FORM_NAME, FORM_OF, type Form, TO_NAME, type To, clauseLock, fits, toLock } from '../../bureau/clauses';
 
-export type Tab = 'look' | 'asks' | 'rules' | 'meet' | 'office';
+export type Tab = 'look' | 'asks' | 'lib' | 'meet' | 'office';
+// 기록 탭의 서가: 조항 · 미궁 손익 자료 · 낸 서류 기록 · 받은 서류
+export type Shelf = 'cl' | 'pnl' | 'out' | 'in';
 // sel: 지도에서 고른 것('dg:0' · 'fac:big', 비우면 관할 요약). draft: 쓰고 있는 서류(받는 쪽 · 미궁 · 기간 · 조항과 값)
 export interface Draft { to: To; dg: number; days: number; cl: Clauses }
 // modal: 서류 쓰기 창이 열려 있나. docSeen: 받은 서류 창으로 읽은 보고 자리 · askSeen: 창으로 본 마지막 청
-export interface BuUi { tab: Tab; invite: FacId[]; give: Record<number, number>; intro: boolean; seenNews: number; sel?: string; draft?: Draft; modal?: 'write'; docSeen?: number; askSeen?: number }
+export interface BuUi { tab: Tab; invite: FacId[]; give: Record<number, number>; intro: boolean; seenNews: number; sel?: string; draft?: Draft; modal?: 'write'; docSeen?: number; askSeen?: number; shelf?: Shelf; read?: number }
 export const DRAFT0: Draft = { to: 'all', dg: 0, days: 20, cl: { sub: 10 } };
 
 export const n0 = (v: number) => Math.round(v).toLocaleString('ko-KR');
@@ -57,9 +59,13 @@ export function dungeonHtml(W: World, i: number) {
 export function pnlHtml(W: World, on = -1) {
   const sg = (v: number) => `<span class="num ${v < 0 ? 'neg' : ''}">${v > 0 ? '+' : v < 0 ? '−' : ''}${n0(Math.abs(v))}G</span>`;
   const n = W.pnl[0]?.length ?? 0;
-  return `<table class="pnl"><caption>미궁 손익 자료 <small>조당 하루 · 길드 장부 어림 · 보조금 빼고${n <= 1 ? ' · 영주청 이관 기록' : ''}</small></caption>
-    <thead><tr><th></th><th>최근 7일</th><th>30일</th><th>든 조</th></tr></thead>
-    <tbody>${W.dungeons.map((d, i) => `<tr class="${i === on ? 'on' : ''}"><td>${d.name}</td><td>${sg(pnlAvg(W, i, 7))}</td><td>${sg(pnlAvg(W, i, 30))}</td><td class="num">${n1(teamsIn(d))}</td></tr>`).join('')}</tbody></table>`;
+  // 달마다 평균 (첫 칸은 영주청 이관 기록, 그 뒤 30일씩). 최근 여섯 달까지
+  const months = Math.ceil(Math.max(0, n - 1) / B.MONTH), from = Math.max(0, months - 6);
+  const mAvg = (i: number, m: number) => { const a = W.pnl[i].slice(1 + m * B.MONTH, 1 + (m + 1) * B.MONTH); return a.reduce((x, y) => x + y, 0) / a.length; };
+  const ms = Array.from({ length: months - from }, (_, k) => from + k);
+  return `<table class="pnl"><caption>미궁 손익 자료 <small>조당 하루 · 길드 장부 어림 · 보조금 빼고</small></caption>
+    <thead><tr><th></th><th>영주청 이관</th>${ms.map(m => `<th>${m + 1}월</th>`).join('')}<th>최근 7일</th><th>든 조</th></tr></thead>
+    <tbody>${W.dungeons.map((d, i) => `<tr class="${i === on ? 'on' : ''}"><td>${d.name}</td><td>${sg(W.pnl[i][0])}</td>${ms.map(m => `<td>${sg(mAvg(i, m))}</td>`).join('')}<td>${n > 1 ? sg(pnlAvg(W, i, 7)) : '—'}</td><td class="num">${n1(teamsIn(d))}</td></tr>`).join('')}</tbody></table>`;
 }
 
 const noticeWord = (W: World, i: number) => {
@@ -106,7 +112,6 @@ export function writeHtml(W: World, ui: BuUi) {
     <h4>서류 쓰기 <small class="num">서기 ${W.clerks}명 · 낸 서류 ${docsOut(W)} / ${W.clerks}</small><button type="button" class="x close" data-act="close" aria-label="닫기">닫기</button></h4>
     <div class="w-row"><span>받는 쪽</span>${pick('wto', '받는 쪽', tos.map(t => ({ v: t, name: `${TO_NAME[t]} · ${FORM_NAME[FORM_OF[t]]}`, on: t === f.to })))}</div>
     <div class="w-row"><span>미궁</span>${pick('wdg', '미궁', W.dungeons.map((x, i) => ({ v: String(i), name: x.name, on: i === f.dg })))}</div>
-    ${pnlHtml(W, f.dg)}
     <div class="gov-doc out f-${form}">
       <header class="gd-org">미 궁 관 리 국</header>
       <p class="gd-kind">${FORM_NAME[form].split('').join(' ')}</p>
@@ -142,6 +147,24 @@ function clausesHtml(W: World) {
     </article>`;
   return `<p class="note">서류에 넣는 조항. 받는 쪽이 양식을 정한다: 길드 전체는 공고문, 길드 하나는 요청서, 상단은 제안서. 한 서류에 ${CLAUSE_MAX}조까지, 걸린 조항(⛓)은 바탕 조항이 있어야 넣고 바탕을 빼면 함께 빠진다.</p>
   ${CLAUSES.filter(c => !clauseLock(W, c.id)).map(card).join('')}`;
+}
+
+// 기록 탭: 도서관. 가진 조항 · 미궁 손익 자료 · 낸 서류의 기록 · 받은 서류 철. 서류를 쓸 때 참고할 것은 여기서 찾는다
+const OUT_RE = /^(공고문:|요청서:|공고 철회|공고 기한 끝|요청서 거둠|요청서 기한 끝)/;
+function libHtml(W: World, ui: BuUi) {
+  const sh = ui.shelf ?? 'cl';
+  const b = (id: Shelf, name: string) => `<button type="button" class="opt ${sh === id ? 'on' : ''}" data-act="shelf:${id}" aria-pressed="${sh === id}">${name}</button>`;
+  const nav = `<div class="opts shelf">${b('cl', '조항')}${b('pnl', '손익 자료')}${b('out', '낸 서류')}${b('in', '받은 서류')}</div>`;
+  if (sh === 'pnl') return nav + `<p class="note">미궁마다 조 하나가 하루 남기는 값의 어림. 길드 장부에서 옮겨 적고, 첫 칸은 영주청에서 넘겨받은 기록이다.</p><div class="pnl-wrap">${pnlHtml(W)}</div>`;
+  if (sh === 'out') {
+    const rs = W.reports.filter(x => x.from === '관리국' && OUT_RE.test(x.title)).reverse();
+    return nav + (rs.length ? `<ul class="news">${rs.map(x => `<li><small>${dateOf(x.day)}</small><b>${x.title}</b>${x.chips.map(c => `<span class="chip">${c}</span>`).join('')}</li>`).join('')}</ul>` : '<p class="empty">낸 서류 없음</p>');
+  }
+  if (sh === 'in') {
+    const ks = W.reports.map((x, k) => isDoc(x) ? k : -1).filter(k => k >= 0 && k < (ui.docSeen ?? 0)).reverse();
+    return nav + (ks.length ? `<ul class="news">${ks.map(k => { const x = W.reports[k]; return `<li><small>${dateOf(x.day)} · ${x.from}</small><b>${x.title}</b><button type="button" class="link" data-act="read:${k}">다시 보기</button></li>`; }).join('')}</ul>` : '<p class="empty">받은 서류 없음</p>');
+  }
+  return nav + clausesHtml(W);
 }
 
 // 집무실: 입지 단계 · 서기 · 다음 단계에 열리는 것, 그리고 책상에 온 보고
@@ -190,7 +213,7 @@ const openAsks = (W: World) => W.asks.filter(a => a.got == null);
 export function tabsHtml(W: World, ui: BuUi) {
   const news = W.reports.length - ui.seenNews, asks = openAsks(W).length;
   const t = (id: Tab, name: string, badge = 0) => `<button type="button" role="tab" data-act="tab:${id}" aria-selected="${ui.tab === id}">${name}${badge ? ` <span class="badge">${badge}</span>` : ''}</button>`;
-  return t('look', '살펴보기') + t('asks', '서류', asks) + t('rules', '조항') + t('meet', '회의') + t('office', '집무실', ui.tab === 'office' ? 0 : news + W.pts);
+  return t('look', '살펴보기') + t('asks', '서류', asks) + t('lib', '기록') + t('meet', '회의') + t('office', '집무실', ui.tab === 'office' ? 0 : news + W.pts);
 }
 
 export function paneHtml(W: World, ui: BuUi) {
@@ -207,7 +230,7 @@ export function paneHtml(W: World, ui: BuUi) {
     }).join('') : '<p class="empty">받은 청 없음</p>')
       + (done.length ? `<h4>지난 답</h4>${done.map(a => `<p class="past"><span>${a.day}일 · ${nameOf(W, a.from)} ${a.kind === 'dun' ? '독촉' : '청'}</span><b class="num">${n0(a.got!)} / ${n0(a.want)}G</b></p>`).join('')}` : '');
   }
-  if (ui.tab === 'rules') return clausesHtml(W);
+  if (ui.tab === 'lib') return libHtml(W, ui);
   if (ui.tab === 'meet') {
     const cool = B.MEET_COOL - (W.day - W.meetAt), lord = ui.invite.includes('lord');
     const signWord = (f: FacId) => { const w = willOf(W, f) + (lord ? 5 : 0); return w >= B.SIGN_AT ? '서명할 듯' : w >= B.SIGN_AT - 20 ? '마지못해' : '거절할 듯'; };
@@ -227,12 +250,14 @@ export function introHtml() {
 
 // 받은 서류: 중앙 행정원 · 길드가 보낸 것은 책상에 새 창으로 온다(보고 목록에도 남는다)
 const GUILD_NAMES = ['붉은 깃발단', '중소 길드 연합'];
-export const isDoc = (r: Report) => r.from === '중앙 행정원' || GUILD_NAMES.includes(r.from) || (r.from === '왕도일보' && r.day > 0);
+export const isDoc = (r: Report) => r.from === '중앙 행정원' || GUILD_NAMES.includes(r.from) || r.from === '왕도일보';
+// 창으로 띄울 서류: 첫날 신문은 첫 화면에서 이미 읽었다
+const popDoc = (r: Report) => isDoc(r) && !(r.from === '왕도일보' && r.day === 0);
 // 아직 창으로 보지 않은 서류: 청 · 독촉이 먼저, 그다음 보고 순서대로
 export function nextDoc(W: World, ui: BuUi) {
   const ask = W.asks.find(a => a.got == null && a.id > (ui.askSeen ?? 0));
   if (ask) return { ask };
-  for (let k = ui.docSeen ?? 0; k < W.reports.length; k++) if (isDoc(W.reports[k])) return { k };
+  for (let k = ui.docSeen ?? 0; k < W.reports.length; k++) if (popDoc(W.reports[k])) return { k };
   return null;
 }
 export function docModalHtml(W: World, ui: BuUi) {
@@ -243,14 +268,20 @@ export function docModalHtml(W: World, ui: BuUi) {
     return `<div class="card modal">${letterHtml(askLetter(W, a))}
       <div class="ask-do">${stepper(`give:${a.id}`, `${n0(v)}G`, '줄 값')}<button type="button" class="go" data-act="answer:${a.id}">보내기</button><button type="button" data-act="refuse:${a.id}">거절</button><button type="button" data-act="later:${a.id}">나중에 · ${a.due - W.day}일 안에</button></div></div>`;
   }
-  const r = W.reports[d.k!];
+  return reportDocHtml(W, d.k!, false);
+}
+// 보고 한 장을 종이로: 처음 받을 때(받음) · 기록 탭에서 다시 볼 때(닫기)
+export function reportDocHtml(W: World, k: number, again: boolean) {
+  const r = W.reports[k];
+  if (!r) return '';
+  const btn = (label: string) => `<button type="button" class="go wide" data-act="${again ? 'unread' : `seen:${k}`}">${again ? '닫기' : label}</button>`;
   if (r.from === '왕도일보') {
-    const no = W.reports.slice(0, d.k! + 1).filter(x => x.from === '왕도일보').length;
-    return `<div class="card modal news-page">${newsHtml(floodNews(W, r, no))}<button type="button" class="go wide" data-act="seen:${d.k}">신문 접기</button></div>`;
+    if (r.day === 0) return `<div class="card modal news-page">${newsHtml(introNews())}${btn('신문 접기')}</div>`;
+    const no = W.reports.slice(0, k + 1).filter(x => x.from === '왕도일보').length;
+    return `<div class="card modal news-page">${newsHtml(floodNews(W, r, no))}${btn('신문 접기')}</div>`;
   }
   const doc = docOf(r), first = r.from === '중앙 행정원' && r.day === 0;
-  return `<div class="card modal">${'gov' in doc ? govHtml(doc.gov) : letterHtml(doc.letter)}
-    <button type="button" class="go wide" data-act="seen:${d.k}">${first ? '요구서 받음' : '받음'}</button></div>`;
+  return `<div class="card modal">${'gov' in doc ? govHtml(doc.gov) : letterHtml(doc.letter)}${btn(first ? '요구서 받음' : '받음')}</div>`;
 }
 
 // 요구서의 진행: 위 띠와 집무실

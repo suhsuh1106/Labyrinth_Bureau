@@ -5,11 +5,11 @@ import { getSeed, setSeed } from './core/rng';
 import { type FacId, type World, answer, hireClerk, meet, newWorld, over, post, recall, run, send, step, withdraw } from './bureau/engine';
 import { BOT } from './bureau/bots';
 import { CLAUSE, type ClauseId, FORM_OF, type To, addClause, canAdd, dropClause } from './bureau/clauses';
-import { type BuUi, DRAFT0, type Tab, docModalHtml, endHtml, introHtml, paneHtml, tabsHtml, topHtml, writeHtml } from './ui/bureau/board';
+import { type BuUi, DRAFT0, type Shelf, type Tab, docModalHtml, reportDocHtml, endHtml, introHtml, paneHtml, tabsHtml, topHtml, writeHtml } from './ui/bureau/board';
 import { mapHtml } from './ui/bureau/map';
 
 const $ = (id: string) => document.getElementById(id)!;
-const KEY = 'lb-bureau', VERSION = 8;
+const KEY = 'lb-bureau', VERSION = 9;
 let W: World, ui: BuUi, seed = 0;
 
 function save() { try { localStorage.setItem(KEY, JSON.stringify({ v: VERSION, seed, rng: getSeed(), W, ui })); } catch { /* 저장이 막혀도 판은 계속된다 */ } }
@@ -34,7 +34,8 @@ function draw() {
     const keep = getSeed(), idle = run(newWorld(seed), BOT.idle), smart = run(newWorld(seed), BOT.smart);
     setSeed(keep);
     ov.innerHTML = endHtml(W, idle, smart); ov.hidden = false;
-  } else if (ui.modal === 'write') { ov.innerHTML = `<div class="card modal write-modal">${writeHtml(W, ui)}</div>`; ov.hidden = false; }
+  } else if (ui.read != null) { ov.innerHTML = reportDocHtml(W, ui.read, true); ov.hidden = false; }
+  else if (ui.modal === 'write') { ov.innerHTML = `<div class="card modal write-modal">${writeHtml(W, ui)}</div>`; ov.hidden = false; }
   else {
     // 받은 서류는 한 장씩 새 창으로
     const doc = docModalHtml(W, ui);
@@ -63,7 +64,10 @@ function act(a: string, d = 0) {
   else if (k === 'tab') ui.tab = arg as Tab;
   else if (k === 'sel') { ui.sel = rest; ui.tab = 'look'; }
   else if (k === 'write') { ui.draft = { ...draft(), dg: +arg }; ui.tab = 'asks'; ui.modal = 'write'; }
-  else if (k === 'close') ui.modal = undefined;
+  else if (k === 'close') { ui.modal = undefined; ui.read = undefined; }
+  else if (k === 'shelf') ui.shelf = arg as Shelf;
+  else if (k === 'read') ui.read = +arg;
+  else if (k === 'unread') ui.read = undefined;
   else if (k === 'seen') ui.docSeen = +arg + 1;
   else if (k === 'later') ui.askSeen = Math.max(ui.askSeen ?? 0, +arg);
   else if (k === 'wdg') ui.draft = { ...draft(), dg: +arg };
@@ -125,7 +129,7 @@ document.addEventListener('keydown', e => {
   // 지도 표식(svg)은 단추가 아니라서 Enter를 직접 받는다
   const m = (e.target as Element).closest?.('svg [data-act]') as SVGElement | null;
   if (m && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); act(m.dataset.act!); return; }
-  if (e.key === 'Escape' && ui.modal) { act('close'); return; }
+  if (e.key === 'Escape' && (ui.modal || ui.read != null)) { act('close'); return; }
   // 창이 떠 있는 동안은 날을 넘기지 않는다
   if ((e.key === 'n' || e.key === 'N') && !e.metaKey && !e.ctrlKey && $('over').hidden && !over(W)) nextDays(1);
 });

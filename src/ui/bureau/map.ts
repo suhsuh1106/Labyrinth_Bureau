@@ -3,7 +3,7 @@
 // 미궁 표식의 고리는 보고된 수위, 세력 사이는 본부 사이의 선 색 · 낱말이다. 그리기만 하고 상태에 쓰지 않는다.
 import mapUrl from './art/map.webp';
 import { B, type FacId, FACS, type GuildId, type World, nameOf, pactK, relOf, seenLevel, subAt, teamsIn } from '../../bureau/engine';
-import { type BuUi, dungeonHtml, facHtml, levelCls, levelWord, n0, n1, pactLine, pnlHtml, relRow, relWord } from './board';
+import { type BuUi, dungeonHtml, facHtml, levelCls, levelWord, n0, n1, pactLine, relRow, relWord } from './board';
 
 // 지도 자리 (viewBox 1000 × 567, 그림과 같은 비율)
 const DG_AT: [number, number][] = [[452, 282], [700, 140], [800, 262]];   // 폐광 · 검은숲 미궁 · 수몰 갱도
@@ -80,6 +80,5 @@ export function lookHtml(W: World, ui: BuUi) {
   }
   return `<p class="note">지도에서 미궁이나 깃발을 누르면 자세히 본다.</p>
   <div class="sum">${W.dungeons.map((d, i) => { const lv = seenLevel(W, i); return `<button type="button" class="sum-row ${levelCls(lv)}" data-act="sel:dg:${i}"><b>${d.name}</b><span class="num">${n0(lv)}</span><span class="tag">${levelWord(lv)}</span><small class="num">${n1(teamsIn(d))}조 · 보조금 ${subAt(W, i)}G</small></button>`; }).join('')}</div>
-  ${pnlHtml(W)}
   <section class="rels"><h2>세력 사이</h2>${relRow(W, 'big', 'small')}${relRow(W, 'big', 'lord')}${relRow(W, 'lord', 'small')}${pactLine(W)}</section>`;
 }

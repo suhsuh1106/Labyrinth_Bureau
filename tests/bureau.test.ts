@@ -321,7 +321,8 @@ describe('국장의 서류 (조항 조합)', () => {
     expect(paneHtml(W, ui)).toContain('data-act="write:2"');
     expect(writeHtml(W, ui)).toContain('고쳐 내걸기');
     expect(paneHtml(W, { ...ui, tab: 'look', sel: 'dg:2' })).toContain('공고문 · 30일 남음');
-    expect(paneHtml(W, { ...ui, tab: 'rules' })).not.toContain('상단 물품 추가');
+    expect(paneHtml(W, { ...ui, tab: 'lib' })).not.toContain('상단 물품 추가');
+    expect(paneHtml(W, { ...ui, tab: 'lib' })).toContain('진입 보조금');
     expect(paneHtml(W, { ...ui, tab: 'look', sel: '' })).not.toContain('우선권');
     expect(paneHtml(W, { ...ui, tab: 'office' })).toContain('서기');
   });
@@ -356,7 +357,16 @@ describe('미궁 손익 자료', () => {
     step(W);
     expect(W.pnl[0].length).toBe(2);
     expect(W.pnl[0][1]).toBeLessThan(0);
-    expect(writeHtml(W, { tab: 'asks', invite: [], give: {}, intro: false, seenNews: 0 })).toContain('미궁 손익 자료');
+    const ui: BuUi = { tab: 'lib', invite: [], give: {}, intro: false, seenNews: 0, shelf: 'pnl' };
+    // 서류 쓰기 창엔 참고 자료를 두지 않고, 기록 탭의 서가에서 찾는다
+    expect(writeHtml(W, ui)).not.toContain('미궁 손익 자료');
+    expect(paneHtml(W, ui)).toContain('미궁 손익 자료');
+    expect(paneHtml(W, ui)).toContain('영주청 이관');
+    // 낸 서류 기록 · 받은 서류 철 (다시 보기)
+    post(W, 0, 20, { sub: 10 });
+    expect(paneHtml(W, { ...ui, shelf: 'out' })).toContain('공고문: 폐광');
+    const h = paneHtml(W, { ...ui, shelf: 'in', docSeen: W.reports.length });
+    expect(h).toContain('read:');
   });
 });
 
@@ -390,7 +400,7 @@ describe('미궁관리국 게임판 (ui/bureau)', () => {
       if (W.day % 45 === 0) {
         expect(topHtml(W)).toContain('예산');
         for (const d of W.dungeons) expect(mapHtml(W, ui)).toContain(d.name);
-        for (const tab of ['look', 'asks', 'rules', 'meet', 'office'] as const) expect(paneHtml(W, { ...ui, tab }).length).toBeGreaterThan(20);
+        for (const tab of ['look', 'asks', 'lib', 'meet', 'office'] as const) expect(paneHtml(W, { ...ui, tab }).length).toBeGreaterThan(20);
         for (const sel of ['dg:1', 'fac:big', 'fac:lord']) expect(paneHtml(W, { ...ui, tab: 'look', sel })).toContain('관할 요약');
       }
     }
