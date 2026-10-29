@@ -2,14 +2,14 @@
 // 판을 이 브라우저에 저장한다(`lb-bureau`). 엔진은 src/bureau/engine.ts
 import './ui/bureau/bureau.css';
 import { getSeed, setSeed } from './core/rng';
-import { type FacId, type World, answer, meet, newWorld, over, post, run, step, withdraw } from './bureau/engine';
+import { type FacId, type World, answer, hireClerk, meet, newWorld, over, post, recall, run, send, step, withdraw } from './bureau/engine';
 import { BOT } from './bureau/bots';
 import { CLAUSE, type ClauseId, FORM_OF, type To, addClause, canAdd, dropClause } from './bureau/clauses';
 import { type BuUi, DRAFT0, type Tab, endHtml, introHtml, paneHtml, tabsHtml, topHtml } from './ui/bureau/board';
 import { mapHtml } from './ui/bureau/map';
 
 const $ = (id: string) => document.getElementById(id)!;
-const KEY = 'lb-bureau', VERSION = 3;
+const KEY = 'lb-bureau', VERSION = 5;
 let W: World, ui: BuUi, seed = 0;
 
 function save() { try { localStorage.setItem(KEY, JSON.stringify({ v: VERSION, seed, rng: getSeed(), W, ui })); } catch { /* 저장이 막혀도 판은 계속된다 */ } }
@@ -24,7 +24,7 @@ function fresh() {
 function draw() {
   $('top').innerHTML = topHtml(W);
   $('board').innerHTML = mapHtml(W, ui);
-  if (ui.tab === 'news') ui.seenNews = W.reports.length;
+  if (ui.tab === 'office') ui.seenNews = W.reports.length;
   $('tabs').innerHTML = tabsHtml(W, ui);
   $('pane').innerHTML = paneHtml(W, ui);
   const ov = $('over');
@@ -73,14 +73,18 @@ function act(a: string, d = 0) {
     const f = draft(), id = arg as ClauseId, fd = CLAUSE[id].field;
     if (fd && f.cl[id] != null) ui.draft = { ...f, cl: { ...f.cl, [id]: clamp(f.cl[id]! + d * fd.step, fd.min, fd.max) } };
   }
-  else if (k === 'post') { const f = draft(); if (FORM_OF[f.to] === 'notice') post(W, f.dg, f.days, f.cl); }
+  else if (k === 'post') {
+    const f = draft();
+    if (FORM_OF[f.to] === 'notice') post(W, f.dg, f.days, f.cl);
+    else if (f.to === 'big' || f.to === 'small') send(W, f.to, f.dg, f.days, f.cl);
+  }
+  else if (k === 'recall') recall(W, +arg);
+  else if (k === 'clerk') hireClerk(W);
   else if (k === 'withdraw') withdraw(W, +arg);
-  else if (k === 'prio') W.prio = clamp(W.prio + d * 5, 0, 100);
-  else if (k === 'share') W.lordShare = clamp(W.lordShare + d, 0, 40);
   else if (k === 'give') { const ask = W.asks.find(x => x.id === +arg); if (ask) ui.give[ask.id] = clamp((ui.give[ask.id] ?? ask.want) + d * 10, 0, ask.want); }
   else if (k === 'answer' || k === 'refuse') { const ask = W.asks.find(x => x.id === +arg); if (ask) { answer(W, ask.id, k === 'refuse' ? 0 : ui.give[ask.id] ?? ask.want); delete ui.give[ask.id]; } }
   else if (k === 'inv') { const f = arg as FacId; ui.invite = ui.invite.includes(f) ? ui.invite.filter(x => x !== f) : [...ui.invite, f]; }
-  else if (k === 'meet') { meet(W, ui.invite); ui.tab = 'news'; }
+  else if (k === 'meet') { meet(W, ui.invite); ui.tab = 'office'; }
   else return;
   save(); draw();
 }
@@ -97,9 +101,14 @@ document.addEventListener('pointerdown', e => {
   hold = setTimeout(() => { hold = setInterval(run1, 70); }, 380);
 });
 for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) document.addEventListener(ev, stopHold);
+// 드롭다운: 고른 값을 붙여 보낸다 ('wto' + 'big' → 'wto:big')
+document.addEventListener('change', e => {
+  const s = e.target as HTMLSelectElement;
+  if (s.tagName === 'SELECT' && s.dataset.act && s.value) act(`${s.dataset.act}:${s.value}`);
+});
 document.addEventListener('click', e => {
   const b = (e.target as Element).closest('[data-act]') as HTMLElement | null;
-  if (!b || b.dataset.d || (b as HTMLButtonElement).disabled) return;
+  if (!b || b.tagName === 'SELECT' || b.dataset.d || (b as HTMLButtonElement).disabled) return;
   act(b.dataset.act!);
 });
 document.addEventListener('keydown', e => {

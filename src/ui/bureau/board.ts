@@ -1,10 +1,10 @@
 // 미궁관리국 게임판: HTML 문자열을 만든다. 상태에 아무것도 쓰지 않고 난수도 쓰지 않는다(그리기만).
 // 위 띠(날 · 예산 · 입지 · 다음 날) · 왼쪽 관할 지도(map.ts) · 오른쪽 탭(살펴보기 · 요청서 · 조항 · 회의 · 보고)
 import { lookHtml } from './map';
-import { B, type FacId, FACS, type World, facOf, nameOf, pactK, relOf, seenLevel, teamsIn, willOf } from '../../bureau/engine';
+import { B, type FacId, FACS, type World, docsOut, facOf, levelOf, nameOf, pactK, relOf, seenLevel, subAt, teamsIn, willOf } from '../../bureau/engine';
 import { CLAUSE, CLAUSES, CLAUSE_MAX, type Clause, type Clauses, type ClauseId, FORM_NAME, FORM_OF, type Form, TO_NAME, type To, clauseLock, fits, toLock } from '../../bureau/clauses';
 
-export type Tab = 'look' | 'asks' | 'rules' | 'meet' | 'news';
+export type Tab = 'look' | 'asks' | 'rules' | 'meet' | 'office';
 // sel: 지도에서 고른 것('dg:0' · 'fac:big', 비우면 관할 요약). draft: 쓰고 있는 서류(받는 쪽 · 미궁 · 기간 · 조항과 값)
 export interface Draft { to: To; dg: number; days: number; cl: Clauses }
 export interface BuUi { tab: Tab; invite: FacId[]; give: Record<number, number>; intro: boolean; seenNews: number; sel?: string; draft?: Draft }
@@ -24,7 +24,7 @@ const stepper = (act: string, val: string, label: string) =>
 // 하루 예산 흐름의 어림: 입장료(영주 몫 뺌) − 보조금
 export function dayFlow(W: World) {
   let fee = 0, sub = 0;
-  for (const d of W.dungeons) { const n = teamsIn(d); fee += n * B.FEE * (1 - W.lordShare / 100); sub += n * d.sub; }
+  W.dungeons.forEach((d, i) => { const n = teamsIn(d); fee += n * B.FEE * (1 - W.lordShare / 100); sub += n * subAt(W, i); });
   return { fee, sub, net: fee - sub };
 }
 
@@ -34,7 +34,8 @@ export function topHtml(W: World) {
   return `<div class="t-day"><b class="num">${Math.min(W.day + 1, B.DAYS)}</b><span>일 / ${B.DAYS} · ${month}달째</span></div>
   <div class="t-cell"><span>예산</span><b class="num ${W.budget < 0 ? 'neg' : ''}">${n0(W.budget)}G</b><small class="num ${f.net < 0 ? 'neg' : ''}">하루 ${sgn(f.net)}</small></div>
   <div class="t-cell"><span>입지</span><b class="num">${n1(W.standing)}</b><i class="gauge"><i style="width:${W.standing}%"></i></i></div>
-  <div class="t-cell"><span>중앙 배정</span><b class="num">${n0(grant)}G</b><small>${toGrant}일 뒤</small></div>
+  ${W.order && !W.order.done ? `<div class="t-cell t-order"><span>요구서</span><b class="num">${W.order.got} / ${W.order.need}일</b><small class="num">폐광 ${n1(teamsIn(W.dungeons[W.order.dg]))} / ${W.order.min}조 · ${Math.max(0, W.order.until - W.day)}일 남음</small></div>`
+    : `<div class="t-cell"><span>중앙 배정</span><b class="num">${n0(grant)}G</b><small>${toGrant}일 뒤</small></div>`}
   <div class="t-btns"><button type="button" class="go" data-act="next" ${W.day >= B.DAYS ? 'disabled' : ''}>다음 날 <kbd>N</kbd></button><button type="button" data-act="ff" ${W.day >= B.DAYS ? 'disabled' : ''}>닷새</button></div>`;
 }
 
@@ -46,13 +47,13 @@ export function dungeonHtml(W: World, i: number) {
     <div class="lv"><div class="lv-bar"><i style="height:${Math.min(100, lv)}%"></i><b style="bottom:${B.DANGER}%"></b></div>
       <div class="lv-num"><b class="num">${n0(lv)}</b><span class="tag">${levelWord(lv)}</span><small class="num">${tr >= 0.05 ? '▲' : tr <= -0.05 ? '▼' : '–'} 하루 ${n1(Math.abs(tr))}</small><small>${d.dist}일 전 보고</small></div></div>
     <dl class="dg-teams"><dt>붉은 깃발단</dt><dd class="num">${n1(d.teams.big)}조</dd><dt>중소 연합</dt><dd class="num">${n1(d.teams.small)}조</dd><dt>범람 · 잃은 조</dt><dd class="num">${d.floods} · ${n1(d.dead)}</dd></dl>
-    <div class="dg-sub"><span>진입 보조금 <small>${noticeWord(W, i)}</small></span><b class="num">${d.sub}G</b><small class="num">하루 ${n0(n * d.sub)}G</small><button type="button" data-act="write:${i}">서류 쓰기</button></div>
+    <div class="dg-sub"><span>진입 보조금 <small>${noticeWord(W, i)}</small></span><b class="num">${subAt(W, i)}G</b><small class="num">하루 ${n0(n * subAt(W, i))}G</small><button type="button" data-act="write:${i}">서류 쓰기</button></div>
   </article>`;
 }
 
 const noticeWord = (W: World, i: number) => {
   const n = W.notices.find(x => x.dg === i);
-  return n ? `공고문 · ${n.until - W.day}일 남음` : W.dungeons[i].sub > 0 ? '조마다 하루' : '공고 없음';
+  return n ? `공고문 · ${n.until - W.day}일 남음` : subAt(W, i) > 0 ? '조마다 하루' : '공고 없음';
 };
 
 // 서류 쓰기: 받는 쪽이 양식을 정한다(길드 전체 공고문 · 길드 하나 요청서 · 상단 제안서). 조항을 넣고 빼고 숫자를 고친다.
@@ -64,50 +65,53 @@ const PAPER: Record<Form, { head: (no: number) => string; to: (to: To) => string
 };
 const tagsHtml = (c: Clause) => c.give.map(t => `<span class="ctag give">${t} 내줌</span>`).join('') + c.take.map(t => `<span class="ctag take">${t} 받음</span>`).join('');
 
+// 고르는 칸: 열린 것만 담는 드롭다운. 고르면 data-act에 값을 붙여 보낸다(bureauMain의 change)
+const pick = (act: string, label: string, opts: { v: string; name: string; on?: boolean; off?: string }[], ph = '') =>
+  `<select data-act="${act}" aria-label="${label}">${ph ? `<option value="" selected>${ph}</option>` : ''}${opts.map(o => `<option value="${o.v}"${o.on ? ' selected' : ''}${o.off ? ' disabled' : ''}>${o.name}${o.off ? ` (${o.off})` : ''}</option>`).join('')}</select>`;
+
+// 서류 쓰기: 받는 쪽이 양식을 정한다. 열리지 않은 받는 쪽 · 조항은 보이지 않는다
 function writeHtml(W: World, ui: BuUi) {
-  const f = ui.draft ?? DRAFT0, form = FORM_OF[f.to], P = PAPER[form], d = W.dungeons[f.dg], n = teamsIn(d);
-  const lock = toLock(W, f.to), ids = Object.keys(f.cl) as ClauseId[], old = W.notices.find(x => x.dg === f.dg);
-  const no = Math.max(0, ...W.notices.map(x => x.id)) + 1;
-  const tos: To[] = ['all', 'big', 'small', 'trade'];
-  const toBtn = (t: To) => `<button type="button" class="opt${t === f.to ? ' on' : ''}${toLock(W, t) ? ' lock' : ''}" data-act="wto:${t}" aria-pressed="${t === f.to}" ${toLock(W, t) ? `title="${toLock(W, t)}"` : ''}>${toLock(W, t) ? '🔒 ' : ''}${TO_NAME[t]} <small>${FORM_NAME[FORM_OF[t]]}</small></button>`;
+  const tos = (['all', 'big', 'small', 'trade'] as To[]).filter(t => !toLock(W, t));
+  const f0 = ui.draft ?? DRAFT0, f = tos.includes(f0.to) ? f0 : { ...f0, to: 'all' as To };
+  const form = FORM_OF[f.to], P = PAPER[form], d = W.dungeons[f.dg];
+  const n = f.to === 'big' || f.to === 'small' ? d.teams[f.to] : teamsIn(d);
+  const ids = Object.keys(f.cl) as ClauseId[], old = form === 'notice' && W.notices.find(x => x.dg === f.dg);
   const row = (id: ClauseId, k: number) => {
     const c = CLAUSE[id], v = f.cl[id]!;
     return `<li><div class="c-head"><b>제${k + 1}조 ${c.name}</b>${c.needs ? `<small class="chain">⛓ ${CLAUSE[c.needs].name}</small>` : ''}<button type="button" class="x" data-act="wdel:${id}" aria-label="${c.name} 빼기">빼기</button></div>
       <p>${c.line(v)}</p>${c.field ? stepper(`wv:${id}`, `${v}${c.field.unit}`, c.name) : ''}</li>`;
   };
-  // 이 양식에 넣을 수 있는 조항: 넣기 단추, 아니면 왜 못 넣는지. 잠긴 조항은 보이지 않는다
-  const pal = CLAUSES.filter(c => c.forms.includes(form) && f.cl[c.id] == null && !clauseLock(W, c.id)).map(c => {
-    const [ic, why] = c.needs && f.cl[c.needs] == null ? ['⛓', `${CLAUSE[c.needs].name} 먼저`] : ids.length >= CLAUSE_MAX ? ['·', `${CLAUSE_MAX}조가 다 참`] : ['+', ''];
-    return `<button type="button" class="opt add${why ? ' lock' : ''}" data-act="wadd:${c.id}" ${why ? `disabled title="${why}"` : ''}>${ic} ${c.name}</button>`;
-  }).join('');
+  // 이 양식에 넣을 수 있는 열린 조항. 바탕이 없는 걸린 조항은 고를 수 없게
+  const pal = CLAUSES.filter(c => c.forms.includes(form) && f.cl[c.id] == null && !clauseLock(W, c.id))
+    .map(c => ({ v: c.id, name: c.name, off: c.needs && f.cl[c.needs] == null ? `⛓ ${CLAUSE[c.needs].name} 먼저` : '' }));
   const sub = f.cl.sub ?? 0, comfort = f.cl.comfort;
   const cost = [sub ? `보조금 하루 ${n0(n * sub)}G · 기한 ${n0(n * sub * f.days)}G 어림` : '', comfort ? `잃은 조마다 ${comfort}G` : ''].filter(Boolean).join(' · ');
-  const canPost = !lock && ids.length > 0 && ids.every(id => fits(W, form, f.cl, id));
+  const full = !old && docsOut(W) >= W.clerks;
+  const canPost = !full && ids.length > 0 && ids.every(id => fits(W, form, f.cl, id));
   return `<article class="write">
-    <h4>서류 쓰기</h4>
-    <div class="w-row"><span>받는 쪽</span><div class="opts">${tos.map(toBtn).join('')}</div></div>
-    <div class="w-row"><span>미궁</span><div class="opts">${W.dungeons.map((x, i) => `<button type="button" class="opt${i === f.dg ? ' on' : ''}" data-act="wdg:${i}" aria-pressed="${i === f.dg}">${x.name}</button>`).join('')}</div></div>
-    <div class="paper f-${form}${lock ? ' locked' : ''}">
-      <header><small>${P.head(no)}</small><h3>${FORM_NAME[form]}</h3></header>
+    <h4>서류 쓰기 <small class="num">서기 ${W.clerks}명 · 낸 서류 ${docsOut(W)} / ${W.clerks}</small></h4>
+    <div class="w-row"><span>받는 쪽</span>${pick('wto', '받는 쪽', tos.map(t => ({ v: t, name: `${TO_NAME[t]} · ${FORM_NAME[FORM_OF[t]]}`, on: t === f.to })))}</div>
+    <div class="w-row"><span>미궁</span>${pick('wdg', '미궁', W.dungeons.map((x, i) => ({ v: String(i), name: x.name, on: i === f.dg })))}</div>
+    <div class="paper f-${form}">
+      <header><small>${P.head(W.docN + 1)}</small><h3>${FORM_NAME[form]}</h3></header>
       <p class="p-to">${P.to(f.to)}</p>
       <p>${P.body(d.name)}</p>
       ${ids.length ? `<ol class="p-cl">${ids.map(row).join('')}</ol>` : '<p class="empty">조항을 아래에서 넣는다.</p>'}
       <div class="p-term"><span>${P.term}</span>${stepper('wdays', `${f.days}일`, P.term)}<small class="num">${W.day + f.days}일까지</small></div>
       <p class="p-sign">미궁관리국장</p>
-      ${lock ? `<p class="stamp">🔒 ${lock}</p>` : ''}
     </div>
-    <div class="w-row"><span>조항 넣기 <small>${ids.length} / ${CLAUSE_MAX}</small></span><div class="opts">${pal || '<small class="note">더 넣을 조항 없음</small>'}</div></div>
+    <div class="w-row"><span>조항 넣기 <small>${ids.length} / ${CLAUSE_MAX}</small></span>${pal.length && ids.length < CLAUSE_MAX ? pick('wadd', '조항 넣기', pal, '조항 고르기') : '<small class="note">더 넣을 조항 없음</small>'}</div>
     ${cost ? `<p class="w-cost num">지금 ${n1(n)}조 기준 · ${cost}</p>` : ''}
-    <button type="button" class="go wide" data-act="post" ${canPost ? '' : 'disabled'}>${lock ? '보낼 수 없음' : form === 'notice' ? (old ? '공고문 고쳐 내걸기' : '공고문 내걸기') : '보내기'}</button>
+    ${form === 'letter' ? `<p class="w-cost">${B.LETTER_DAYS}일 뒤 답이 온다. 서명하면 ${TO_NAME[f.to]}에만 걸린다.</p>` : ''}
+    <button type="button" class="go wide" data-act="post" ${canPost ? '' : 'disabled'}>${full ? '서기가 모자람 · 집무실' : form === 'notice' ? (old ? '공고문 고쳐 내걸기' : '공고문 내걸기') : '요청서 보내기'}</button>
   </article>`;
 }
 
+const clLine = (cl: Clauses) => (Object.keys(cl) as ClauseId[]).map(k => CLAUSE[k].name + (CLAUSE[k].field ? ` <b class="num">${cl[k]}${CLAUSE[k].field!.unit}</b>` : '')).join(' · ');
 function postedHtml(W: World) {
-  if (!W.notices.length) return '';
-  return `<h4>내건 공고문</h4>${W.notices.map(x => {
-    const d = W.dungeons[x.dg], cl = (Object.keys(x.cl) as ClauseId[]).map(k => CLAUSE[k].name + (CLAUSE[k].field ? ` <b class="num">${x.cl[k]}${CLAUSE[k].field!.unit}</b>` : '')).join(' · ');
-    return `<p class="past notice"><span>${d.name} · ${cl}</span><small class="num">${x.until - W.day}일 남음</small><button type="button" data-act="withdraw:${x.id}">철회</button></p>`;
-  }).join('')}`;
+  if (!docsOut(W)) return '';
+  return `<h4>낸 서류</h4>${W.notices.map(x => `<p class="past notice"><span>공고문 · ${W.dungeons[x.dg].name} · ${clLine(x.cl)}</span><small class="num">${x.until - W.day}일 남음</small><button type="button" data-act="withdraw:${x.id}">철회</button></p>`).join('')}
+  ${W.letters.map(l => `<p class="past notice"><span>요청서 · ${nameOf(W, l.to)} · ${W.dungeons[l.dg].name} · ${clLine(l.cl)}</span><small class="num">${l.until == null ? `답 ${l.at - W.day}일 뒤` : `서명 · ${l.until - W.day}일 남음`}</small><button type="button" data-act="recall:${l.id}">거두기</button></p>`).join('')}`;
 }
 
 // 조항 탭: 국장이 서류에 쓸 수 있는 조항의 설명서 (잠긴 조항은 열리기 전까지 보이지 않는다)
@@ -121,12 +125,22 @@ function clausesHtml(W: World) {
   ${CLAUSES.filter(c => !clauseLock(W, c.id)).map(card).join('')}`;
 }
 
-// 관리국 규정: 서류 없이 국장이 바로 정하는 것 (살펴보기의 관할 요약에 둔다)
-export function rulesHtml(W: World) {
-  const side = W.prio > 50 ? '붉은 깃발단 쪽' : W.prio < 50 ? '중소 연합 쪽' : '가운데';
-  return `<section class="rules"><h2>관리국 규정</h2>
-    <div class="rule"><h4>우선권</h4><p>미궁 몫을 나눌 때 어느 길드를 먼저 세우나</p>${stepper('prio', String(W.prio), '우선권')}<span class="tag">${side}</span></div>
-    <div class="rule"><h4>입장료의 영주 몫</h4><p>조마다 하루 ${B.FEE}G 입장료에서 영주에게 가는 몫</p>${stepper('share', `${W.lordShare}%`, '영주 몫')}</div></section>`;
+// 집무실: 입지 단계 · 서기 · 다음 단계에 열리는 것, 그리고 책상에 온 보고
+function officeHtml(W: World, ui: BuUi) {
+  const lv = W.rank, next = B.STAND_LV[lv], prev = B.STAND_LV[lv - 1];
+  const prog = next == null ? 100 : Math.max(0, Math.min(100, (W.standing - prev) / (next - prev) * 100));
+  const opens = (k: number) => k === B.LETTER_LV ? '길드 지정 서신(요청서)' : '';
+  const rs = W.reports.slice().reverse().slice(0, 40);
+  return `<section class="office">
+    ${W.order ? `<div class="o-order ${W.order.done}"><span>중앙 요구서</span><b>폐광 하루 ${W.order.min}조 이상 · ${W.order.need}일</b><small class="num">${orderLine(W)}</small></div>` : ''}
+    <div class="o-rank"><span>입지 단계</span><b class="num">${lv}</b><i class="gauge"><i style="width:${prog}%"></i></i>
+      <small class="num">${next == null ? '끝 단계' : `입지 ${n1(W.standing)} / ${next} → ${lv + 1}단계${opens(lv + 1) ? ` · ${opens(lv + 1)} 열림` : ''} · 서기 한 명`}</small></div>
+    <div class="o-clerk"><span>서기</span><b class="num">${W.clerks}명</b><small>한꺼번에 낼 서류 ${W.clerks}장 · 지금 ${docsOut(W)}장</small>
+      <button type="button" class="go" data-act="clerk" ${W.pts > 0 ? '' : 'disabled'}>서기 들이기${W.pts > 0 ? ` (${W.pts})` : ''}</button></div>
+    ${levelOf(W.standing) < lv ? `<p class="note">입지가 단계 기준 아래로 내려갔다. 단계와 서기는 그대로다.</p>` : ''}
+  </section>
+  <h4>보고</h4>
+  <ul class="news">${rs.map((r, k) => `<li class="${W.reports.length - k > ui.seenNews ? 'new' : ''}"><small>${r.day}일 · ${r.from}</small><b>${r.title}</b>${r.chips.map(c => `<span class="chip">${c}</span>`).join('')}</li>`).join('')}</ul>`;
 }
 
 export function facHtml(W: World, f: FacId) {
@@ -157,7 +171,7 @@ const openAsks = (W: World) => W.asks.filter(a => a.got == null);
 export function tabsHtml(W: World, ui: BuUi) {
   const news = W.reports.length - ui.seenNews, asks = openAsks(W).length;
   const t = (id: Tab, name: string, badge = 0) => `<button type="button" role="tab" data-act="tab:${id}" aria-selected="${ui.tab === id}">${name}${badge ? ` <span class="badge">${badge}</span>` : ''}</button>`;
-  return t('look', '살펴보기') + t('asks', '서류', asks) + t('rules', '조항') + t('meet', '회의') + t('news', '보고', ui.tab === 'news' ? 0 : news);
+  return t('look', '살펴보기') + t('asks', '서류', asks) + t('rules', '조항') + t('meet', '회의') + t('office', '집무실', ui.tab === 'office' ? 0 : news + W.pts);
 }
 
 export function paneHtml(W: World, ui: BuUi) {
@@ -183,20 +197,29 @@ export function paneHtml(W: World, ui: BuUi) {
     <button type="button" class="go wide" data-act="meet" ${cool > 0 || !ui.invite.includes('big') || !ui.invite.includes('small') ? 'disabled' : ''}>회의 열기${cool > 0 ? ` · ${cool}일 뒤` : ''}</button>
     ${pactLine(W)}`;
   }
-  const rs = W.reports.slice().reverse().slice(0, 40);
-  return `<ul class="news">${rs.map((r, k) => `<li class="${W.reports.length - k > ui.seenNews ? 'new' : ''}"><small>${r.day}일 · ${r.from}</small><b>${r.title}</b>${r.chips.map(c => `<span class="chip">${c}</span>`).join('')}</li>`).join('')}</ul>`;
+  return officeHtml(W, ui);
 }
 
-// 처음 부임할 때 한 장
+// 처음 부임할 때: 신문 한 장과 중앙 행정원의 첫 요구서
 export function introHtml() {
-  return `<div class="card intro"><small>중앙 행정원 · 임명장</small><h2>미궁관리국장 부임</h2>
-  <p>폐광 아래 미궁이 넘쳐 마을이 잠겼다. 관리국은 길드에 명령하지 못한다. 돈과 조항과 회의로 길드 · 영주가 스스로 움직이게 한다.</p>
-  <ul><li><b>수위</b>: 조가 미궁에 들어가 몬스터를 잡아야 내려간다. 보고는 거리만큼 늦게 온다.</li>
-  <li><b>서류</b>: 조항을 골라 조합해 쓴다. 받는 쪽이 양식을 정한다(길드 전체 공고문 · 길드 하나 요청서 · 상단 제안서). 지금은 공고문만 보낼 수 있다.</li>
-  <li><b>받은 청</b>: 길드 · 영주의 청을 들어주면 신세를 받고, 받은 신세로 회의 서명을 얻는다.</li>
-  <li><b>회의</b>: 사이가 틀어진 두 길드를 불러 출입 협정을 맺게 한다.</li></ul>
-  <p>임기는 ${B.DAYS}일. 범람을 줄이고 입지를 지킨다.</p>
-  <button type="button" class="go wide" data-act="start">부임</button></div>`;
+  const o = B.ORDER;
+  return `<div class="card intro">
+  <div class="paper-news"><small>왕도일보 · 1면</small><h2>폐광 아래 미궁 범람, 로이드 백작령 마을 잠겨</h2>
+    <p>왕국군이 1차 진압으로 수위를 눌러 두고 물러났다. 중앙 행정원은 미궁관리국을 새로 두었다. 관리국은 길드에 명령하지 못한다.</p></div>
+  <div class="paper f-notice order-paper"><header><small>중앙 행정원</small><h3>요 구 서</h3></header>
+    <p class="p-to">미궁관리국장 귀하</p>
+    <p>폐광에 길드의 조가 끊이지 않게 하라. <b>${o.days}일 안에, 하루 ${o.min}조 이상 든 날이 ${o.need}일</b>이면 예산 ${o.pay}G를 더 배정하고 입지를 올린다. 못 채우면 입지를 깎는다.</p>
+    <p class="note">조는 끌림을 따라 든다. 서류 탭에서 폐광에 진입 보조금 공고문을 내걸어 조를 끌어들인다.</p>
+    <p class="p-sign">중앙 행정원</p></div>
+  <button type="button" class="go wide" data-act="start">요구서 받고 부임</button></div>`;
+}
+
+// 요구서의 진행: 위 띠와 집무실
+export function orderLine(W: World) {
+  const o = W.order;
+  if (!o) return '';
+  const now = teamsIn(W.dungeons[o.dg]);
+  return o.done === 'ok' ? '요구서 달성' : o.done === 'fail' ? '요구서 미달' : `폐광 ${n1(now)} / ${o.min}조 · ${o.got} / ${o.need}일 · ${Math.max(0, o.until - W.day)}일 남음`;
 }
 
 // 임기 끝: 같은 판을 손 놓은 국장 · 숙련 봇이 했다면

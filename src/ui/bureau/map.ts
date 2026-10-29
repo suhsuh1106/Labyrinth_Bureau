@@ -2,8 +2,8 @@
 // 관리국 · 미궁 셋 · 길드 본부 둘 · 영주 성을 놓는다. 길드 본부에서 미궁으로 가는 길은 들어간 조만큼 굵고,
 // 미궁 표식의 고리는 보고된 수위, 세력 사이는 본부 사이의 선 색 · 낱말이다. 그리기만 하고 상태에 쓰지 않는다.
 import mapUrl from './art/map.webp';
-import { B, type FacId, FACS, type GuildId, type World, nameOf, pactK, relOf, seenLevel, teamsIn } from '../../bureau/engine';
-import { type BuUi, dungeonHtml, facHtml, levelCls, levelWord, n0, n1, pactLine, relRow, relWord, rulesHtml } from './board';
+import { B, type FacId, FACS, type GuildId, type World, nameOf, pactK, relOf, seenLevel, subAt, teamsIn } from '../../bureau/engine';
+import { type BuUi, dungeonHtml, facHtml, levelCls, levelWord, n0, n1, pactLine, relRow, relWord } from './board';
 
 // 지도 자리 (viewBox 1000 × 567, 그림과 같은 비율)
 const DG_AT: [number, number][] = [[452, 282], [700, 140], [800, 262]];   // 폐광 · 검은숲 미궁 · 수몰 갱도
@@ -62,7 +62,7 @@ export function mapHtml(W: World, ui: BuUi) {
       <circle class="disc" cx="${x}" cy="${y}" r="22"/>
       <circle class="ring" cx="${x}" cy="${y}" r="22" style="stroke-dasharray:${C * Math.min(1, lv / 100)} ${C}" transform="rotate(-90 ${x} ${y})"/>
       <text class="lv" x="${x}" y="${y + 6}" text-anchor="middle">${n0(lv)}</text>
-      ${d.sub > 0 ? `<g class="coin"><circle cx="${x + 20}" cy="${y - 18}" r="9"/><text x="${x + 20}" y="${y - 14}" text-anchor="middle">${d.sub}</text></g>` : ''}
+      ${subAt(W, i) > 0 ? `<g class="coin"><circle cx="${x + 20}" cy="${y - 18}" r="9"/><text x="${x + 20}" y="${y - 14}" text-anchor="middle">${subAt(W, i)}</text></g>` : ''}
       ${label(x, y + 38, d.name, on ? 'strong' : '')}
       ${label(x, y + 52, `${levelWord(lv)} · ${n1(teamsIn(d))}조${d.floods ? ` · 범람 ${d.floods}` : ''}`, 'small')}</g>`;
   });
@@ -79,6 +79,6 @@ export function lookHtml(W: World, ui: BuUi) {
     return back + facHtml(W, f) + `<section class="rels">${others.map(o => relRow(W, f, o)).join('')}${f !== 'lord' ? pactLine(W) : ''}</section>`;
   }
   return `<p class="note">지도에서 미궁이나 깃발을 누르면 자세히 본다.</p>
-  <div class="sum">${W.dungeons.map((d, i) => { const lv = seenLevel(W, i); return `<button type="button" class="sum-row ${levelCls(lv)}" data-act="sel:dg:${i}"><b>${d.name}</b><span class="num">${n0(lv)}</span><span class="tag">${levelWord(lv)}</span><small class="num">${n1(teamsIn(d))}조 · 보조금 ${d.sub}G</small></button>`; }).join('')}</div>
-  <section class="rels"><h2>세력 사이</h2>${relRow(W, 'big', 'small')}${relRow(W, 'big', 'lord')}${relRow(W, 'lord', 'small')}${pactLine(W)}</section>${rulesHtml(W)}`;
+  <div class="sum">${W.dungeons.map((d, i) => { const lv = seenLevel(W, i); return `<button type="button" class="sum-row ${levelCls(lv)}" data-act="sel:dg:${i}"><b>${d.name}</b><span class="num">${n0(lv)}</span><span class="tag">${levelWord(lv)}</span><small class="num">${n1(teamsIn(d))}조 · 보조금 ${subAt(W, i)}G</small></button>`; }).join('')}</div>
+  <section class="rels"><h2>세력 사이</h2>${relRow(W, 'big', 'small')}${relRow(W, 'big', 'lord')}${relRow(W, 'lord', 'small')}${pactLine(W)}</section>`;
 }

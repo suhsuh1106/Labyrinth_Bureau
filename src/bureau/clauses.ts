@@ -2,7 +2,7 @@
 // 길드 전체 → 공고문, 길드 하나 → 요청서, 상단 → 제안서. 조항마다 돈 · 정보 · 권리 · 안전 중 무엇을 주고받는지(꼬리표),
 // 어느 양식에 넣을 수 있는지, 숫자 칸, 걸린 바탕 조항(⛓), 잠김 까닭을 데이터로 둔다. 효과는 engine.ts가 셈한다.
 // 잠김 · 열림 조건은 조항 정의 안에만 둔다(코드 곳곳에 흩지 않는다).
-import type { World } from './engine';
+import { B, type World } from './engine';
 
 export type Tag = '돈' | '정보' | '권리' | '안전';
 export type Form = 'notice' | 'letter' | 'offer';
@@ -14,8 +14,9 @@ export const FORM_OF: Record<To, Form> = { all: 'notice', big: 'letter', small: 
 export const FORM_NAME: Record<Form, string> = { notice: '공고문', letter: '요청서', offer: '제안서' };
 export const TO_NAME: Record<To, string> = { all: '길드 전체', big: '붉은 깃발단', small: '중소 연합', trade: '상단' };
 // 받는 쪽이 잠긴 까닭 (비우면 열림)
-const TO_LOCK: Record<To, string> = { all: '', big: '개별 길드 서신은 아직 열리지 않음', small: '개별 길드 서신은 아직 열리지 않음', trade: '상단과 거래가 아직 열리지 않음' };
-export const toLock = (_W: World, to: To) => TO_LOCK[to];
+// 길드 하나에 보내는 요청서는 입지 단계가 B.LETTER_LV에 닿으면 열린다. 화면은 잠긴 받는 쪽을 보이지 않는다
+export const toLock = (W: World, to: To) =>
+  to === 'trade' ? '상단과 거래가 아직 열리지 않음' : to !== 'all' && W.rank < B.LETTER_LV ? `입지 ${B.LETTER_LV}단계에 열림` : '';
 
 export interface Field { unit: string; min: number; max: number; step: number; def: number }
 export interface Clause {
