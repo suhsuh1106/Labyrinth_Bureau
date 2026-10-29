@@ -1,7 +1,7 @@
 // 미궁관리국 게임판: HTML 문자열을 만든다. 상태에 아무것도 쓰지 않고 난수도 쓰지 않는다(그리기만).
 // 위 띠(날 · 예산 · 입지 · 다음 날) · 왼쪽 관할 지도(map.ts) · 오른쪽 탭(살펴보기 · 요청서 · 조항 · 회의 · 보고)
 import { lookHtml } from './map';
-import { B, type FacId, FACS, type GuildId, type World, docsOut, facOf, levelOf, nameOf, pactK, relOf, seenLevel, teamsIn, willOf } from '../../bureau/engine';
+import { B, type FacId, FACS, type World, docsOut, facOf, levelOf, nameOf, pactK, relOf, seenLevel, subAt, teamsIn, willOf } from '../../bureau/engine';
 import { CLAUSE, CLAUSES, CLAUSE_MAX, type Clause, type Clauses, type ClauseId, FORM_NAME, FORM_OF, type Form, TO_NAME, type To, clauseLock, fits, toLock } from '../../bureau/clauses';
 
 export type Tab = 'look' | 'asks' | 'rules' | 'meet' | 'office';
@@ -24,7 +24,7 @@ const stepper = (act: string, val: string, label: string) =>
 // 하루 예산 흐름의 어림: 입장료(영주 몫 뺌) − 보조금
 export function dayFlow(W: World) {
   let fee = 0, sub = 0;
-  for (const d of W.dungeons) { const n = teamsIn(d); fee += n * B.FEE * (1 - W.lordShare / 100); sub += n * d.sub; }
+  W.dungeons.forEach((d, i) => { const n = teamsIn(d); fee += n * B.FEE * (1 - W.lordShare / 100); sub += n * subAt(W, i); });
   return { fee, sub, net: fee - sub };
 }
 
@@ -34,7 +34,8 @@ export function topHtml(W: World) {
   return `<div class="t-day"><b class="num">${Math.min(W.day + 1, B.DAYS)}</b><span>일 / ${B.DAYS} · ${month}달째</span></div>
   <div class="t-cell"><span>예산</span><b class="num ${W.budget < 0 ? 'neg' : ''}">${n0(W.budget)}G</b><small class="num ${f.net < 0 ? 'neg' : ''}">하루 ${sgn(f.net)}</small></div>
   <div class="t-cell"><span>입지</span><b class="num">${n1(W.standing)}</b><i class="gauge"><i style="width:${W.standing}%"></i></i></div>
-  <div class="t-cell"><span>중앙 배정</span><b class="num">${n0(grant)}G</b><small>${toGrant}일 뒤</small></div>
+  ${W.order && !W.order.done ? `<div class="t-cell t-order"><span>요구서</span><b class="num">${W.order.got} / ${W.order.need}일</b><small class="num">폐광 ${n1(teamsIn(W.dungeons[W.order.dg]))} / ${W.order.min}조 · ${Math.max(0, W.order.until - W.day)}일 남음</small></div>`
+    : `<div class="t-cell"><span>중앙 배정</span><b class="num">${n0(grant)}G</b><small>${toGrant}일 뒤</small></div>`}
   <div class="t-btns"><button type="button" class="go" data-act="next" ${W.day >= B.DAYS ? 'disabled' : ''}>다음 날 <kbd>N</kbd></button><button type="button" data-act="ff" ${W.day >= B.DAYS ? 'disabled' : ''}>닷새</button></div>`;
 }
 
@@ -46,13 +47,13 @@ export function dungeonHtml(W: World, i: number) {
     <div class="lv"><div class="lv-bar"><i style="height:${Math.min(100, lv)}%"></i><b style="bottom:${B.DANGER}%"></b></div>
       <div class="lv-num"><b class="num">${n0(lv)}</b><span class="tag">${levelWord(lv)}</span><small class="num">${tr >= 0.05 ? '▲' : tr <= -0.05 ? '▼' : '–'} 하루 ${n1(Math.abs(tr))}</small><small>${d.dist}일 전 보고</small></div></div>
     <dl class="dg-teams"><dt>붉은 깃발단</dt><dd class="num">${n1(d.teams.big)}조</dd><dt>중소 연합</dt><dd class="num">${n1(d.teams.small)}조</dd><dt>범람 · 잃은 조</dt><dd class="num">${d.floods} · ${n1(d.dead)}</dd></dl>
-    <div class="dg-sub"><span>진입 보조금 <small>${noticeWord(W, i)}</small></span><b class="num">${d.sub}G</b><small class="num">하루 ${n0(n * d.sub)}G</small><button type="button" data-act="write:${i}">서류 쓰기</button></div>
+    <div class="dg-sub"><span>진입 보조금 <small>${noticeWord(W, i)}</small></span><b class="num">${subAt(W, i)}G</b><small class="num">하루 ${n0(n * subAt(W, i))}G</small><button type="button" data-act="write:${i}">서류 쓰기</button></div>
   </article>`;
 }
 
 const noticeWord = (W: World, i: number) => {
   const n = W.notices.find(x => x.dg === i);
-  return n ? `공고문 · ${n.until - W.day}일 남음` : W.dungeons[i].sub > 0 ? '조마다 하루' : '공고 없음';
+  return n ? `공고문 · ${n.until - W.day}일 남음` : subAt(W, i) > 0 ? '조마다 하루' : '공고 없음';
 };
 
 // 서류 쓰기: 받는 쪽이 양식을 정한다(길드 전체 공고문 · 길드 하나 요청서 · 상단 제안서). 조항을 넣고 빼고 숫자를 고친다.
@@ -131,6 +132,7 @@ function officeHtml(W: World, ui: BuUi) {
   const opens = (k: number) => k === B.LETTER_LV ? '길드 지정 서신(요청서)' : '';
   const rs = W.reports.slice().reverse().slice(0, 40);
   return `<section class="office">
+    ${W.order ? `<div class="o-order ${W.order.done}"><span>중앙 요구서</span><b>폐광 하루 ${W.order.min}조 이상 · ${W.order.need}일</b><small class="num">${orderLine(W)}</small></div>` : ''}
     <div class="o-rank"><span>입지 단계</span><b class="num">${lv}</b><i class="gauge"><i style="width:${prog}%"></i></i>
       <small class="num">${next == null ? '끝 단계' : `입지 ${n1(W.standing)} / ${next} → ${lv + 1}단계${opens(lv + 1) ? ` · ${opens(lv + 1)} 열림` : ''} · 서기 한 명`}</small></div>
     <div class="o-clerk"><span>서기</span><b class="num">${W.clerks}명</b><small>한꺼번에 낼 서류 ${W.clerks}장 · 지금 ${docsOut(W)}장</small>
@@ -198,17 +200,26 @@ export function paneHtml(W: World, ui: BuUi) {
   return officeHtml(W, ui);
 }
 
-// 처음 부임할 때 한 장
+// 처음 부임할 때: 신문 한 장과 중앙 행정원의 첫 요구서
 export function introHtml() {
-  return `<div class="card intro"><small>중앙 행정원 · 임명장</small><h2>미궁관리국장 부임</h2>
-  <p>폐광 아래 미궁이 넘쳐 마을이 잠겼다. 관리국은 길드에 명령하지 못한다. 돈과 조항과 회의로 길드 · 영주가 스스로 움직이게 한다.</p>
-  <ul><li><b>수위</b>: 조가 미궁에 들어가 몬스터를 잡아야 내려간다. 보고는 거리만큼 늦게 온다.</li>
-  <li><b>서류</b>: 모든 결정은 서류로 한다. 조항을 골라 조합하고, 받는 쪽이 양식을 정한다. 처음엔 길드 전체에 내거는 공고문뿐이다.</li>
-  <li><b>집무실</b>: 서기 한 명으로 시작한다. 입지가 오르면 서기를 더 들이고, 길드 하나에 보내는 요청서가 열린다.</li>
-  <li><b>받은 청</b>: 길드 · 영주의 청을 들어주면 신세를 받고, 받은 신세로 회의 서명을 얻는다.</li>
-  <li><b>회의</b>: 사이가 틀어진 두 길드를 불러 출입 협정을 맺게 한다.</li></ul>
-  <p>임기는 ${B.DAYS}일. 범람을 줄이고 입지를 지킨다.</p>
-  <button type="button" class="go wide" data-act="start">부임</button></div>`;
+  const o = B.ORDER;
+  return `<div class="card intro">
+  <div class="paper-news"><small>왕도일보 · 1면</small><h2>폐광 아래 미궁 범람, 로이드 백작령 마을 잠겨</h2>
+    <p>왕국군이 1차 진압으로 수위를 눌러 두고 물러났다. 중앙 행정원은 미궁관리국을 새로 두었다. 관리국은 길드에 명령하지 못한다.</p></div>
+  <div class="paper f-notice order-paper"><header><small>중앙 행정원</small><h3>요 구 서</h3></header>
+    <p class="p-to">미궁관리국장 귀하</p>
+    <p>폐광에 길드의 조가 끊이지 않게 하라. <b>${o.days}일 안에, 하루 ${o.min}조 이상 든 날이 ${o.need}일</b>이면 예산 ${o.pay}G를 더 배정하고 입지를 올린다. 못 채우면 입지를 깎는다.</p>
+    <p class="note">조는 끌림을 따라 든다. 서류 탭에서 폐광에 진입 보조금 공고문을 내걸어 조를 끌어들인다.</p>
+    <p class="p-sign">중앙 행정원</p></div>
+  <button type="button" class="go wide" data-act="start">요구서 받고 부임</button></div>`;
+}
+
+// 요구서의 진행: 위 띠와 집무실
+export function orderLine(W: World) {
+  const o = W.order;
+  if (!o) return '';
+  const now = teamsIn(W.dungeons[o.dg]);
+  return o.done === 'ok' ? '요구서 달성' : o.done === 'fail' ? '요구서 미달' : `폐광 ${n1(now)} / ${o.min}조 · ${o.got} / ${o.need}일 · ${Math.max(0, o.until - W.day)}일 남음`;
 }
 
 // 임기 끝: 같은 판을 손 놓은 국장 · 숙련 봇이 했다면

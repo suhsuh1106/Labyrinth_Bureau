@@ -30,6 +30,10 @@ export const B = {
   STAND_LV: [0, 30, 45, 60, 75], LETTER_LV: 2,
   // 요청서(길드 하나에 보내는 서신): 읽고 답하는 날 · 서명할 마음의 문턱 · 길드마다 꼬리표를 보는 무게
   LETTER_DAYS: 2, LETTER_AT: 50,
+  // 공고문은 신문에 실려 퍼진다: 관리국에서 길드 본부까지 걸리는 날만큼 뒤에 그 길드에 걸린다
+  HQ_DIST: { big: 2, small: 1 } as Record<'big' | 'small', number>,
+  // 첫 요구서(중앙 행정원): 기한 안에 폐광에 하루 min조 이상 든 날이 need일이면 예산 · 입지를 준다. 못 채우면 입지를 깎는다
+  ORDER: { dg: 0, min: 7, need: 15, days: 30, pay: 1000, stand: 12, fail: 5 },
   LETTER_W: { big: { money: 0.4, info: 15, safe: 1 }, small: { money: 0.8, info: 5, safe: 3 } } as Record<'big' | 'small', { money: number; info: number; safe: number }>,
   PRICE: 10, FEE: 2,                      // 소재 값 · 조마다 하루 입장료
   UPKEEP: 0.9, GROW: 120, GROW_COST: 100, SHRINK: -80, SIZE_MIN: 2,
@@ -107,7 +111,9 @@ export interface World {
   letters: Letter[];              // 길드 하나에 보낸 요청서 (답을 기다림 · 서명됨)
   docN: number;                   // 서류 번호
   rank: number; clerks: number; pts: number; // 집무실: 닿은 입지 단계 · 서기 · 서기를 들일 수 있는 몫
+  order: Order;                   // 중앙 행정원의 요구서
 }
+export interface Order { dg: number; min: number; need: number; until: number; got: number; done: '' | 'ok' | 'fail' }
 // 길드 하나에 보낸 요청서: 이틀 뒤 서명할 마음 + 조항의 꼬리표 무게로 답한다. 서명하면 그 길드에만 조항이 걸린다
 export interface Letter { id: number; day: number; to: GuildId; dg: number; days: number; cl: Clauses; at: number; until?: number }
 // 국장이 쓰는 서류 중 길드 전체에 내건 공고문(clauses.ts의 조항 조합). 미궁 하나에 기한까지 걸린다
@@ -115,7 +121,8 @@ export interface Notice { id: number; day: number; to: 'all'; dg: number; until:
 export type Opts = { noCheck?: boolean; noFear?: boolean };
 
 const DUNGEONS: Omit<Dungeon, 'teams' | 'fear' | 'floods' | 'dead' | 'sub' | 'dangerAt'>[] = [
-  { id: 'pit', name: '폐광', lord: '로이드 백작령', dist: 1, rise: 1.25, yld: 6, cap: 12, level: 84 },
+  // 폐광은 막 넘쳤고, 왕국군이 1차 진압으로 수위를 눌러 둔 자리에서 시작한다
+  { id: 'pit', name: '폐광', lord: '로이드 백작령', dist: 1, rise: 1.25, yld: 6, cap: 12, level: 40 },
   { id: 'wood', name: '검은숲 미궁', lord: '하벨 자작령', dist: 2, rise: 1.0, yld: 9, cap: 10, level: 45 },
   { id: 'sunk', name: '수몰 갱도', lord: '로이드 백작령', dist: 2, rise: 1.5, yld: 12, cap: 10, level: 55 },
 ];
@@ -137,11 +144,16 @@ export function newWorld(seed: number, o: Opts = {}): World {
     guilds: { big: guild('big', '붉은 깃발단', 12, 50), small: guild('small', '중소 길드 연합', 6, 55) },
     lord: { name: '영주들', money: 0, infl: 0, fav: 45 + Math.round((rnd() - 0.5) * 12) },
     seen: dungeons.map(d => [d.level]), hist: dungeons.map(d => [d.level]),
-    reports: [{ day: 0, from: '왕도일보', title: '폐광 아래 미궁 범람, 미궁관리국 신설', chips: ['범람 직후'] }],
+    reports: [
+      { day: 0, from: '왕도일보', title: '폐광 아래 미궁 범람, 로이드 백작령 마을 잠겨', chips: ['범람 직후'] },
+      { day: 0, from: '왕국군', title: '폐광 1차 진압', chips: ['수위를 눌러 둠', '군은 물러남'] },
+      { day: 0, from: '중앙 행정원', title: `요구서: 폐광 하루 ${B.ORDER.min}조 이상`, chips: [`${B.ORDER.days}일 안에 ${B.ORDER.need}일`, `예산 ${B.ORDER.pay}G · 입지 +${B.ORDER.stand}`] },
+    ],
     stats: { floods: 0, dead: 0, spent: 0, toFlood: [], pinned: {}, loops: { R1: 0, B1: 0, R3: 0, B3: 0, R4: 0, B4: 0, R5: 0, B5: 0 }, bigSize: [], clashes: 0, meets: 0, asks: 0, answered: 0, sides: 0, relMin: 0, relHist: [], litHist: [] },
     rel: { 'big:small': -10 + Math.round((rnd() - 0.5) * 10), 'big:lord': 10, 'lord:small': 0 },
     owe: { big: 0, small: 0, lord: 0 }, fowe: { big: {}, small: {}, lord: {} },
     pact: null, meetAt: -99, asks: [], later: [], askN: 0, lit: [], notices: [], letters: [], docN: 0, rank: 1, clerks: 1, pts: 0,
+    order: { dg: B.ORDER.dg, min: B.ORDER.min, need: B.ORDER.need, until: B.ORDER.days, got: 0, done: '' },
     ...o,
   };
   return W;
@@ -166,20 +178,26 @@ export const clearOf = (level: number) => B.CLEAR * (0.5 + level / 100);
 export const richOf = (level: number) => Math.min(1, level / B.RICH);
 const inflOf = (x: number) => 100 * Math.max(0, x) / (Math.max(0, x) + B.INFL_HALF);
 // 조 하나가 이 미궁에 들어가 하루 버는 값의 어림: 벌이 + 보조금 − 위험 − 꺼림
-// 그 미궁에 걸린 공고문의 조항 값 (없으면 undefined)
-export const clauseOn = (W: World, d: Dungeon, id: ClauseId) => W.notices.find(n => W.dungeons[n.dg] === d)?.cl[id];
+// 그 미궁에 걸린 공고문의 조항 값 (없으면 undefined). 길드 g를 주면 그 길드에 닿은 공고문만
+export const clauseOn = (W: World, d: Dungeon, id: ClauseId, g?: GuildId) =>
+  W.notices.find(n => W.dungeons[n.dg] === d && (!g || W.day >= n.day + B.HQ_DIST[g]))?.cl[id];
+// 화면에 보이는 그 미궁의 보조금: 봇이 바로 정한 값 + 공고문
+export const subAt = (W: World, i: number) => W.dungeons[i].sub + (clauseOn(W, W.dungeons[i], 'sub') ?? 0);
 // 서명된 요청서의 조항 값: 길드 g가 미궁 i에서
 const signed = (W: World) => W.letters.filter(l => l.until != null);
 const letterOn = (W: World, g: GuildId, i: number, id: ClauseId) => signed(W).find(l => l.to === g && l.dg === i)?.cl[id];
 // 출입 기록: 공고문이나 서명된 요청서 어느 쪽이든 걸려 있으면 그 미궁의 보고가 그날 온다
-const recAt = (W: World, i: number) => clauseOn(W, W.dungeons[i], 'rec') != null || signed(W).some(l => l.dg === i && l.cl.rec != null);
-// 요청서가 그 길드에만 더하는 끌림
-const letterLure = (W: World, g: GuildId, i: number) => (letterOn(W, g, i, 'sub') ?? 0) / B.SUB_LURE - (letterOn(W, g, i, 'rec') != null ? B.REC_LURE : 0);
+const recAt = (W: World, i: number) => (['big', 'small'] as GuildId[]).some(g => clauseOn(W, W.dungeons[i], 'rec', g) != null) || signed(W).some(l => l.dg === i && l.cl.rec != null);
+// 길드 g가 미궁 i에서 받는 조항 값: 그 길드에 닿은 공고문 + 서명한 요청서
+const guildCl = (W: World, g: GuildId, i: number, id: ClauseId) => (clauseOn(W, W.dungeons[i], id, g) ?? 0) + (letterOn(W, g, i, id) ?? 0);
+const guildRec = (W: World, g: GuildId, i: number) => clauseOn(W, W.dungeons[i], 'rec', g) != null || letterOn(W, g, i, 'rec') != null;
+// 서류가 그 길드에만 더하는 끌림
+const letterLure = (W: World, g: GuildId, i: number) => guildCl(W, g, i, 'sub') / B.SUB_LURE - (guildRec(W, g, i) ? B.REC_LURE : 0);
 export const levelOf = (standing: number) => B.STAND_LV.filter(t => standing >= t).length;
 export const docsOut = (W: World) => W.notices.length + W.letters.length;
 
 export function lure(W: World, d: Dungeon) {
-  return d.yld * B.PRICE / 10 * richOf(d.level) * (1 - d.level / 160) + d.sub / B.SUB_LURE - (clauseOn(W, d, 'rec') ? B.REC_LURE : 0) - Math.max(0, d.level - 65) / 8 - (W.noFear ? 0 : d.fear / 10);
+  return d.yld * B.PRICE / 10 * richOf(d.level) * (1 - d.level / 160) + d.sub / B.SUB_LURE - Math.max(0, d.level - 65) / 8 - (W.noFear ? 0 : d.fear / 10);
 }
 
 // 길드가 영향력으로 더 가져가는 몫(R3)과, 다른 길드가 눈에 띄어 결집한 몫(B3). 우선권 조항은 큰 길드(big) 쪽으로 기운다
@@ -195,11 +213,8 @@ export function step(W: World) {
   const S = W.stats, G = W.guilds;
   W.day++;
   // 기한이 다한 공고는 내린다: 그 미궁의 보조금이 멎는다
-  for (const n of W.notices) if (W.day >= n.until) {
-    const d = W.dungeons[n.dg];
-    d.sub = 0;
-    W.reports.push({ day: W.day, from: '관리국', title: `공고 기한 끝: ${d.name}`, chips: clauseLine(n.cl).map(c => `${c} 멎음`) });
-  }
+  for (const n of W.notices) if (W.day >= n.until)
+    W.reports.push({ day: W.day, from: '관리국', title: `공고 기한 끝: ${W.dungeons[n.dg].name}`, chips: clauseLine(n.cl).map(c => `${c} 멎음`) });
   W.notices = W.notices.filter(n => W.day < n.until);
   lettersDay(W);
   const r1Before = W.dungeons.map(d => teamsIn(d));
@@ -232,10 +247,10 @@ export function step(W: World) {
     d.dead += dead; S.dead += dead;
     // 위로금: 공고문은 모두에게, 요청서는 그 길드가 잃은 몫만큼
     const share = (g: GuildId) => n > 0 ? d.teams[g] / n : 0;
-    const comfort = (clauseOn(W, d, 'comfort') ?? 0) + (['big', 'small'] as GuildId[]).reduce((a, g) => a + (letterOn(W, g, i, 'comfort') ?? 0) * share(g), 0);
+    const comfort = (['big', 'small'] as GuildId[]).reduce((a, g) => a + guildCl(W, g, i, 'comfort') * share(g), 0);
     d.fear = d.fear * B.FEAR_FADE + dead * B.FEAR / (1 + comfort / B.COMFORT_HALF);
     subs += dead * comfort;
-    for (const g of ['big', 'small'] as GuildId[]) subs += d.teams[g] * (letterOn(W, g, i, 'sub') ?? 0);
+    for (const g of ['big', 'small'] as GuildId[]) subs += d.teams[g] * guildCl(W, g, i, 'sub');
     for (const g of ['big', 'small'] as GuildId[]) if (n > 0) G[g].size = Math.max(B.SIZE_MIN, G[g].size - dead * d.teams[g] / n);
     fees += n * B.FEE; subs += n * d.sub;
     if (d.level >= B.DANGER && d.dangerAt == null) d.dangerAt = W.day;
@@ -254,7 +269,7 @@ export function step(W: World) {
     if (sn.at(-1)! >= B.DANGER && sn.at(-2)! < B.DANGER) W.reports.push({ day: W.day, from: '관리국 조사관', title: `${d.name} 위험 수위`, chips: [`${d.name} 수위`, `${d.dist}일 전 보고`] });
     // R1: 위험 수위 위에서 조가 빠지고 있다 / B1: 보조금이 조를 들이고 있다
     if (d.level >= B.DANGER && n < r1Before[i] - 0.01) lit(W, 'R1');
-    if (d.sub > 0 && n > r1Before[i] + 0.01) lit(W, 'B1');
+    if (subAt(W, i) > 0 && n > r1Before[i] + 0.01) lit(W, 'B1');
   });
   // 세력의 돈: 판매 − 급여·보급 − 세금(견제). 넉넉하면 조를 늘리고 모자라면 줄인다
   const top = G.big.size >= G.small.size ? G.big : G.small, topBefore = top.size;
@@ -306,13 +321,16 @@ export function step(W: World) {
   fav(W.lord, (W.lordShare - 15) / 300);
   for (const d of W.dungeons) if (d.sub > 0) fav(G.small, d.sub / 4000);
   for (const n of W.notices) {
-    if (n.cl.rec != null) fav(G.big, -B.REC_FAV);
-    if (n.cl.comfort) fav(G.small, n.cl.comfort * B.COMFORT_FAV);
+    const at = (g: GuildId) => W.day >= n.day + B.HQ_DIST[g];
+    if (n.cl.sub && at('small')) fav(G.small, n.cl.sub / 4000);
+    if (n.cl.rec != null && at('big')) fav(G.big, -B.REC_FAV);
+    if (n.cl.comfort && at('small')) fav(G.small, n.cl.comfort * B.COMFORT_FAV);
   }
   for (const l of signed(W)) {
     if (l.cl.rec != null) fav(G[l.to], -B.REC_FAV * B.LETTER_W[l.to].info / B.LETTER_W.big.info);
     if (l.cl.comfort) fav(G[l.to], l.cl.comfort * B.COMFORT_FAV);
   }
+  orderDay(W);
   officeDay(W);
   // 입지 = 물량 + 영향력 × 호감, 예산 적자는 깎는다
   const out = Object.values(haul).reduce((a, b) => a + b, 0);
@@ -439,8 +457,7 @@ export function post(W: World, dg: number, days: number, cl: Clauses) {
   W.notices = W.notices.filter(n => n.dg !== dg);
   const n: Notice = { id, day: W.day, to: 'all', dg, until: W.day + days, cl: { ...cl } };
   W.notices.push(n);
-  d.sub = cl.sub ?? 0;
-  W.reports.push({ day: W.day, from: '관리국', title: `공고문: ${d.name}`, chips: ['길드 전체', ...clauseLine(cl), `${days}일`] });
+  W.reports.push({ day: W.day, from: '관리국', title: `공고문: ${d.name}`, chips: ['길드 전체', ...clauseLine(cl), `${days}일`, `신문으로 퍼짐 · 중소 연합 ${B.HQ_DIST.small}일 · 붉은 깃발단 ${B.HQ_DIST.big}일 뒤`] });
   return n;
 }
 
@@ -449,7 +466,6 @@ export function withdraw(W: World, id: number) {
   const n = W.notices.find(x => x.id === id);
   if (!n) return false;
   const d = W.dungeons[n.dg];
-  d.sub = 0;
   W.notices = W.notices.filter(x => x !== n);
   for (const g of ['big', 'small'] as GuildId[]) fav(W.guilds[g], -B.WITHDRAW_FAV);
   W.reports.push({ day: W.day, from: '관리국', title: `공고 철회: ${d.name}`, chips: ['기한 전에 내림', '길드들 서운함'] });
@@ -505,6 +521,23 @@ export function recall(W: World, id: number) {
   W.letters = W.letters.filter(x => x !== l);
   W.reports.push({ day: W.day, from: '관리국', title: `요청서 거둠: ${nameOf(W, l.to)} · ${W.dungeons[l.dg].name}`, chips: l.until != null ? ['서명 뒤 거둠', `${nameOf(W, l.to)} 서운함`] : ['답 전에 거둠'] });
   return true;
+}
+
+// 중앙 요구서: 하루 min조 이상 든 날을 센다(검문소 수라 늦지 않는다). 채우면 예산 · 입지, 기한을 넘기면 입지를 깎는다
+function orderDay(W: World) {
+  const o = W.order;
+  if (!o || o.done) return;
+  if (teamsIn(W.dungeons[o.dg]) >= o.min) o.got++;
+  if (o.got >= o.need) {
+    o.done = 'ok';
+    W.budget += B.ORDER.pay;
+    W.standing = clamp(W.standing + B.ORDER.stand, 0, 100);
+    W.reports.push({ day: W.day, from: '중앙 행정원', title: '요구서 달성', chips: [`예산 +${B.ORDER.pay}G`, `입지 +${B.ORDER.stand}`] });
+  } else if (W.day >= o.until) {
+    o.done = 'fail';
+    W.standing = clamp(W.standing - B.ORDER.fail, 0, 100);
+    W.reports.push({ day: W.day, from: '중앙 행정원', title: '요구서 미달', chips: [`${o.got} / ${o.need}일`, `입지 −${B.ORDER.fail}`] });
+  }
 }
 
 // 집무실: 입지가 새 단계에 닿으면 서기를 들일 몫이 하나 생긴다. 단계는 내려가지 않는다

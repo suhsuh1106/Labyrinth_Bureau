@@ -1,6 +1,6 @@
 // 미궁관리국 배경 엔진 0단계: 인과 루프 두 쌍이 폭주하거나 멈추지 않는지, 국장의 손이 판을 바꾸는지
 import { describe, expect, it } from 'vitest';
-import { B, answer, hireClerk, letterScore, meet, newWorld, over, pactK, post, recall, relOf, run, send, step, withdraw } from '../src/bureau/engine';
+import { B, answer, clauseOn, hireClerk, subAt, letterScore, meet, newWorld, over, pactK, post, recall, relOf, run, send, step, withdraw } from '../src/bureau/engine';
 import { BOT, playGame } from '../sim/bureau';
 import { EDGES, LINKS, LOOPS, NODES, checkLoops } from '../src/bureau/loops';
 import { type BuUi, endHtml, paneHtml, topHtml } from '../src/ui/bureau/board';
@@ -42,7 +42,7 @@ describe('미궁관리국 엔진 0단계', () => {
   it('숙련 봇이 앞선다: 범람 · 죽음은 적고 입지는 높다', () => {
     const f = (bot: string) => [avg(bot, W => W.stats.floods), avg(bot, W => W.stats.dead), avg(bot, W => W.standing)];
     const [sF, sD, sS] = f('smart'), [nF, nD, nS] = f('normal'), [, , iS] = f('idle');
-    expect(sF).toBeLessThan(nF);
+    expect(sF).toBeLessThanOrEqual(nF);             // 왕국군이 폐광을 눌러 두고 시작해 손을 쓰는 봇은 거의 범람이 없다
     expect(sD).toBeLessThan(nD);
     expect(sS).toBeGreaterThan(nS);
     expect(nS).toBeGreaterThan(iS);
@@ -156,20 +156,42 @@ describe('국장의 서류 (조항 조합)', () => {
   it('공고문: 기한 동안 걸리고, 끝나면 멎으며, 같은 미궁의 새 공고문이 옛것을 바꾼다', () => {
     const W = newWorld(5);
     const n = post(W, 1, 10, { sub: 20 })!;
-    expect(W.dungeons[1].sub).toBe(20);
+    expect(subAt(W, 1)).toBe(20);
     expect(W.reports.at(-1)!.chips).toContain('길드 전체');
     post(W, 1, 15, { sub: 30 });
     expect(W.notices.length).toBe(1);
     expect(W.notices[0].id).not.toBe(n.id);
-    expect(W.dungeons[1].sub).toBe(30);
+    expect(subAt(W, 1)).toBe(30);
     const until = W.notices[0].until, b0 = W.budget;
     while (W.day < until - 1) step(W);
-    expect(W.dungeons[1].sub).toBe(30);
+    expect(subAt(W, 1)).toBe(30);
     expect(W.budget).not.toBe(b0);
     step(W);
-    expect(W.dungeons[1].sub).toBe(0);
+    expect(subAt(W, 1)).toBe(0);
     expect(W.notices.length).toBe(0);
     expect(W.reports.some(r => r.title.startsWith('공고 기한 끝'))).toBe(true);
+  });
+
+  it('공고문은 신문으로 퍼져 길드 본부까지 거리만큼 뒤에 걸린다', () => {
+    const W = newWorld(5);
+    post(W, 1, 20, { sub: 20 });
+    const d = W.dungeons[1];
+    expect(clauseOn(W, d, 'sub', 'small')).toBeUndefined();
+    step(W);
+    expect(clauseOn(W, d, 'sub', 'small')).toBe(20);
+    expect(clauseOn(W, d, 'sub', 'big')).toBeUndefined();
+    step(W);
+    expect(clauseOn(W, d, 'sub', 'big')).toBe(20);
+  });
+
+  it('첫 요구서: 폐광에 조를 들이면 예산 · 입지를 받고 요청서가 열린다. 손을 놓으면 입지를 깎인다', () => {
+    const a = newWorld(5), b = newWorld(5);
+    post(a, 0, 30, { sub: 15 });
+    for (let t = 0; t < B.ORDER.days + 1; t++) { step(a); step(b); }
+    expect(a.order.done).toBe('ok');
+    expect(a.rank).toBeGreaterThanOrEqual(B.LETTER_LV);
+    expect(b.order.done).toBe('fail');
+    expect(b.reports.some(r => r.title === '요구서 미달')).toBe(true);
   });
 
   it('공고문에 넣을 수 없는 조항(잠김 · 다른 양식 · 바탕 없음)이 있거나 조항이 없으면 내걸지 않는다', () => {
@@ -190,6 +212,7 @@ describe('국장의 서류 (조항 조합)', () => {
     setSeed(8); step(b); expect(getSeed()).toBe(ra);
     expect(b.seen[1].at(-1)).toBe(b.hist[1].at(-1));
     expect(a.seen[1].at(-1)).not.toBe(a.hist[1].at(-1));
+    for (let t = 0; t < 3; t++) { setSeed(80 + t); step(a); setSeed(80 + t); step(b); }   // 붉은 깃발단에는 이틀 뒤 닿는다
     expect(b.guilds.big.fav).toBeLessThan(a.guilds.big.fav);
   });
 
@@ -205,7 +228,7 @@ describe('국장의 서류 (조항 조합)', () => {
     const W = newWorld(6), n = post(W, 2, 30, { sub: 15 })!;
     const fav = W.guilds.big.fav;
     expect(withdraw(W, n.id)).toBe(true);
-    expect(W.dungeons[2].sub).toBe(0);
+    expect(subAt(W, 2)).toBe(0);
     expect(W.guilds.big.fav).toBeLessThan(fav);
     expect(withdraw(W, n.id)).toBe(false);
   });
@@ -244,7 +267,7 @@ describe('국장의 서류 (조항 조합)', () => {
     expect(W.letters.find(l => l.id === ok.id)?.until).toBe(W.day + 30);
     expect(W.letters.find(l => l.id === no.id)).toBeUndefined();
     expect(W.reports.some(r => r.title.includes('돌아가서 검토') && r.chips.includes('－ 정보 내주기'))).toBe(true);
-    expect(W.dungeons[0].sub).toBe(0);
+    expect(subAt(W, 0)).toBe(0);
     const s0 = W.dungeons[0].teams.small;
     for (let t = 0; t < 10; t++) step(W);
     expect(W.dungeons[0].teams.small).toBeGreaterThan(s0);
@@ -288,12 +311,13 @@ describe('인과 루프 그림 (loops.ts)', () => {
     for (const e of [...EDGES, ...LINKS]) expect(ids.has(e.from) && ids.has(e.to), `${e.from}→${e.to}`).toBe(true);
   });
 
-  it('엔진이 켜는 고리가 모두 그림에 있고, smart 봇 판에서 모두 켜진다', () => {
+  it('엔진이 켜는 고리가 모두 그림에 있고, smart · normal 봇 판에서 모두 켜진다', () => {
     const W0 = newWorld(1000);
     expect(LOOPS.map(l => l.id).sort()).toEqual(Object.keys(W0.stats.loops).sort());
     const on: Record<string, number> = {};
-    for (let g = 0; g < 10; g++) {
-      const W = run(newWorld(1000 + g), BOT.smart);
+    // R1(범람 소용돌이)은 폐광을 눌러 둔 채 시작해 smart 판에선 드물다: normal 판까지 함께 본다
+    for (let g = 0; g < 20; g++) {
+      const W = run(newWorld(1000 + (g >> 1)), g % 2 ? BOT.normal : BOT.smart);
       expect(W.stats.litHist.length).toBe(B.DAYS);
       for (const l of LOOPS) on[l.id] = (on[l.id] ?? 0) + W.stats.loops[l.id];
     }
