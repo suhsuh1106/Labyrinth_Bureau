@@ -1,10 +1,11 @@
-// 미궁관리국 진입점(bureau.html): 날마다 보고를 읽고 보조금 · 조항 · 요청서 · 회의로 손을 쓰고, 다음 날로 넘긴다.
+// 미궁관리국 진입점(index.html): 날마다 보고를 읽고 보조금 · 조항 · 요청서 · 회의로 손을 쓰고, 다음 날로 넘긴다.
 // 판을 이 브라우저에 저장한다(`lb-bureau`). 엔진은 src/bureau/engine.ts
 import './ui/bureau/bureau.css';
 import { getSeed, setSeed } from './core/rng';
 import { type FacId, type World, answer, meet, newWorld, over, run, step } from './bureau/engine';
 import { BOT } from './bureau/bots';
-import { type BuUi, type Tab, boardHtml, endHtml, introHtml, paneHtml, tabsHtml, topHtml } from './ui/bureau/board';
+import { type BuUi, type Tab, endHtml, introHtml, paneHtml, tabsHtml, topHtml } from './ui/bureau/board';
+import { mapHtml } from './ui/bureau/map';
 
 const $ = (id: string) => document.getElementById(id)!;
 const KEY = 'lb-bureau', VERSION = 1;
@@ -16,12 +17,12 @@ function load() { try { const d = JSON.parse(localStorage.getItem(KEY) || 'null'
 function fresh() {
   seed = (Date.now() ^ 0x5bd1e995) >>> 0;
   W = newWorld(seed);
-  ui = { tab: 'asks', invite: ['big', 'small'], give: {}, intro: true, seenNews: W.reports.length };
+  ui = { tab: 'look', sel: 'dg:0', invite: ['big', 'small'], give: {}, intro: true, seenNews: W.reports.length };
 }
 
 function draw() {
   $('top').innerHTML = topHtml(W);
-  $('board').innerHTML = boardHtml(W);
+  $('board').innerHTML = mapHtml(W, ui);
   if (ui.tab === 'news') ui.seenNews = W.reports.length;
   $('tabs').innerHTML = tabsHtml(W, ui);
   $('pane').innerHTML = paneHtml(W, ui);
@@ -47,12 +48,13 @@ function nextDays(n: number) {
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 function act(a: string, d = 0) {
-  const [k, arg] = a.split(':');
+  const [k, arg] = a.split(':'), rest = a.slice(k.length + 1);
   if (k === 'next') return nextDays(1);
   if (k === 'ff') return nextDays(5);
   if (k === 'start') ui.intro = false;
   else if (k === 'new') fresh();
   else if (k === 'tab') ui.tab = arg as Tab;
+  else if (k === 'sel') { ui.sel = rest; ui.tab = 'look'; }
   else if (k === 'sub') { const dg = W.dungeons[+arg]; dg.sub = clamp(dg.sub + d * 5, 0, 60); }
   else if (k === 'prio') W.prio = clamp(W.prio + d * 5, 0, 100);
   else if (k === 'share') W.lordShare = clamp(W.lordShare + d, 0, 40);
@@ -84,6 +86,9 @@ document.addEventListener('click', e => {
 document.addEventListener('keydown', e => {
   const b = (e.target as Element).closest?.('[data-d]') as HTMLElement | null;
   if (b && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); act(b.dataset.act!, +b.dataset.d!); return; }
+  // 지도 표식(svg)은 단추가 아니라서 Enter를 직접 받는다
+  const m = (e.target as Element).closest?.('svg [data-act]') as SVGElement | null;
+  if (m && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); act(m.dataset.act!); return; }
   if ((e.key === 'n' || e.key === 'N') && !e.metaKey && !e.ctrlKey && !ui.intro && !over(W)) nextDays(1);
 });
 

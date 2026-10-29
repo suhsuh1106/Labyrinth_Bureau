@@ -53,9 +53,44 @@ h2, h3, h4 { margin: 0; }
 /* 판 */
 .main { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 10px; min-height: 0; }
 .board, .pane { overflow-y: auto; min-height: 0; }
-.board { display: grid; gap: 10px; align-content: start; padding-right: 2px; }
+.board { display: grid; place-items: center; overflow: hidden; border-radius: 6px; background: linear-gradient(rgba(28,20,10,.62), rgba(28,20,10,.62)), url('./art/map.webp') center / cover #2b2216; }
+/* 관할 지도: 양피지 위의 표식은 테마와 무관하게 먹색 */
+.map-svg { display: block; width: 100%; height: 100%; max-height: 100%; }
+.map-svg .banner { font: 700 17px var(--f-display); fill: #3b2a17; }
+.map-svg .lb { font: 600 12px var(--f-body); fill: #2e2112; paint-order: stroke; stroke: #efe2c4; stroke-width: 3.5px; stroke-linejoin: round; pointer-events: none; }
+.map-svg .lb.small { font-size: 10.5px; font-weight: 500; fill: #4d3a22; }
+.map-svg .lb.strong { font-size: 13.5px; font-weight: 700; fill: #1d1409; }
+.map-svg .lb.rel { font-size: 11px; fill: #5a4426; }
+.rel-line { fill: none; stroke: #7a6a50; stroke-dasharray: 2 4; stroke-linecap: round; opacity: .8; }
+.rel-line.neg { stroke: #9c2b23; } .rel-line.pos { stroke: #3f6b3a; }
+.flow { fill: none; stroke-linecap: round; opacity: .55; stroke-dasharray: 10 6; animation: march 1.6s linear infinite; }
+.flow.f-big { stroke: #a8323e; } .flow.f-small { stroke: #1f6d66; }
+@keyframes march { to { stroke-dashoffset: -32; } }
+.report { fill: none; stroke: #3b2a17; stroke-width: 1; stroke-dasharray: 1 5; stroke-linecap: round; opacity: .55; }
+.place.bureau rect { fill: #27465f; stroke: #efe2c4; stroke-width: 2; }
+.place.castle path { fill: #6b4f22; stroke: #efe2c4; stroke-width: 1.2; }
+.mk { cursor: pointer; outline: none; }
+.mk .hit { fill: transparent; }
+.mk .flag { stroke: #2e2112; stroke-width: 1.5; }
+.fac-mk.f-big .flag { fill: #a8323e; } .fac-mk.f-small .flag { fill: #2b7a72; } .fac-mk.f-lord .flag { fill: #b08a2e; }
+.fac-mk.on .hit, .dg-mk.on .disc { stroke: #1d1409; stroke-width: 2.5; }
+.mk:focus-visible .hit, .mk:focus-visible .disc { stroke: #27465f; stroke-width: 3; }
+.dg-mk .disc { fill: #f6ecd2; stroke: #6d5a3c; stroke-width: 1; }
+.dg-mk .ring { fill: none; stroke-width: 6; stroke: #3f6b3a; }
+.dg-mk.warn .ring { stroke: #b7791f; } .dg-mk.bad .ring { stroke: #9c2b23; }
+.dg-mk.hot .disc { animation: hot 1.4s ease-in-out infinite; }
+@keyframes hot { 50% { fill: #f3c9b8; } }
+.dg-mk .lv { font: 600 15px var(--f-num); fill: #1d1409; pointer-events: none; }
+.coin circle { fill: #c7a14b; stroke: #6b4f22; } .coin text { font: 600 10px var(--f-num); fill: #2a1e08; pointer-events: none; }
+button.link { border: 0; background: none; padding: 0; color: var(--accent); justify-self: start; }
+.sum { display: grid; gap: 6px; }
+.sum-row { display: grid; grid-template-columns: 1fr auto auto; gap: 2px 10px; align-items: baseline; text-align: left; border-left: 4px solid var(--ok); }
+.sum-row.warn { border-left-color: var(--warn); } .sum-row.bad { border-left-color: var(--stamp); }
+.sum-row small { grid-column: 1 / 4; color: var(--soft); font-size: 12px; }
+.pane .rels { border: 0; padding: 0; }
+.pane .rel { grid-template-columns: minmax(0, 1fr) 70px 3em; }
+.pane .rel small { display: none; }
 .side { display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--paper); border: 1px solid var(--rule); border-radius: 6px; min-height: 0; }
-.dgs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .dg { background: var(--paper); border: 1px solid var(--rule); border-top: 4px solid var(--ok); border-radius: 6px; padding: 10px 12px; display: grid; gap: 8px; }
 .dg.warn { border-top-color: var(--warn); }
 .dg.bad { border-top-color: var(--stamp); }
@@ -81,7 +116,6 @@ h2, h3, h4 { margin: 0; }
 .step button { border: 0; border-radius: 0; padding: 4px 11px; background: var(--paper-2); font-weight: 600; }
 .step output { min-width: 4.2em; text-align: center; padding: 0 6px; }
 
-.facs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .fac { background: var(--paper); border: 1px solid var(--rule); border-left: 4px solid var(--soft); border-radius: 6px; padding: 10px 12px; }
 .fac.f-big { border-left-color: var(--big); } .fac.f-small { border-left-color: var(--small); } .fac.f-lord { border-left-color: var(--lord); }
 .fac h3 { font: 700 16px var(--f-display); margin-bottom: 6px; }
@@ -142,15 +176,21 @@ h2, h3, h4 { margin: 0; }
 @media (max-width: 1000px) {
   .main { grid-template-columns: minmax(0, 1fr); grid-auto-rows: max-content; overflow-y: auto; }
   .board, .pane { overflow: visible; min-height: auto; }
+  .map-svg { height: auto; }
   .side { min-height: 360px; }
 }
 @media (max-width: 640px) {
-  .dgs, .facs { grid-template-columns: minmax(0, 1fr); }
+
   .top { gap: 6px 14px; padding: 8px 10px; }
   .t-btns { margin-left: 0; width: 100%; }
   .t-btns .go { flex: 1; }
   .rel { grid-template-columns: minmax(0, 1fr) 70px 3em; }
   .rel small { display: none; }
   .lv-bar { height: 64px; }
+  /* 좁은 화면에선 지도가 줄어드니 글을 키우고 작은 글은 뺀다 */
+  .map-svg .lb { font-size: 19px; stroke-width: 5px; }
+  .map-svg .lb.strong { font-size: 20px; }
+  .map-svg .lb.small, .map-svg .banner { display: none; }
+  .dg-mk .lv { font-size: 18px; }
 }
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
