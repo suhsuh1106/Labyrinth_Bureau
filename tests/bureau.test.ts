@@ -1,6 +1,6 @@
 // 미궁관리국 배경 엔진 0단계: 인과 루프 두 쌍이 폭주하거나 멈추지 않는지, 국장의 손이 판을 바꾸는지
 import { describe, expect, it } from 'vitest';
-import { B, answer, clauseOn, hireClerk, subAt, letterScore, meet, newWorld, over, pactK, post, recall, relOf, run, send, step, withdraw } from '../src/bureau/engine';
+import { B, answer, clauseOn, hireClerk, subAt, letterScore, meet, newWorld, over, pactK, post, recall, relOf, run, send, step, teamsIn, withdraw } from '../src/bureau/engine';
 import { BOT, playGame } from '../sim/bureau';
 import { EDGES, LINKS, LOOPS, NODES, checkLoops } from '../src/bureau/loops';
 import { type BuUi, endHtml, paneHtml, topHtml } from '../src/ui/bureau/board';
@@ -184,14 +184,37 @@ describe('국장의 서류 (조항 조합)', () => {
     expect(clauseOn(W, d, 'sub', 'big')).toBe(20);
   });
 
-  it('첫 요구서: 폐광에 조를 들이면 예산 · 입지를 받고 요청서가 열린다. 손을 놓으면 입지를 깎인다', () => {
+  it('첫 요구서: 폐광에 조를 들여 군에게서 넘겨받으면 예산 · 입지를 받고 요청서가 열린다. 손을 놓으면 인내가 다해 군이 물러난다', () => {
     const a = newWorld(5), b = newWorld(5);
-    post(a, 0, 30, { sub: 15 });
-    for (let t = 0; t < B.ORDER.days + 1; t++) { step(a); step(b); }
+    expect(post(a, 0, 30, { sub: 20, comfort: 100 })).not.toBeNull();
+    for (let t = 0; t < 40 && !(a.order.done && b.order.done); t++) { step(a); step(b); }
     expect(a.order.done).toBe('ok');
     expect(a.rank).toBeGreaterThanOrEqual(B.LETTER_LV);
     expect(b.order.done).toBe('fail');
-    expect(b.reports.some(r => r.title === '요구서 미달')).toBe(true);
+    expect(b.reports.some(r => r.title.startsWith('인내가 다함'))).toBe(true);
+    // 군이 떠난 폐광은 다시 차오른다: 손 놓은 판은 두 달 안에 범람한다
+    for (let t = 0; t < 50; t++) step(b);
+    expect(b.dungeons[0].floods).toBeGreaterThan(0);
+  });
+
+  it('공고문은 공탁을 떼어 두고 보조금을 거기서 먼저 낸다. 예산이 모자라면 걸지 않고, 내리면 남은 공탁이 돌아온다', () => {
+    const W = newWorld(5), b0 = W.budget;
+    expect(post(W, 0, 60, { sub: 60 })).toBeNull();          // 60 × 60 × 3조 > 예산
+    const n = post(W, 0, 20, { sub: 10 })!;
+    expect(n.dep).toBe(600);
+    expect(W.budget).toBe(b0 - 600);
+    for (let t = 0; t < 5; t++) step(W);
+    expect(n.dep).toBeLessThan(600);
+    const left = n.dep, b1 = W.budget;
+    withdraw(W, n.id);
+    expect(W.budget).toBeCloseTo(b1 + left);
+  });
+
+  it('공고문은 기한이 길수록 믿고 온다: 같은 보조금이라도 짧은 공고엔 덜 든다', () => {
+    const a = newWorld(5), b = newWorld(5);
+    post(a, 0, 40, { sub: 15 }); post(b, 0, 10, { sub: 15 });
+    for (let t = 0; t < 8; t++) { step(a); step(b); }
+    expect(teamsIn(a.dungeons[0])).toBeGreaterThan(teamsIn(b.dungeons[0]));
   });
 
   it('공고문에 넣을 수 없는 조항(잠김 · 다른 양식 · 바탕 없음)이 있거나 조항이 없으면 내걸지 않는다', () => {
