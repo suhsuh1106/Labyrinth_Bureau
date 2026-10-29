@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { B, answer, meet, newWorld, over, pactK, relOf, run, step } from '../src/bureau/engine';
 import { BOT, playGame } from '../sim/bureau';
 import { EDGES, LINKS, LOOPS, NODES, checkLoops } from '../src/bureau/loops';
-import { type BuUi, boardHtml, endHtml, paneHtml, topHtml } from '../src/ui/bureau/board';
+import { type BuUi, endHtml, paneHtml, topHtml } from '../src/ui/bureau/board';
+import { mapHtml } from '../src/ui/bureau/map';
 import { getSeed, setSeed } from '../src/core/rng';
 
 const SEEDS = Array.from({ length: 30 }, (_, i) => 1000 + i);
@@ -178,8 +179,9 @@ describe('미궁관리국 게임판 (ui/bureau)', () => {
       BOT.smart(W); step(W);
       if (W.day % 45 === 0) {
         expect(topHtml(W)).toContain('예산');
-        for (const d of W.dungeons) expect(boardHtml(W)).toContain(d.name);
-        for (const tab of ['asks', 'rules', 'meet', 'news'] as const) expect(paneHtml(W, { ...ui, tab }).length).toBeGreaterThan(20);
+        for (const d of W.dungeons) expect(mapHtml(W, ui)).toContain(d.name);
+        for (const tab of ['look', 'asks', 'rules', 'meet', 'news'] as const) expect(paneHtml(W, { ...ui, tab }).length).toBeGreaterThan(20);
+        for (const sel of ['dg:1', 'fac:big', 'fac:lord']) expect(paneHtml(W, { ...ui, tab: 'look', sel })).toContain('관할 요약');
       }
     }
     expect(endHtml(W, W, W)).toContain('임기');

@@ -61,7 +61,8 @@ PR을 올리면 GitHub Actions가 타입 검사, 테스트, 빌드, 시뮬레이
 | `src/core/company.ts` | 게임 규칙 전부: 층, 시장, 용병단과 AI, 몬스터, 포션과 세력, 압력과 근원, 한 달 정산. DOM을 쓰지 않는다 |
 | `src/core/data.ts` | 직업·장비, 몬스터, 근원과 이상 징후의 글 |
 | `src/ui/co/` | 화면: 결정표와 정산서(`view.ts`), 변경 일보(`paper.ts`), 첫날 장면(`arrival.ts`), 스타일 |
-| `src/coMain.ts`, `index.html` | 진입점 |
+| `src/coMain.ts`, `company.html` | 옛 용병단 게임 진입점 |
+| `src/bureauMain.ts`, `index.html` | 미궁관리국 진입점 |
 | `sim/company.ts` | 플레이어 봇과 시뮬레이션 |
 | `tests/` | 테스트 |
 | `docs/` | 세계관(`world.md`)과 계획(`plan.md`) |

@@ -1,18 +1,20 @@
 // 미궁관리국 게임판: HTML 문자열을 만든다. 상태에 아무것도 쓰지 않고 난수도 쓰지 않는다(그리기만).
-// 위 띠(날 · 예산 · 입지 · 다음 날) · 왼쪽 판(미궁 셋 · 세력 셋 · 세력 사이) · 오른쪽 탭(요청서 · 조항 · 회의 · 보고)
+// 위 띠(날 · 예산 · 입지 · 다음 날) · 왼쪽 관할 지도(map.ts) · 오른쪽 탭(살펴보기 · 요청서 · 조항 · 회의 · 보고)
+import { lookHtml } from './map';
 import { B, type FacId, FACS, type World, facOf, nameOf, pactK, relOf, seenLevel, teamsIn, willOf } from '../../bureau/engine';
 
-export type Tab = 'asks' | 'rules' | 'meet' | 'news';
-export interface BuUi { tab: Tab; invite: FacId[]; give: Record<number, number>; intro: boolean; seenNews: number }
+export type Tab = 'look' | 'asks' | 'rules' | 'meet' | 'news';
+// sel: 지도에서 고른 것('dg:0' · 'fac:big', 비우면 관할 요약)
+export interface BuUi { tab: Tab; invite: FacId[]; give: Record<number, number>; intro: boolean; seenNews: number; sel?: string }
 
-const n0 = (v: number) => Math.round(v).toLocaleString('ko-KR');
-const n1 = (v: number) => (Math.round(v * 10) / 10).toLocaleString('ko-KR');
+export const n0 = (v: number) => Math.round(v).toLocaleString('ko-KR');
+export const n1 = (v: number) => (Math.round(v * 10) / 10).toLocaleString('ko-KR');
 const sgn = (v: number) => (v > 0 ? '+' : v < 0 ? '−' : '') + n0(Math.abs(v));
 
 export const relWord = (v: number) => v <= -60 ? '원수' : v <= -25 ? '험악' : v < -5 ? '서먹' : v < 25 ? '무난' : v < 60 ? '우호' : '맹우';
 export const favWord = (v: number) => v < 25 ? '싸늘' : v < 40 ? '냉담' : v < 55 ? '보통' : v < 70 ? '호의' : '두터움';
-const levelWord = (v: number) => v >= B.DANGER ? '위험' : v >= B.RISK_AT ? '주의' : '안정';
-const levelCls = (v: number) => v >= B.DANGER ? 'bad' : v >= B.RISK_AT ? 'warn' : 'ok';
+export const levelWord = (v: number) => v >= B.DANGER ? '위험' : v >= B.RISK_AT ? '주의' : '안정';
+export const levelCls = (v: number) => v >= B.DANGER ? 'bad' : v >= B.RISK_AT ? 'warn' : 'ok';
 const stepper = (act: string, val: string, label: string) =>
   `<span class="step" role="group" aria-label="${label}"><button type="button" data-act="${act}" data-d="-1" aria-label="${label} 내리기">−</button><output>${val}</output><button type="button" data-act="${act}" data-d="1" aria-label="${label} 올리기">+</button></span>`;
 
@@ -33,7 +35,7 @@ export function topHtml(W: World) {
   <div class="t-btns"><button type="button" class="go" data-act="next" ${W.day >= B.DAYS ? 'disabled' : ''}>다음 날 <kbd>N</kbd></button><button type="button" data-act="ff" ${W.day >= B.DAYS ? 'disabled' : ''}>닷새</button></div>`;
 }
 
-function dungeonHtml(W: World, i: number) {
+export function dungeonHtml(W: World, i: number) {
   const d = W.dungeons[i], s = W.seen[i], lv = seenLevel(W, i), prev = s.at(-6) ?? s[0], tr = (lv - prev) / Math.min(5, s.length - 1 || 1);
   const n = teamsIn(d);
   return `<article class="dg ${levelCls(lv)}">
@@ -45,7 +47,7 @@ function dungeonHtml(W: World, i: number) {
   </article>`;
 }
 
-function facHtml(W: World, f: FacId) {
+export function facHtml(W: World, f: FacId) {
   const o = facOf(W, f), owe = W.owe[f], g = f === 'lord' ? null : W.guilds[f];
   return `<article class="fac f-${f}">
     <h3>${o.name}</h3>
@@ -58,31 +60,26 @@ function facHtml(W: World, f: FacId) {
   </article>`;
 }
 
-function relRow(W: World, a: FacId, b: FacId) {
+export function relRow(W: World, a: FacId, b: FacId) {
   const v = relOf(W, a, b);
   return `<div class="rel"><span>${nameOf(W, a)} ↔ ${nameOf(W, b)}</span><i class="rel-bar"><i style="left:${v < 0 ? 50 + v / 2 : 50}%;width:${Math.abs(v) / 2}%" class="${v < 0 ? 'neg' : 'pos'}"></i></i><b>${relWord(v)}</b><small class="num">${sgn(v)}</small></div>`;
 }
 
-function pactLine(W: World) {
+export function pactLine(W: World) {
   if (!W.pact || W.day >= W.pact.until) return `<p class="pact none">협정 없음</p>`;
   if (pactK(W) > 0) return `<p class="pact on">출입 협정 이행 중 · ${W.pact.until - W.day}일 남음</p>`;
   return `<p class="pact wait">협정 서명 · 이행 대기</p>`;
-}
-
-export function boardHtml(W: World) {
-  return `<section class="dgs" aria-label="미궁">${W.dungeons.map((_, i) => dungeonHtml(W, i)).join('')}</section>
-  <section class="facs" aria-label="세력">${FACS.map(f => facHtml(W, f)).join('')}</section>
-  <section class="rels" aria-label="세력 사이"><h2>세력 사이</h2>${relRow(W, 'big', 'small')}${relRow(W, 'big', 'lord')}${relRow(W, 'lord', 'small')}${pactLine(W)}</section>`;
 }
 
 const openAsks = (W: World) => W.asks.filter(a => a.got == null);
 export function tabsHtml(W: World, ui: BuUi) {
   const news = W.reports.length - ui.seenNews, asks = openAsks(W).length;
   const t = (id: Tab, name: string, badge = 0) => `<button type="button" role="tab" data-act="tab:${id}" aria-selected="${ui.tab === id}">${name}${badge ? ` <span class="badge">${badge}</span>` : ''}</button>`;
-  return t('asks', '요청서', asks) + t('rules', '조항') + t('meet', '회의') + t('news', '보고', ui.tab === 'news' ? 0 : news);
+  return t('look', '살펴보기') + t('asks', '요청서', asks) + t('rules', '조항') + t('meet', '회의') + t('news', '보고', ui.tab === 'news' ? 0 : news);
 }
 
 export function paneHtml(W: World, ui: BuUi) {
+  if (ui.tab === 'look') return lookHtml(W, ui);
   if (ui.tab === 'asks') {
     const asks = openAsks(W), done = W.asks.filter(a => a.got != null).slice(-4).reverse();
     return (asks.length ? asks.map(a => {
@@ -99,7 +96,7 @@ export function paneHtml(W: World, ui: BuUi) {
     const side = W.prio > 50 ? '붉은 깃발단 쪽' : W.prio < 50 ? '중소 연합 쪽' : '가운데';
     return `<div class="rule"><h4>우선권 조항</h4><p>미궁 몫을 나눌 때 어느 길드를 먼저 세우나</p>${stepper('prio', String(W.prio), '우선권')}<span class="tag">${side}</span></div>
     <div class="rule"><h4>입장료의 영주 몫</h4><p>조마다 하루 ${B.FEE}G 입장료에서 영주에게 가는 몫</p>${stepper('share', `${W.lordShare}%`, '영주 몫')}</div>
-    <p class="note">보조금은 왼쪽 미궁마다 정한다.</p>`;
+    <p class="note">보조금은 지도에서 미궁을 눌러 정한다.</p>`;
   }
   if (ui.tab === 'meet') {
     const cool = B.MEET_COOL - (W.day - W.meetAt), lord = ui.invite.includes('lord');
