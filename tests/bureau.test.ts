@@ -1,9 +1,9 @@
 // 미궁관리국 배경 엔진 0단계: 인과 루프 두 쌍이 폭주하거나 멈추지 않는지, 국장의 손이 판을 바꾸는지
 import { describe, expect, it } from 'vitest';
-import { B, answer, clauseOn, hireClerk, subAt, letterScore, meet, newWorld, over, pactK, post, recall, relOf, run, send, step, withdraw } from '../src/bureau/engine';
+import { B, answer, clauseOn, hireClerk, subAt, letterScore, meet, newWorld, over, pactK, post, recall, relOf, run, send, step, teamsIn, withdraw } from '../src/bureau/engine';
 import { BOT, playGame } from '../sim/bureau';
 import { EDGES, LINKS, LOOPS, NODES, checkLoops } from '../src/bureau/loops';
-import { type BuUi, endHtml, paneHtml, topHtml } from '../src/ui/bureau/board';
+import { type BuUi, docModalHtml, endHtml, introHtml, paneHtml, topHtml, writeHtml } from '../src/ui/bureau/board';
 import { mapHtml } from '../src/ui/bureau/map';
 import { canAdd, dropClause, toLock } from '../src/bureau/clauses';
 import { getSeed, setSeed } from '../src/core/rng';
@@ -184,14 +184,37 @@ describe('국장의 서류 (조항 조합)', () => {
     expect(clauseOn(W, d, 'sub', 'big')).toBe(20);
   });
 
-  it('첫 요구서: 폐광에 조를 들이면 예산 · 입지를 받고 요청서가 열린다. 손을 놓으면 입지를 깎인다', () => {
+  it('첫 요구서: 폐광에 조를 들여 군에게서 넘겨받으면 예산 · 입지를 받고 요청서가 열린다. 손을 놓으면 인내가 다해 군이 물러난다', () => {
     const a = newWorld(5), b = newWorld(5);
-    post(a, 0, 30, { sub: 15 });
-    for (let t = 0; t < B.ORDER.days + 1; t++) { step(a); step(b); }
+    expect(post(a, 0, 30, { sub: 20, comfort: 100 })).not.toBeNull();
+    for (let t = 0; t < 40 && !(a.order.done && b.order.done); t++) { step(a); step(b); }
     expect(a.order.done).toBe('ok');
     expect(a.rank).toBeGreaterThanOrEqual(B.LETTER_LV);
     expect(b.order.done).toBe('fail');
-    expect(b.reports.some(r => r.title === '요구서 미달')).toBe(true);
+    expect(b.reports.some(r => r.title.startsWith('인내가 다함'))).toBe(true);
+    // 군이 떠난 폐광은 다시 차오른다: 손 놓은 판은 두 달 안에 범람한다
+    for (let t = 0; t < 50; t++) step(b);
+    expect(b.dungeons[0].floods).toBeGreaterThan(0);
+  });
+
+  it('공고문은 공탁을 떼어 두고 보조금을 거기서 먼저 낸다. 예산이 모자라면 걸지 않고, 내리면 남은 공탁이 돌아온다', () => {
+    const W = newWorld(5), b0 = W.budget;
+    expect(post(W, 0, 60, { sub: 60 })).toBeNull();          // 60 × 60 × 3조 > 예산
+    const n = post(W, 0, 20, { sub: 10 })!;
+    expect(n.dep).toBe(600);
+    expect(W.budget).toBe(b0 - 600);
+    for (let t = 0; t < 5; t++) step(W);
+    expect(n.dep).toBeLessThan(600);
+    const left = n.dep, b1 = W.budget;
+    withdraw(W, n.id);
+    expect(W.budget).toBeCloseTo(b1 + left);
+  });
+
+  it('공고문은 기한이 길수록 믿고 온다: 같은 보조금이라도 짧은 공고엔 덜 든다', () => {
+    const a = newWorld(5), b = newWorld(5);
+    post(a, 0, 40, { sub: 15 }); post(b, 0, 10, { sub: 15 });
+    for (let t = 0; t < 8; t++) { step(a); step(b); }
+    expect(teamsIn(a.dungeons[0])).toBeGreaterThan(teamsIn(b.dungeons[0]));
   });
 
   it('공고문에 넣을 수 없는 조항(잠김 · 다른 양식 · 바탕 없음)이 있거나 조항이 없으면 내걸지 않는다', () => {
@@ -280,27 +303,70 @@ describe('국장의 서류 (조항 조합)', () => {
   it('서류 탭: 열린 받는 쪽 · 조항만 드롭다운에, 받는 쪽마다 양식이 바뀐다', () => {
     const W = newWorld(7);
     const ui: BuUi = { tab: 'asks', invite: ['big', 'small'], give: {}, intro: false, seenNews: 0, draft: { to: 'all', dg: 2, days: 30, cl: { sub: 25, rec: 1 } } };
-    let h = paneHtml(W, ui);
+    let h = writeHtml(W, ui);
     expect(h).toContain('공고문');
     expect(h).toContain('<select data-act="wto"');
-    expect(h).toContain('수신: 미궁 출입 길드 전체');
+    expect(h).toContain('미궁 출입 길드 전체');
     expect(h).toContain('제2조 출입 기록 제출');
     expect(h).not.toContain('🔒');
     expect(h).not.toContain('붉은 깃발단 · 요청서');
     expect(h).not.toContain('상단');
-    expect(paneHtml(W, { ...ui, draft: { to: 'big', dg: 2, days: 30, cl: { sub: 25 } } })).toContain('수신: 미궁 출입 길드 전체');
+    expect(writeHtml(W, { ...ui, draft: { to: 'big', dg: 2, days: 30, cl: { sub: 25 } } })).toContain('미궁 출입 길드 전체');
     W.rank = 2;
-    h = paneHtml(W, { ...ui, draft: { to: 'big', dg: 2, days: 30, cl: { sub: 25 } } });
+    h = writeHtml(W, { ...ui, draft: { to: 'big', dg: 2, days: 30, cl: { sub: 25 } } });
     expect(h).toContain('붉은 깃발단 귀하');
     expect(h).toContain('요청서 보내기');
     const n = post(W, 2, 30, { sub: 25 })!;
-    h = paneHtml(W, ui);
-    expect(h).toContain(`withdraw:${n.id}`);
-    expect(h).toContain('고쳐 내걸기');
+    expect(paneHtml(W, ui)).toContain(`withdraw:${n.id}`);
+    expect(paneHtml(W, ui)).toContain('data-act="write:2"');
+    expect(writeHtml(W, ui)).toContain('고쳐 내걸기');
     expect(paneHtml(W, { ...ui, tab: 'look', sel: 'dg:2' })).toContain('공고문 · 30일 남음');
-    expect(paneHtml(W, { ...ui, tab: 'rules' })).not.toContain('상단 물품 추가');
+    expect(paneHtml(W, { ...ui, tab: 'lib' })).not.toContain('상단 물품 추가');
+    expect(paneHtml(W, { ...ui, tab: 'lib' })).toContain('진입 보조금');
     expect(paneHtml(W, { ...ui, tab: 'look', sel: '' })).not.toContain('우선권');
     expect(paneHtml(W, { ...ui, tab: 'office' })).toContain('서기');
+  });
+});
+
+describe('첫 화면과 받은 서류 창', () => {
+  it('신문 한 면으로 시작하고, 업무를 시작하면 요구서가 창으로 온다. 길드 답신 · 청도 한 장씩 창으로', () => {
+    expect(introHtml()).toContain('업무 시작');
+    expect(introHtml()).toContain('미궁관리국 신설');
+    expect(introHtml()).toContain('왕 도 일 보');
+    const W = newWorld(5);
+    const ui: BuUi = { tab: 'look', invite: ['big', 'small'], give: {}, intro: false, seenNews: 0, docSeen: 0, askSeen: 0 };
+    let h = docModalHtml(W, ui);
+    expect(h).toContain('폐광 인계에 관한 요구');
+    expect(h).toContain('중 앙 행 정 원');
+    const k = Number(/seen:(\d+)/.exec(h)![1]);
+    expect(docModalHtml(W, { ...ui, docSeen: k + 1 })).toBe('');
+    W.asks.push({ id: 1, day: 0, due: 5, from: 'small', kind: 'aid', want: 200, chips: [] });
+    h = docModalHtml(W, { ...ui, docSeen: k + 1 });
+    expect(h).toContain('answer:1');
+    expect(h).toContain('later:1');
+    expect(docModalHtml(W, { ...ui, docSeen: k + 1, askSeen: 1 })).toBe('');
+  });
+});
+
+describe('미궁 손익 자료', () => {
+  it('조당 하루 손익을 날마다 적는다: 범람 뒤 폐광은 손해, 다른 미궁은 남는다. 보조금은 빼고 적는다', () => {
+    const W = newWorld(5);
+    expect(W.pnl[0][0]).toBeLessThan(0);
+    expect(W.pnl[1][0]).toBeGreaterThan(0);
+    W.dungeons[0].sub = 30;
+    step(W);
+    expect(W.pnl[0].length).toBe(2);
+    expect(W.pnl[0][1]).toBeLessThan(0);
+    const ui: BuUi = { tab: 'lib', invite: [], give: {}, intro: false, seenNews: 0, shelf: 'pnl' };
+    // 서류 쓰기 창엔 참고 자료를 두지 않고, 기록 탭의 서가에서 찾는다
+    expect(writeHtml(W, ui)).not.toContain('미궁 손익 자료');
+    expect(paneHtml(W, ui)).toContain('미궁 손익 자료');
+    expect(paneHtml(W, ui)).toContain('영주청 이관');
+    // 낸 서류 기록 · 받은 서류 철 (다시 보기)
+    post(W, 0, 20, { sub: 10 });
+    expect(paneHtml(W, { ...ui, shelf: 'out' })).toContain('공고문: 폐광');
+    const h = paneHtml(W, { ...ui, shelf: 'in', docSeen: W.reports.length });
+    expect(h).toContain('read:');
   });
 });
 
@@ -334,7 +400,7 @@ describe('미궁관리국 게임판 (ui/bureau)', () => {
       if (W.day % 45 === 0) {
         expect(topHtml(W)).toContain('예산');
         for (const d of W.dungeons) expect(mapHtml(W, ui)).toContain(d.name);
-        for (const tab of ['look', 'asks', 'rules', 'meet', 'office'] as const) expect(paneHtml(W, { ...ui, tab }).length).toBeGreaterThan(20);
+        for (const tab of ['look', 'asks', 'lib', 'meet', 'office'] as const) expect(paneHtml(W, { ...ui, tab }).length).toBeGreaterThan(20);
         for (const sel of ['dg:1', 'fac:big', 'fac:lord']) expect(paneHtml(W, { ...ui, tab: 'look', sel })).toContain('관할 요약');
       }
     }
