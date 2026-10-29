@@ -243,3 +243,13 @@ button.link { border: 0; background: none; padding: 0; color: var(--accent); jus
 .ctag.take { color: var(--accent); }
 .rules { display: grid; gap: 8px; }
 .rules h2 { margin: 6px 0 0; font-size: 12px; letter-spacing: .06em; color: var(--soft); font-weight: 600; }
+
+/* 드롭다운 · 집무실 */
+.w-row select { justify-self: start; max-width: 100%; font: inherit; color: var(--ink); background: var(--paper-2); border: 1px solid var(--rule); border-radius: 4px; padding: 5px 8px; }
+.write h4 small { color: var(--soft); font-weight: 400; margin-left: 6px; }
+.office { display: grid; gap: 10px; }
+.o-rank, .o-clerk { display: grid; grid-template-columns: 5em auto 1fr; gap: 4px 10px; align-items: center; border: 1px solid var(--rule); border-radius: 4px; padding: 8px 10px; }
+.o-rank > span, .o-clerk > span { color: var(--soft); font-size: 12px; }
+.o-rank > b, .o-clerk > b { font-size: 20px; }
+.o-rank small, .o-clerk small { grid-column: 1 / -1; color: var(--soft); font-size: 12px; }
+.o-clerk button { grid-column: 1 / -1; justify-self: start; }
