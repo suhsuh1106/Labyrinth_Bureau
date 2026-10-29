@@ -306,12 +306,12 @@ describe('국장의 서류 (조항 조합)', () => {
     let h = writeHtml(W, ui);
     expect(h).toContain('공고문');
     expect(h).toContain('<select data-act="wto"');
-    expect(h).toContain('수신: 미궁 출입 길드 전체');
+    expect(h).toContain('미궁 출입 길드 전체');
     expect(h).toContain('제2조 출입 기록 제출');
     expect(h).not.toContain('🔒');
     expect(h).not.toContain('붉은 깃발단 · 요청서');
     expect(h).not.toContain('상단');
-    expect(writeHtml(W, { ...ui, draft: { to: 'big', dg: 2, days: 30, cl: { sub: 25 } } })).toContain('수신: 미궁 출입 길드 전체');
+    expect(writeHtml(W, { ...ui, draft: { to: 'big', dg: 2, days: 30, cl: { sub: 25 } } })).toContain('미궁 출입 길드 전체');
     W.rank = 2;
     h = writeHtml(W, { ...ui, draft: { to: 'big', dg: 2, days: 30, cl: { sub: 25 } } });
     expect(h).toContain('붉은 깃발단 귀하');
@@ -331,10 +331,12 @@ describe('첫 화면과 받은 서류 창', () => {
   it('신문 한 면으로 시작하고, 업무를 시작하면 요구서가 창으로 온다. 길드 답신 · 청도 한 장씩 창으로', () => {
     expect(introHtml()).toContain('업무 시작');
     expect(introHtml()).toContain('미궁관리국 신설');
+    expect(introHtml()).toContain('왕 도 일 보');
     const W = newWorld(5);
     const ui: BuUi = { tab: 'look', invite: ['big', 'small'], give: {}, intro: false, seenNews: 0, docSeen: 0, askSeen: 0 };
     let h = docModalHtml(W, ui);
-    expect(h).toContain('요 구 서');
+    expect(h).toContain('폐광 인계에 관한 요구');
+    expect(h).toContain('중 앙 행 정 원');
     const k = Number(/seen:(\d+)/.exec(h)![1]);
     expect(docModalHtml(W, { ...ui, docSeen: k + 1 })).toBe('');
     W.asks.push({ id: 1, day: 0, due: 5, from: 'small', kind: 'aid', want: 200, chips: [] });

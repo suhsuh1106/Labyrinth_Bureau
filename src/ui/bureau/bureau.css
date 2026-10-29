@@ -267,15 +267,6 @@ button.link { border: 0; background: none; padding: 0; color: var(--accent); jus
 .o-order small { color: var(--soft); font-size: 12px; }
 .t-order b { color: var(--warn); }
 
-/* 첫 화면: 신문 한 면 */
-.news-page { width: min(560px, 100%); }
-.np-head { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 3px double var(--rule); padding-bottom: 6px; }
-.np-head b { font: 700 26px var(--f-display); letter-spacing: .3em; }
-.np-head small { color: var(--soft); font-size: 11px; }
-.np-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.np-cols section { border-top: 1px solid var(--rule); padding-top: 6px; font-size: 13px; }
-.np-cols h3 { margin: 0 0 4px; font: 700 15px var(--f-display); }
-@media (max-width: 480px) { .np-cols { grid-template-columns: 1fr; } }
 /* 받은 서류 · 서류 쓰기 창: 화면 안에 들어오게, 넘치면 창 안에서만 스크롤 */
 .card.modal { width: min(520px, 100%); max-height: calc(100dvh - 32px); overflow-y: auto; }
 .card.modal .ask-do { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -290,3 +281,50 @@ button.link { border: 0; background: none; padding: 0; color: var(--accent); jus
 .pnl td { text-align: right; padding: 3px 6px; border-top: 1px solid var(--rule); }
 .pnl td:first-child { text-align: left; }
 .pnl tr.on td { font-weight: 600; background: color-mix(in srgb, var(--accent) 8%, transparent); }
+
+/* 종이: 신문 지면 · 관청 공문 · 길드 서신 (docs.ts) */
+.news-page { width: min(640px, 100%); }
+.newspaper { --np: #f4efe3; --npi: #22201b; background: var(--np); color: var(--npi); padding: 14px 16px 16px; border: 1px solid #cfc6b2; font-family: var(--f-display); display: grid; gap: 8px; }
+.np-mast { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; border-bottom: 4px double var(--npi); padding-bottom: 4px; }
+.np-mast h1 { margin: 0; font: 700 34px/1.1 var(--f-display); letter-spacing: .25em; text-align: center; }
+.np-ear { font: 11px var(--f-body); border: 1px solid var(--npi); padding: 2px 6px; justify-self: start; }
+.np-ear:last-child { justify-self: end; font-weight: 700; letter-spacing: .3em; }
+.np-line { display: flex; justify-content: space-between; font: 11px var(--f-body); border-bottom: 1px solid var(--npi); padding-bottom: 3px; }
+.np-head { margin: 4px 0 0; font: 700 25px/1.25 var(--f-display); text-align: center; text-wrap: balance; }
+.np-deck { margin: 0; text-align: center; font-size: 14px; border-bottom: 1px solid #9f9682; padding-bottom: 6px; }
+.np-body { columns: 2 220px; column-gap: 18px; column-rule: 1px solid #b9b09b; font: 13px/1.6 var(--f-body); }
+.np-body p { margin: 0 0 8px; text-align: justify; }
+.np-lead::first-letter { float: left; font: 700 38px/0.9 var(--f-display); margin: 3px 6px 0 0; }
+.np-body section { break-inside: avoid; }
+.np-body h3 { margin: 4px 0 2px; font: 700 15px var(--f-display); border-top: 2px solid var(--npi); padding-top: 4px; }
+.np-box { break-inside: avoid; border: 1px solid var(--npi); padding: 6px 8px; margin-top: 6px; }
+.np-box h3 { border: 0; padding: 0; margin: 0 0 4px; font-size: 13px; text-align: center; }
+.np-box dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; margin: 0; font-size: 12px; }
+.np-box dt { font-weight: 600; } .np-box dd { margin: 0; text-align: right; }
+
+.gov-doc { background: var(--paper); border: 1px solid var(--rule); padding: 16px 18px 12px; display: grid; gap: 8px; font-size: 13px; }
+.gd-org { text-align: center; font: 700 22px var(--f-display); letter-spacing: .15em; border-bottom: 2px solid var(--ink); padding-bottom: 6px; }
+.gd-kind { margin: 0; text-align: center; font: 700 16px var(--f-display); letter-spacing: .2em; }
+.gd-meta { display: grid; grid-template-columns: 3.2em 1fr; gap: 4px 8px; margin: 0; border-bottom: 1px solid var(--rule); padding-bottom: 8px; }
+.gd-meta dt { color: var(--soft); letter-spacing: .3em; } .gd-meta dd { margin: 0; }
+.gd-body { margin: 0; padding-left: 20px; display: grid; gap: 6px; line-height: 1.65; }
+.gd-attach { margin: 0; } .gd-attach span { color: var(--soft); margin-right: 8px; letter-spacing: .3em; }
+.gd-sign, .gl-sign { display: flex; justify-content: center; align-items: center; gap: 10px; padding: 6px 0; }
+.gd-sign b { font: 700 19px var(--f-display); letter-spacing: .2em; }
+.gd-no { margin: 0; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px; border-top: 1px solid var(--rule); padding-top: 6px; color: var(--soft); font-size: 11px; }
+.seal { font: 700 12px/1.05 var(--f-display); color: var(--stamp); border: 2px solid var(--stamp); display: inline-grid; place-items: center; text-align: center; font-style: normal; transform: rotate(-4deg); opacity: .9; }
+.seal.sq { width: 44px; height: 44px; padding: 3px; word-break: break-all; border-radius: 3px; }
+.seal.rd { width: 42px; height: 42px; border-radius: 50%; font-size: 13px; }
+.gov-doc.out .p-cl { margin: 0; }
+
+.guild-letter { background: #f7f1e4; color: #2a241c; border: 1px solid #d6cab0; border-left: 6px solid #7a6a4f; padding: 14px 18px; display: grid; gap: 8px; font: 14px/1.7 var(--f-display); }
+.guild-letter.red { border-left-color: #9c2b23; } .guild-letter.green { border-left-color: #3f6b3a; }
+.guild-letter p { margin: 0; }
+.gl-head { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid #c9bb9c; padding-bottom: 4px; }
+.gl-head b { font-size: 18px; letter-spacing: .1em; } .gl-head small { font: 11px var(--f-body); color: #6d6250; }
+.gl-to { font-weight: 700; } .gl-title { color: #6d6250; font-size: 13px; }
+.gl-sign { justify-content: flex-end; } .gl-sign span { font-size: 15px; }
+.guild-letter .seal { color: #9c2b23; border-color: #9c2b23; }
+@media (max-width: 520px) { .np-ear { display: none; } .np-mast { grid-template-columns: 1fr; } .np-mast h1 { font-size: 28px; } .np-head { font-size: 21px; } }
+@media (prefers-color-scheme: dark) { .guild-letter, .newspaper { filter: brightness(.92); } }
+.newspaper, .gov-doc, .guild-letter { word-break: keep-all; overflow-wrap: anywhere; }

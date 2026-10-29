@@ -1,6 +1,7 @@
 // 미궁관리국 게임판: HTML 문자열을 만든다. 상태에 아무것도 쓰지 않고 난수도 쓰지 않는다(그리기만).
 // 위 띠(날 · 예산 · 입지 · 다음 날) · 왼쪽 관할 지도(map.ts) · 오른쪽 탭(살펴보기 · 요청서 · 조항 · 회의 · 보고)
 import { lookHtml } from './map';
+import { askLetter, dateOf, docOf, floodNews, govHtml, introNews, letterHtml, newsHtml } from './docs';
 import { B, type FacId, FACS, type Report, type World, pnlAvg, depOf, docsOut, escrowOf, trustOf, withdrawFav, facOf, levelOf, nameOf, pactK, relOf, seenLevel, subAt, teamsIn, willOf } from '../../bureau/engine';
 import { CLAUSE, CLAUSES, CLAUSE_MAX, type Clause, type Clauses, type ClauseId, FORM_NAME, FORM_OF, type Form, TO_NAME, type To, clauseLock, fits, toLock } from '../../bureau/clauses';
 
@@ -69,7 +70,7 @@ const noticeWord = (W: World, i: number) => {
 // 서류 쓰기: 받는 쪽이 양식을 정한다(길드 전체 공고문 · 길드 하나 요청서 · 상단 제안서). 조항을 넣고 빼고 숫자를 고친다.
 // 잠긴 받는 쪽도 양식은 미리 볼 수 있지만 보내지 못한다
 const PAPER: Record<Form, { head: (no: number) => string; to: (to: To) => string; body: (dg: string) => string; term: string }> = {
-  notice: { head: no => `미궁관리국 공고 제${no}호`, to: () => '수신: 미궁 출입 길드 전체', body: dg => `${dg} 출입에 관하여 아래와 같이 알린다.`, term: '기한' },
+  notice: { head: no => `미궁관리국 공고 제${no}호`, to: () => '미궁 출입 길드 전체', body: dg => `${dg} 출입에 관하여 아래와 같이 알린다.`, term: '기한' },
   letter: { head: () => '미궁관리국 서신', to: to => `${TO_NAME[to]} 귀하`, body: dg => `${dg} 출입에 관하여 아래와 같이 요청드립니다.`, term: '약정 기간' },
   offer: { head: () => '미궁관리국 서신', to: () => '상단 귀중', body: dg => `${dg} 입구 보급에 관하여 아래와 같이 제안합니다.`, term: '약정 기간' },
 };
@@ -106,13 +107,15 @@ export function writeHtml(W: World, ui: BuUi) {
     <div class="w-row"><span>받는 쪽</span>${pick('wto', '받는 쪽', tos.map(t => ({ v: t, name: `${TO_NAME[t]} · ${FORM_NAME[FORM_OF[t]]}`, on: t === f.to })))}</div>
     <div class="w-row"><span>미궁</span>${pick('wdg', '미궁', W.dungeons.map((x, i) => ({ v: String(i), name: x.name, on: i === f.dg })))}</div>
     ${pnlHtml(W, f.dg)}
-    <div class="paper f-${form}">
-      <header><small>${P.head(W.docN + 1)}</small><h3>${FORM_NAME[form]}</h3></header>
-      <p class="p-to">${P.to(f.to)}</p>
+    <div class="gov-doc out f-${form}">
+      <header class="gd-org">미 궁 관 리 국</header>
+      <p class="gd-kind">${FORM_NAME[form].split('').join(' ')}</p>
+      <dl class="gd-meta"><dt>수신</dt><dd>${P.to(f.to)}</dd><dt>제목</dt><dd><b>${d.name} 출입에 관한 ${FORM_NAME[form]}</b></dd></dl>
       <p>${P.body(d.name)}</p>
       ${ids.length ? `<ol class="p-cl">${ids.map(row).join('')}</ol>` : '<p class="empty">조항을 아래에서 넣는다.</p>'}
       <div class="p-term"><span>${P.term}</span>${stepper('wdays', `${f.days}일`, P.term)}<small class="num">${W.day + f.days}일까지</small></div>
-      <p class="p-sign">미궁관리국장</p>
+      <footer class="gd-sign"><b>미궁관리국장</b><i class="seal sq" aria-label="직인">管理局印</i></footer>
+      <p class="gd-no"><span>${P.head(W.docN + 1)}</span><span>시행 ${dateOf(W.day)}</span></p>
     </div>
     <div class="w-row"><span>조항 넣기 <small>${ids.length} / ${CLAUSE_MAX}</small></span>${pal.length && ids.length < CLAUSE_MAX ? pick('wadd', '조항 넣기', pal, '조항 고르기') : '<small class="note">더 넣을 조항 없음</small>'}</div>
     ${cost ? `<p class="w-cost num">지금 ${n1(n)}조 기준 · ${cost}</p>` : ''}
@@ -218,20 +221,13 @@ export function paneHtml(W: World, ui: BuUi) {
 
 // 처음 부임할 때: 신문 한 면. 업무를 시작하면 첫 서류(중앙 행정원의 요구서)가 책상에 온다
 export function introHtml() {
-  return `<div class="card intro news-page">
-  <header class="np-head"><b>왕 도 일 보</b><small>호외 · 1면</small></header>
-  <div class="paper-news"><h2>폐광 아래 미궁 범람, 로이드 백작령 마을 잠겨</h2>
-    <p>지난밤 폐광 아래 미궁이 넘쳐 마을 셋이 잠겼다. 범람의 기억에 길드들은 미궁에 발을 들이지 않는다.</p></div>
-  <div class="np-cols">
-    <section><h3>왕국군 투입</h3><p>왕국군이 1차 진압 뒤 폐광에 주둔해 수위를 붙들고 있다. 군을 언제까지 둘지는 정해지지 않았다.</p></section>
-    <section><h3>미궁관리국 신설</h3><p>중앙 행정원은 미궁관리국을 새로 두었다. 관리국은 길드에 명령하지 못하고, 공고와 서신으로 길드를 움직인다.</p></section>
-  </div>
+  return `<div class="card intro news-page">${newsHtml(introNews())}
   <button type="button" class="go wide" data-act="start">업무 시작</button></div>`;
 }
 
 // 받은 서류: 중앙 행정원 · 길드가 보낸 것은 책상에 새 창으로 온다(보고 목록에도 남는다)
 const GUILD_NAMES = ['붉은 깃발단', '중소 길드 연합'];
-export const isDoc = (r: Report) => r.from === '중앙 행정원' || GUILD_NAMES.includes(r.from);
+export const isDoc = (r: Report) => r.from === '중앙 행정원' || GUILD_NAMES.includes(r.from) || (r.from === '왕도일보' && r.day > 0);
 // 아직 창으로 보지 않은 서류: 청 · 독촉이 먼저, 그다음 보고 순서대로
 export function nextDoc(W: World, ui: BuUi) {
   const ask = W.asks.find(a => a.got == null && a.id > (ui.askSeen ?? 0));
@@ -239,30 +235,22 @@ export function nextDoc(W: World, ui: BuUi) {
   for (let k = ui.docSeen ?? 0; k < W.reports.length; k++) if (isDoc(W.reports[k])) return { k };
   return null;
 }
-function orderPaper() {
-  const o = B.ORDER;
-  return `<p class="p-to">미궁관리국장 귀하</p>
-    <p>왕국군을 언제까지나 폐광에 둘 수는 없다. 길드에 넘겨받아라. <b>하루 ${o.min}조 이상 든 날이 ${o.need}일 이어지면</b> 군이 물러나며 넘기고, 예산 ${o.pay}G를 더 배정하고 입지를 올린다.</p>
-    <p>길드가 들지 않는 날마다 중앙의 인내가 준다. 인내가 다하면 군은 넘기지 않고 물러나고 입지를 깎는다. 군이 떠난 폐광은 다시 차오른다.</p>
-    <p class="note">조는 끌림을 따라 든다. 범람이 남긴 꺼림이 커서 보조금만으로는 비싸다. 위로금이 꺼림을 던다.</p>`;
-}
 export function docModalHtml(W: World, ui: BuUi) {
   const d = nextDoc(W, ui);
   if (!d) return '';
   if (d.ask) {
     const a = d.ask, v = ui.give[a.id] ?? a.want;
-    return `<div class="card modal"><div class="paper f-letter"><header><small>${a.day}일 · ${nameOf(W, a.from)}</small><h3>${a.kind === 'dun' ? '독 촉 장' : '청 원 서'}</h3></header>
-      <p class="p-to">미궁관리국장 귀하</p>
-      <p>${a.kind === 'dun' ? '지난번 회의에 서명해 드린 일을 기억하시리라 믿습니다.' : '사정이 어려워 염치 불고하고 청을 올립니다.'} <b class="num">${n0(a.want)}G</b>를 ${a.kind === 'dun' ? '돌려받고자 합니다' : '도와주시기 바랍니다'}.</p>
-      ${a.chips.map(c => `<span class="chip">${c}</span>`).join('')}
-      <p class="p-sign">${nameOf(W, a.from)}</p></div>
+    return `<div class="card modal">${letterHtml(askLetter(W, a))}
       <div class="ask-do">${stepper(`give:${a.id}`, `${n0(v)}G`, '줄 값')}<button type="button" class="go" data-act="answer:${a.id}">보내기</button><button type="button" data-act="refuse:${a.id}">거절</button><button type="button" data-act="later:${a.id}">나중에 · ${a.due - W.day}일 안에</button></div></div>`;
   }
-  const r = W.reports[d.k!], gov = r.from === '중앙 행정원', first = gov && r.day === 0;
-  return `<div class="card modal"><div class="paper ${gov ? 'f-notice' : 'f-letter'}"><header><small>${first ? '' : `${r.day}일 · `}${r.from}</small><h3>${first ? '요 구 서' : r.title}</h3></header>
-    ${first ? orderPaper() : `<p class="p-to">미궁관리국장 귀하</p>${r.chips.map(c => `<span class="chip">${c}</span>`).join('')}`}
-    <p class="p-sign">${r.from}</p></div>
-    <button type="button" class="go wide" data-act="seen:${d.k}">${first ? '요구서 받음' : '확인'}</button></div>`;
+  const r = W.reports[d.k!];
+  if (r.from === '왕도일보') {
+    const no = W.reports.slice(0, d.k! + 1).filter(x => x.from === '왕도일보').length;
+    return `<div class="card modal news-page">${newsHtml(floodNews(W, r, no))}<button type="button" class="go wide" data-act="seen:${d.k}">신문 접기</button></div>`;
+  }
+  const doc = docOf(r), first = r.from === '중앙 행정원' && r.day === 0;
+  return `<div class="card modal">${'gov' in doc ? govHtml(doc.gov) : letterHtml(doc.letter)}
+    <button type="button" class="go wide" data-act="seen:${d.k}">${first ? '요구서 받음' : '받음'}</button></div>`;
 }
 
 // 요구서의 진행: 위 띠와 집무실
