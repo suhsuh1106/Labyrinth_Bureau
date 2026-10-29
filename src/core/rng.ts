@@ -9,3 +9,5 @@ export function rnd(): number {
   t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 }
+// 저장한 판을 이어 하려고 난수의 자리를 읽는다
+export const getSeed = () => seed;

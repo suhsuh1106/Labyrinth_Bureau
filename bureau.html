@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>미궁관리국</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+</head>
+<body>
+<div class="room">
+  <header class="top" id="top" aria-label="오늘"></header>
+  <main class="main">
+    <div class="board" id="board"></div>
+    <aside class="side">
+      <nav class="tabs" id="tabs" role="tablist" aria-label="국장의 손"></nav>
+      <div class="pane" id="pane" role="tabpanel"></div>
+    </aside>
+  </main>
+  <div class="over" id="over" hidden></div>
+</div>
+<script type="module" src="/src/bureauMain.ts"></script>
+</body>
+</html>
