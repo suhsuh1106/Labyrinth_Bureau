@@ -1,8 +1,10 @@
 // 미궁관리국 배경 엔진 0단계: 인과 루프 두 쌍이 폭주하거나 멈추지 않는지, 국장의 손이 판을 바꾸는지
 import { describe, expect, it } from 'vitest';
-import { B, answer, meet, newWorld, pactK, relOf, run, step } from '../src/bureau/engine';
+import { B, answer, meet, newWorld, over, pactK, relOf, run, step } from '../src/bureau/engine';
 import { BOT, playGame } from '../sim/bureau';
 import { EDGES, LINKS, LOOPS, NODES, checkLoops } from '../src/bureau/loops';
+import { type BuUi, boardHtml, endHtml, paneHtml, topHtml } from '../src/ui/bureau/board';
+import { getSeed, setSeed } from '../src/core/rng';
 
 const SEEDS = Array.from({ length: 30 }, (_, i) => 1000 + i);
 const avg = (bot: string, f: (W: ReturnType<typeof playGame>) => number, o = {}) =>
@@ -165,5 +167,33 @@ describe('인과 루프 그림 (loops.ts)', () => {
       for (const l of LOOPS) on[l.id] = (on[l.id] ?? 0) + W.stats.loops[l.id];
     }
     for (const l of LOOPS) expect(on[l.id], l.id).toBeGreaterThan(0);
+  });
+});
+
+describe('미궁관리국 게임판 (ui/bureau)', () => {
+  it('판 · 탭 · 끝 화면을 날마다 그린다', () => {
+    const W = newWorld(1003);
+    const ui: BuUi = { tab: 'asks', invite: ['big', 'small'], give: {}, intro: false, seenNews: 0 };
+    while (!over(W)) {
+      BOT.smart(W); step(W);
+      if (W.day % 45 === 0) {
+        expect(topHtml(W)).toContain('예산');
+        for (const d of W.dungeons) expect(boardHtml(W)).toContain(d.name);
+        for (const tab of ['asks', 'rules', 'meet', 'news'] as const) expect(paneHtml(W, { ...ui, tab }).length).toBeGreaterThan(20);
+      }
+    }
+    expect(endHtml(W, W, W)).toContain('임기');
+  });
+
+  it('저장한 판(JSON + 난수 자리)을 이어 하면 그대로 흘러간다', () => {
+    const a = newWorld(1004);
+    for (let t = 0; t < 40; t++) { BOT.normal(a); step(a); }
+    const saved = JSON.stringify(a), rng = getSeed();
+    for (let t = 0; t < 40; t++) { BOT.normal(a); step(a); }
+    const b = JSON.parse(saved); setSeed(rng);
+    for (let t = 0; t < 40; t++) { BOT.normal(b); step(b); }
+    expect(b.day).toBe(a.day);
+    expect(b.standing).toBeCloseTo(a.standing, 9);
+    expect(b.dungeons.map((d: any) => d.level)).toEqual(a.dungeons.map(d => d.level));
   });
 });
