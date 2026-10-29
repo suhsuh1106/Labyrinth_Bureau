@@ -229,7 +229,8 @@ describe('국장의 서류 (조항 조합)', () => {
     expect(paneHtml(W, { ...ui, tab: 'look', sel: 'dg:2' })).toContain('공고문 · 30일 남음');
     const r = paneHtml(W, { ...ui, tab: 'rules' });
     expect(r).toContain('출입 기록 제출');
-    expect(r).toContain('🔒 상단 물품 추가');
+    expect(r).not.toContain('상단 물품 추가');
+    expect(paneHtml(W, { ...ui, draft: { to: 'all', dg: 0, days: 20, cl: {} } })).not.toContain('보급 표 지급');
     expect(paneHtml(W, { ...ui, tab: 'look', sel: '' })).toContain('관리국 규정');
   });
 });

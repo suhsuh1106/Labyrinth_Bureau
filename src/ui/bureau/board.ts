@@ -75,9 +75,9 @@ function writeHtml(W: World, ui: BuUi) {
     return `<li><div class="c-head"><b>제${k + 1}조 ${c.name}</b>${c.needs ? `<small class="chain">⛓ ${CLAUSE[c.needs].name}</small>` : ''}<button type="button" class="x" data-act="wdel:${id}" aria-label="${c.name} 빼기">빼기</button></div>
       <p>${c.line(v)}</p>${c.field ? stepper(`wv:${id}`, `${v}${c.field.unit}`, c.name) : ''}</li>`;
   };
-  // 이 양식에 넣을 수 있는 조항: 넣기 단추, 아니면 왜 못 넣는지
-  const pal = CLAUSES.filter(c => c.forms.includes(form) && f.cl[c.id] == null).map(c => {
-    const [ic, why] = clauseLock(W, c.id) ? ['🔒', clauseLock(W, c.id)] : c.needs && f.cl[c.needs] == null ? ['⛓', `${CLAUSE[c.needs].name} 먼저`] : ids.length >= CLAUSE_MAX ? ['·', `${CLAUSE_MAX}조가 다 참`] : ['+', ''];
+  // 이 양식에 넣을 수 있는 조항: 넣기 단추, 아니면 왜 못 넣는지. 잠긴 조항은 보이지 않는다
+  const pal = CLAUSES.filter(c => c.forms.includes(form) && f.cl[c.id] == null && !clauseLock(W, c.id)).map(c => {
+    const [ic, why] = c.needs && f.cl[c.needs] == null ? ['⛓', `${CLAUSE[c.needs].name} 먼저`] : ids.length >= CLAUSE_MAX ? ['·', `${CLAUSE_MAX}조가 다 참`] : ['+', ''];
     return `<button type="button" class="opt add${why ? ' lock' : ''}" data-act="wadd:${c.id}" ${why ? `disabled title="${why}"` : ''}>${ic} ${c.name}</button>`;
   }).join('');
   const sub = f.cl.sub ?? 0, comfort = f.cl.comfort;
@@ -110,21 +110,15 @@ function postedHtml(W: World) {
   }).join('')}`;
 }
 
-// 조항 탭: 국장이 서류에 쓸 수 있는 조항의 설명서. 쓸 수 있는 것 먼저, 잠긴 것은 까닭과 함께
+// 조항 탭: 국장이 서류에 쓸 수 있는 조항의 설명서 (잠긴 조항은 열리기 전까지 보이지 않는다)
 function clausesHtml(W: World) {
-  const card = (c: Clause) => {
-    const lock = clauseLock(W, c.id);
-    return `<article class="clause${lock ? ' locked' : ''}">
-      <header><b>${lock ? '🔒 ' : ''}${c.name}</b>${tagsHtml(c)}</header>
+  const card = (c: Clause) => `<article class="clause">
+      <header><b>${c.name}</b>${tagsHtml(c)}</header>
       <p class="c-forms">${c.forms.map(x => FORM_NAME[x]).join(' · ')}${c.field ? ` · 숫자 칸 ${c.field.min} ~ ${c.field.max}${c.field.unit}` : ''}${c.needs ? ` · ⛓ ${CLAUSE[c.needs].name}에 걸림` : ''}</p>
       <p>${c.fx}</p>
-      ${lock ? `<p class="c-lock">${lock}</p>` : ''}
     </article>`;
-  };
-  const open = CLAUSES.filter(c => !clauseLock(W, c.id)), shut = CLAUSES.filter(c => clauseLock(W, c.id));
   return `<p class="note">서류에 넣는 조항. 받는 쪽이 양식을 정한다: 길드 전체는 공고문, 길드 하나는 요청서, 상단은 제안서. 한 서류에 ${CLAUSE_MAX}조까지, 걸린 조항(⛓)은 바탕 조항이 있어야 넣고 바탕을 빼면 함께 빠진다.</p>
-  <h4>쓸 수 있음</h4>${open.map(card).join('')}
-  <h4>잠김</h4>${shut.map(card).join('')}`;
+  ${CLAUSES.filter(c => !clauseLock(W, c.id)).map(card).join('')}`;
 }
 
 // 관리국 규정: 서류 없이 국장이 바로 정하는 것 (살펴보기의 관할 요약에 둔다)
