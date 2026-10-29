@@ -1,13 +1,14 @@
 // 미궁관리국 게임판: HTML 문자열을 만든다. 상태에 아무것도 쓰지 않고 난수도 쓰지 않는다(그리기만).
 // 위 띠(날 · 예산 · 입지 · 다음 날) · 왼쪽 관할 지도(map.ts) · 오른쪽 탭(살펴보기 · 요청서 · 조항 · 회의 · 보고)
 import { lookHtml } from './map';
-import { B, type FacId, FACS, type World, depOf, docsOut, escrowOf, trustOf, withdrawFav, facOf, levelOf, nameOf, pactK, relOf, seenLevel, subAt, teamsIn, willOf } from '../../bureau/engine';
+import { B, type FacId, FACS, type Report, type World, depOf, docsOut, escrowOf, trustOf, withdrawFav, facOf, levelOf, nameOf, pactK, relOf, seenLevel, subAt, teamsIn, willOf } from '../../bureau/engine';
 import { CLAUSE, CLAUSES, CLAUSE_MAX, type Clause, type Clauses, type ClauseId, FORM_NAME, FORM_OF, type Form, TO_NAME, type To, clauseLock, fits, toLock } from '../../bureau/clauses';
 
 export type Tab = 'look' | 'asks' | 'rules' | 'meet' | 'office';
 // sel: 지도에서 고른 것('dg:0' · 'fac:big', 비우면 관할 요약). draft: 쓰고 있는 서류(받는 쪽 · 미궁 · 기간 · 조항과 값)
 export interface Draft { to: To; dg: number; days: number; cl: Clauses }
-export interface BuUi { tab: Tab; invite: FacId[]; give: Record<number, number>; intro: boolean; seenNews: number; sel?: string; draft?: Draft }
+// modal: 서류 쓰기 창이 열려 있나. docSeen: 받은 서류 창으로 읽은 보고 자리 · askSeen: 창으로 본 마지막 청
+export interface BuUi { tab: Tab; invite: FacId[]; give: Record<number, number>; intro: boolean; seenNews: number; sel?: string; draft?: Draft; modal?: 'write'; docSeen?: number; askSeen?: number }
 export const DRAFT0: Draft = { to: 'all', dg: 0, days: 20, cl: { sub: 10 } };
 
 export const n0 = (v: number) => Math.round(v).toLocaleString('ko-KR');
@@ -70,7 +71,7 @@ const pick = (act: string, label: string, opts: { v: string; name: string; on?: 
   `<select data-act="${act}" aria-label="${label}">${ph ? `<option value="" selected>${ph}</option>` : ''}${opts.map(o => `<option value="${o.v}"${o.on ? ' selected' : ''}${o.off ? ' disabled' : ''}>${o.name}${o.off ? ` (${o.off})` : ''}</option>`).join('')}</select>`;
 
 // 서류 쓰기: 받는 쪽이 양식을 정한다. 열리지 않은 받는 쪽 · 조항은 보이지 않는다
-function writeHtml(W: World, ui: BuUi) {
+export function writeHtml(W: World, ui: BuUi) {
   const tos = (['all', 'big', 'small', 'trade'] as To[]).filter(t => !toLock(W, t));
   const f0 = ui.draft ?? DRAFT0, f = tos.includes(f0.to) ? f0 : { ...f0, to: 'all' as To };
   const form = FORM_OF[f.to], P = PAPER[form], d = W.dungeons[f.dg];
@@ -92,7 +93,7 @@ function writeHtml(W: World, ui: BuUi) {
   const trust = form === 'notice' && sub ? `<p class="w-cost num">믿음 · 붉은 깃발단 ${n0(trustOf('big', f.days) * 100)}% · 중소 연합 ${n0(trustOf('small', f.days) * 100)}%</p>` : '';
   const canPost = !full && !poor && ids.length > 0 && ids.every(id => fits(W, form, f.cl, id));
   return `<article class="write">
-    <h4>서류 쓰기 <small class="num">서기 ${W.clerks}명 · 낸 서류 ${docsOut(W)} / ${W.clerks}</small></h4>
+    <h4>서류 쓰기 <small class="num">서기 ${W.clerks}명 · 낸 서류 ${docsOut(W)} / ${W.clerks}</small><button type="button" class="x close" data-act="close" aria-label="닫기">닫기</button></h4>
     <div class="w-row"><span>받는 쪽</span>${pick('wto', '받는 쪽', tos.map(t => ({ v: t, name: `${TO_NAME[t]} · ${FORM_NAME[FORM_OF[t]]}`, on: t === f.to })))}</div>
     <div class="w-row"><span>미궁</span>${pick('wdg', '미궁', W.dungeons.map((x, i) => ({ v: String(i), name: x.name, on: i === f.dg })))}</div>
     <div class="paper f-${form}">
@@ -183,7 +184,7 @@ export function paneHtml(W: World, ui: BuUi) {
   if (ui.tab === 'look') return lookHtml(W, ui);
   if (ui.tab === 'asks') {
     const asks = openAsks(W), done = W.asks.filter(a => a.got != null).slice(-4).reverse();
-    return writeHtml(W, ui) + postedHtml(W) + `<h4>받은 청 · 독촉</h4>` + (asks.length ? asks.map(a => {
+    return `<button type="button" class="go wide" data-act="write:${(ui.draft ?? DRAFT0).dg}">서류 쓰기 <small class="num">낸 서류 ${docsOut(W)} / ${W.clerks}</small></button>` + postedHtml(W) + `<h4>받은 청 · 독촉</h4>` + (asks.length ? asks.map(a => {
       const v = ui.give[a.id] ?? a.want;
       return `<article class="ask ${a.kind}">
         <header><b>${nameOf(W, a.from)}</b><span class="tag ${a.kind === 'dun' ? 'warn' : ''}">${a.kind === 'dun' ? '독촉' : '청'}</span><small>${a.due - W.day}일 안에</small></header>
@@ -205,19 +206,53 @@ export function paneHtml(W: World, ui: BuUi) {
   return officeHtml(W, ui);
 }
 
-// 처음 부임할 때: 신문 한 장과 중앙 행정원의 첫 요구서
+// 처음 부임할 때: 신문 한 면. 업무를 시작하면 첫 서류(중앙 행정원의 요구서)가 책상에 온다
 export function introHtml() {
+  return `<div class="card intro news-page">
+  <header class="np-head"><b>왕 도 일 보</b><small>호외 · 1면</small></header>
+  <div class="paper-news"><h2>폐광 아래 미궁 범람, 로이드 백작령 마을 잠겨</h2>
+    <p>지난밤 폐광 아래 미궁이 넘쳐 마을 셋이 잠겼다. 범람의 기억에 길드들은 미궁에 발을 들이지 않는다.</p></div>
+  <div class="np-cols">
+    <section><h3>왕국군 투입</h3><p>왕국군이 1차 진압 뒤 폐광에 주둔해 수위를 붙들고 있다. 군을 언제까지 둘지는 정해지지 않았다.</p></section>
+    <section><h3>미궁관리국 신설</h3><p>중앙 행정원은 미궁관리국을 새로 두었다. 관리국은 길드에 명령하지 못하고, 공고와 서신으로 길드를 움직인다.</p></section>
+  </div>
+  <button type="button" class="go wide" data-act="start">업무 시작</button></div>`;
+}
+
+// 받은 서류: 중앙 행정원 · 길드가 보낸 것은 책상에 새 창으로 온다(보고 목록에도 남는다)
+const GUILD_NAMES = ['붉은 깃발단', '중소 길드 연합'];
+export const isDoc = (r: Report) => r.from === '중앙 행정원' || GUILD_NAMES.includes(r.from);
+// 아직 창으로 보지 않은 서류: 청 · 독촉이 먼저, 그다음 보고 순서대로
+export function nextDoc(W: World, ui: BuUi) {
+  const ask = W.asks.find(a => a.got == null && a.id > (ui.askSeen ?? 0));
+  if (ask) return { ask };
+  for (let k = ui.docSeen ?? 0; k < W.reports.length; k++) if (isDoc(W.reports[k])) return { k };
+  return null;
+}
+function orderPaper() {
   const o = B.ORDER;
-  return `<div class="card intro">
-  <div class="paper-news"><small>왕도일보 · 1면</small><h2>폐광 아래 미궁 범람, 로이드 백작령 마을 잠겨</h2>
-    <p>왕국군이 1차 진압 뒤 폐광에 주둔해 수위를 붙들고 있다. 범람의 기억에 길드들은 발을 들이지 않는다. 중앙 행정원은 미궁관리국을 새로 두었다. 관리국은 길드에 명령하지 못한다.</p></div>
-  <div class="paper f-notice order-paper"><header><small>중앙 행정원</small><h3>요 구 서</h3></header>
-    <p class="p-to">미궁관리국장 귀하</p>
+  return `<p class="p-to">미궁관리국장 귀하</p>
     <p>왕국군을 언제까지나 폐광에 둘 수는 없다. 길드에 넘겨받아라. <b>하루 ${o.min}조 이상 든 날이 ${o.need}일 이어지면</b> 군이 물러나며 넘기고, 예산 ${o.pay}G를 더 배정하고 입지를 올린다.</p>
     <p>길드가 들지 않는 날마다 중앙의 인내가 준다. 인내가 다하면 군은 넘기지 않고 물러나고 입지를 깎는다. 군이 떠난 폐광은 다시 차오른다.</p>
-    <p class="note">조는 끌림을 따라 든다. 범람이 남긴 꺼림이 커서 보조금만으로는 비싸다. 위로금이 꺼림을 던다.</p>
-    <p class="p-sign">중앙 행정원</p></div>
-  <button type="button" class="go wide" data-act="start">요구서 받고 부임</button></div>`;
+    <p class="note">조는 끌림을 따라 든다. 범람이 남긴 꺼림이 커서 보조금만으로는 비싸다. 위로금이 꺼림을 던다.</p>`;
+}
+export function docModalHtml(W: World, ui: BuUi) {
+  const d = nextDoc(W, ui);
+  if (!d) return '';
+  if (d.ask) {
+    const a = d.ask, v = ui.give[a.id] ?? a.want;
+    return `<div class="card modal"><div class="paper f-letter"><header><small>${a.day}일 · ${nameOf(W, a.from)}</small><h3>${a.kind === 'dun' ? '독 촉 장' : '청 원 서'}</h3></header>
+      <p class="p-to">미궁관리국장 귀하</p>
+      <p>${a.kind === 'dun' ? '지난번 회의에 서명해 드린 일을 기억하시리라 믿습니다.' : '사정이 어려워 염치 불고하고 청을 올립니다.'} <b class="num">${n0(a.want)}G</b>를 ${a.kind === 'dun' ? '돌려받고자 합니다' : '도와주시기 바랍니다'}.</p>
+      ${a.chips.map(c => `<span class="chip">${c}</span>`).join('')}
+      <p class="p-sign">${nameOf(W, a.from)}</p></div>
+      <div class="ask-do">${stepper(`give:${a.id}`, `${n0(v)}G`, '줄 값')}<button type="button" class="go" data-act="answer:${a.id}">보내기</button><button type="button" data-act="refuse:${a.id}">거절</button><button type="button" data-act="later:${a.id}">나중에 · ${a.due - W.day}일 안에</button></div></div>`;
+  }
+  const r = W.reports[d.k!], gov = r.from === '중앙 행정원', first = gov && r.day === 0;
+  return `<div class="card modal"><div class="paper ${gov ? 'f-notice' : 'f-letter'}"><header><small>${first ? '' : `${r.day}일 · `}${r.from}</small><h3>${first ? '요 구 서' : r.title}</h3></header>
+    ${first ? orderPaper() : `<p class="p-to">미궁관리국장 귀하</p>${r.chips.map(c => `<span class="chip">${c}</span>`).join('')}`}
+    <p class="p-sign">${r.from}</p></div>
+    <button type="button" class="go wide" data-act="seen:${d.k}">${first ? '요구서 받음' : '확인'}</button></div>`;
 }
 
 // 요구서의 진행: 위 띠와 집무실

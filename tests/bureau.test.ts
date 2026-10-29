@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { B, answer, clauseOn, hireClerk, subAt, letterScore, meet, newWorld, over, pactK, post, recall, relOf, run, send, step, teamsIn, withdraw } from '../src/bureau/engine';
 import { BOT, playGame } from '../sim/bureau';
 import { EDGES, LINKS, LOOPS, NODES, checkLoops } from '../src/bureau/loops';
-import { type BuUi, endHtml, paneHtml, topHtml } from '../src/ui/bureau/board';
+import { type BuUi, docModalHtml, endHtml, introHtml, paneHtml, topHtml, writeHtml } from '../src/ui/bureau/board';
 import { mapHtml } from '../src/ui/bureau/map';
 import { canAdd, dropClause, toLock } from '../src/bureau/clauses';
 import { getSeed, setSeed } from '../src/core/rng';
@@ -303,7 +303,7 @@ describe('국장의 서류 (조항 조합)', () => {
   it('서류 탭: 열린 받는 쪽 · 조항만 드롭다운에, 받는 쪽마다 양식이 바뀐다', () => {
     const W = newWorld(7);
     const ui: BuUi = { tab: 'asks', invite: ['big', 'small'], give: {}, intro: false, seenNews: 0, draft: { to: 'all', dg: 2, days: 30, cl: { sub: 25, rec: 1 } } };
-    let h = paneHtml(W, ui);
+    let h = writeHtml(W, ui);
     expect(h).toContain('공고문');
     expect(h).toContain('<select data-act="wto"');
     expect(h).toContain('수신: 미궁 출입 길드 전체');
@@ -311,19 +311,37 @@ describe('국장의 서류 (조항 조합)', () => {
     expect(h).not.toContain('🔒');
     expect(h).not.toContain('붉은 깃발단 · 요청서');
     expect(h).not.toContain('상단');
-    expect(paneHtml(W, { ...ui, draft: { to: 'big', dg: 2, days: 30, cl: { sub: 25 } } })).toContain('수신: 미궁 출입 길드 전체');
+    expect(writeHtml(W, { ...ui, draft: { to: 'big', dg: 2, days: 30, cl: { sub: 25 } } })).toContain('수신: 미궁 출입 길드 전체');
     W.rank = 2;
-    h = paneHtml(W, { ...ui, draft: { to: 'big', dg: 2, days: 30, cl: { sub: 25 } } });
+    h = writeHtml(W, { ...ui, draft: { to: 'big', dg: 2, days: 30, cl: { sub: 25 } } });
     expect(h).toContain('붉은 깃발단 귀하');
     expect(h).toContain('요청서 보내기');
     const n = post(W, 2, 30, { sub: 25 })!;
-    h = paneHtml(W, ui);
-    expect(h).toContain(`withdraw:${n.id}`);
-    expect(h).toContain('고쳐 내걸기');
+    expect(paneHtml(W, ui)).toContain(`withdraw:${n.id}`);
+    expect(paneHtml(W, ui)).toContain('data-act="write:2"');
+    expect(writeHtml(W, ui)).toContain('고쳐 내걸기');
     expect(paneHtml(W, { ...ui, tab: 'look', sel: 'dg:2' })).toContain('공고문 · 30일 남음');
     expect(paneHtml(W, { ...ui, tab: 'rules' })).not.toContain('상단 물품 추가');
     expect(paneHtml(W, { ...ui, tab: 'look', sel: '' })).not.toContain('우선권');
     expect(paneHtml(W, { ...ui, tab: 'office' })).toContain('서기');
+  });
+});
+
+describe('첫 화면과 받은 서류 창', () => {
+  it('신문 한 면으로 시작하고, 업무를 시작하면 요구서가 창으로 온다. 길드 답신 · 청도 한 장씩 창으로', () => {
+    expect(introHtml()).toContain('업무 시작');
+    expect(introHtml()).toContain('미궁관리국 신설');
+    const W = newWorld(5);
+    const ui: BuUi = { tab: 'look', invite: ['big', 'small'], give: {}, intro: false, seenNews: 0, docSeen: 0, askSeen: 0 };
+    let h = docModalHtml(W, ui);
+    expect(h).toContain('요 구 서');
+    const k = Number(/seen:(\d+)/.exec(h)![1]);
+    expect(docModalHtml(W, { ...ui, docSeen: k + 1 })).toBe('');
+    W.asks.push({ id: 1, day: 0, due: 5, from: 'small', kind: 'aid', want: 200, chips: [] });
+    h = docModalHtml(W, { ...ui, docSeen: k + 1 });
+    expect(h).toContain('answer:1');
+    expect(h).toContain('later:1');
+    expect(docModalHtml(W, { ...ui, docSeen: k + 1, askSeen: 1 })).toBe('');
   });
 });
 

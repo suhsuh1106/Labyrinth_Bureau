@@ -266,3 +266,19 @@ button.link { border: 0; background: none; padding: 0; color: var(--accent); jus
 .o-order > span { color: var(--soft); font-size: 12px; }
 .o-order small { color: var(--soft); font-size: 12px; }
 .t-order b { color: var(--warn); }
+
+/* 첫 화면: 신문 한 면 */
+.news-page { width: min(560px, 100%); }
+.np-head { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 3px double var(--rule); padding-bottom: 6px; }
+.np-head b { font: 700 26px var(--f-display); letter-spacing: .3em; }
+.np-head small { color: var(--soft); font-size: 11px; }
+.np-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.np-cols section { border-top: 1px solid var(--rule); padding-top: 6px; font-size: 13px; }
+.np-cols h3 { margin: 0 0 4px; font: 700 15px var(--f-display); }
+@media (max-width: 480px) { .np-cols { grid-template-columns: 1fr; } }
+/* 받은 서류 · 서류 쓰기 창: 화면 안에 들어오게, 넘치면 창 안에서만 스크롤 */
+.card.modal { width: min(520px, 100%); max-height: calc(100dvh - 32px); overflow-y: auto; }
+.card.modal .ask-do { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.write-modal .write { border: 0; padding: 0; }
+.write h4 { display: flex; align-items: baseline; gap: 6px; }
+.write h4 .close { margin-left: auto; }

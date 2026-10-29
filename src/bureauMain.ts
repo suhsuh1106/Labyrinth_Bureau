@@ -5,11 +5,11 @@ import { getSeed, setSeed } from './core/rng';
 import { type FacId, type World, answer, hireClerk, meet, newWorld, over, post, recall, run, send, step, withdraw } from './bureau/engine';
 import { BOT } from './bureau/bots';
 import { CLAUSE, type ClauseId, FORM_OF, type To, addClause, canAdd, dropClause } from './bureau/clauses';
-import { type BuUi, DRAFT0, type Tab, endHtml, introHtml, paneHtml, tabsHtml, topHtml } from './ui/bureau/board';
+import { type BuUi, DRAFT0, type Tab, docModalHtml, endHtml, introHtml, paneHtml, tabsHtml, topHtml, writeHtml } from './ui/bureau/board';
 import { mapHtml } from './ui/bureau/map';
 
 const $ = (id: string) => document.getElementById(id)!;
-const KEY = 'lb-bureau', VERSION = 6;
+const KEY = 'lb-bureau', VERSION = 7;
 let W: World, ui: BuUi, seed = 0;
 
 function save() { try { localStorage.setItem(KEY, JSON.stringify({ v: VERSION, seed, rng: getSeed(), W, ui })); } catch { /* 저장이 막혀도 판은 계속된다 */ } }
@@ -18,7 +18,7 @@ function load() { try { const d = JSON.parse(localStorage.getItem(KEY) || 'null'
 function fresh() {
   seed = (Date.now() ^ 0x5bd1e995) >>> 0;
   W = newWorld(seed);
-  ui = { tab: 'look', sel: 'dg:0', invite: ['big', 'small'], give: {}, intro: true, seenNews: W.reports.length };
+  ui = { tab: 'look', sel: 'dg:0', invite: ['big', 'small'], give: {}, intro: true, seenNews: W.reports.length, docSeen: 0, askSeen: 0 };
 }
 
 function draw() {
@@ -34,7 +34,12 @@ function draw() {
     const keep = getSeed(), idle = run(newWorld(seed), BOT.idle), smart = run(newWorld(seed), BOT.smart);
     setSeed(keep);
     ov.innerHTML = endHtml(W, idle, smart); ov.hidden = false;
-  } else ov.hidden = true;
+  } else if (ui.modal === 'write') { ov.innerHTML = `<div class="card modal write-modal">${writeHtml(W, ui)}</div>`; ov.hidden = false; }
+  else {
+    // 받은 서류는 한 장씩 새 창으로
+    const doc = docModalHtml(W, ui);
+    ov.innerHTML = doc; ov.hidden = !doc;
+  }
 }
 
 // 하루 넘기기. 닷새는 새 요청서 · 새 보고가 오면 멈춘다
@@ -57,7 +62,10 @@ function act(a: string, d = 0) {
   else if (k === 'new') fresh();
   else if (k === 'tab') ui.tab = arg as Tab;
   else if (k === 'sel') { ui.sel = rest; ui.tab = 'look'; }
-  else if (k === 'write') { ui.draft = { ...draft(), dg: +arg }; ui.tab = 'asks'; }
+  else if (k === 'write') { ui.draft = { ...draft(), dg: +arg }; ui.tab = 'asks'; ui.modal = 'write'; }
+  else if (k === 'close') ui.modal = undefined;
+  else if (k === 'seen') ui.docSeen = +arg + 1;
+  else if (k === 'later') ui.askSeen = Math.max(ui.askSeen ?? 0, +arg);
   else if (k === 'wdg') ui.draft = { ...draft(), dg: +arg };
   else if (k === 'wto') {
     // 양식이 바뀌면 새 양식에 넣을 수 없는 조항은 빠진다
@@ -75,14 +83,14 @@ function act(a: string, d = 0) {
   }
   else if (k === 'post') {
     const f = draft();
-    if (FORM_OF[f.to] === 'notice') post(W, f.dg, f.days, f.cl);
-    else if (f.to === 'big' || f.to === 'small') send(W, f.to, f.dg, f.days, f.cl);
+    const done = FORM_OF[f.to] === 'notice' ? post(W, f.dg, f.days, f.cl) : f.to === 'big' || f.to === 'small' ? send(W, f.to, f.dg, f.days, f.cl) : null;
+    if (done) ui.modal = undefined;
   }
   else if (k === 'recall') recall(W, +arg);
   else if (k === 'clerk') hireClerk(W);
   else if (k === 'withdraw') withdraw(W, +arg);
   else if (k === 'give') { const ask = W.asks.find(x => x.id === +arg); if (ask) ui.give[ask.id] = clamp((ui.give[ask.id] ?? ask.want) + d * 10, 0, ask.want); }
-  else if (k === 'answer' || k === 'refuse') { const ask = W.asks.find(x => x.id === +arg); if (ask) { answer(W, ask.id, k === 'refuse' ? 0 : ui.give[ask.id] ?? ask.want); delete ui.give[ask.id]; } }
+  else if (k === 'answer' || k === 'refuse') { const ask = W.asks.find(x => x.id === +arg); if (ask) { answer(W, ask.id, k === 'refuse' ? 0 : ui.give[ask.id] ?? ask.want); delete ui.give[ask.id]; ui.askSeen = Math.max(ui.askSeen ?? 0, ask.id); } }
   else if (k === 'inv') { const f = arg as FacId; ui.invite = ui.invite.includes(f) ? ui.invite.filter(x => x !== f) : [...ui.invite, f]; }
   else if (k === 'meet') { meet(W, ui.invite); ui.tab = 'office'; }
   else return;
@@ -117,7 +125,9 @@ document.addEventListener('keydown', e => {
   // 지도 표식(svg)은 단추가 아니라서 Enter를 직접 받는다
   const m = (e.target as Element).closest?.('svg [data-act]') as SVGElement | null;
   if (m && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); act(m.dataset.act!); return; }
-  if ((e.key === 'n' || e.key === 'N') && !e.metaKey && !e.ctrlKey && !ui.intro && !over(W)) nextDays(1);
+  if (e.key === 'Escape' && ui.modal) { act('close'); return; }
+  // 창이 떠 있는 동안은 날을 넘기지 않는다
+  if ((e.key === 'n' || e.key === 'N') && !e.metaKey && !e.ctrlKey && $('over').hidden && !over(W)) nextDays(1);
 });
 
 const d = load();
