@@ -1,10 +1,11 @@
 // 미궁관리국 배경 엔진 0단계: 인과 루프 두 쌍이 폭주하거나 멈추지 않는지, 국장의 손이 판을 바꾸는지
 import { describe, expect, it } from 'vitest';
-import { B, answer, meet, newWorld, over, pactK, relOf, run, step } from '../src/bureau/engine';
+import { B, answer, meet, newWorld, over, pactK, post, relOf, run, step, withdraw } from '../src/bureau/engine';
 import { BOT, playGame } from '../sim/bureau';
 import { EDGES, LINKS, LOOPS, NODES, checkLoops } from '../src/bureau/loops';
 import { type BuUi, endHtml, paneHtml, topHtml } from '../src/ui/bureau/board';
 import { mapHtml } from '../src/ui/bureau/map';
+import { canAdd, dropClause } from '../src/bureau/clauses';
 import { getSeed, setSeed } from '../src/core/rng';
 
 const SEEDS = Array.from({ length: 30 }, (_, i) => 1000 + i);
@@ -148,6 +149,89 @@ describe('미궁관리국 엔진 1단계: 세력 사이 · 신세', () => {
       step(W);
       for (const f of ['big', 'small', 'lord']) expect(W.asks.filter(a => a.from === f && a.got == null).length).toBeLessThanOrEqual(1);
     }
+  });
+});
+
+describe('국장의 서류 (조항 조합)', () => {
+  it('공고문: 기한 동안 걸리고, 끝나면 멎으며, 같은 미궁의 새 공고문이 옛것을 바꾼다', () => {
+    const W = newWorld(5);
+    const n = post(W, 1, 10, { sub: 20 })!;
+    expect(W.dungeons[1].sub).toBe(20);
+    expect(W.reports.at(-1)!.chips).toContain('길드 전체');
+    post(W, 1, 15, { sub: 30 });
+    expect(W.notices.length).toBe(1);
+    expect(W.notices[0].id).not.toBe(n.id);
+    expect(W.dungeons[1].sub).toBe(30);
+    const until = W.notices[0].until, b0 = W.budget;
+    while (W.day < until - 1) step(W);
+    expect(W.dungeons[1].sub).toBe(30);
+    expect(W.budget).not.toBe(b0);
+    step(W);
+    expect(W.dungeons[1].sub).toBe(0);
+    expect(W.notices.length).toBe(0);
+    expect(W.reports.some(r => r.title.startsWith('공고 기한 끝'))).toBe(true);
+  });
+
+  it('공고문에 넣을 수 없는 조항(잠김 · 다른 양식 · 바탕 없음)이 있거나 조항이 없으면 내걸지 않는다', () => {
+    const W = newWorld(5);
+    expect(post(W, 0, 20, {})).toBeNull();
+    expect(post(W, 0, 20, { goods: 3 })).toBeNull();           // 제안서 조항 · 잠김
+    expect(post(W, 0, 20, { first: 1 })).toBeNull();           // 잠김 · 바탕 없음
+    expect(post(W, 0, 20, { sub: 10, rec: 1, comfort: 50 })).not.toBeNull();
+    expect(dropClause({ rec: 1, ration: 2, sub: 5 }, 'rec')).toEqual({ sub: 5 });
+    expect(canAdd(W, 'notice', { sub: 5 }, 'ration')).toBe(false);
+    expect(canAdd(W, 'notice', { sub: 5 }, 'rec')).toBe(true);
+  });
+
+  it('출입 기록 제출: 그 미궁의 수위 보고가 그날 오고, 붉은 깃발단이 언짢아한다', () => {
+    const a = newWorld(8), b = newWorld(8);
+    post(b, 1, 30, { rec: 1 });
+    setSeed(8); step(a); const ra = getSeed();
+    setSeed(8); step(b); expect(getSeed()).toBe(ra);
+    expect(b.seen[1].at(-1)).toBe(b.hist[1].at(-1));
+    expect(a.seen[1].at(-1)).not.toBe(a.hist[1].at(-1));
+    expect(b.guilds.big.fav).toBeLessThan(a.guilds.big.fav);
+  });
+
+  it('위로금: 사고의 꺼림을 덜고 잃은 조만큼 예산이 나간다', () => {
+    const a = newWorld(9), b = newWorld(9);
+    post(b, 0, 60, { comfort: 120 });
+    for (let t = 0; t < 30; t++) { setSeed(900 + t); step(a); setSeed(900 + t); step(b); }
+    expect(b.dungeons[0].dead).toBeGreaterThan(0);
+    expect(b.dungeons[0].fear).toBeLessThan(a.dungeons[0].fear);
+  });
+
+  it('공고문을 기한 전에 내리면 조항이 멎고 길드들이 서운해한다', () => {
+    const W = newWorld(6), n = post(W, 2, 30, { sub: 15 })!;
+    const fav = W.guilds.big.fav;
+    expect(withdraw(W, n.id)).toBe(true);
+    expect(W.dungeons[2].sub).toBe(0);
+    expect(W.guilds.big.fav).toBeLessThan(fav);
+    expect(withdraw(W, n.id)).toBe(false);
+  });
+
+  it('서류 탭: 받는 쪽마다 양식이 바뀌고, 잠긴 쪽은 보내지 못한다', () => {
+    const W = newWorld(7);
+    const ui: BuUi = { tab: 'asks', invite: ['big', 'small'], give: {}, intro: false, seenNews: 0, draft: { to: 'all', dg: 2, days: 30, cl: { sub: 25, rec: 1 } } };
+    let h = paneHtml(W, ui);
+    expect(h).toContain('공고문');
+    expect(h).toContain('수신: 미궁 출입 길드 전체');
+    expect(h).toContain('제2조 출입 기록 제출');
+    expect(h).toContain('25G');
+    h = paneHtml(W, { ...ui, draft: { to: 'big', dg: 2, days: 30, cl: { sub: 25 } } });
+    expect(h).toContain('붉은 깃발단 귀하');
+    expect(h).toContain('보낼 수 없음');
+    expect(paneHtml(W, { ...ui, draft: { to: 'trade', dg: 2, days: 30, cl: {} } })).toContain('상단 귀중');
+    const n = post(W, 2, 30, { sub: 25 })!;
+    h = paneHtml(W, ui);
+    expect(h).toContain(`withdraw:${n.id}`);
+    expect(h).toContain('고쳐 내걸기');
+    expect(paneHtml(W, { ...ui, tab: 'look', sel: 'dg:2' })).toContain('공고문 · 30일 남음');
+    const r = paneHtml(W, { ...ui, tab: 'rules' });
+    expect(r).toContain('출입 기록 제출');
+    expect(r).not.toContain('상단 물품 추가');
+    expect(paneHtml(W, { ...ui, draft: { to: 'all', dg: 0, days: 20, cl: {} } })).not.toContain('보급 표 지급');
+    expect(paneHtml(W, { ...ui, tab: 'look', sel: '' })).toContain('관리국 규정');
   });
 });
 

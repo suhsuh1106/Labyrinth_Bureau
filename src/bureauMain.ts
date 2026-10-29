@@ -1,14 +1,15 @@
-// 미궁관리국 진입점(index.html): 날마다 보고를 읽고 보조금 · 조항 · 요청서 · 회의로 손을 쓰고, 다음 날로 넘긴다.
+// 미궁관리국 진입점(index.html): 날마다 보고를 읽고 서류(조항을 조합한 공고문 · 받은 청) · 규정 · 회의로 손을 쓰고, 다음 날로 넘긴다.
 // 판을 이 브라우저에 저장한다(`lb-bureau`). 엔진은 src/bureau/engine.ts
 import './ui/bureau/bureau.css';
 import { getSeed, setSeed } from './core/rng';
-import { type FacId, type World, answer, meet, newWorld, over, run, step } from './bureau/engine';
+import { type FacId, type World, answer, meet, newWorld, over, post, run, step, withdraw } from './bureau/engine';
 import { BOT } from './bureau/bots';
-import { type BuUi, type Tab, endHtml, introHtml, paneHtml, tabsHtml, topHtml } from './ui/bureau/board';
+import { CLAUSE, type ClauseId, FORM_OF, type To, addClause, canAdd, dropClause } from './bureau/clauses';
+import { type BuUi, DRAFT0, type Tab, endHtml, introHtml, paneHtml, tabsHtml, topHtml } from './ui/bureau/board';
 import { mapHtml } from './ui/bureau/map';
 
 const $ = (id: string) => document.getElementById(id)!;
-const KEY = 'lb-bureau', VERSION = 1;
+const KEY = 'lb-bureau', VERSION = 3;
 let W: World, ui: BuUi, seed = 0;
 
 function save() { try { localStorage.setItem(KEY, JSON.stringify({ v: VERSION, seed, rng: getSeed(), W, ui })); } catch { /* 저장이 막혀도 판은 계속된다 */ } }
@@ -47,6 +48,7 @@ function nextDays(n: number) {
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+const draft = () => ui.draft ?? DRAFT0;
 function act(a: string, d = 0) {
   const [k, arg] = a.split(':'), rest = a.slice(k.length + 1);
   if (k === 'next') return nextDays(1);
@@ -55,7 +57,24 @@ function act(a: string, d = 0) {
   else if (k === 'new') fresh();
   else if (k === 'tab') ui.tab = arg as Tab;
   else if (k === 'sel') { ui.sel = rest; ui.tab = 'look'; }
-  else if (k === 'sub') { const dg = W.dungeons[+arg]; dg.sub = clamp(dg.sub + d * 5, 0, 60); }
+  else if (k === 'write') { ui.draft = { ...draft(), dg: +arg }; ui.tab = 'asks'; }
+  else if (k === 'wdg') ui.draft = { ...draft(), dg: +arg };
+  else if (k === 'wto') {
+    // 양식이 바뀌면 새 양식에 넣을 수 없는 조항은 빠진다
+    const f = draft(), to = arg as To, form = FORM_OF[to];
+    let cl = f.cl;
+    for (const id of Object.keys(cl) as ClauseId[]) if (!CLAUSE[id].forms.includes(form)) cl = dropClause(cl, id);
+    ui.draft = { ...f, to, cl };
+  }
+  else if (k === 'wdays') { const f = draft(); ui.draft = { ...f, days: clamp(f.days + d * 5, 10, 60) }; }
+  else if (k === 'wadd') { const f = draft(); if (canAdd(W, FORM_OF[f.to], f.cl, arg as ClauseId)) ui.draft = { ...f, cl: addClause(f.cl, arg as ClauseId) }; }
+  else if (k === 'wdel') { const f = draft(); ui.draft = { ...f, cl: dropClause(f.cl, arg as ClauseId) }; }
+  else if (k === 'wv') {
+    const f = draft(), id = arg as ClauseId, fd = CLAUSE[id].field;
+    if (fd && f.cl[id] != null) ui.draft = { ...f, cl: { ...f.cl, [id]: clamp(f.cl[id]! + d * fd.step, fd.min, fd.max) } };
+  }
+  else if (k === 'post') { const f = draft(); if (FORM_OF[f.to] === 'notice') post(W, f.dg, f.days, f.cl); }
+  else if (k === 'withdraw') withdraw(W, +arg);
   else if (k === 'prio') W.prio = clamp(W.prio + d * 5, 0, 100);
   else if (k === 'share') W.lordShare = clamp(W.lordShare + d, 0, 40);
   else if (k === 'give') { const ask = W.asks.find(x => x.id === +arg); if (ask) ui.give[ask.id] = clamp((ui.give[ask.id] ?? ask.want) + d * 10, 0, ask.want); }
