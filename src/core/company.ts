@@ -28,8 +28,9 @@ export const CO = {
   // 구역 탐사 (docs/zones.md): 조마다 구역 하나에 일할 날(1 ~ WORK_MAX, 비워 두면 그 층 TRIP_DAYS) 또는 목표량을 정한다. 오가는 날은 구역 거리만큼 먹기만 한다.
   // 여유(MARGIN_MAX일까지)만큼 보급을 더 들고 간다. 미궁에 들고 간 채비는 돌아오면 검문소가 거둬 태운다(장비 빼고)
   WORK_MAX: 6, MARGIN_MAX: 3, SEE_ZONE: 0.35,
-  // 날 단위 시장: 시장에 풀린 양이 날마다 MQ_FADE씩 빠진다 (열흘쯤의 판매가 시세를 정한다). 창고의 전리품은 층마다 날마다 LOOT_ROT씩 상한다
-  MQ_FADE: 0.1, LOOT_ROT: [0.03, 0.025, 0.02, 0.01, 0.005],
+  // 날 단위 시장: 시장에 풀린 양이 날마다 MQ_FADE씩 빠진다 (열흘쯤의 판매가 시세를 정한다). 창고의 채집품은 층마다 날마다 LOOT_ROT씩 상한다
+  // (2026-10-25 꺼 둠: 옛 값 [0.03, 0.025, 0.02, 0.01, 0.005]. 창고 채집품을 가공 재료로 쓰는 쪽을 기획 중이라 일단 상하지 않는다)
+  MQ_FADE: 0.1, LOOT_ROT: [0, 0, 0, 0, 0],
   // 교회 성수: 우리가 한 달에 바로 살 수 있는 병 수 (교회와 사이가 좋으면 더). 횃불 기본 채비 (층마다 조당)
   CHURCH_US: 60, TORCH0: [1, 2, 3, 3, 4],
   // SORTIE: 경쟁 용병단 · 계약 조가 조마다 내는 채비비 (우리 조는 식량 · 정비 도구를 사서 들고 간다)
@@ -1681,7 +1682,7 @@ export function nextDay(W: World, plan: Plan): MonthResult | null {
   }
   // 나가 있는 조마다 오늘 하루를 굴린다 (그날의 판 상태로, 보낸 순서대로)
   [...(W.away || [])].filter(s => !s.out).sort((a, b) => a.id - b.id).forEach(s => stepSortie(W, s));
-  // 창고의 전리품은 날마다 조금씩 상한다 (얕은 층 것일수록 빨리). 시장에 풀린 양은 날마다 빠진다
+  // 창고의 채집품은 날마다 LOOT_ROT씩 상한다 (지금은 0). 시장에 풀린 양은 날마다 빠진다
   if (W.stock) W.stock = W.stock.map((n, j) => n * (1 - CO.LOOT_ROT[j]));
   if (W.mq) W.mq = W.mq.map(q => q * (1 - CO.MQ_FADE));
   let M: MonthResult | null = null;
