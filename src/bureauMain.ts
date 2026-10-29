@@ -1,14 +1,14 @@
-// 미궁관리국 진입점(index.html): 날마다 보고를 읽고 보조금 · 조항 · 요청서 · 회의로 손을 쓰고, 다음 날로 넘긴다.
+// 미궁관리국 진입점(index.html): 날마다 보고를 읽고 요청서(공고 · 받은 청) · 조항 · 회의로 손을 쓰고, 다음 날로 넘긴다.
 // 판을 이 브라우저에 저장한다(`lb-bureau`). 엔진은 src/bureau/engine.ts
 import './ui/bureau/bureau.css';
 import { getSeed, setSeed } from './core/rng';
-import { type FacId, type World, answer, meet, newWorld, over, run, step } from './bureau/engine';
+import { type FacId, type World, answer, meet, newWorld, over, post, run, step, withdraw } from './bureau/engine';
 import { BOT } from './bureau/bots';
-import { type BuUi, type Tab, endHtml, introHtml, paneHtml, tabsHtml, topHtml } from './ui/bureau/board';
+import { type BuUi, DRAFT0, type Tab, endHtml, introHtml, paneHtml, tabsHtml, topHtml } from './ui/bureau/board';
 import { mapHtml } from './ui/bureau/map';
 
 const $ = (id: string) => document.getElementById(id)!;
-const KEY = 'lb-bureau', VERSION = 1;
+const KEY = 'lb-bureau', VERSION = 2;
 let W: World, ui: BuUi, seed = 0;
 
 function save() { try { localStorage.setItem(KEY, JSON.stringify({ v: VERSION, seed, rng: getSeed(), W, ui })); } catch { /* 저장이 막혀도 판은 계속된다 */ } }
@@ -55,7 +55,12 @@ function act(a: string, d = 0) {
   else if (k === 'new') fresh();
   else if (k === 'tab') ui.tab = arg as Tab;
   else if (k === 'sel') { ui.sel = rest; ui.tab = 'look'; }
-  else if (k === 'sub') { const dg = W.dungeons[+arg]; dg.sub = clamp(dg.sub + d * 5, 0, 60); }
+  else if (k === 'write') { ui.draft = { ...(ui.draft ?? DRAFT0), dg: +arg }; ui.tab = 'asks'; }
+  else if (k === 'wdg') ui.draft = { ...(ui.draft ?? DRAFT0), dg: +arg };
+  else if (k === 'wg') { const f = ui.draft ?? DRAFT0; ui.draft = { ...f, g: clamp(f.g + d * 5, 5, 60) }; }
+  else if (k === 'wdays') { const f = ui.draft ?? DRAFT0; ui.draft = { ...f, days: clamp(f.days + d * 5, 10, 60) }; }
+  else if (k === 'post') { const f = ui.draft ?? DRAFT0; post(W, f.dg, f.g, f.days); }
+  else if (k === 'withdraw') withdraw(W, +arg);
   else if (k === 'prio') W.prio = clamp(W.prio + d * 5, 0, 100);
   else if (k === 'share') W.lordShare = clamp(W.lordShare + d, 0, 40);
   else if (k === 'give') { const ask = W.asks.find(x => x.id === +arg); if (ask) ui.give[ask.id] = clamp((ui.give[ask.id] ?? ask.want) + d * 10, 0, ask.want); }

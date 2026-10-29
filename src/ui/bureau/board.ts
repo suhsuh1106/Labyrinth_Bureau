@@ -4,8 +4,10 @@ import { lookHtml } from './map';
 import { B, type FacId, FACS, type World, facOf, nameOf, pactK, relOf, seenLevel, teamsIn, willOf } from '../../bureau/engine';
 
 export type Tab = 'look' | 'asks' | 'rules' | 'meet' | 'news';
-// sel: 지도에서 고른 것('dg:0' · 'fac:big', 비우면 관할 요약)
-export interface BuUi { tab: Tab; invite: FacId[]; give: Record<number, number>; intro: boolean; seenNews: number; sel?: string }
+// sel: 지도에서 고른 것('dg:0' · 'fac:big', 비우면 관할 요약). draft: 쓰고 있는 요청서(미궁 · 조마다 하루 G · 기간)
+export interface Draft { dg: number; g: number; days: number }
+export interface BuUi { tab: Tab; invite: FacId[]; give: Record<number, number>; intro: boolean; seenNews: number; sel?: string; draft?: Draft }
+export const DRAFT0: Draft = { dg: 0, g: 10, days: 20 };
 
 export const n0 = (v: number) => Math.round(v).toLocaleString('ko-KR');
 export const n1 = (v: number) => (Math.round(v * 10) / 10).toLocaleString('ko-KR');
@@ -43,8 +45,37 @@ export function dungeonHtml(W: World, i: number) {
     <div class="lv"><div class="lv-bar"><i style="height:${Math.min(100, lv)}%"></i><b style="bottom:${B.DANGER}%"></b></div>
       <div class="lv-num"><b class="num">${n0(lv)}</b><span class="tag">${levelWord(lv)}</span><small class="num">${tr >= 0.05 ? '▲' : tr <= -0.05 ? '▼' : '–'} 하루 ${n1(Math.abs(tr))}</small><small>${d.dist}일 전 보고</small></div></div>
     <dl class="dg-teams"><dt>붉은 깃발단</dt><dd class="num">${n1(d.teams.big)}조</dd><dt>중소 연합</dt><dd class="num">${n1(d.teams.small)}조</dd><dt>범람 · 잃은 조</dt><dd class="num">${d.floods} · ${n1(d.dead)}</dd></dl>
-    <div class="dg-sub"><span>출입 보조금 <small>조마다 하루</small></span>${stepper(`sub:${i}`, `${d.sub}G`, `${d.name} 보조금`)}<small class="num">하루 ${n0(n * d.sub)}G</small></div>
+    <div class="dg-sub"><span>진입 보조금 <small>${noticeWord(W, i)}</small></span><b class="num">${d.sub}G</b><small class="num">하루 ${n0(n * d.sub)}G</small><button type="button" data-act="write:${i}">요청서 쓰기</button></div>
   </article>`;
+}
+
+const noticeWord = (W: World, i: number) => {
+  const n = W.notices.find(x => x.dg === i);
+  return n ? `공고 · ${n.until - W.day}일 남음` : W.dungeons[i].sub > 0 ? '조마다 하루' : '공고 없음';
+};
+
+// 요청서 쓰기: 받는 곳 · 조항 · 미궁 · 값 · 기간. 아직 열리지 않은 칸은 잠가 보인다
+function writeHtml(W: World, ui: BuUi) {
+  const f = ui.draft ?? DRAFT0, d = W.dungeons[f.dg], n = teamsIn(d), cost = n * f.g * f.days, old = W.notices.find(x => x.dg === f.dg);
+  const opt = (on: boolean, name: string, lock = false) => `<span class="opt${on ? ' on' : ''}${lock ? ' lock' : ''}" ${lock ? 'aria-disabled="true" title="아직 열리지 않음"' : ''}>${lock ? '🔒 ' : ''}${name}</span>`;
+  return `<article class="write">
+    <h4>요청서 쓰기</h4>
+    <div class="w-row"><span>받는 곳</span><div class="opts">${opt(true, '전체 공개')}${opt(false, '개별 길드 서신', true)}</div></div>
+    <div class="w-row"><span>조항</span><div class="opts">${opt(true, '진입 보조금')}${opt(false, '상단 물품 추가', true)}</div></div>
+    <div class="w-row"><span>미궁</span><div class="opts">${W.dungeons.map((x, i) => `<button type="button" class="opt${i === f.dg ? ' on' : ''}" data-act="wdg:${i}" aria-pressed="${i === f.dg}">${x.name}</button>`).join('')}</div></div>
+    <div class="w-row"><span>보조금 <small>조마다 하루</small></span>${stepper('wg', `${f.g}G`, '보조금')}</div>
+    <div class="w-row"><span>기간</span>${stepper('wdays', `${f.days}일`, '기간')}</div>
+    <p class="w-cost num">지금 ${n1(n)}조면 하루 ${n0(n * f.g)}G · 기간 ${n0(cost)}G 어림</p>
+    <button type="button" class="go wide" data-act="post">${old ? '고쳐 게시' : '게시'}</button>
+  </article>`;
+}
+
+function postedHtml(W: World) {
+  if (!W.notices.length) return '';
+  return `<h4>게시 중</h4>${W.notices.map(x => {
+    const d = W.dungeons[x.dg];
+    return `<p class="past notice"><span>${d.name} · 진입 보조금 <b class="num">${x.g}G</b> · 전체 공개</span><small class="num">${x.until - W.day}일 남음</small><button type="button" data-act="withdraw:${x.id}">철회</button></p>`;
+  }).join('')}`;
 }
 
 export function facHtml(W: World, f: FacId) {
@@ -82,21 +113,21 @@ export function paneHtml(W: World, ui: BuUi) {
   if (ui.tab === 'look') return lookHtml(W, ui);
   if (ui.tab === 'asks') {
     const asks = openAsks(W), done = W.asks.filter(a => a.got != null).slice(-4).reverse();
-    return (asks.length ? asks.map(a => {
+    return writeHtml(W, ui) + postedHtml(W) + `<h4>받은 청 · 독촉</h4>` + (asks.length ? asks.map(a => {
       const v = ui.give[a.id] ?? a.want;
       return `<article class="ask ${a.kind}">
         <header><b>${nameOf(W, a.from)}</b><span class="tag ${a.kind === 'dun' ? 'warn' : ''}">${a.kind === 'dun' ? '독촉' : '청'}</span><small>${a.due - W.day}일 안에</small></header>
         <p class="num">청한 값 ${n0(a.want)}G</p>${a.chips.map(c => `<span class="chip">${c}</span>`).join('')}
         <div class="ask-do">${stepper(`give:${a.id}`, `${n0(v)}G`, '줄 값')}<button type="button" class="go" data-act="answer:${a.id}">보내기</button><button type="button" data-act="refuse:${a.id}">거절</button></div>
       </article>`;
-    }).join('') : '<p class="empty">열린 요청서 없음</p>')
+    }).join('') : '<p class="empty">받은 청 없음</p>')
       + (done.length ? `<h4>지난 답</h4>${done.map(a => `<p class="past"><span>${a.day}일 · ${nameOf(W, a.from)} ${a.kind === 'dun' ? '독촉' : '청'}</span><b class="num">${n0(a.got!)} / ${n0(a.want)}G</b></p>`).join('')}` : '');
   }
   if (ui.tab === 'rules') {
     const side = W.prio > 50 ? '붉은 깃발단 쪽' : W.prio < 50 ? '중소 연합 쪽' : '가운데';
     return `<div class="rule"><h4>우선권 조항</h4><p>미궁 몫을 나눌 때 어느 길드를 먼저 세우나</p>${stepper('prio', String(W.prio), '우선권')}<span class="tag">${side}</span></div>
     <div class="rule"><h4>입장료의 영주 몫</h4><p>조마다 하루 ${B.FEE}G 입장료에서 영주에게 가는 몫</p>${stepper('share', `${W.lordShare}%`, '영주 몫')}</div>
-    <p class="note">보조금은 지도에서 미궁을 눌러 정한다.</p>`;
+    <p class="note">진입 보조금은 요청서 탭에서 공고로 건다.</p>`;
   }
   if (ui.tab === 'meet') {
     const cool = B.MEET_COOL - (W.day - W.meetAt), lord = ui.invite.includes('lord');
@@ -115,8 +146,8 @@ export function introHtml() {
   return `<div class="card intro"><small>중앙 행정원 · 임명장</small><h2>미궁관리국장 부임</h2>
   <p>폐광 아래 미궁이 넘쳐 마을이 잠겼다. 관리국은 길드에 명령하지 못한다. 돈과 조항과 회의로 길드 · 영주가 스스로 움직이게 한다.</p>
   <ul><li><b>수위</b>: 조가 미궁에 들어가 몬스터를 잡아야 내려간다. 보고는 거리만큼 늦게 온다.</li>
-  <li><b>보조금</b>: 미궁마다 조에게 주는 하루 G. 조를 끌어들이지만 예산이 든다.</li>
-  <li><b>요청서</b>: 들어주면 신세를 받고, 받은 신세로 회의 서명을 얻는다.</li>
+  <li><b>요청서</b>: 국장이 쓴다. 지금은 전체 공개 · 진입 보조금(미궁마다 조에게 하루 G, 기간을 정해)만. 조를 끌어들이지만 예산이 든다.</li>
+  <li><b>받은 청</b>: 길드 · 영주의 청을 들어주면 신세를 받고, 받은 신세로 회의 서명을 얻는다.</li>
   <li><b>회의</b>: 사이가 틀어진 두 길드를 불러 출입 협정을 맺게 한다.</li></ul>
   <p>임기는 ${B.DAYS}일. 범람을 줄이고 입지를 지킨다.</p>
   <button type="button" class="go wide" data-act="start">부임</button></div>`;

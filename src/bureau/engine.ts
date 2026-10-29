@@ -22,6 +22,7 @@ export const B = {
   FEAR: 20, FEAR_FADE: 0.85,              // 사고가 남기는 꺼림(R1): 죽은 조 하나당, 하루에 남는 몫
   MOVE: 0.25,                             // 조가 하루에 바라는 자리로 옮겨 가는 몫
   SUB_LURE: 2, WANT_K: 1.4,               // 보조금 G당 끌림 · 끌림 1당 바라는 조
+  WITHDRAW_FAV: 3,                        // 공고를 기한 전에 내리면 길드마다 잃는 호감
   PRICE: 10, FEE: 2,                      // 소재 값 · 조마다 하루 입장료
   UPKEEP: 0.9, GROW: 120, GROW_COST: 100, SHRINK: -80, SIZE_MIN: 2,
   INFL_SIZE: 4, INFL_MONEY: 1 / 60, INFL_HALF: 60, // 영향력 = 100 × x / (x + 60), x = 조 × 4 + 돈 / 60: 끝에 붙지 않는다
@@ -94,7 +95,10 @@ export interface World {
   meetAt: number;                 // 마지막 회의 날
   asks: Ask[]; later: Later[]; askN: number;
   lit: LoopId[];                  // 오늘 켜진 고리 (국장의 손은 그날 아침, 엔진은 그날 안에 켠다)
+  notices: Notice[];              // 국장이 쓴 요청서 중 게시 중인 것
 }
+// 국장이 쓰는 요청서. 지금 열린 것은 전체 공개 · 진입 보조금뿐이다(개별 길드 서신 · 상단 물품 조항은 잠김)
+export interface Notice { id: number; day: number; to: 'all'; kind: 'sub'; dg: number; g: number; until: number }
 export type Opts = { noCheck?: boolean; noFear?: boolean };
 
 const DUNGEONS: Omit<Dungeon, 'teams' | 'fear' | 'floods' | 'dead' | 'sub' | 'dangerAt'>[] = [
@@ -124,7 +128,7 @@ export function newWorld(seed: number, o: Opts = {}): World {
     stats: { floods: 0, dead: 0, spent: 0, toFlood: [], pinned: {}, loops: { R1: 0, B1: 0, R3: 0, B3: 0, R4: 0, B4: 0, R5: 0, B5: 0 }, bigSize: [], clashes: 0, meets: 0, asks: 0, answered: 0, sides: 0, relMin: 0, relHist: [], litHist: [] },
     rel: { 'big:small': -10 + Math.round((rnd() - 0.5) * 10), 'big:lord': 10, 'lord:small': 0 },
     owe: { big: 0, small: 0, lord: 0 }, fowe: { big: {}, small: {}, lord: {} },
-    pact: null, meetAt: -99, asks: [], later: [], askN: 0, lit: [],
+    pact: null, meetAt: -99, asks: [], later: [], askN: 0, lit: [], notices: [],
     ...o,
   };
   return W;
@@ -165,6 +169,13 @@ export function weightOf(W: World, g: GuildId) {
 export function step(W: World) {
   const S = W.stats, G = W.guilds;
   W.day++;
+  // 기한이 다한 공고는 내린다: 그 미궁의 보조금이 멎는다
+  for (const n of W.notices) if (W.day >= n.until) {
+    const d = W.dungeons[n.dg];
+    d.sub = 0;
+    W.reports.push({ day: W.day, from: '관리국', title: `공고 기한 끝: ${d.name} 진입 보조금`, chips: ['보조금 멎음'] });
+  }
+  W.notices = W.notices.filter(n => W.day < n.until);
   const r1Before = W.dungeons.map(d => teamsIn(d));
   // 조가 어디로 가나: 미궁마다 바라는 조 수, 길드 크기만큼만
   const want = W.dungeons.map(d => clamp(lure(W, d) * B.WANT_K, 0, d.cap * 1.6));
@@ -369,6 +380,31 @@ export function meet(W: World, who: FacId[]) {
   relAdd(W, 'big', 'small', B.MEET_REL);
   if (who.includes('lord')) { relAdd(W, 'big', 'lord', 3); relAdd(W, 'lord', 'small', 3); }
   W.reports.push({ day: W.day, from: '관리국', title: '미궁 출입 협정', chips: who.map(f => nameOf(W, f)) });
+  return true;
+}
+
+// 요청서 게시: 전체 공개로 미궁 하나에 진입 보조금(조마다 하루 g G)을 days일 건다. 같은 미궁의 공고는 새것으로 바뀐다
+export function post(W: World, dg: number, g: number, days: number) {
+  const d = W.dungeons[dg];
+  if (!d || g <= 0 || days <= 0) return null;
+  const id = Math.max(0, ...W.notices.map(x => x.id)) + 1;
+  W.notices = W.notices.filter(n => n.dg !== dg);
+  const n: Notice = { id, day: W.day, to: 'all', kind: 'sub', dg, g, until: W.day + days };
+  W.notices.push(n);
+  d.sub = g;
+  W.reports.push({ day: W.day, from: '관리국', title: `공고: ${d.name} 진입 보조금 ${g}G`, chips: ['전체 공개', `${days}일`] });
+  return n;
+}
+
+// 공고를 기한 전에 내린다: 믿고 온 길드들이 서운해한다
+export function withdraw(W: World, id: number) {
+  const n = W.notices.find(x => x.id === id);
+  if (!n) return false;
+  const d = W.dungeons[n.dg];
+  d.sub = 0;
+  W.notices = W.notices.filter(x => x !== n);
+  for (const g of ['big', 'small'] as GuildId[]) fav(W.guilds[g], -B.WITHDRAW_FAV);
+  W.reports.push({ day: W.day, from: '관리국', title: `공고 철회: ${d.name} 진입 보조금`, chips: ['기한 전에 내림', '길드들 서운함'] });
   return true;
 }
 
