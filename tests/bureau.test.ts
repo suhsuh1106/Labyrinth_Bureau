@@ -345,6 +345,19 @@ describe('첫 화면과 받은 서류 창', () => {
   });
 });
 
+describe('미궁 손익 자료', () => {
+  it('조당 하루 손익을 날마다 적는다: 범람 뒤 폐광은 손해, 다른 미궁은 남는다. 보조금은 빼고 적는다', () => {
+    const W = newWorld(5);
+    expect(W.pnl[0][0]).toBeLessThan(0);
+    expect(W.pnl[1][0]).toBeGreaterThan(0);
+    W.dungeons[0].sub = 30;
+    step(W);
+    expect(W.pnl[0].length).toBe(2);
+    expect(W.pnl[0][1]).toBeLessThan(0);
+    expect(writeHtml(W, { tab: 'asks', invite: [], give: {}, intro: false, seenNews: 0 })).toContain('미궁 손익 자료');
+  });
+});
+
 describe('인과 루프 그림 (loops.ts)', () => {
   it('고리마다 길이 정의된 화살표로 닫히고, 음 화살표 수가 R · B와 맞는다', () => {
     for (const c of checkLoops()) expect(c.why, c.id).toEqual([]);

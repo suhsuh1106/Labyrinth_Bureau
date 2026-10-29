@@ -282,3 +282,11 @@ button.link { border: 0; background: none; padding: 0; color: var(--accent); jus
 .write-modal .write { border: 0; padding: 0; }
 .write h4 { display: flex; align-items: baseline; gap: 6px; }
 .write h4 .close { margin-left: auto; }
+/* 미궁 손익 자료 */
+.pnl { width: 100%; border-collapse: collapse; font-size: 12px; }
+.pnl caption { text-align: left; font-weight: 600; font-size: 12px; padding-bottom: 2px; }
+.pnl caption small { color: var(--soft); font-weight: 400; margin-left: 4px; }
+.pnl th { color: var(--soft); font-weight: 500; text-align: right; padding: 2px 6px; }
+.pnl td { text-align: right; padding: 3px 6px; border-top: 1px solid var(--rule); }
+.pnl td:first-child { text-align: left; }
+.pnl tr.on td { font-weight: 600; background: color-mix(in srgb, var(--accent) 8%, transparent); }

@@ -1,7 +1,7 @@
 // 미궁관리국 게임판: HTML 문자열을 만든다. 상태에 아무것도 쓰지 않고 난수도 쓰지 않는다(그리기만).
 // 위 띠(날 · 예산 · 입지 · 다음 날) · 왼쪽 관할 지도(map.ts) · 오른쪽 탭(살펴보기 · 요청서 · 조항 · 회의 · 보고)
 import { lookHtml } from './map';
-import { B, type FacId, FACS, type Report, type World, depOf, docsOut, escrowOf, trustOf, withdrawFav, facOf, levelOf, nameOf, pactK, relOf, seenLevel, subAt, teamsIn, willOf } from '../../bureau/engine';
+import { B, type FacId, FACS, type Report, type World, pnlAvg, depOf, docsOut, escrowOf, trustOf, withdrawFav, facOf, levelOf, nameOf, pactK, relOf, seenLevel, subAt, teamsIn, willOf } from '../../bureau/engine';
 import { CLAUSE, CLAUSES, CLAUSE_MAX, type Clause, type Clauses, type ClauseId, FORM_NAME, FORM_OF, type Form, TO_NAME, type To, clauseLock, fits, toLock } from '../../bureau/clauses';
 
 export type Tab = 'look' | 'asks' | 'rules' | 'meet' | 'office';
@@ -52,6 +52,15 @@ export function dungeonHtml(W: World, i: number) {
   </article>`;
 }
 
+// 미궁 손익 자료: 조 하나가 하루 남기는 값(길드 장부 어림, 보조금 빼고). 답을 주지 않고 견줄 자료만 보인다
+export function pnlHtml(W: World, on = -1) {
+  const sg = (v: number) => `<span class="num ${v < 0 ? 'neg' : ''}">${v > 0 ? '+' : v < 0 ? '−' : ''}${n0(Math.abs(v))}G</span>`;
+  const n = W.pnl[0]?.length ?? 0;
+  return `<table class="pnl"><caption>미궁 손익 자료 <small>조당 하루 · 길드 장부 어림 · 보조금 빼고${n <= 1 ? ' · 영주청 이관 기록' : ''}</small></caption>
+    <thead><tr><th></th><th>최근 7일</th><th>30일</th><th>든 조</th></tr></thead>
+    <tbody>${W.dungeons.map((d, i) => `<tr class="${i === on ? 'on' : ''}"><td>${d.name}</td><td>${sg(pnlAvg(W, i, 7))}</td><td>${sg(pnlAvg(W, i, 30))}</td><td class="num">${n1(teamsIn(d))}</td></tr>`).join('')}</tbody></table>`;
+}
+
 const noticeWord = (W: World, i: number) => {
   const n = W.notices.find(x => x.dg === i);
   return n ? `공고문 · ${n.until - W.day}일 남음` : subAt(W, i) > 0 ? '조마다 하루' : '공고 없음';
@@ -96,6 +105,7 @@ export function writeHtml(W: World, ui: BuUi) {
     <h4>서류 쓰기 <small class="num">서기 ${W.clerks}명 · 낸 서류 ${docsOut(W)} / ${W.clerks}</small><button type="button" class="x close" data-act="close" aria-label="닫기">닫기</button></h4>
     <div class="w-row"><span>받는 쪽</span>${pick('wto', '받는 쪽', tos.map(t => ({ v: t, name: `${TO_NAME[t]} · ${FORM_NAME[FORM_OF[t]]}`, on: t === f.to })))}</div>
     <div class="w-row"><span>미궁</span>${pick('wdg', '미궁', W.dungeons.map((x, i) => ({ v: String(i), name: x.name, on: i === f.dg })))}</div>
+    ${pnlHtml(W, f.dg)}
     <div class="paper f-${form}">
       <header><small>${P.head(W.docN + 1)}</small><h3>${FORM_NAME[form]}</h3></header>
       <p class="p-to">${P.to(f.to)}</p>

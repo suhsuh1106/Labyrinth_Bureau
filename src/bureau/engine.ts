@@ -120,6 +120,7 @@ export interface World {
   docN: number;                   // 서류 번호
   rank: number; clerks: number; pts: number; // 집무실: 닿은 입지 단계 · 서기 · 서기를 들일 수 있는 몫
   order: Order;                   // 중앙 행정원의 요구서
+  pnl: number[][];                // 미궁마다 날마다 조 하나의 하루 손익 어림(G, 보조금 빼고). 첫 칸은 영주청에서 넘겨받은 기록
 }
 export interface Order { dg: number; min: number; need: number; got: number; pat: number; done: '' | 'ok' | 'fail' }
 // 길드 하나에 보낸 요청서: 이틀 뒤 서명할 마음 + 조항의 꼬리표 무게로 답한다. 서명하면 그 길드에만 조항이 걸린다
@@ -162,8 +163,10 @@ export function newWorld(seed: number, o: Opts = {}): World {
     owe: { big: 0, small: 0, lord: 0 }, fowe: { big: {}, small: {}, lord: {} },
     pact: null, meetAt: -99, asks: [], later: [], askN: 0, lit: [], notices: [], letters: [], docN: 0, rank: 1, clerks: 1, pts: 0,
     order: { dg: B.ORDER.dg, min: B.ORDER.min, need: B.ORDER.need, got: 0, pat: B.ORDER.pat, done: '' },
+    pnl: [],
     ...o,
   };
+  W.pnl = W.dungeons.map(d => [pnlOf(W, d)]);
   return W;
 }
 
@@ -217,6 +220,10 @@ const letterLure = (W: World, g: GuildId, i: number) =>
 export const levelOf = (standing: number) => B.STAND_LV.filter(t => standing >= t).length;
 export const docsOut = (W: World) => W.notices.length + W.letters.length;
 
+// 조 하나가 이 미궁에서 하루 남기는 값의 어림(G): 끌림에서 보조금을 뺀 몫. 국장이 보조금을 가늠하는 자료다
+export const pnlOf = (W: World, d: Dungeon) => Math.round((lure(W, d) - d.sub / B.SUB_LURE) * B.SUB_LURE);
+// 최근 n일 평균 (기록이 모자라면 있는 만큼)
+export const pnlAvg = (W: World, i: number, n: number) => { const a = W.pnl[i].slice(-n); return a.reduce((x, y) => x + y, 0) / a.length; };
 export function lure(W: World, d: Dungeon) {
   return d.yld * B.PRICE / 10 * richOf(d.level) * (1 - d.level / 160) + d.sub / B.SUB_LURE - Math.max(0, d.level - 65) / 8 - (W.noFear ? 0 : d.fear / 10);
 }
@@ -244,6 +251,7 @@ export function step(W: World) {
   // 조가 어디로 가나: 미궁마다 바라는 조 수, 길드 크기만큼만
   // 요청서가 없으면 두 길드가 같은 끌림을 본다
   const base = W.dungeons.map(d => lure(W, d));
+  W.dungeons.forEach((d, i) => W.pnl[i].push(pnlOf(W, d)));
   const wantOf = (g: GuildId) => W.dungeons.map((d, i) => clamp((base[i] + letterLure(W, g, i)) * B.WANT_K, 0, d.cap * 1.6));
   const want = { big: wantOf('big'), small: wantOf('small') };
   const sum = { big: want.big.reduce((a, b) => a + b, 0), small: want.small.reduce((a, b) => a + b, 0) };
