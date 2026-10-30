@@ -1,6 +1,6 @@
 // 종이의 꼴: 신문 지면 · 관청 공문 · 길드 서신. 그리기만 한다(상태에 쓰지 않고 난수도 쓰지 않는다).
 // 받은 보고(Report)를 그 서식에 맞는 문체의 글로 옮기는 것도 여기서 한다.
-import { B, type Report, type World } from '../../bureau/engine';
+import { B, GUILDS, type GuildId, type Report, type World } from '../../bureau/engine';
 
 // 날짜: 한 달 서른 날, 임기 첫날이 왕국력 412년 1월 1일
 export const dateOf = (day: number) => `왕국력 412년 ${Math.floor(day / 30) + 1}월 ${(day % 30) + 1}일`;
@@ -35,10 +35,10 @@ export function govHtml(g: Gov) {
   </article>`;
 }
 
-export interface Letter { house: string; day: number; to: string; title: string; body: string[]; sign: string; seal: string; tone?: 'red' | 'green' }
+export interface Letter { house: string; day: number; to: string; title: string; body: string[]; sign: string; seal: string; tone?: string }
 // 길드 서신: 편지지 머리(길드 이름) · 날짜 · 받는 이 · 제목 · 인사로 여닫는 본문 · 서명과 둥근 인장
 export function letterHtml(l: Letter) {
-  return `<article class="guild-letter ${l.tone ?? ''}">
+  return `<article class="guild-letter${l.tone ? ` f-${l.tone}` : ''}">
     <header class="gl-head"><b>${l.house}</b><small>${dateOf(l.day)}</small></header>
     <p class="gl-to">${l.to}</p>
     <p class="gl-title">${l.title}</p>
@@ -56,6 +56,7 @@ export const introNews = (): News => ({
   cols: [
     { h: '왕국군 투입, 폐광에 주둔', p: '왕국군은 새벽에 폐광에 들어 1차 진압을 마치고 그대로 주둔하며 수위를 붙들고 있다. 군을 언제까지 둘지는 정해지지 않았다. 한 장교는 "군은 미궁을 지키는 곳이 아니다"라고 말을 아꼈다.' },
     { h: '미궁관리국 신설', p: '중앙 행정원은 미궁의 수위를 살피고 길드의 출입을 돕는 미궁관리국을 새로 두었다. 관리국은 길드에 명령할 권한이 없어 공고와 서신으로 길드를 움직여야 한다. 초대 국장은 오늘 부임한다.' },
+    { h: '변경의 길드 일곱', p: '관할에는 큰 길드 둘(붉은 깃발단 · 은빛 방패단)과 작은 길드 다섯이 드나든다. 본부가 저마다 흩어져 있어, 폐광에서 먼 길드는 오가는 데만 며칠이 걸린다.' },
   ],
   box: { h: '관할 미궁', rows: [['폐광', '범람 직후 · 군 주둔'], ['검은숲 미궁', '안정'], ['수몰 갱도', '주의']] },
 });
@@ -72,8 +73,8 @@ export const floodNews = (W: World, r: Report, no: number): News => {
   };
 };
 
-const GUILD = { '붉은 깃발단': { sign: '붉은 깃발단 단장', seal: '赤旗', tone: 'red' as const }, '중소 길드 연합': { sign: '중소 길드 연합 대표', seal: '聯合', tone: 'green' as const } };
-export const isGuild = (from: string): from is keyof typeof GUILD => from in GUILD;
+// 길드 서신의 서명 · 인장 · 색: 길드 이름으로 찾는다
+const guildBy = (name: string) => { const g = GUILDS.find(x => B.GUILD[x].name === name); return g ? { sign: B.GUILD[g].sign, seal: B.GUILD[g].seal, tone: g as string } : null; };
 const gov = (r: Report, title: string, body: string[], attach?: string[]): Gov =>
   ({ org: '중앙 행정원', no: `행정원 제412-${String(r.day + 1).padStart(3, '0')}호`, day: r.day, to: '미궁관리국장', title, body, attach, sign: '중앙 행정원장', seal: '行政院印' });
 
@@ -107,11 +108,11 @@ export function docOf(r: Report): { gov: Gov } | { letter: Letter } {
     ]) };
     return { gov: gov(r, r.title, ['아래와 같이 알립니다.'], r.chips) };
   }
-  const g = isGuild(r.from) ? GUILD[r.from] : { sign: r.from, seal: '印', tone: undefined };
+  const g = guildBy(r.from) ?? { sign: r.from, seal: '印', tone: undefined };
   const L = (title: string, body: string[]): { letter: Letter } =>
     ({ letter: { house: r.from, day: r.day, to: '미궁관리국장 귀하', title, body, sign: g.sign, seal: g.seal, tone: g.tone } });
   const why = r.chips.filter(c => /^[＋－]/.test(c)).map(c => c.slice(2));
-  const WHY: Record<string, string> = { '돈': '보조금을 약속해 주신 뜻', '안전': '잃은 이들을 위로해 주시려는 뜻' };
+  const WHY: Record<string, string> = { '돈': '보조금을 약속해 주신 뜻', '안전': '잃은 이들을 위로해 주시려는 뜻', '관청 기록': '저희 출입을 관청 기록에 올려 주시는 뜻' };
   const glad = why.filter(w => WHY[w]).map(w => WHY[w]);
   if (r.title.startsWith('요청서 서명')) return L(`제목: 귀 국 요청서(${r.title.split(': ')[1]})에 대한 회신`, [
     '국장님께. 보내 주신 요청서는 잘 받아 보았습니다.',
@@ -133,8 +134,8 @@ export function docOf(r: Report): { gov: Gov } | { letter: Letter } {
 
 // 청원 · 독촉: 길드 서신
 export function askLetter(W: World, a: { day: number; from: string; kind: 'aid' | 'dun'; want: number; chips: string[] }): Letter {
-  const name = a.from === 'lord' ? W.lord.name : W.guilds[a.from as 'big' | 'small'].name;
-  const g = isGuild(name) ? GUILD[name] : { sign: '영주청 집사', seal: '領', tone: undefined };
+  const name = a.from === 'lord' ? W.lord.name : W.guilds[a.from as GuildId].name;
+  const g = guildBy(name) ?? { sign: '영주청 집사', seal: '領', tone: undefined };
   return {
     house: name, day: a.day, to: '미궁관리국장 귀하', sign: g.sign, seal: g.seal, tone: g.tone,
     title: a.kind === 'dun' ? '제목: 지난 신세에 관하여' : '제목: 도움을 청하는 글',

@@ -2,17 +2,17 @@
 // 길드 전체 → 공고문, 길드 하나 → 요청서, 상단 → 제안서. 조항마다 돈 · 정보 · 권리 · 안전 중 무엇을 주고받는지(꼬리표),
 // 어느 양식에 넣을 수 있는지, 숫자 칸, 걸린 바탕 조항(⛓), 잠김 까닭을 데이터로 둔다. 효과는 engine.ts가 셈한다.
 // 잠김 · 열림 조건은 조항 정의 안에만 둔다(코드 곳곳에 흩지 않는다).
-import { B, type World } from './engine';
+import { B, type GuildId, type World } from './engine';
 
 export type Tag = '돈' | '정보' | '권리' | '안전';
 export type Form = 'notice' | 'letter' | 'offer';
-export type To = 'all' | 'big' | 'small' | 'trade';
+export type To = 'all' | GuildId | 'trade';
 export type ClauseId = 'sub' | 'rec' | 'comfort' | 'ration' | 'first' | 'excl' | 'goods' | 'ledger';
 export type Clauses = Partial<Record<ClauseId, number>>;
 
-export const FORM_OF: Record<To, Form> = { all: 'notice', big: 'letter', small: 'letter', trade: 'offer' };
+export const FORM_OF = (to: To): Form => to === 'all' ? 'notice' : to === 'trade' ? 'offer' : 'letter';
 export const FORM_NAME: Record<Form, string> = { notice: '공고문', letter: '요청서', offer: '제안서' };
-export const TO_NAME: Record<To, string> = { all: '길드 전체', big: '붉은 깃발단', small: '중소 연합', trade: '상단' };
+export const toName = (to: To) => to === 'all' ? '길드 전체' : to === 'trade' ? '상단' : B.GUILD[to].name;
 // 받는 쪽이 잠긴 까닭 (비우면 열림)
 // 길드 하나에 보내는 요청서는 입지 단계가 B.LETTER_LV에 닿으면 열린다. 화면은 잠긴 받는 쪽을 보이지 않는다
 export const toLock = (W: World, to: To) =>
@@ -34,14 +34,14 @@ export const CLAUSES: Clause[] = [
   { id: 'sub', name: '진입 보조금', give: ['돈'], take: [], forms: ['notice', 'letter'],
     field: { unit: 'G', min: 5, max: 60, step: 5, def: 10 },
     line: v => `미궁에 들어가는 조마다 하루 ${v}G를 지급한다.`,
-    fx: '조를 끌어들인다. 들어간 조 × 하루 값만큼 예산이 나간다. 중소 연합이 반긴다.' },
+    fx: '조를 끌어들인다. 들어간 조 × 하루 값만큼 예산이 나간다. 돈을 보는 길드가 반긴다. 본부가 먼 길드는 오가는 날만큼 더 줘야 온다.' },
   { id: 'rec', name: '출입 기록 제출', give: [], take: ['정보'], forms: ['notice', 'letter'],
     line: () => '들고 난 조의 인원을 그날 검문소에 적어 낸다.',
-    fx: '그 미궁의 수위 보고가 늦지 않고 그날 온다. 서류가 귀찮아 조가 조금 덜 들고, 정보를 내주기 싫은 붉은 깃발단이 언짢아한다.' },
+    fx: '그 미궁의 수위 보고가 늦지 않고 그날 온다. 서류가 귀찮아 조가 조금 덜 들고, 정보를 내주기 싫은 길드(붉은 깃발단 · 강나루 조합)가 언짢아하고, 은빛 방패단은 반긴다.' },
   { id: 'comfort', name: '위로금', give: ['돈', '안전'], take: [], forms: ['notice', 'letter'],
     field: { unit: 'G', min: 20, max: 200, step: 10, def: 50 },
     line: v => `미궁에서 잃은 조마다 위로금 ${v}G를 지급한다.`,
-    fx: '사고가 남기는 꺼림(R1)을 덜어 위험한 미궁에도 조가 남는다. 잃은 조만큼 예산이 나간다. 중소 연합이 반긴다.' },
+    fx: '사고가 남기는 꺼림(R1)을 덜어 위험한 미궁에도 조가 남는다. 잃은 조만큼 예산이 나간다. 안전을 보는 길드(등불회)가 반긴다.' },
   { id: 'ration', name: '보급 표 지급', give: ['돈'], take: [], forms: ['notice', 'letter'], needs: 'rec', lock: '보급 창고가 아직 없음',
     field: { unit: '장', min: 1, max: 4, step: 1, def: 2 },
     line: v => `기록을 낸 조에 보급 표 ${v}장을 준다.`,

@@ -2,7 +2,7 @@
 :root {
   --bg: #e6e9ec; --paper: #fbfbfa; --paper-2: #f0f2f3; --ink: #1c242b; --soft: #5b6670; --rule: #d3d8dc;
   --stamp: #a3312a; --warn: #b7791f; --ok: #2f6b45; --accent: #27465f;
-  --big: #a8323e; --small: #2b7a72; --lord: #8a6a1c;
+  --g-red: #a8323e; --g-shield: #4f6a8a; --g-wolf: #6b6258; --g-lamp: #b8761c; --g-river: #1f6d86; --g-dawn: #7d4f9a; --g-drift: #4f6b3a; --lord: #8a6a1c;
   --f-display: "Gowun Batang", "Nanum Myeongjo", serif;
   --f-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
   --f-num: "IBM Plex Mono", ui-monospace, Menlo, monospace;
@@ -10,14 +10,17 @@
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --bg: #12171b; --paper: #1b2227; --paper-2: #222a30; --ink: #e3e8eb; --soft: #9aa6ae; --rule: #313c44;
   --stamp: #e26b60; --warn: #e0a64a; --ok: #74c08f; --accent: #8fb3d4;
-  --big: #e06b74; --small: #5cc0b5; --lord: #d6b25a; color-scheme: dark;
+  --g-red: #e06b74; --g-shield: #9bb4d4; --g-wolf: #b3a99c; --g-lamp: #e6ad5c; --g-river: #5cb6d0; --g-dawn: #c39be0; --g-drift: #9cc07f; --lord: #d6b25a; color-scheme: dark;
 } }
 :root[data-theme="dark"] {
   --bg: #12171b; --paper: #1b2227; --paper-2: #222a30; --ink: #e3e8eb; --soft: #9aa6ae; --rule: #313c44;
   --stamp: #e26b60; --warn: #e0a64a; --ok: #74c08f; --accent: #8fb3d4;
-  --big: #e06b74; --small: #5cc0b5; --lord: #d6b25a; color-scheme: dark;
+  --g-red: #e06b74; --g-shield: #9bb4d4; --g-wolf: #b3a99c; --g-lamp: #e6ad5c; --g-river: #5cb6d0; --g-dawn: #c39be0; --g-drift: #9cc07f; --lord: #d6b25a; color-scheme: dark;
 }
 * { box-sizing: border-box; }
+/* 세력마다 색: f-<길드> 가 --gc를 정한다 */
+.f-red { --gc: var(--g-red); } .f-shield { --gc: var(--g-shield); } .f-wolf { --gc: var(--g-wolf); } .f-lamp { --gc: var(--g-lamp); }
+.f-river { --gc: var(--g-river); } .f-dawn { --gc: var(--g-dawn); } .f-drift { --gc: var(--g-drift); } .f-lord { --gc: var(--lord); }
 html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
 .num, output { font-family: var(--f-num); font-variant-numeric: tabular-nums; }
@@ -64,7 +67,7 @@ h2, h3, h4 { margin: 0; }
 .rel-line { fill: none; stroke: #7a6a50; stroke-dasharray: 2 4; stroke-linecap: round; opacity: .8; }
 .rel-line.neg { stroke: #9c2b23; } .rel-line.pos { stroke: #3f6b3a; }
 .flow { fill: none; stroke-linecap: round; opacity: .55; stroke-dasharray: 10 6; animation: march 1.6s linear infinite; }
-.flow.f-big { stroke: #a8323e; } .flow.f-small { stroke: #1f6d66; }
+.flow { stroke: var(--gc); }
 @keyframes march { to { stroke-dashoffset: -32; } }
 .report { fill: none; stroke: #3b2a17; stroke-width: 1; stroke-dasharray: 1 5; stroke-linecap: round; opacity: .55; }
 .place.bureau rect { fill: #27465f; stroke: #efe2c4; stroke-width: 2; }
@@ -72,7 +75,7 @@ h2, h3, h4 { margin: 0; }
 .mk { cursor: pointer; outline: none; }
 .mk .hit { fill: transparent; }
 .mk .flag { stroke: #2e2112; stroke-width: 1.5; }
-.fac-mk.f-big .flag { fill: #a8323e; } .fac-mk.f-small .flag { fill: #2b7a72; } .fac-mk.f-lord .flag { fill: #b08a2e; }
+.fac-mk .flag { fill: var(--gc); } .fac-mk.f-lord .flag { fill: #b08a2e; }
 .fac-mk.on .hit, .dg-mk.on .disc { stroke: #1d1409; stroke-width: 2.5; }
 .mk:focus-visible .hit, .mk:focus-visible .disc { stroke: #27465f; stroke-width: 3; }
 .dg-mk .disc { fill: #f6ecd2; stroke: #6d5a3c; stroke-width: 1; }
@@ -107,7 +110,7 @@ button.link { border: 0; background: none; padding: 0; color: var(--accent); jus
 .lv-num b { font-size: 30px; line-height: 1; }
 .lv-num small { color: var(--soft); font-size: 12px; }
 .dg-teams { display: grid; grid-template-columns: 1fr auto; gap: 1px 8px; margin: 0; font-size: 13px; }
-.dg-teams dt { color: var(--soft); }
+.dg-teams dt { color: var(--soft); } .dg-teams dt small { font-size: 11px; }
 .dg-teams dd { margin: 0; text-align: right; }
 .dg-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding-top: 8px; border-top: 1px solid var(--rule); font-size: 13px; }
 .dg-sub > span { flex: 1 1 100%; }
@@ -117,7 +120,8 @@ button.link { border: 0; background: none; padding: 0; color: var(--accent); jus
 .step output { min-width: 4.2em; text-align: center; padding: 0 6px; }
 
 .fac { background: var(--paper); border: 1px solid var(--rule); border-left: 4px solid var(--soft); border-radius: 6px; padding: 10px 12px; }
-.fac.f-big { border-left-color: var(--big); } .fac.f-small { border-left-color: var(--small); } .fac.f-lord { border-left-color: var(--lord); }
+.fac { border-left-color: var(--gc); }
+.fac .trait { font-size: 12px; color: var(--soft); margin: 0 0 6px; }
 .fac h3 { font: 700 16px var(--f-display); margin-bottom: 6px; }
 .fac dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 0; font-size: 13px; }
 .fac dt { color: var(--soft); }
@@ -318,7 +322,7 @@ button.link { border: 0; background: none; padding: 0; color: var(--accent); jus
 .gov-doc.out .p-cl { margin: 0; }
 
 .guild-letter { background: #f7f1e4; color: #2a241c; border: 1px solid #d6cab0; border-left: 6px solid #7a6a4f; padding: 14px 18px; display: grid; gap: 8px; font: 14px/1.7 var(--f-display); }
-.guild-letter.red { border-left-color: #9c2b23; } .guild-letter.green { border-left-color: #3f6b3a; }
+.guild-letter[class*=' f-'] { border-left-color: var(--gc); }
 .guild-letter p { margin: 0; }
 .gl-head { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid #c9bb9c; padding-bottom: 4px; }
 .gl-head b { font-size: 18px; letter-spacing: .1em; } .gl-head small { font: 11px var(--f-body); color: #6d6250; }
@@ -334,11 +338,13 @@ button.link { border: 0; background: none; padding: 0; color: var(--accent); jus
 /* 길드 몸집 */
 .gscale { display: grid; gap: 4px; margin: 10px 0; }
 .gscale h2 { font-size: 13px; margin: 0 0 2px; }
-.gs-row { display: grid; grid-template-columns: 3.5em 1fr 1fr; gap: 6px; align-items: center; font-size: 12px; }
-.gs-head b { font-size: 12px; } .gs-head .f-big { color: var(--big); } .gs-head .f-small { color: var(--small); }
+.gs-row { display: grid; grid-template-columns: 6.5em 1fr 4.6em 2.4em; gap: 6px; align-items: center; font-size: 12px; }
+.gs-row > b { color: var(--gc); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gs-row > span { text-align: right; } .gs-head span, .gs-head i { color: var(--soft); font-style: normal; font-size: 11px; }
+.gs-gap { height: 4px; }
 .gs-bar { font-style: normal; position: relative; display: block; height: 18px; background: var(--paper-2); border-radius: 2px; overflow: hidden; }
 .gs-bar > i { position: absolute; inset: 0 auto 0 0; display: block; }
-.gs-bar.f-big > i { background: color-mix(in srgb, var(--big) 35%, transparent); } .gs-bar.f-small > i { background: color-mix(in srgb, var(--small) 35%, transparent); }
+.gs-bar > i { background: color-mix(in srgb, var(--gc) 35%, transparent); }
 .gs-bar b { position: relative; padding-left: 4px; font-weight: 500; line-height: 18px; }
 /* 첫 사건의 업무 안내 */
 .tut { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; align-items: start; background: color-mix(in srgb, var(--accent) 8%, var(--paper)); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--rule)); border-radius: 4px; padding: 8px 10px; margin-bottom: 10px; font-size: 13px; }

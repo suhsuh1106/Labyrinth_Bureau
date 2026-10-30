@@ -1,6 +1,6 @@
 // 미궁관리국 배경 엔진 0단계: 인과 루프 두 쌍이 폭주하거나 멈추지 않는지, 국장의 손이 판을 바꾸는지
 import { describe, expect, it } from 'vitest';
-import { B, answer, clauseOn, hireClerk, subAt, letterScore, meet, newWorld, over, pactK, post, recall, relOf, run, send, step, teamsIn, withdraw } from '../src/bureau/engine';
+import { B, GUILDS, answer, clauseOn, hireClerk, subAt, letterScore, meet, newWorld, over, pactK, pnlGuild, post, recall, relOf, run, send, step, teamsIn, withdraw, worstPair } from '../src/bureau/engine';
 import { BOT, playGame } from '../sim/bureau';
 import { EDGES, LINKS, LOOPS, NODES, checkLoops } from '../src/bureau/loops';
 import { type BuUi, docModalHtml, endHtml, introHtml, paneHtml, tabsHtml, topHtml, tutOf, writeHtml } from '../src/ui/bureau/board';
@@ -24,8 +24,8 @@ describe('미궁관리국 엔진 0단계', () => {
       const W = newWorld(3);
       while (W.day < B.DAYS) {
         BOT[bot](W); step(W);
-        for (const d of W.dungeons) { expect(d.level).toBeGreaterThanOrEqual(0); expect(d.level).toBeLessThan(B.FLOOD); expect(Number.isFinite(d.teams.big + d.teams.small)).toBe(true); }
-        for (const o of [W.guilds.big, W.guilds.small, W.lord]) { expect(o.fav).toBeGreaterThanOrEqual(0); expect(o.fav).toBeLessThanOrEqual(100); expect(o.infl).toBeLessThan(100); }
+        for (const d of W.dungeons) { expect(d.level).toBeGreaterThanOrEqual(0); expect(d.level).toBeLessThan(B.FLOOD); expect(Number.isFinite(teamsIn(d))).toBe(true); }
+        for (const o of [...Object.values(W.guilds), W.lord]) { expect(o.fav).toBeGreaterThanOrEqual(0); expect(o.fav).toBeLessThanOrEqual(100); expect(o.infl).toBeLessThan(100); }
         expect(W.standing).toBeGreaterThanOrEqual(0); expect(W.standing).toBeLessThanOrEqual(100);
       }
     }
@@ -51,7 +51,7 @@ describe('미궁관리국 엔진 0단계', () => {
   it('R3 · B3: 큰 길드는 커지다 멈추고, 견제를 끄면 계속 커진다', () => {
     const peak = avg('normal', W => Math.max(...W.stats.bigSize)), end = avg('normal', W => W.stats.bigSize.at(-1)!);
     const free = avg('normal', W => W.stats.bigSize.at(-1)!, { noCheck: true });
-    expect(peak).toBeGreaterThan(20);                // 처음 12조에서 커진다
+    expect(peak).toBeGreaterThan(20);                // 처음 15조에서 커진다
     expect(end).toBeLessThanOrEqual(peak);           // 끝까지 커지지 않는다
     expect(free).toBeGreaterThan(end * 1.5);         // 붙잡는 고리가 없으면 훨씬 크다
   });
@@ -72,82 +72,89 @@ describe('미궁관리국 엔진 1단계: 세력 사이 · 신세', () => {
   const W0 = () => { const W = newWorld(11); for (let t = 0; t < 5; t++) step(W); return W; };
   const until = (W: ReturnType<typeof newWorld>, ok: () => boolean) => { for (let t = 0; t < 60 && !ok(); t++) step(W); expect(ok()).toBe(true); };
 
-  it('R4 · B4: 손을 놓으면 두 길드 사이가 무너지고, 회의를 여는 봇은 붙잡는다', () => {
-    const idle = avg('idle', W => relOf(W, 'big', 'small')), normal = avg('normal', W => relOf(W, 'big', 'small')), smart = avg('smart', W => relOf(W, 'big', 'small'));
+  it('R4 · B4: 손을 놓으면 가장 나쁜 두 길드 사이가 무너지고, 회의를 여는 봇은 붙잡는다', () => {
+    const worst = (W: ReturnType<typeof newWorld>) => relOf(W, ...worstPair(W));
+    const idle = avg('idle', worst), normal = avg('normal', worst), smart = avg('smart', worst);
     expect(idle).toBeLessThan(-60);
-    expect(normal).toBeGreaterThan(idle + 30);
+    expect(normal).toBeGreaterThan(idle + 25);
     expect(smart).toBeGreaterThan(normal);
-    expect(avg('smart', W => W.stats.clashes)).toBeLessThan(avg('idle', W => W.stats.clashes));
+    // 손 놓은 판은 범람으로 미궁이 비어 다툼이 적다: 회의를 여는 두 봇끼리 견준다
+    expect(avg('smart', W => W.stats.clashes)).toBeLessThan(avg('normal', W => W.stats.clashes));
   });
 
   it('회의: 협정이 서고, 빠진 영주는 이틀 뒤 앙금을 남긴다', () => {
     const W = W0();
-    W.guilds.big.fav = W.guilds.small.fav = 70;
-    const lordFav = W.lord.fav, rel = relOf(W, 'big', 'small');
-    expect(meet(W, ['big', 'small'])).toBe(true);
-    expect(pactK(W)).toBeGreaterThan(0);
-    expect(relOf(W, 'big', 'small')).toBeGreaterThan(rel);
-    expect(W.owe.big).toBeLessThan(0);                 // 부탁한 만큼 신세를 졌다
+    W.guilds.red.fav = W.guilds.shield.fav = 70;
+    expect(meet(W, ['red'])).toBe(false);              // 길드 하나로는 회의가 안 된다
+    const lordFav = W.lord.fav, rel = relOf(W, 'red', 'shield');
+    expect(meet(W, ['red', 'shield'])).toBe(true);
+    expect(pactK(W, 'red', 'shield')).toBeGreaterThan(0);
+    expect(pactK(W, 'red', 'wolf')).toBe(0);           // 협정은 부른 길드 사이에만
+    expect(relOf(W, 'red', 'shield')).toBeGreaterThan(rel);
+    expect(W.owe.red).toBeLessThan(0);                 // 부탁한 만큼 신세를 졌다
     step(W);
     expect(W.reports.some(r => r.chips.includes('자기를 빼고 정해서'))).toBe(false);
     step(W);
     expect(W.reports.find(r => r.chips.includes('자기를 빼고 정해서'))?.day).toBe(W.day);
     expect(W.lord.fav).toBeLessThan(lordFav);
-    expect(meet(W, ['big', 'small'])).toBe(false);     // 열흘 안엔 다시 못 연다
+    // 체면을 보는 길드(권리 1 이상)만 서운해한다
+    expect(W.reports.some(r => r.from === W.guilds.dawn.name && r.chips.includes('자기를 빼고 정해서'))).toBe(true);
+    expect(W.reports.some(r => r.from === W.guilds.wolf.name && r.chips.includes('자기를 빼고 정해서'))).toBe(false);
+    expect(meet(W, ['red', 'shield'])).toBe(false);     // 열흘 안엔 다시 못 연다
   });
 
   it('마지못한 서명은 나흘 뒤에야 이행되고, 마음이 많이 모자라면 거절한다', () => {
     const W = W0();
-    W.guilds.big.fav = 70; W.guilds.small.fav = B.SIGN_AT - 10;   // 영주를 부르면 +5
-    expect(meet(W, ['big', 'small', 'lord'])).toBe(true);
+    W.guilds.red.fav = 70; W.guilds.shield.fav = B.SIGN_AT - 10;   // 영주를 부르면 +5
+    expect(meet(W, ['red', 'shield', 'lord'])).toBe(true);
     expect(pactK(W)).toBe(0);
     for (let t = 0; t < B.SLOW_DAYS; t++) step(W);
     expect(pactK(W)).toBeGreaterThan(0);
     expect(W.reports.some(r => r.chips.includes('마지못해 서명해서'))).toBe(true);
     const V = W0();
-    V.guilds.big.fav = 70; V.guilds.small.fav = B.SIGN_AT - 30;
-    expect(meet(V, ['big', 'small'])).toBe(false);
+    V.guilds.red.fav = 70; V.guilds.shield.fav = B.SIGN_AT - 30;
+    expect(meet(V, ['red', 'shield'])).toBe(false);
     expect(V.pact).toBeNull();
   });
 
   it('R5 · B5: 청을 들어주면 신세를 받고, 진 빚은 독촉으로 돌아오며 모른 척하면 입지를 잃는다', () => {
     const W = W0();
-    W.guilds.small.money = -200;
-    W.rel['lord:small'] = -50;                        // 영주가 빌려주지 않는 사이
-    until(W, () => W.asks.some(a => a.from === 'small' && a.kind === 'aid'));
-    const aid = W.asks.find(a => a.from === 'small' && a.kind === 'aid')!, budget = W.budget;
+    W.guilds.wolf.money = -200;
+    W.rel['lord:wolf'] = -50;                         // 영주가 빌려주지 않는 사이
+    until(W, () => W.asks.some(a => a.from === 'wolf' && a.kind === 'aid'));
+    const aid = W.asks.find(a => a.from === 'wolf' && a.kind === 'aid')!, budget = W.budget;
     answer(W, aid.id, aid.want);
-    expect(W.owe.small).toBeGreaterThan(0);
+    expect(W.owe.wolf).toBeGreaterThan(0);
     expect(W.budget).toBe(budget - aid.want);
-    W.owe.big = -20;
-    until(W, () => W.asks.some(a => a.from === 'big' && a.kind === 'dun'));
-    const dun = W.asks.find(a => a.from === 'big' && a.kind === 'dun')!;
+    W.owe.red = -20;
+    until(W, () => W.asks.some(a => a.from === 'red' && a.kind === 'dun'));
+    const dun = W.asks.find(a => a.from === 'red' && a.kind === 'dun')!;
     expect(dun.want).toBeGreaterThan(0);
-    const st = W.standing, f = W.guilds.big.fav;
+    const st = W.standing, f = W.guilds.red.fav;
     for (let t = 0; t <= B.ASK_DUE; t++) step(W);  // 답하지 않으면 기한에 0으로 답한 것
     expect(dun.got).toBe(0);
-    expect(W.guilds.big.fav).toBeLessThan(f);
+    expect(W.guilds.red.fav).toBeLessThan(f);
     expect(W.standing).toBeLessThan(st + 1);
   });
 
   it('세력끼리의 빚: 빚진 쪽은 엿새쯤 뒤 빌려준 쪽 편을 든다', () => {
     const W = W0();
-    W.fowe.small.lord = B.LEND_OWE;
-    W.rel['big:lord'] = -50;
-    const rel = relOf(W, 'big', 'small');
+    W.fowe.wolf.lord = B.LEND_OWE;
+    W.rel['lord:red'] = -50;
+    const rel = relOf(W, 'red', 'wolf');
     step(W);
     const side = W.later.find(l => l.kind === 'side')!;
     expect(side.day).toBe(W.day + B.SIDE_DAYS);
     until(W, () => W.day >= side.day);
     expect(W.reports.some(r => r.chips.some(c => c.includes('진 빚을 갚느라')))).toBe(true);
-    expect(relOf(W, 'big', 'small')).toBeLessThan(rel - B.SIDE_REL / 2);
+    expect(relOf(W, 'red', 'wolf')).toBeLessThan(rel - B.SIDE_REL / 2);
   });
 
   it('요청서는 세력마다 한 장씩만 열려 있다', () => {
     const W = newWorld(2);
     while (W.day < B.DAYS) {
       step(W);
-      for (const f of ['big', 'small', 'lord']) expect(W.asks.filter(a => a.from === f && a.got == null).length).toBeLessThanOrEqual(1);
+      for (const f of [...GUILDS, 'lord']) expect(W.asks.filter(a => a.from === f && a.got == null).length).toBeLessThanOrEqual(1);
     }
   });
 });
@@ -176,12 +183,15 @@ describe('국장의 서류 (조항 조합)', () => {
     const W = newWorld(5);
     post(W, 1, 20, { sub: 20 });
     const d = W.dungeons[1];
-    expect(clauseOn(W, d, 'sub', 'small')).toBeUndefined();
+    expect(clauseOn(W, d, 'sub', 'wolf')).toBeUndefined();
     step(W);
-    expect(clauseOn(W, d, 'sub', 'small')).toBe(20);
-    expect(clauseOn(W, d, 'sub', 'big')).toBeUndefined();
+    expect(clauseOn(W, d, 'sub', 'wolf')).toBe(20);
+    expect(clauseOn(W, d, 'sub', 'red')).toBeUndefined();
     step(W);
-    expect(clauseOn(W, d, 'sub', 'big')).toBe(20);
+    expect(clauseOn(W, d, 'sub', 'red')).toBe(20);
+    expect(clauseOn(W, d, 'sub', 'drift')).toBeUndefined();     // 떠돌이 칼은 사흘
+    step(W);
+    expect(clauseOn(W, d, 'sub', 'drift')).toBe(20);
   });
 
   it('첫 요구서: 폐광에 조를 들여 군에게서 넘겨받으면 예산 · 입지를 받고 요청서가 열린다. 손을 놓으면 인내가 다해 군이 물러난다', () => {
@@ -236,7 +246,8 @@ describe('국장의 서류 (조항 조합)', () => {
     expect(b.seen[1].at(-1)).toBe(b.hist[1].at(-1));
     expect(a.seen[1].at(-1)).not.toBe(a.hist[1].at(-1));
     for (let t = 0; t < 3; t++) { setSeed(80 + t); step(a); setSeed(80 + t); step(b); }   // 붉은 깃발단에는 이틀 뒤 닿는다
-    expect(b.guilds.big.fav).toBeLessThan(a.guilds.big.fav);
+    expect(b.guilds.red.fav).toBeLessThan(a.guilds.red.fav);
+    expect(b.guilds.shield.fav).toBeGreaterThan(a.guilds.shield.fav);   // 기사단 출신은 관청 기록을 반긴다
   });
 
   it('위로금: 사고의 꺼림을 덜고 잃은 조만큼 예산이 나간다', () => {
@@ -249,10 +260,10 @@ describe('국장의 서류 (조항 조합)', () => {
 
   it('공고문을 기한 전에 내리면 조항이 멎고 길드들이 서운해한다', () => {
     const W = newWorld(6), n = post(W, 2, 30, { sub: 15 })!;
-    const fav = W.guilds.big.fav;
+    const fav = W.guilds.red.fav;
     expect(withdraw(W, n.id)).toBe(true);
     expect(subAt(W, 2)).toBe(0);
-    expect(W.guilds.big.fav).toBeLessThan(fav);
+    expect(W.guilds.red.fav).toBeLessThan(fav);
     expect(withdraw(W, n.id)).toBe(false);
   });
 
@@ -270,20 +281,20 @@ describe('국장의 서류 (조항 조합)', () => {
   it('집무실: 입지가 새 단계에 닿으면 서기 몫이 생기고, 2단계에 요청서가 열린다', () => {
     const W = newWorld(5);
     expect(W.rank).toBe(1);
-    expect(send(W, 'small', 0, 20, { sub: 10 })).toBeNull();
+    expect(send(W, 'wolf', 0, 20, { sub: 10 })).toBeNull();
     W.standing = B.STAND_LV[1] + 5;
     step(W);
     expect(W.rank).toBe(2);
     expect(W.pts).toBe(1);
     expect(W.reports.at(-1)!.chips).toContain('길드 지정 서신(요청서) 열림');
-    expect(toLock(W, 'small')).toBe('');
+    expect(toLock(W, 'wolf')).toBe('');
     expect(toLock(W, 'trade')).not.toBe('');
   });
 
   it('요청서: 이틀 뒤 답하고, 서명하면 그 길드에만 걸린다. 정보를 내달라는 청은 붉은 깃발단이 사양한다', () => {
     const W = newWorld(11);
     W.rank = 2; W.clerks = 3;
-    const ok = send(W, 'small', 0, 30, { sub: 20 })!, no = send(W, 'big', 1, 30, { rec: 1 })!;
+    const ok = send(W, 'wolf', 0, 30, { sub: 20 })!, no = send(W, 'red', 1, 30, { rec: 1 })!;
     expect(ok && no).toBeTruthy();
     step(W); expect(ok.until).toBeUndefined();
     step(W);
@@ -291,18 +302,20 @@ describe('국장의 서류 (조항 조합)', () => {
     expect(W.letters.find(l => l.id === no.id)).toBeUndefined();
     expect(W.reports.some(r => r.title.includes('돌아가서 검토') && r.chips.includes('－ 정보 내주기'))).toBe(true);
     expect(subAt(W, 0)).toBe(0);
-    const s0 = W.dungeons[0].teams.small;
+    const s0 = W.dungeons[0].teams.wolf;
     for (let t = 0; t < 10; t++) step(W);
-    expect(W.dungeons[0].teams.small).toBeGreaterThan(s0);
-    const fav = W.guilds.small.fav;
+    expect(W.dungeons[0].teams.wolf).toBeGreaterThan(s0);
+    const fav = W.guilds.wolf.fav;
     expect(recall(W, ok.id)).toBe(true);
-    expect(W.guilds.small.fav).toBeLessThan(fav);
-    expect(letterScore(W, { to: 'big', cl: { rec: 1 } }).v).toBeLessThan(letterScore(W, { to: 'small', cl: { rec: 1 } }).v);
+    expect(W.guilds.wolf.fav).toBeLessThan(fav);
+    W.guilds.red.fav = W.guilds.lamp.fav = 50; W.owe.red = W.owe.lamp = 0;
+    expect(letterScore(W, { to: 'red', cl: { rec: 1 } }).v).toBeLessThan(letterScore(W, { to: 'lamp', cl: { rec: 1 } }).v);
+    expect(letterScore(W, { to: 'shield', cl: { rec: 1 } }).why).toContain('＋ 관청 기록');
   });
 
   it('서류 탭: 열린 받는 쪽 · 조항만 드롭다운에, 받는 쪽마다 양식이 바뀐다', () => {
     const W = newWorld(7);
-    const ui: BuUi = { tab: 'asks', invite: ['big', 'small'], give: {}, intro: false, seenNews: 0, draft: { to: 'all', dg: 2, days: 30, cl: { sub: 25, rec: 1 } } };
+    const ui: BuUi = { tab: 'asks', invite: [], give: {}, intro: false, seenNews: 0, draft: { to: 'all', dg: 2, days: 30, cl: { sub: 25, rec: 1 } } };
     let h = writeHtml(W, ui);
     expect(h).toContain('공고문');
     expect(h).toContain('<select data-act="wto"');
@@ -311,9 +324,9 @@ describe('국장의 서류 (조항 조합)', () => {
     expect(h).not.toContain('🔒');
     expect(h).not.toContain('붉은 깃발단 · 요청서');
     expect(h).not.toContain('상단');
-    expect(writeHtml(W, { ...ui, draft: { to: 'big', dg: 2, days: 30, cl: { sub: 25 } } })).toContain('미궁 출입 길드 전체');
+    expect(writeHtml(W, { ...ui, draft: { to: 'red', dg: 2, days: 30, cl: { sub: 25 } } })).toContain('미궁 출입 길드 전체');
     W.rank = 2;
-    h = writeHtml(W, { ...ui, draft: { to: 'big', dg: 2, days: 30, cl: { sub: 25 } } });
+    h = writeHtml(W, { ...ui, draft: { to: 'red', dg: 2, days: 30, cl: { sub: 25 } } });
     expect(h).toContain('붉은 깃발단 귀하');
     expect(h).toContain('요청서 보내기');
     const n = post(W, 2, 30, { sub: 25 })!;
@@ -334,13 +347,13 @@ describe('첫 화면과 받은 서류 창', () => {
     expect(introHtml()).toContain('미궁관리국 신설');
     expect(introHtml()).toContain('왕 도 일 보');
     const W = newWorld(5);
-    const ui: BuUi = { tab: 'look', invite: ['big', 'small'], give: {}, intro: false, seenNews: 0, docSeen: 0, askSeen: 0 };
+    const ui: BuUi = { tab: 'look', invite: [], give: {}, intro: false, seenNews: 0, docSeen: 0, askSeen: 0 };
     let h = docModalHtml(W, ui);
     expect(h).toContain('폐광 인계에 관한 요구');
     expect(h).toContain('중 앙 행 정 원');
     const k = Number(/seen:(\d+)/.exec(h)![1]);
     expect(docModalHtml(W, { ...ui, docSeen: k + 1 })).toBe('');
-    W.asks.push({ id: 1, day: 0, due: 5, from: 'small', kind: 'aid', want: 200, chips: [] });
+    W.asks.push({ id: 1, day: 0, due: 5, from: 'wolf', kind: 'aid', want: 200, chips: [] });
     h = docModalHtml(W, { ...ui, docSeen: k + 1 });
     expect(h).toContain('answer:1');
     expect(h).toContain('later:1');
@@ -391,6 +404,35 @@ describe('미궁 손익 자료', () => {
   });
 });
 
+describe('길드 일곱: 큰 길드 둘 · 작은 길드 다섯, 본부에서 미궁까지 거리', () => {
+  it('큰 길드 둘과 작은 길드 다섯으로 시작하고, 큰 길드는 몸집이 몇 곱절이다', () => {
+    const W = newWorld(5), big = GUILDS.filter(g => B.GUILD[g].big), small = GUILDS.filter(g => !B.GUILD[g].big);
+    expect(big.length).toBe(2);
+    expect(small.length).toBe(5);
+    expect(Math.min(...big.map(g => W.guilds[g].size))).toBeGreaterThan(Math.max(...small.map(g => W.guilds[g].size)) * 3);
+    // 성격(돈 · 안전 · 정보 · 권리 · 기한 읽기 · 거리)이 겹치지 않는다
+    const sig = GUILDS.map(g => { const t = B.GUILD[g]; return [t.cash, t.safe, t.info, t.right, t.trust.base, t.way.join()].join('|'); });
+    expect(new Set(sig).size).toBe(GUILDS.length);
+  });
+
+  it('본부가 먼 길드는 같은 보조금에도 폐광에 덜 온다: 손익 자료의 길드별 칸에 보인다', () => {
+    // 몸집이 같은 작은 길드 둘: 잿빛 늑대단(폐광까지 1일) · 강나루 조합(3일)
+    expect(B.GUILD.wolf.size).toBe(B.GUILD.river.size);
+    expect(B.GUILD.wolf.way[0]).toBeLessThan(B.GUILD.river.way[0]);
+    let near = 0, far = 0;
+    for (const seed of SEEDS.slice(0, 10)) {
+      const W = newWorld(seed);
+      post(W, 0, 30, { sub: 15 });
+      for (let t = 0; t < 12; t++) step(W);
+      near += W.dungeons[0].teams.wolf; far += W.dungeons[0].teams.river;
+      expect(pnlGuild(W, 'wolf', 0)).toBeGreaterThan(pnlGuild(W, 'river', 0));
+    }
+    expect(near).toBeGreaterThan(far * 1.2);
+    const W = newWorld(5);
+    expect(paneHtml(W, { tab: 'lib', invite: [], give: {}, intro: false, seenNews: 0, shelf: 'pnl' })).toContain('길드마다 오늘');
+  });
+});
+
 describe('인과 루프 그림 (loops.ts)', () => {
   it('고리마다 길이 정의된 화살표로 닫히고, 음 화살표 수가 R · B와 맞는다', () => {
     for (const c of checkLoops()) expect(c.why, c.id).toEqual([]);
@@ -415,17 +457,18 @@ describe('인과 루프 그림 (loops.ts)', () => {
 describe('미궁관리국 게임판 (ui/bureau)', () => {
   it('판 · 탭 · 끝 화면을 날마다 그린다', () => {
     const W = newWorld(1003);
-    const ui: BuUi = { tab: 'asks', invite: ['big', 'small'], give: {}, intro: false, seenNews: 0 };
+    const ui: BuUi = { tab: 'asks', invite: [], give: {}, intro: false, seenNews: 0 };
     while (!over(W)) {
       BOT.smart(W); step(W);
       if (W.day % 45 === 0) {
         expect(topHtml(W)).toContain('예산');
         for (const d of W.dungeons) expect(mapHtml(W, ui)).toContain(d.name);
         for (const tab of ['look', 'asks', 'lib', 'meet', 'office'] as const) expect(paneHtml(W, { ...ui, tab }).length).toBeGreaterThan(20);
-        for (const sel of ['dg:1', 'fac:big', 'fac:lord']) expect(paneHtml(W, { ...ui, tab: 'look', sel })).toContain('관할 요약');
+        for (const sel of ['dg:1', 'fac:red', 'fac:drift', 'fac:lord']) expect(paneHtml(W, { ...ui, tab: 'look', sel })).toContain('관할 요약');
       }
     }
     expect(endHtml(W, W, W)).toContain('임기');
+    expect(topHtml(W)).toContain('data-act="reset"');      // 새로 시작 단추는 늘 위 띠에
   });
 
   it('저장한 판(JSON + 난수 자리)을 이어 하면 그대로 흘러간다', () => {

@@ -9,7 +9,7 @@ import { type BuUi, DRAFT0, type Shelf, type Tab, docModalHtml, reportDocHtml, e
 import { mapHtml } from './ui/bureau/map';
 
 const $ = (id: string) => document.getElementById(id)!;
-const KEY = 'lb-bureau', VERSION = 9;
+const KEY = 'lb-bureau', VERSION = 10;
 let W: World, ui: BuUi, seed = 0;
 
 function save() { try { localStorage.setItem(KEY, JSON.stringify({ v: VERSION, seed, rng: getSeed(), W, ui })); } catch { /* 저장이 막혀도 판은 계속된다 */ } }
@@ -18,7 +18,7 @@ function load() { try { const d = JSON.parse(localStorage.getItem(KEY) || 'null'
 function fresh() {
   seed = (Date.now() ^ 0x5bd1e995) >>> 0;
   W = newWorld(seed);
-  ui = { tab: 'look', sel: 'dg:0', invite: ['big', 'small'], give: {}, intro: true, seenNews: W.reports.length, docSeen: 0, askSeen: 0 };
+  ui = { tab: 'look', sel: 'dg:0', invite: [], give: {}, intro: true, seenNews: W.reports.length, docSeen: 0, askSeen: 0 };
 }
 
 function draw() {
@@ -61,6 +61,8 @@ function act(a: string, d = 0) {
   if (k === 'ff') return nextDays(5);
   if (k === 'start') ui.intro = false;
   else if (k === 'new') fresh();
+  // 새로 시작: 지금 판을 지우므로 한 번 묻는다
+  else if (k === 'reset') { if (!confirm('지금 판을 지우고 새 임기를 시작할까요?')) return; fresh(); }
   else if (k === 'tab') ui.tab = arg as Tab;
   else if (k === 'sel') { ui.sel = rest; ui.tab = 'look'; }
   else if (k === 'write') { ui.draft = { ...draft(), dg: +arg }; ui.tab = 'asks'; ui.modal = 'write'; }
@@ -73,13 +75,13 @@ function act(a: string, d = 0) {
   else if (k === 'wdg') ui.draft = { ...draft(), dg: +arg };
   else if (k === 'wto') {
     // 양식이 바뀌면 새 양식에 넣을 수 없는 조항은 빠진다
-    const f = draft(), to = arg as To, form = FORM_OF[to];
+    const f = draft(), to = arg as To, form = FORM_OF(to);
     let cl = f.cl;
     for (const id of Object.keys(cl) as ClauseId[]) if (!CLAUSE[id].forms.includes(form)) cl = dropClause(cl, id);
     ui.draft = { ...f, to, cl };
   }
   else if (k === 'wdays') { const f = draft(); ui.draft = { ...f, days: clamp(f.days + d * 5, 10, 60) }; }
-  else if (k === 'wadd') { const f = draft(); if (canAdd(W, FORM_OF[f.to], f.cl, arg as ClauseId)) ui.draft = { ...f, cl: addClause(f.cl, arg as ClauseId) }; }
+  else if (k === 'wadd') { const f = draft(); if (canAdd(W, FORM_OF(f.to), f.cl, arg as ClauseId)) ui.draft = { ...f, cl: addClause(f.cl, arg as ClauseId) }; }
   else if (k === 'wdel') { const f = draft(); ui.draft = { ...f, cl: dropClause(f.cl, arg as ClauseId) }; }
   else if (k === 'wv') {
     const f = draft(), id = arg as ClauseId, fd = CLAUSE[id].field;
@@ -87,7 +89,7 @@ function act(a: string, d = 0) {
   }
   else if (k === 'post') {
     const f = draft();
-    const done = FORM_OF[f.to] === 'notice' ? post(W, f.dg, f.days, f.cl) : f.to === 'big' || f.to === 'small' ? send(W, f.to, f.dg, f.days, f.cl) : null;
+    const done = FORM_OF(f.to) === 'notice' ? post(W, f.dg, f.days, f.cl) : f.to !== 'all' && f.to !== 'trade' ? send(W, f.to, f.dg, f.days, f.cl) : null;
     if (done) ui.modal = undefined;
   }
   else if (k === 'recall') recall(W, +arg);
