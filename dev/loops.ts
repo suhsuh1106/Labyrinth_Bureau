@@ -1,6 +1,6 @@
 // 개발용 인과 루프 확인판 (`npm run dev` → /dev/loops.html). 봇 한 판을 돌려 날마다 켜진 고리를 그림 위에 켠다.
 // 상태를 저장하지 않고, 판은 시드로 다시 굴린다.
-import { B, type LoopId, type World, newWorld, over, relOf, step } from '../src/bureau/engine';
+import { B, GUILDS, type LoopId, type World, newWorld, over, relOf, step, worstPair } from '../src/bureau/engine';
 import { BOT } from '../src/bureau/bots';
 import { EDGES, LINKS, LOOPS, NODES, type LoopEdge, checkLoops } from '../src/bureau/loops';
 
@@ -16,7 +16,7 @@ function play(seed: number, bot: string, noCheck: boolean): Game {
   const W = newWorld(seed, { noCheck }), snaps: Snap[] = [];
   while (!over(W)) {
     BOT[bot](W); step(W);
-    snaps.push({ lv: W.dungeons.map(d => d.level), big: W.guilds.big.size, small: W.guilds.small.size, rel: relOf(W, 'big', 'small'), standing: W.standing, budget: W.budget, lit: W.stats.litHist.at(-1)! });
+    snaps.push({ lv: W.dungeons.map(d => d.level), big: GUILDS.filter(g => B.GUILD[g].big).reduce((a, g) => a + W.guilds[g].size, 0), small: GUILDS.filter(g => !B.GUILD[g].big).reduce((a, g) => a + W.guilds[g].size, 0), rel: relOf(W, ...worstPair(W)), standing: W.standing, budget: W.budget, lit: W.stats.litHist.at(-1)! });
   }
   return { W, snaps };
 }
@@ -91,9 +91,9 @@ function drawSparks() {
   const S = G.snaps, s = S[st.day - 1], f = (v: number) => (Math.round(v * 10) / 10).toLocaleString('ko-KR');
   const rows: [string, number[], number, number, string, number | undefined, number][] = [
     ...G.W.dungeons.map((d, i) => [`${d.name} 수위`, S.map(x => x.lv[i]), 0, 100, 'var(--r1)', B.DANGER, s.lv[i]] as [string, number[], number, number, string, number, number]),
-    ['붉은 깃발단 조', S.map(x => x.big), 0, 45, 'var(--r3)', undefined, s.big],
-    ['중소 연합 조', S.map(x => x.small), 0, 45, 'var(--b3)', undefined, s.small],
-    ['두 길드 사이', S.map(x => x.rel), -100, 100, 'var(--r4)', 0, s.rel],
+    ['큰 길드 둘 조', S.map(x => x.big), 0, 90, 'var(--r3)', undefined, s.big],
+    ['작은 길드 다섯 조', S.map(x => x.small), 0, 60, 'var(--b3)', undefined, s.small],
+    ['나쁜 두 길드 사이', S.map(x => x.rel), -100, 100, 'var(--r4)', 0, s.rel],
     ['국장 입지', S.map(x => x.standing), 0, 100, 'var(--b4)', undefined, s.standing],
     ['예산', S.map(x => x.budget), Math.min(0, ...S.map(x => x.budget)), Math.max(1, ...S.map(x => x.budget)), 'var(--b5)', 0, s.budget],
   ];

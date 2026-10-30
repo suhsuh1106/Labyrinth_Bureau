@@ -28,6 +28,8 @@ export const NODES: LoopNode[] = [
   { id: 'budget', label: '예산', x: 260, y: 520 },
   { id: 'owe', label: '신세', x: 90, y: 420 },
   { id: 'dun', label: '독촉', x: 90, y: 520 },
+  { id: 'dev', label: '발전도', x: 40, y: 330 },
+  { id: 'way', label: '오가는 날', x: 80, y: 372 },
 ];
 
 export const EDGES: LoopEdge[] = [
@@ -55,6 +57,9 @@ export const EDGES: LoopEdge[] = [
   { from: 'give', to: 'owe', sign: 1 },
   { from: 'owe', to: 'dun', sign: -1 },
   { from: 'dun', to: 'give', sign: 1 },
+  { from: 'teams', to: 'dev', sign: 1 },
+  { from: 'dev', to: 'way', sign: -1 },
+  { from: 'way', to: 'teams', sign: -1 },
 ];
 
 // 고리 사이를 잇는 화살표 (엮임): 고리 하나에 들지 않지만 한쪽 고리가 다른 고리를 민다
@@ -68,6 +73,7 @@ export const LINKS: LoopEdge[] = [
 export const LOOPS: Loop[] = [
   { id: 'R1', kind: 'R', name: '범람', path: ['level', 'acc', 'fear', 'teams', 'level'], when: '위험 수위 위에서 조가 빠진 날', at: [235, 225] },
   { id: 'B1', kind: 'B', name: '개입', path: ['level', 'sub', 'teams', 'level'], when: '보조금이 조를 들인 날', at: [118, 222] },
+  { id: 'R2', kind: 'R', name: '발길', path: ['teams', 'dev', 'way', 'teams'], when: '길이 닦인 외진 미궁에 조가 늘어난 날', at: [92, 322] },
   { id: 'R3', kind: 'R', name: '몸집', path: ['size', 'infl', 'share', 'money', 'size'], when: '가장 큰 길드가 조를 늘린 날', at: [530, 190] },
   { id: 'B3', kind: 'B', name: '견제', path: ['infl', 'check', 'share', 'money', 'size', 'infl'], when: '어느 길드든 견제가 쌓여 있는 날', at: [668, 196] },
   { id: 'R4', kind: 'R', name: '원한', path: ['clash', 'rel', 'clash'], when: '두 길드가 다투고 사이가 나빠진 날', at: [915, 112] },

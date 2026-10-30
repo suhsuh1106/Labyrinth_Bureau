@@ -3,7 +3,7 @@
 //   npm run sim:bureau -- --games 50 --curve   한 판의 날마다 저량 곡선도
 //   npm run sim:bureau -- --noCheck        B3 견제를 끈 판과 견준다
 // 봇은 `src/bureau/bots.ts`
-import { B, newWorld, relOf, run } from '../src/bureau/engine';
+import { B, newWorld, relOf, run, worstPair } from '../src/bureau/engine';
 import { BOT } from '../src/bureau/bots';
 export { BOT };
 
@@ -24,10 +24,10 @@ export function summarize(bot: string, games: number, o: { noCheck?: boolean } =
     S.toFlood.push(...s.toFlood);
     for (const k in s.pinned) S.pinned[k] = (S.pinned[k] ?? 0) + s.pinned[k] / B.DAYS / games;
     for (const k in s.loops) S.loops[k] = (S.loops[k] ?? 0) + s.loops[k] / games;
-    S.bigPeak += W.guilds.big.peak / games; S.bigEnd += W.guilds.big.size / games;
+    S.bigPeak += W.guilds.red.peak / games; S.bigEnd += W.guilds.red.size / games;
     [0, 89, 179, 269, 359].forEach((d, i) => { S.bigAt[i] += s.bigSize[d] / games; });
     S.clashes += s.clashes / games; S.meets += s.meets / games; S.asks += s.asks / games; S.sides += s.sides / games;
-    S.relEnd += relOf(W, 'big', 'small') / games; S.relMin += s.relMin / games;
+    S.relEnd += relOf(W, ...worstPair(W)) / games; S.relMin += s.relMin / games;
     S.owe += Object.values(W.owe).reduce((a, b) => a + b, 0) / games;
   }
   return S;
@@ -43,7 +43,7 @@ function main() {
   const o = { noCheck: args.includes('--noCheck') };
   const f1 = (v: number) => v.toFixed(1), pct = (v: number) => (v * 100).toFixed(1) + '%';
   console.log(`미궁관리국 엔진 1단계 · ${games}판 · ${B.DAYS}일${o.noCheck ? ' · B3 끔' : ''}\n`);
-  console.log('봇      범람  죽음   입지  예산끝  위험→범람(날)  가장 큰 길드의 조(0·90·180·270·360일 / 최대)');
+  console.log('봇      범람  죽음   입지  예산끝  위험→범람(날)  가장 큰 길드의 조(0·90·180·270·360일 / 붉은 깃발단 최대)');
   const sums: Record<string, Sum> = {};
   for (const bot of Object.keys(BOT)) {
     const S = sums[bot] = summarize(bot, games, o);
@@ -53,7 +53,7 @@ function main() {
   console.log('\n저량이 끝에 붙은 날의 비율');
   for (const bot of Object.keys(BOT)) console.log(`${bot.padEnd(7)} ${Object.entries(sums[bot].pinned).map(([k, v]) => `${k} ${pct(v)}`).join(' · ') || '없음'}`);
   console.log('\n세력 사이 · 신세 (판당)');
-  console.log('봇      다툼  회의  두 길드 사이(끝 / 가장 낮을 때)  요청서(하루)  편들기  받은 신세 합');
+  console.log('봇      다툼  회의  나쁜 두 길드(끝 / 가장 낮을 때)  요청서(하루)  편들기  받은 신세 합');
   for (const bot of Object.keys(BOT)) {
     const S = sums[bot];
     console.log(`${bot.padEnd(7)} ${f1(S.clashes).padStart(4)} ${f1(S.meets).padStart(5)}  ${f1(S.relEnd).padStart(10)} / ${f1(S.relMin).padStart(6)}         ${(S.asks / B.DAYS).toFixed(2).padStart(5)}    ${f1(S.sides).padStart(4)}   ${f1(S.owe).padStart(6)}`);
@@ -66,8 +66,8 @@ function main() {
       const W = playGame(1000, bot, o);
       console.log(`\n[${bot}]`);
       W.dungeons.forEach((d, i) => console.log(`  ${d.name.padEnd(6)} 수위 ${spark(W.hist[i], 0, 100)} 끝 ${f1(d.level)} · 범람 ${d.floods}`));
-      console.log(`  가장 큰 길드 ${spark(W.stats.bigSize, 0, 40)} 끝 ${f1(W.guilds.big.size)}`);
-      console.log(`  두 길드 사이 ${spark(W.stats.relHist, -100, 100)} 끝 ${f1(relOf(W, 'big', 'small'))}`);
+      console.log(`  가장 큰 길드 ${spark(W.stats.bigSize, 0, 40)} 끝 ${f1(Math.max(...Object.values(W.guilds).map(g => g.size)))}`);
+      console.log(`  나쁜 두 길드 ${spark(W.stats.relHist, -100, 100)} 끝 ${f1(relOf(W, ...worstPair(W)))}`);
     }
   }
 }
