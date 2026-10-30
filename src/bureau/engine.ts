@@ -41,10 +41,17 @@ export const B = {
   // 첫 요구서(중앙 행정원): 왕국군이 눌러 두고 있는 폐광을 넘겨받아라. 길드 조가 하루 min조 이상 need일 이어 들면 군이 물러나고(인계)
   // 예산 · 입지를 준다. 군이 버티는 동안 중앙의 인내가 모자란 조만큼 줄고(pat), 바닥나면 인계 없이 물러난다(입지를 깎는다).
   // 군은 주둔하는 동안 하루 clear만큼 수위를 누른다(오르는 만큼). fear: 범람이 남긴 꺼림
-  ORDER: { dg: 0, min: 7, need: 3, pat: 100, drain: 1.4, clear: 1.25, fear: 30, pay: 1000, stand: 12, fail: 5 },
+  ORDER: { dg: 0, min: 10, need: 3, pat: 100, drain: 1, clear: 1.25, fear: 30, pay: 1000, stand: 12, fail: 5 },
   LETTER_W: { big: { money: 0.4, info: 15, safe: 1 }, small: { money: 0.8, info: 5, safe: 3 } } as Record<'big' | 'small', { money: number; info: number; safe: number }>,
   PRICE: 10, FEE: 2,                      // 소재 값 · 조마다 하루 입장료
   UPKEEP: 0.9, GROW: 120, GROW_COST: 100, SHRINK: -80, SIZE_MIN: 2,
+  // 길드의 몸집: 붉은 깃발단은 큰 길드 하나(조가 많고 금고가 두껍고, 상단 계약으로 소재를 더 받고 조 하나를 덜 들여 굴린다),
+  // 중소 연합은 작은 길드들의 느슨한 연합(조가 적고 금고가 얇다). 성장 문턱은 몸집에 비례하고(rate), 몸을 불리는 데 날이 걸린다(GROW_EVERY)
+  GUILD: {
+    big: { size: 24, money: 1500, sale: 1.15, upkeep: 0.75, start: 8 },
+    small: { size: 8, money: 100, sale: 1, upkeep: 1, start: 3 },
+  } as Record<'big' | 'small', { size: number; money: number; sale: number; upkeep: number; start: number }>,
+  GROW_PER: 1 / 12, GROW_EVERY: 4,
   INFL_SIZE: 4, INFL_MONEY: 1 / 60, INFL_HALF: 60, // 영향력 = 100 × x / (x + 60), x = 조 × 4 + 돈 / 60: 끝에 붙지 않는다
   RICH: 40,                               // 수위가 이보다 낮으면 캘 것도 적다 (몬스터 · 광맥이 함께 준다)
   R3: 1 / 200,                            // 영향력 1이 몫 무게에 더하는 값
@@ -55,7 +62,7 @@ export const B = {
   GRANT: 1000, GRANT_K: 20,               // 달마다 중앙의 배정 = 1000 + 입지 × 20
   FAV_BACK: 0.01, STAND_FLOOD: 18, STAND_POL: 1 / 30000, STAND_OUT: 0.1, // 입지: 범람마다 깎임 · 영향력 × 호감 · 물량
   // 1단계: 세력 사이(-100 ~ 100) · 신세
-  CLASH_K: 0.04, CLASH_REL: 1.5, CLASH_DEAD: 0.05, CLASH_OUT: 0.1, // R4: 겹친 조 하나당 다툼 · 다툼 하나에 사이 · 죽음 · 덜 캐는 몫
+  CLASH_K: 0.075, CLASH_REL: 1.5, CLASH_DEAD: 0.05, CLASH_OUT: 0.1, // R4: 겹친 조 하나당 다툼 · 다툼 하나에 사이 · 죽음 · 덜 캐는 몫
   REL_FADE: 0.003,                        // 세력 사이가 0쪽으로 돌아가는 몫 (아주 천천히)
   PACT: 0.8, PACT_DAYS: 40, MEET_REL: 15, MEET_COOL: 10, MEET_OWE: 5, // B4: 협정이 줄이는 다툼 · 기간 · 사이 회복 · 다시 열 날 · 부탁한 값(신세)
   GRUDGE_DAYS: 2, GRUDGE: 6, SLOW_DAYS: 4, // 빠진 쪽의 앙금(이틀 뒤) · 마지못한 서명은 나흘 뒤 이행
@@ -143,14 +150,14 @@ export function newWorld(seed: number, o: Opts = {}): World {
     ...d,
     rise: i ? +(d.rise * (0.85 + rnd() * 0.3)).toFixed(2) : d.rise,
     yld: i ? Math.round(d.yld * (0.8 + rnd() * 0.4)) : d.yld,
-    teams: { big: i ? 4 : 0, small: i ? 2 : 0 }, fear: i ? 0 : B.ORDER.fear, floods: 0, dead: 0, sub: 0, dangerAt: null,
+    teams: { big: i ? B.GUILD.big.start : 0, small: i ? B.GUILD.small.start : 0 }, fear: i ? 0 : B.ORDER.fear, floods: 0, dead: 0, sub: 0, dangerAt: null,
   }));
   const guild = (id: GuildId, name: string, size: number, fav: number): Guild =>
-    ({ id, name, size, money: 0, infl: 0, fav: fav + Math.round((rnd() - 0.5) * 12), check: 0, peak: size });
+    ({ id, name, size, money: B.GUILD[id].money, infl: 0, fav: fav + Math.round((rnd() - 0.5) * 12), check: 0, peak: size });
   const W: World = {
     day: 0, budget: 3000, standing: 20, prio: 50, lordShare: 10,
     dungeons,
-    guilds: { big: guild('big', '붉은 깃발단', 12, 50), small: guild('small', '중소 길드 연합', 6, 55) },
+    guilds: { big: guild('big', '붉은 깃발단', B.GUILD.big.size, 50), small: guild('small', '중소 길드 연합', B.GUILD.small.size, 55) },
     lord: { name: '영주들', money: 0, infl: 0, fav: 45 + Math.round((rnd() - 0.5) * 12) },
     seen: dungeons.map(d => [d.level]), hist: dungeons.map(d => [d.level]),
     reports: [
@@ -167,6 +174,7 @@ export function newWorld(seed: number, o: Opts = {}): World {
     ...o,
   };
   W.pnl = W.dungeons.map(d => [pnlOf(W, d)]);
+  for (const g of [W.guilds.big, W.guilds.small]) g.infl = inflOf(g.size * B.INFL_SIZE + g.money * B.INFL_MONEY);
   return W;
 }
 
@@ -314,9 +322,9 @@ export function step(W: World) {
   const top = G.big.size >= G.small.size ? G.big : G.small, topBefore = top.size;
   for (const g of ['big', 'small'] as GuildId[]) {
     // 영주는 사이가 나쁜 길드에서 더 떼어 가고, 떼인 길드는 영주와 사이가 벌어진다
-    const f = G[g], sale = haul[g] * B.PRICE * 0.06;
+    const f = G[g], sale = haul[g] * B.PRICE * 0.06 * B.GUILD[g].sale;
     const tax = W.noCheck ? 0 : clamp(f.check * B.CHECK_TAX * (1 + Math.max(0, -relOf(W, g, 'lord')) / 100), 0, 0.4);
-    f.money += sale * (1 - tax) - f.size * B.UPKEEP;
+    f.money += sale * (1 - tax) - f.size * B.UPKEEP * B.GUILD[g].upkeep;
     W.lord.money += sale * tax;
     relAdd(W, g, 'lord', -tax * 0.5);
     // 돈이 바닥난 길드에 사이가 괜찮은 영주가 빌려준다: 세력끼리의 빚. 사이가 나쁘면 국장에게 청이 온다
@@ -324,7 +332,8 @@ export function step(W: World) {
       f.money += B.LEND; W.lord.money -= B.LEND;
       W.fowe[g].lord = (W.fowe[g].lord ?? 0) + B.LEND_OWE;
     }
-    if (f.money > B.GROW) { f.size++; f.money -= B.GROW_COST; }
+    // 몸집이 클수록 한 조를 더 붙이는 데 금고가 더 두꺼워야 한다
+    if (f.money > B.GROW * (1 + f.size * B.GROW_PER) && W.day % B.GROW_EVERY === 0) { f.size++; f.money -= B.GROW_COST; }
     if (f.money < B.SHRINK && f.size > B.SIZE_MIN) { f.size--; f.money += 60; }
     f.infl = inflOf(f.size * B.INFL_SIZE + f.money * B.INFL_MONEY);
     f.peak = Math.max(f.peak, f.size);

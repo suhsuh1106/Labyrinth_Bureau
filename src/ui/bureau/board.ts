@@ -185,12 +185,24 @@ function officeHtml(W: World, ui: BuUi) {
   <ul class="news">${rs.map((r, k) => `<li class="${W.reports.length - k > ui.seenNews ? 'new' : ''}"><small>${r.day}일 · ${r.from}</small><b>${r.title}</b>${r.chips.map(c => `<span class="chip">${c}</span>`).join('')}</li>`).join('')}</ul>`;
 }
 
+// 두 길드의 몸집: 조 · 금고 · 영향력을 같은 막대에 견준다
+export function guildsHtml(W: World) {
+  const G = [W.guilds.big, W.guilds.small];
+  const row = (name: string, v: (g: typeof G[0]) => number, fmt: (x: number) => string) => {
+    const top = Math.max(1, ...G.map(v));
+    return `<div class="gs-row"><span>${name}</span>${G.map(g => `<i class="gs-bar f-${g.id}" title="${g.name} ${fmt(v(g))}"><i style="width:${Math.max(2, v(g) / top * 100)}%"></i><b class="num">${fmt(v(g))}</b></i>`).join('')}</div>`;
+  };
+  return `<section class="gscale"><h2>길드 몸집</h2>
+    <div class="gs-row gs-head"><span></span>${G.map(g => `<b class="f-${g.id}">${g.name}</b>`).join('')}</div>
+    ${row('조', g => g.size, x => `${n0(x)}조`)}${row('금고', g => Math.max(0, g.money), x => `${n0(x)}G`)}${row('영향력', g => g.infl, x => n0(x))}</section>`;
+}
+
 export function facHtml(W: World, f: FacId) {
   const o = facOf(W, f), owe = W.owe[f], g = f === 'lord' ? null : W.guilds[f];
   return `<article class="fac f-${f}">
     <h3>${o.name}</h3>
     <dl>
-      ${g ? `<dt>조</dt><dd class="num">${n1(g.size)}</dd>` : `<dt>입장료 몫</dt><dd class="num">${W.lordShare}%</dd>`}
+      ${g ? `<dt>조</dt><dd class="num">${n0(g.size)}</dd><dt>금고</dt><dd class="num ${g.money < 0 ? 'neg' : ''}">${n0(g.money)}G</dd>` : `<dt>입장료 몫</dt><dd class="num">${W.lordShare}%</dd>`}
       <dt>영향력</dt><dd class="num">${n0(o.infl)}${o.infl > B.NOTICE ? ' <span class="tag warn">눈에 띔</span>' : ''}</dd>
       <dt>호감</dt><dd><span class="tag">${favWord(o.fav)}</span> <span class="num">${n0(o.fav)}</span></dd>
       <dt>신세</dt><dd class="num ${owe < -0.5 ? 'neg' : ''}">${Math.abs(owe) < 0.5 ? '없음' : owe > 0 ? `받을 것 ${n1(owe)}` : `진 빚 ${n1(-owe)}`}</dd>

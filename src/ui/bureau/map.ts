@@ -3,7 +3,7 @@
 // 미궁 표식의 고리는 보고된 수위, 세력 사이는 본부 사이의 선 색 · 낱말이다. 그리기만 하고 상태에 쓰지 않는다.
 import mapUrl from './art/map.webp';
 import { B, type FacId, FACS, type GuildId, type World, nameOf, pactK, relOf, seenLevel, subAt, teamsIn } from '../../bureau/engine';
-import { type BuUi, dungeonHtml, facHtml, levelCls, levelWord, n0, n1, pactLine, relRow, relWord } from './board';
+import { type BuUi, dungeonHtml, facHtml, guildsHtml, levelCls, levelWord, n0, n1, pactLine, relRow, relWord } from './board';
 
 // 지도 자리 (viewBox 1000 × 567, 그림과 같은 비율)
 const DG_AT: [number, number][] = [[452, 282], [700, 140], [800, 262]];   // 폐광 · 검은숲 미궁 · 수몰 갱도
@@ -49,11 +49,14 @@ export function mapHtml(W: World, ui: BuUi) {
   h += `<g class="place castle"><path d="M${HAVEL_AT[0] - 8},${HAVEL_AT[1] + 8} v-12 l4,-4 l4,4 l4,-4 l4,4 v12 z"/>${label(HAVEL_AT[0], HAVEL_AT[1] + 22, '하벨 자작령', 'small')}</g>`;
   // 세력 표식: 깃발
   for (const f of FACS) {
-    const [x, y] = FAC_AT[f], on = sel === `fac:${f}`;
-    h += `<g class="mk fac-mk f-${f}${on ? ' on' : ''}" data-act="sel:fac:${f}" role="button" tabindex="0" aria-label="${nameOf(W, f)}">
-      <circle class="hit" cx="${x}" cy="${y}" r="26"/>
-      <path class="flag" d="M${x - 2},${y + 14} V${y - 16} h18 l-5,6 l5,6 h-18"/>
-      ${label(x, y + 30, FAC_LABEL[f], on ? 'strong' : '')}</g>`;
+    // 길드 깃발은 몸집(조 수)만큼 크다
+    const [x, y] = FAC_AT[f], on = sel === `fac:${f}`, g = f === 'lord' ? null : W.guilds[f];
+    const k = g ? Math.min(2.2, 0.8 + g.size / 22) : 1;
+    h += `<g class="mk fac-mk f-${f}${on ? ' on' : ''}" data-act="sel:fac:${f}" role="button" tabindex="0" aria-label="${nameOf(W, f)}${g ? ` ${n0(g.size)}조` : ''}">
+      <circle class="hit" cx="${x}" cy="${y}" r="${26 * k}"/>
+      <path class="flag" transform="translate(${x} ${y}) scale(${k}) translate(${-x} ${-y})" d="M${x - 2},${y + 14} V${y - 16} h18 l-5,6 l5,6 h-18"/>
+      ${label(x, y + 14 * k + 16, FAC_LABEL[f], on ? 'strong' : '')}
+      ${g ? label(x, y + 14 * k + 30, `${n0(g.size)}조`, 'small') : ''}</g>`;
   }
   // 미궁 표식: 고리가 보고된 수위
   W.dungeons.forEach((d, i) => {
@@ -80,5 +83,6 @@ export function lookHtml(W: World, ui: BuUi) {
   }
   return `<p class="note">지도에서 미궁이나 깃발을 누르면 자세히 본다.</p>
   <div class="sum">${W.dungeons.map((d, i) => { const lv = seenLevel(W, i); return `<button type="button" class="sum-row ${levelCls(lv)}" data-act="sel:dg:${i}"><b>${d.name}</b><span class="num">${n0(lv)}</span><span class="tag">${levelWord(lv)}</span><small class="num">${n1(teamsIn(d))}조 · 보조금 ${subAt(W, i)}G</small></button>`; }).join('')}</div>
+  ${guildsHtml(W)}
   <section class="rels"><h2>세력 사이</h2>${relRow(W, 'big', 'small')}${relRow(W, 'big', 'lord')}${relRow(W, 'lord', 'small')}${pactLine(W)}</section>`;
 }
