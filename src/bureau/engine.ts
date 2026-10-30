@@ -23,6 +23,7 @@ export const B = {
   FEAR: 20, FEAR_FADE: 0.85,              // 사고가 남기는 꺼림(R1): 죽은 조 하나당, 하루에 남는 몫
   MOVE: 0.25,                             // 조가 하루에 바라는 자리로 옮겨 가는 몫
   SUB_LURE: 2, WANT_K: 1.4,               // 보조금 G당 끌림 · 끌림 1당 바라는 조
+  WAY_PX: 200, NEWS_PX: 150,             // 관할 지도에서 하루 걸음(미궁까지) · 신문이 하루에 퍼지는 거리(관리국에서 본부까지)
   WAY_K: 3,                               // 본부에서 미궁까지 오가는 날이 이틀보다 하루 많을 때마다 덜 끌림, 적으면 더 (멀면 같은 보조금으로도 덜 온다)
   WITHDRAW_FAV: 3, WITHDRAW_LEFT: 30,     // 공고를 기한 전에 내리면 길드마다 잃는 호감 (남은 기한이 이 날 수만큼이면 곱절)
   // 공고문의 기한이 길드의 믿음이다: 길면 믿고 오고, 짧으면 망설인다. 공고문 보조금의 끌림 = 값 × 믿음(기한으로, 길드마다 GUILD[g].trust) × 돈 반응
@@ -36,7 +37,7 @@ export const B = {
   STAND_LV: [0, 30, 45, 60, 75], LETTER_LV: 2,
   // 요청서(길드 하나에 보내는 서신): 읽고 답하는 날 · 서명할 마음의 문턱 · 길드마다 꼬리표를 보는 무게
   LETTER_DAYS: 2, LETTER_AT: 50,
-  // 공고문은 신문에 실려 퍼진다: 관리국에서 길드 본부까지 걸리는 날만큼(GUILD[g].hq) 뒤에 그 길드에 걸린다
+  // 공고문은 신문에 실려 퍼진다: 관리국에서 길드 본부까지 걸리는 날만큼(hqOf) 뒤에 그 길드에 걸린다
   // 첫 요구서(중앙 행정원): 왕국군이 눌러 두고 있는 폐광을 넘겨받아라. 길드 조가 하루 min조 이상 need일 이어 들면 군이 물러나고(인계)
   // 예산 · 입지를 준다. 군이 버티는 동안 중앙의 인내가 모자란 조만큼 줄고(pat), 바닥나면 인계 없이 물러난다(입지를 깎는다).
   // 군은 주둔하는 동안 하루 clear만큼 수위를 누른다(오르는 만큼). fear: 범람이 남긴 꺼림
@@ -57,7 +58,7 @@ export const B = {
   GRANT: 1000, GRANT_K: 20,               // 달마다 중앙의 배정 = 1000 + 입지 × 20
   FAV_BACK: 0.01, STAND_FLOOD: 18, STAND_POL: 1 / 30000, STAND_OUT: 0.1, // 입지: 범람마다 깎임 · 영향력 × 호감 · 물량
   // 1단계: 세력 사이(-100 ~ 100) · 신세
-  CLASH_K: 0.15, CLASH_REL: 1.5, CLASH_DEAD: 0.05, CLASH_OUT: 0.1, // R4: 겹친 조 하나당 다툼 · 다툼 하나에 사이 · 죽음 · 덜 캐는 몫
+  CLASH_K: 0.16, CLASH_REL: 1.5, CLASH_DEAD: 0.05, CLASH_OUT: 0.1, // R4: 겹친 조 하나당 다툼 · 다툼 하나에 사이 · 죽음 · 덜 캐는 몫
   REL_FADE: 0.003,                        // 세력 사이가 0쪽으로 돌아가는 몫 (아주 천천히)
   PACT: 0.8, PACT_DAYS: 40, MEET_REL: 15, MEET_COOL: 10, MEET_OWE: 5, // B4: 협정이 줄이는 다툼 · 기간 · 사이 회복 · 다시 열 날 · 부탁한 값(신세)
   GRUDGE_DAYS: 2, GRUDGE: 6, SLOW_DAYS: 4, // 빠진 쪽의 앙금(이틀 뒤) · 마지못한 서명은 나흘 뒤 이행
@@ -74,38 +75,38 @@ export type FacId = GuildId | 'lord';
 //   cash: 돈에 반응하는 결(요청서의 보조금 무게 · 공고문 보조금의 끌림 · 보조금에 오르는 호감)
 //   safe: 안전(위로금의 무게 · 위험과 꺼림을 피하는 정도), info: 정보 내주기를 꺼림(출입 기록. 음수면 관청 기록을 반김)
 //   right: 권리 · 체면(우선권 조항에 오르내리는 호감 · 회의에서 빠지면 서운한 정도)
-//   way: 본부에서 미궁마다 오가는 날(폐광 · 검은숲 · 수몰 갱도). 이틀에서 하루 멀 때마다 조 하나가 덜 남긴다(WAY_K)
-//   trust: 공고 기한을 읽는 법(믿음 = base + 기한 × per, lo ~ hi), hq: 관리국에서 본부까지 날(공고가 닿는 날)
+//   at: 관할 지도 위 본부 자리. 미궁까지 오가는 날(wayOf)과 공고가 닿는 날(hqOf)은 이 자리에서 거리로 셈한다
+//   trust: 공고 기한을 읽는 법(믿음 = base + 기한 × per, lo ~ hi)
 export interface GuildDef {
-  name: string; big: boolean; way: number[]; size: number; money: number; sale: number; upkeep: number; start: number; hq: number; fav: number;
+  name: string; big: boolean; at: [number, number]; size: number; money: number; sale: number; upkeep: number; start: number; fav: number;
   cash: number; safe: number; info: number; right: number;
   trust: { base: number; per: number; lo: number; hi: number };
   trait: string; seal: string; sign: string;
 }
 const GUILD_DEF: Record<GuildId, GuildDef> = {
   // 큰 길드 둘
-  red: { way: [1, 3, 3], name: '붉은 깃발단', big: true, size: 15, money: 1000, sale: 1.15, upkeep: 0.75, start: 5, hq: 2, fav: 50,
+  red: { at: [300, 236], name: '붉은 깃발단', big: true, size: 15, money: 1000, sale: 1.15, upkeep: 0.75, start: 5, fav: 50,
     cash: 0.4, safe: 1, info: 15, right: 1, trust: { base: -0.2, per: 1 / 30, lo: 0.1, hi: 1.2 },
     trait: '상단 계약으로 버는 큰 길드. 긴 공고에만 몸을 움직이고, 장부를 내보이기 싫어한다', seal: '赤旗', sign: '붉은 깃발단 단장' },
-  shield: { way: [2, 1, 2], name: '은빛 방패단', big: true, size: 11, money: 750, sale: 1, upkeep: 0.85, start: 3.5, hq: 3, fav: 52,
+  shield: { at: [606, 112], name: '은빛 방패단', big: true, size: 11, money: 750, sale: 1, upkeep: 0.85, start: 3.5, fav: 52,
     cash: 0.3, safe: 2, info: -5, right: 2, trust: { base: 0.1, per: 1 / 40, lo: 0.3, hi: 1.1 },
     trait: '기사단 출신. 돈보다 명분과 체면을 본다. 관청 기록에 이름이 오르는 것은 반기고, 자리에서 빠지면 오래 서운해한다', seal: '銀盾', sign: '은빛 방패단 기사장' },
   // 작은 길드 다섯
-  wolf: { way: [1, 2, 2], name: '잿빛 늑대단', big: false, size: 3, money: 50, sale: 1, upkeep: 1, start: 1, hq: 1, fav: 50,
+  wolf: { at: [500, 384], name: '잿빛 늑대단', big: false, size: 3, money: 50, sale: 1, upkeep: 1, start: 1, fav: 50,
     cash: 1.1, safe: 0.4, info: 5, right: 0, trust: { base: 0.8, per: 1 / 60, lo: 0.8, hi: 1.2 },
     trait: '돈이 되면 간다. 짧은 공고에도 덥석 들고, 위험엔 둔하다', seal: '灰狼', sign: '잿빛 늑대단 두목' },
-  lamp: { way: [1, 3, 3], name: '등불회', big: false, size: 3, money: 90, sale: 1, upkeep: 1, start: 1, hq: 1, fav: 58,
+  lamp: { at: [318, 352], name: '등불회', big: false, size: 3, money: 90, sale: 1, upkeep: 1, start: 1, fav: 58,
     cash: 0.6, safe: 5, info: 3, right: 0.5, trust: { base: 0.5, per: 1 / 50, lo: 0.5, hi: 1.2 },
     trait: '미궁에서 다친 이들이 세운 길드. 위로금에 크게 움직이고, 사람을 잃은 곳은 오래 꺼린다', seal: '燈', sign: '등불회 회장' },
-  river: { way: [3, 2, 1], name: '강나루 조합', big: false, size: 3, money: 120, sale: 1.1, upkeep: 1, start: 1, hq: 1, fav: 48,
+  river: { at: [860, 372], name: '강나루 조합', big: false, size: 3, money: 120, sale: 1.1, upkeep: 1, start: 1, fav: 48,
     cash: 0.8, safe: 2, info: 20, right: 0.5, trust: { base: 0.6, per: 1 / 60, lo: 0.6, hi: 1.2 },
     trait: '지도와 소문을 파는 장사꾼들. 소재 값을 잘 받고, 출입 기록을 내는 것을 가장 싫어한다', seal: '津', sign: '강나루 조합 행수' },
-  dawn: { way: [3, 1, 2], name: '새벽 순례단', big: false, size: 2, money: 80, sale: 1, upkeep: 0.9, start: 0.7, hq: 2, fav: 60,
+  dawn: { at: [848, 112], name: '새벽 순례단', big: false, size: 2, money: 80, sale: 1, upkeep: 0.9, start: 0.7, fav: 60,
     cash: 0.5, safe: 3, info: 0, right: 1.5, trust: { base: 0.3, per: 1 / 40, lo: 0.4, hi: 1.2 },
     trait: '교회와 가까운 순례자들. 명분을 보고, 큰 길드를 앞세우는 조항을 싫어한다', seal: '曉', sign: '새벽 순례단 인도자' },
-  drift: { way: [2, 3, 3], name: '떠돌이 칼', big: false, size: 3, money: 30, sale: 1, upkeep: 0.85, start: 1, hq: 3, fav: 45,
+  drift: { at: [262, 452], name: '떠돌이 칼', big: false, size: 3, money: 30, sale: 1, upkeep: 0.85, start: 1, fav: 45,
     cash: 1, safe: 1, info: 10, right: 0, trust: { base: 0.7, per: 0, lo: 0.7, hi: 0.7 },
-    trait: '본부 없이 떠도는 용병들. 소식이 늦게 닿고, 공고 기한은 따지지 않는다', seal: '刀', sign: '떠돌이 칼 우두머리' },
+    trait: '변두리를 떠도는 용병들. 어디서든 멀어 소식이 늦게 닿고, 공고 기한은 따지지 않는다', seal: '刀', sign: '떠돌이 칼 우두머리' },
 };
 B.GUILD = GUILD_DEF;
 export const GUILDS = Object.keys(GUILD_DEF) as GuildId[];
@@ -125,7 +126,7 @@ export interface Ask { id: number; day: number; due: number; from: FacId; kind: 
 // 늦게 도착하는 결과: 앙금 · 마지못한 서명의 이행 · 편들기
 export interface Later { day: number; kind: 'grudge' | 'pact' | 'side'; who: FacId; vs?: FacId; chips: string[] }
 export interface Dungeon {
-  id: string; name: string; lord: string; dist: number;
+  id: string; name: string; lord: string; dist: number; at: [number, number];   // at: 관할 지도 위 자리
   rise: number; yld: number; cap: number;
   level: number; teams: Record<GuildId, number>;
   fear: number; floods: number; dead: number;
@@ -179,10 +180,17 @@ export type Opts = { noCheck?: boolean; noFear?: boolean };
 
 const DUNGEONS: Omit<Dungeon, 'teams' | 'fear' | 'floods' | 'dead' | 'sub' | 'dangerAt'>[] = [
   // 폐광은 막 넘쳤다. 왕국군이 주둔해 위험 수위 언저리에 붙들고 있고, 물러나면 다시 오른다
-  { id: 'pit', name: '폐광', lord: '로이드 백작령', dist: 1, rise: 1.25, yld: 6, cap: 12, level: 75 },
-  { id: 'wood', name: '검은숲 미궁', lord: '하벨 자작령', dist: 2, rise: 1.0, yld: 9, cap: 10, level: 45 },
-  { id: 'sunk', name: '수몰 갱도', lord: '로이드 백작령', dist: 2, rise: 1.5, yld: 12, cap: 10, level: 55 },
+  { id: 'pit', name: '폐광', lord: '로이드 백작령', dist: 1, at: [452, 282], rise: 1.25, yld: 6, cap: 12, level: 75 },
+  { id: 'wood', name: '검은숲 미궁', lord: '하벨 자작령', dist: 2, at: [700, 140], rise: 1.0, yld: 9, cap: 10, level: 45 },
+  { id: 'sunk', name: '수몰 갱도', lord: '로이드 백작령', dist: 2, at: [800, 262], rise: 1.5, yld: 12, cap: 10, level: 55 },
 ];
+
+// 관할 지도 위 관리국 자리 (viewBox 1000 × 567)
+export const BUREAU_AT: [number, number] = [588, 345];
+const far = (a: [number, number], b: [number, number]) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+// 길드 g의 본부에서 미궁 i까지 오가는 날 · 관리국에서 길드 g의 본부까지 공고가 닿는 날: 지도 위 거리로 셈한다
+export const wayOf = (g: GuildId, i: number) => Math.max(1, Math.ceil(far(B.GUILD[g].at, DUNGEONS[i].at) / B.WAY_PX));
+export const hqOf = (g: GuildId) => Math.max(1, Math.ceil(far(B.GUILD[g].at, BUREAU_AT) / B.NEWS_PX));
 
 export function newWorld(seed: number, o: Opts = {}): World {
   setSeed(seed);
@@ -247,13 +255,13 @@ const inflOf = (x: number) => 100 * Math.max(0, x) / (Math.max(0, x) + B.INFL_HA
 // 조 하나가 이 미궁에 들어가 하루 버는 값의 어림: 벌이 + 보조금 − 위험 − 꺼림
 // 그 미궁에 걸린 공고문의 조항 값 (없으면 undefined). 길드 g를 주면 그 길드에 닿은 공고문만
 export const clauseOn = (W: World, d: Dungeon, id: ClauseId, g?: GuildId) =>
-  W.notices.find(n => W.dungeons[n.dg] === d && (!g || W.day >= n.day + B.GUILD[g].hq))?.cl[id];
+  W.notices.find(n => W.dungeons[n.dg] === d && (!g || W.day >= n.day + hqOf(g)))?.cl[id];
 // 화면에 보이는 그 미궁의 보조금: 봇이 바로 정한 값 + 공고문
 export const subAt = (W: World, i: number) => W.dungeons[i].sub + (clauseOn(W, W.dungeons[i], 'sub') ?? 0);
 // 공고문의 믿음: 내건 기한이 길수록 길드가 믿고 온다 (길드마다 읽는 법이 다르다)
 export const trustOf = (g: GuildId, days: number) => { const t = B.GUILD[g].trust; return Math.max(t.lo, Math.min(t.hi, t.base + days * t.per)); };
 const noticeTrust = (W: World, i: number, g: GuildId) => {
-  const n = W.notices.find(x => x.dg === i && W.day >= x.day + B.GUILD[g].hq);
+  const n = W.notices.find(x => x.dg === i && W.day >= x.day + hqOf(g));
   return n ? trustOf(g, n.until - n.day) : 1;
 };
 // 공고문을 걸 때 떼어 둘 공탁
@@ -275,7 +283,7 @@ const letterLure = (W: World, g: GuildId, i: number) =>
   ((clauseOn(W, W.dungeons[i], 'sub', g) ?? 0) * noticeTrust(W, i, g) + (letterOn(W, g, i, 'sub') ?? 0)) * cashK(g) / B.SUB_LURE - (guildRec(W, g, i) ? B.REC_LURE * Math.max(0, B.GUILD[g].info) / 10 : 0);
 // 길드의 결이 공통 끌림에 더하는 것: 오가는 날(멀면 덜 남는다)과 위험 · 꺼림을 보는 정도(안전을 볼수록 더 꺼린다)
 export const fearK = (g: GuildId) => 0.5 + B.GUILD[g].safe / 4;
-export const wayCost = (g: GuildId, i: number) => ((B.GUILD[g].way[i] ?? 2) - 2) * B.WAY_K;
+export const wayCost = (g: GuildId, i: number) => (wayOf(g, i) - 2) * B.WAY_K;
 const guildLure = (W: World, g: GuildId, i: number) => -wayCost(g, i) - (fearK(g) - 1) * harmOf(W, W.dungeons[i]);
 // 길드 g의 조 하나가 미궁 i에서 하루 남기는 값의 어림(G, 보조금 빼고): 손익 자료의 길드별 칸
 export const pnlGuild = (W: World, g: GuildId, i: number) => Math.round(pnlOf(W, W.dungeons[i]) + guildLure(W, g, i) * B.SUB_LURE);
@@ -437,7 +445,7 @@ export function step(W: World) {
     const t = B.GUILD[g];
     fav(G[g], (W.prio - 50) * t.right * (t.big ? 1 / 500 : -1 / 400));
     for (const d of W.dungeons) if (d.sub > 0) fav(G[g], d.sub * B.SUB_FAV * t.cash / 0.8);
-    for (const n of W.notices) if (W.day >= n.day + t.hq) noticeFav(G[g], t, n.cl);
+    for (const n of W.notices) if (W.day >= n.day + hqOf(g)) noticeFav(G[g], t, n.cl);
     for (const l of signed(W)) if (l.to === g) noticeFav(G[g], t, l.cl);
   }
   fav(W.lord, (W.lordShare - 15) / 300);

@@ -2,7 +2,7 @@
 // 위 띠(날 · 예산 · 입지 · 다음 날) · 왼쪽 관할 지도(map.ts) · 오른쪽 탭(살펴보기 · 요청서 · 조항 · 회의 · 보고)
 import { lookHtml } from './map';
 import { askLetter, dateOf, docOf, floodNews, govHtml, introNews, letterHtml, newsHtml } from './docs';
-import { B, type FacId, FACS, GUILDS, type GuildId, type Report, type World, pnlAvg, pnlGuild, isGuildId, depOf, docsOut, escrowOf, trustOf, withdrawFav, facOf, levelOf, nameOf, pactK, relOf, seenLevel, subAt, teamsIn, willOf } from '../../bureau/engine';
+import { B, type FacId, FACS, GUILDS, type GuildId, type Report, type World, pnlAvg, pnlGuild, isGuildId, wayOf, hqOf, depOf, docsOut, escrowOf, trustOf, withdrawFav, facOf, levelOf, nameOf, pactK, relOf, seenLevel, subAt, teamsIn, willOf } from '../../bureau/engine';
 import { CLAUSE, CLAUSES, CLAUSE_MAX, type Clause, type Clauses, type ClauseId, FORM_NAME, FORM_OF, type Form, toName, type To, clauseLock, fits, toLock } from '../../bureau/clauses';
 
 export type Tab = 'look' | 'asks' | 'lib' | 'meet' | 'office';
@@ -51,7 +51,7 @@ export function dungeonHtml(W: World, i: number) {
     <header><h3>${d.name}</h3><span class="lord">${d.lord} · 거리 ${d.dist}일</span></header>
     <div class="lv"><div class="lv-bar"><i style="height:${Math.min(100, lv)}%"></i><b style="bottom:${B.DANGER}%"></b></div>
       <div class="lv-num"><b class="num">${n0(lv)}</b><span class="tag">${levelWord(lv)}</span><small class="num">${tr >= 0.05 ? '▲' : tr <= -0.05 ? '▼' : '–'} 하루 ${n1(Math.abs(tr))}</small><small>${d.dist}일 전 보고</small></div></div>
-    <dl class="dg-teams">${[...GUILDS].sort((a, b) => d.teams[b] - d.teams[a]).map(g => `<dt>${B.GUILD[g].name} <small>본부에서 ${B.GUILD[g].way[i]}일</small></dt><dd class="num">${n1(d.teams[g])}조</dd>`).join('')}<dt>범람 · 잃은 조</dt><dd class="num">${d.floods} · ${n1(d.dead)}</dd></dl>
+    <dl class="dg-teams">${[...GUILDS].sort((a, b) => d.teams[b] - d.teams[a]).map(g => `<dt>${B.GUILD[g].name} <small>본부에서 ${wayOf(g, i)}일</small></dt><dd class="num">${n1(d.teams[g])}조</dd>`).join('')}<dt>범람 · 잃은 조</dt><dd class="num">${d.floods} · ${n1(d.dead)}</dd></dl>
     <div class="dg-sub"><span>진입 보조금 <small>${noticeWord(W, i)}</small></span><b class="num">${subAt(W, i)}G</b><small class="num">하루 ${n0(n * subAt(W, i))}G</small><button type="button" data-act="write:${i}">서류 쓰기</button></div>
   </article>`;
 }
@@ -73,7 +73,7 @@ export function pnlGuildHtml(W: World) {
   const sg = (v: number) => `<span class="num ${v < 0 ? 'neg' : ''}">${v > 0 ? '+' : v < 0 ? '−' : ''}${n0(Math.abs(v))}G</span>`;
   return `<table class="pnl"><caption>길드마다 오늘 <small>조당 하루 · 오가는 날 · 보조금 빼고</small></caption>
     <thead><tr><th></th>${W.dungeons.map(d => `<th>${d.name}</th>`).join('')}</tr></thead>
-    <tbody>${GUILDS.map(g => `<tr class="f-${g}"><td>${B.GUILD[g].name}</td>${W.dungeons.map((_, i) => `<td>${sg(pnlGuild(W, g, i))} <small class="num">${B.GUILD[g].way[i]}일</small></td>`).join('')}</tr>`).join('')}</tbody></table>`;
+    <tbody>${GUILDS.map(g => `<tr class="f-${g}"><td>${B.GUILD[g].name}</td>${W.dungeons.map((_, i) => `<td>${sg(pnlGuild(W, g, i))} <small class="num">${wayOf(g, i)}일</small></td>`).join('')}</tr>`).join('')}</tbody></table>`;
 }
 
 const noticeWord = (W: World, i: number) => {
@@ -228,7 +228,7 @@ export function facHtml(W: World, f: FacId) {
     <h3>${o.name}${t ? ` <small class="tag">${t.big ? '큰 길드' : '작은 길드'}</small>` : ''}</h3>
     ${t ? `<p class="trait">${t.trait}</p>` : ''}
     <dl>
-      ${g && t ? `<dt>조</dt><dd class="num">${n0(g.size)}</dd><dt>금고</dt><dd class="num ${g.money < 0 ? 'neg' : ''}">${n0(g.money)}G</dd><dt>본부에서</dt><dd class="num">${W.dungeons.map((d, i) => `${d.name.split(" ")[0]} ${t.way[i]}일`).join(' · ')}</dd><dt>공고가 닿는 날</dt><dd class="num">${t.hq}일 뒤</dd>` : `<dt>입장료 몫</dt><dd class="num">${W.lordShare}%</dd>`}
+      ${g && t ? `<dt>조</dt><dd class="num">${n0(g.size)}</dd><dt>금고</dt><dd class="num ${g.money < 0 ? 'neg' : ''}">${n0(g.money)}G</dd><dt>본부에서</dt><dd class="num">${W.dungeons.map((d, i) => `${d.name.split(" ")[0]} ${wayOf(f as GuildId, i)}일`).join(' · ')}</dd><dt>공고가 닿는 날</dt><dd class="num">${hqOf(f as GuildId)}일 뒤</dd>` : `<dt>입장료 몫</dt><dd class="num">${W.lordShare}%</dd>`}
       <dt>영향력</dt><dd class="num">${n0(o.infl)}${o.infl > B.NOTICE ? ' <span class="tag warn">눈에 띔</span>' : ''}</dd>
       <dt>호감</dt><dd><span class="tag">${favWord(o.fav)}</span> <span class="num">${n0(o.fav)}</span></dd>
       <dt>신세</dt><dd class="num ${owe < -0.5 ? 'neg' : ''}">${Math.abs(owe) < 0.5 ? '없음' : owe > 0 ? `받을 것 ${n1(owe)}` : `진 빚 ${n1(-owe)}`}</dd>

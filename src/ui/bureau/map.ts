@@ -1,18 +1,15 @@
 // 미궁관리국 관할 지도: 양피지 지도(art/map.webp, 원본은 프로젝트 파일 design/tactical-map-base.png 1920 × 1088) 위에
-// 관리국 · 미궁 셋 · 길드 본부 일곱 · 영주 성을 놓는다. 본부 자리는 미궁마다 오가는 날(GUILD[g].way)과 맞춘다. 길드 본부에서 미궁으로 가는 길은 들어간 조만큼 굵고,
+// 관리국 · 미궁 셋 · 길드 본부 일곱 · 영주 성을 놓는다. 본부 · 미궁 자리는 엔진에 있고(GUILD[g].at · Dungeon.at), 오가는 날은 그 거리로 셈한다(wayOf). 길드 본부에서 미궁으로 가는 길은 들어간 조만큼 굵고,
 // 미궁 표식의 고리는 보고된 수위, 세력 사이는 본부 사이의 선 색 · 낱말이다. 그리기만 하고 상태에 쓰지 않는다.
 import mapUrl from './art/map.webp';
-import { B, type FacId, FACS, GUILDS, type World, isGuildId, nameOf, pactK, relOf, seenLevel, subAt, teamsIn, worstPair } from '../../bureau/engine';
+import { B, BUREAU_AT, type FacId, FACS, GUILDS, type World, wayOf, isGuildId, nameOf, pactK, relOf, seenLevel, subAt, teamsIn, worstPair } from '../../bureau/engine';
 import { type BuUi, dungeonHtml, facHtml, guildsHtml, levelCls, levelWord, n0, n1, pactLine, relRow, relWord, relsTop } from './board';
 
 // 지도 자리 (viewBox 1000 × 567, 그림과 같은 비율)
-const DG_AT: [number, number][] = [[452, 282], [700, 140], [800, 262]];   // 폐광 · 검은숲 미궁 · 수몰 갱도
-const FAC_AT: Record<FacId, [number, number]> = {
-  red: [300, 236], shield: [606, 112], wolf: [500, 384], lamp: [318, 352], river: [848, 330], dawn: [848, 112], drift: [262, 452], lord: [392, 436],
-};
+const LORD_AT: [number, number] = [392, 436];
+const FAC_AT = (f: FacId): [number, number] => f === 'lord' ? LORD_AT : B.GUILD[f].at;
 // 그림 가운데 땅만 보인다 (나침반 · 테두리는 바깥 배경으로)
 const VIEW = '210 70 700 420';
-const BUREAU_AT: [number, number] = [588, 345];
 const HAVEL_AT: [number, number] = [790, 168];   // 하벨 자작령 성 (영주들 표식은 로이드 백작령)
 const FAC_LABEL = (W: World, f: FacId) => f === 'lord' ? '로이드 백작령' : W.guilds[f].name;
 
@@ -32,11 +29,11 @@ export function mapHtml(W: World, ui: BuUi) {
   FACS.forEach((a, i) => FACS.slice(i + 1).forEach(b => {
     const v = relOf(W, a, b), pact = isGuildId(a) && isGuildId(b) && W.pact && W.day < W.pact.until && W.pact.who.includes(a) && W.pact.who.includes(b);
     if (Math.abs(v) < 25 && !pact) return;
-    h += `<path class="rel-line ${v < -5 ? 'neg' : v >= 25 ? 'pos' : ''}" d="${curve(FAC_AT[a], FAC_AT[b], 18)}" style="stroke-width:${1 + Math.abs(v) / 25}"/>`;
+    h += `<path class="rel-line ${v < -5 ? 'neg' : v >= 25 ? 'pos' : ''}" d="${curve(FAC_AT(a), FAC_AT(b), 18)}" style="stroke-width:${1 + Math.abs(v) / 25}"/>`;
   }));
   // 낱말은 가장 나쁜 두 길드 사이에만 (나머지는 선 색과 살펴보기 탭으로)
   {
-    const v = relOf(W, wa, wb), [x1, y1] = FAC_AT[wa], [x2, y2] = FAC_AT[wb], pact = W.pact && W.day < W.pact.until && W.pact.who.includes(wa) && W.pact.who.includes(wb);
+    const v = relOf(W, wa, wb), [x1, y1] = FAC_AT(wa), [x2, y2] = FAC_AT(wb), pact = W.pact && W.day < W.pact.until && W.pact.who.includes(wa) && W.pact.who.includes(wb);
     if (v <= -25) h += label(x1 + (x2 - x1) * 0.5, y1 + (y2 - y1) * 0.5 - 6, relWord(v) + (pact ? (pactK(W, wa, wb) > 0 ? ' · 협정' : ' · 협정 대기') : ''), 'rel');
   }
   // 길드의 조가 미궁으로 가는 길: 들어간 조만큼 굵게
@@ -44,10 +41,10 @@ export function mapHtml(W: World, ui: BuUi) {
     GUILDS.forEach((g, k) => {
       const n = d.teams[g];
       if (n < 0.3) return;
-      h += `<path class="flow f-${g}" d="${curve(FAC_AT[g], DG_AT[i], k % 2 ? 24 : -24)}" style="stroke-width:${1.5 + n * 0.9}"><title>${nameOf(W, g)} ${n1(n)}조 → ${d.name} (본부에서 ${B.GUILD[g].way[i]}일)</title></path>`;
+      h += `<path class="flow f-${g}" d="${curve(FAC_AT(g), d.at, k % 2 ? 24 : -24)}" style="stroke-width:${1.5 + n * 0.9}"><title>${nameOf(W, g)} ${n1(n)}조 → ${d.name} (본부에서 ${wayOf(g, i)}일)</title></path>`;
     });
     // 보고가 오는 길 (관리국 ← 미궁)
-    h += `<path class="report" d="${curve(DG_AT[i], BUREAU_AT, 12)}"/>`;
+    h += `<path class="report" d="${curve(d.at, BUREAU_AT, 12)}"/>`;
   });
   // 관리국 · 하벨 성
   h += `<g class="place bureau"><rect x="${BUREAU_AT[0] - 9}" y="${BUREAU_AT[1] - 9}" width="18" height="18" rx="2"/>${label(BUREAU_AT[0], BUREAU_AT[1] + 26, '미궁관리국', 'strong')}</g>`;
@@ -55,7 +52,7 @@ export function mapHtml(W: World, ui: BuUi) {
   // 세력 표식: 깃발
   for (const f of FACS) {
     // 길드 깃발은 몸집(조 수)만큼 크다
-    const [x, y] = FAC_AT[f], on = sel === `fac:${f}`, g = isGuildId(f) ? W.guilds[f] : null;
+    const [x, y] = FAC_AT(f), on = sel === `fac:${f}`, g = isGuildId(f) ? W.guilds[f] : null;
     const k = g ? Math.min(2.2, 0.8 + g.size / 22) : 1;
     h += `<g class="mk fac-mk f-${f}${on ? ' on' : ''}" data-act="sel:fac:${f}" role="button" tabindex="0" aria-label="${nameOf(W, f)}${g ? ` ${n0(g.size)}조` : ''}">
       <circle class="hit" cx="${x}" cy="${y}" r="${26 * k}"/>
@@ -65,7 +62,7 @@ export function mapHtml(W: World, ui: BuUi) {
   }
   // 미궁 표식: 고리가 보고된 수위
   W.dungeons.forEach((d, i) => {
-    const [x, y] = DG_AT[i], lv = seenLevel(W, i), on = sel === `dg:${i}`, C = 2 * Math.PI * 22;
+    const [x, y] = d.at, lv = seenLevel(W, i), on = sel === `dg:${i}`, C = 2 * Math.PI * 22;
     h += `<g class="mk dg-mk ${levelCls(lv)}${on ? ' on' : ''}${lv >= B.DANGER ? ' hot' : ''}" data-act="sel:dg:${i}" role="button" tabindex="0" aria-label="${d.name} 수위 ${n0(lv)}">
       <circle class="disc" cx="${x}" cy="${y}" r="22"/>
       <circle class="ring" cx="${x}" cy="${y}" r="22" style="stroke-dasharray:${C * Math.min(1, lv / 100)} ${C}" transform="rotate(-90 ${x} ${y})"/>

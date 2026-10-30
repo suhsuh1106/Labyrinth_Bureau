@@ -1,6 +1,6 @@
 // 미궁관리국 배경 엔진 0단계: 인과 루프 두 쌍이 폭주하거나 멈추지 않는지, 국장의 손이 판을 바꾸는지
 import { describe, expect, it } from 'vitest';
-import { B, GUILDS, answer, clauseOn, hireClerk, subAt, letterScore, meet, newWorld, over, pactK, pnlGuild, post, recall, relOf, run, send, step, teamsIn, withdraw, worstPair } from '../src/bureau/engine';
+import { B, GUILDS, answer, clauseOn, hireClerk, subAt, letterScore, meet, newWorld, over, pactK, pnlGuild, post, recall, relOf, run, send, step, teamsIn, withdraw, worstPair, wayOf, hqOf } from '../src/bureau/engine';
 import { BOT, playGame } from '../sim/bureau';
 import { EDGES, LINKS, LOOPS, NODES, checkLoops } from '../src/bureau/loops';
 import { type BuUi, docModalHtml, endHtml, introHtml, paneHtml, tabsHtml, topHtml, tutOf, writeHtml } from '../src/ui/bureau/board';
@@ -183,15 +183,11 @@ describe('국장의 서류 (조항 조합)', () => {
     const W = newWorld(5);
     post(W, 1, 20, { sub: 20 });
     const d = W.dungeons[1];
-    expect(clauseOn(W, d, 'sub', 'wolf')).toBeUndefined();
-    step(W);
-    expect(clauseOn(W, d, 'sub', 'wolf')).toBe(20);
-    expect(clauseOn(W, d, 'sub', 'red')).toBeUndefined();
-    step(W);
-    expect(clauseOn(W, d, 'sub', 'red')).toBe(20);
-    expect(clauseOn(W, d, 'sub', 'drift')).toBeUndefined();     // 떠돌이 칼은 사흘
-    step(W);
-    expect(clauseOn(W, d, 'sub', 'drift')).toBe(20);
+    for (let t = 1; t <= 3; t++) {
+      step(W);
+      for (const g of GUILDS) expect(clauseOn(W, d, 'sub', g)).toBe(t >= hqOf(g) ? 20 : undefined);
+    }
+    expect(hqOf('wolf')).toBeLessThan(hqOf('drift'));            // 관리국 곁의 늑대단은 이튿날, 변두리의 떠돌이 칼은 사흘
   });
 
   it('첫 요구서: 폐광에 조를 들여 군에게서 넘겨받으면 예산 · 입지를 받고 요청서가 열린다. 손을 놓으면 인내가 다해 군이 물러난다', () => {
@@ -405,20 +401,32 @@ describe('미궁 손익 자료', () => {
 });
 
 describe('길드 일곱: 큰 길드 둘 · 작은 길드 다섯, 본부에서 미궁까지 거리', () => {
+  const W5 = () => newWorld(5);
   it('큰 길드 둘과 작은 길드 다섯으로 시작하고, 큰 길드는 몸집이 몇 곱절이다', () => {
     const W = newWorld(5), big = GUILDS.filter(g => B.GUILD[g].big), small = GUILDS.filter(g => !B.GUILD[g].big);
     expect(big.length).toBe(2);
     expect(small.length).toBe(5);
     expect(Math.min(...big.map(g => W.guilds[g].size))).toBeGreaterThan(Math.max(...small.map(g => W.guilds[g].size)) * 3);
     // 성격(돈 · 안전 · 정보 · 권리 · 기한 읽기 · 거리)이 겹치지 않는다
-    const sig = GUILDS.map(g => { const t = B.GUILD[g]; return [t.cash, t.safe, t.info, t.right, t.trust.base, t.way.join()].join('|'); });
+    const sig = GUILDS.map(g => { const t = B.GUILD[g]; return [t.cash, t.safe, t.info, t.right, t.trust.base, t.at.join()].join('|'); });
     expect(new Set(sig).size).toBe(GUILDS.length);
+  });
+
+  it('오가는 날 · 공고가 닿는 날은 지도 위 거리로 셈한다: 본부를 옮기면 바뀐다', () => {
+    const at = B.GUILD.wolf.at;
+    try {
+      B.GUILD.wolf.at = [...W5().dungeons[2].at];
+      expect(wayOf('wolf', 2)).toBe(1);
+      B.GUILD.wolf.at = [910, 80];
+      expect(wayOf('wolf', 0)).toBeGreaterThanOrEqual(3);
+      expect(hqOf('wolf')).toBeGreaterThanOrEqual(3);
+    } finally { B.GUILD.wolf.at = at; }
   });
 
   it('본부가 먼 길드는 같은 보조금에도 폐광에 덜 온다: 손익 자료의 길드별 칸에 보인다', () => {
     // 몸집이 같은 작은 길드 둘: 잿빛 늑대단(폐광까지 1일) · 강나루 조합(3일)
     expect(B.GUILD.wolf.size).toBe(B.GUILD.river.size);
-    expect(B.GUILD.wolf.way[0]).toBeLessThan(B.GUILD.river.way[0]);
+    expect(wayOf('wolf', 0)).toBeLessThan(wayOf('river', 0));
     let near = 0, far = 0;
     for (const seed of SEEDS.slice(0, 10)) {
       const W = newWorld(seed);

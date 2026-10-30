@@ -9,7 +9,7 @@ import { type BuUi, DRAFT0, type Shelf, type Tab, docModalHtml, reportDocHtml, e
 import { mapHtml } from './ui/bureau/map';
 
 const $ = (id: string) => document.getElementById(id)!;
-const KEY = 'lb-bureau', VERSION = 10;
+const KEY = 'lb-bureau', VERSION = 11;
 let W: World, ui: BuUi, seed = 0;
 
 function save() { try { localStorage.setItem(KEY, JSON.stringify({ v: VERSION, seed, rng: getSeed(), W, ui })); } catch { /* 저장이 막혀도 판은 계속된다 */ } }
