@@ -32,7 +32,9 @@ export const BOT: Record<string, (W: World) => void> = {
     for (const a of W.asks) if (a.got == null && W.budget > a.want) answer(W, a.id, a.kind === 'dun' || W.owe[a.from] < 5 ? a.want : a.want / 2);
     // 사이가 틀어지는 짝에 든 길드를 모두(서명할 마음이 있는 쪽만) 한 자리에
     const sore = GPAIRS.filter(([a, b]) => relOf(W, a, b) < -20).flat();
-    const who = GUILDS.filter(g => sore.includes(g) && willOf(W, g) >= B.SIGN_AT - 5);
+    // 가장 나쁜 짝은 마지못해서라도(결렬되지 않을 만큼) 부른다
+    const wp = worstPair(W), worst = relOf(W, ...wp) < -20 ? wp : [];
+    const who = GUILDS.filter(g => (sore.includes(g) && willOf(W, g) >= B.SIGN_AT - 5) || (worst.includes(g) && willOf(W, g) >= B.SIGN_AT - 18));
     if (who.length >= 2) meet(W, [...who, 'lord']);
   },
 };

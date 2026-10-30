@@ -24,7 +24,7 @@ export const B = {
   MOVE: 0.25,                             // 조가 하루에 바라는 자리로 옮겨 가는 몫
   SUB_LURE: 2, WANT_K: 1.4,               // 보조금 G당 끌림 · 끌림 1당 바라는 조
   WAY_PX: 200, NEWS_PX: 150,             // 관할 지도에서 하루 걸음(미궁까지) · 신문이 하루에 퍼지는 거리(관리국에서 본부까지)
-  WAY_K: 3,                               // 본부에서 미궁까지 오가는 날이 이틀보다 하루 많을 때마다 덜 끌림, 적으면 더 (멀면 같은 보조금으로도 덜 온다)
+  WAY_K: 3, WAY_BASE: 2,                  // 오가는 하루가 깎는 끌림(멀면 같은 보조금으로도 덜 온다) · 현장 수익에 얹어 둔 이틀 몫(오가는 날이 이틀이면 끌림이 그대로)
   WITHDRAW_FAV: 3, WITHDRAW_LEFT: 30,     // 공고를 기한 전에 내리면 길드마다 잃는 호감 (남은 기한이 이 날 수만큼이면 곱절)
   // 공고문의 기한이 길드의 믿음이다: 길면 믿고 오고, 짧으면 망설인다. 공고문 보조금의 끌림 = 값 × 믿음(기한으로, 길드마다 GUILD[g].trust) × 돈 반응
   // 공탁: 공고문을 걸 때 기한 동안 쓸 돈을 예산에서 떼어 둔다(보조금 × 기한 × 조 어림 + 위로금 × 잃을 조 어림).
@@ -42,6 +42,7 @@ export const B = {
   // 예산 · 입지를 준다. 군이 버티는 동안 중앙의 인내가 모자란 조만큼 줄고(pat), 바닥나면 인계 없이 물러난다(입지를 깎는다).
   // 군은 주둔하는 동안 하루 clear만큼 수위를 누른다(오르는 만큼). fear: 범람이 남긴 꺼림
   ORDER: { dg: 0, min: 12, need: 3, pat: 100, drain: 1, clear: 1.25, fear: 30, pay: 1000, stand: 12, fail: 5 },
+  DEV: [260, 720], DEV_FAV: 8,            // R2 발전도: 외진 미궁에 든 조 × 날이 이만큼 쌓이면 단계가 오른다 · 지부를 낸 길드의 호감
   PRICE: 10, FEE: 2,                      // 소재 값 · 조마다 하루 입장료
   UPKEEP: 0.9, GROW: 120, GROW_COST: 100, SHRINK: -80, SIZE_MIN: 2,
   // 길드 일곱: 큰 길드 둘과 작은 길드 다섯. 몸집(조 · 금고 · 소재 값 · 조 유지비 · 미궁마다 처음 든 조)과
@@ -69,7 +70,7 @@ export const B = {
 };
 
 export type GuildId = 'red' | 'shield' | 'wolf' | 'lamp' | 'river' | 'dawn' | 'drift';
-export type LoopId = 'R1' | 'B1' | 'R3' | 'B3' | 'R4' | 'B4' | 'R5' | 'B5';
+export type LoopId = 'R1' | 'B1' | 'R2' | 'R3' | 'B3' | 'R4' | 'B4' | 'R5' | 'B5';
 export type FacId = GuildId | 'lord';
 // 길드 하나의 몸집과 성격
 //   cash: 돈에 반응하는 결(요청서의 보조금 무게 · 공고문 보조금의 끌림 · 보조금에 오르는 호감)
@@ -132,6 +133,10 @@ export interface Dungeon {
   fear: number; floods: number; dead: number;
   sub: number;                    // 국장이 정한 출입 보조금 (조마다 하루 G)
   dangerAt: number | null;        // 위험 수위를 넘은 날 (범람까지 날 수를 잰다)
+  wild: number;                   // 길이 없어 더 드는 날 (외진 미궁). 발전도 단계마다 하루씩 준다
+  dev: number;                    // 발전도: 외진 미궁에 든 조 × 날의 합
+  gdev: Record<GuildId, number>;  // 그중 길드마다 든 몫 (지부를 낼 길드를 고른다)
+  branch: GuildId | null;         // 발전도 2단계에서 가장 많이 다닌 길드가 곁에 낸 지부 (그 길드는 하루 길)
 }
 export interface Guild { id: GuildId; name: string; size: number; money: number; infl: number; fav: number; check: number; peak: number }
 export interface Lord { name: string; money: number; infl: number; fav: number }
@@ -178,18 +183,25 @@ export interface Letter { id: number; day: number; to: GuildId; dg: number; days
 export interface Notice { id: number; day: number; to: 'all'; dg: number; until: number; cl: Clauses; dep: number }
 export type Opts = { noCheck?: boolean; noFear?: boolean };
 
-const DUNGEONS: Omit<Dungeon, 'teams' | 'fear' | 'floods' | 'dead' | 'sub' | 'dangerAt'>[] = [
-  // 폐광은 막 넘쳤다. 왕국군이 주둔해 위험 수위 언저리에 붙들고 있고, 물러나면 다시 오른다
-  { id: 'pit', name: '폐광', lord: '로이드 백작령', dist: 1, at: [452, 282], rise: 1.25, yld: 6, cap: 12, level: 75 },
-  { id: 'wood', name: '검은숲 미궁', lord: '하벨 자작령', dist: 2, at: [700, 140], rise: 1.0, yld: 9, cap: 10, level: 45 },
-  { id: 'sunk', name: '수몰 갱도', lord: '로이드 백작령', dist: 2, at: [800, 262], rise: 1.5, yld: 12, cap: 10, level: 55 },
+const DUNGEONS: Omit<Dungeon, 'teams' | 'fear' | 'floods' | 'dead' | 'sub' | 'dangerAt' | 'dev' | 'gdev' | 'branch'>[] = [
+  // 폐광은 산줄기 깊숙이 외져 늦게 드러났다. 벌이는 좋지만 길이 없어 곁에 길드가 없었고, 아무도 돌보지 않다 막 넘쳤다.
+  // 왕국군이 주둔해 위험 수위 언저리에 붙들고 있고, 물러나면 다시 오른다
+  { id: 'pit', name: '폐광', lord: '로이드 백작령', dist: 1, at: [466, 186], rise: 1.25, yld: 14, cap: 12, level: 75, wild: 2 },
+  { id: 'wood', name: '검은숲 미궁', lord: '하벨 자작령', dist: 2, at: [700, 140], rise: 1.0, yld: 9, cap: 10, level: 45, wild: 0 },
+  { id: 'sunk', name: '수몰 갱도', lord: '로이드 백작령', dist: 2, at: [800, 262], rise: 1.5, yld: 12, cap: 10, level: 55, wild: 0 },
 ];
 
 // 관할 지도 위 관리국 자리 (viewBox 1000 × 567)
 export const BUREAU_AT: [number, number] = [588, 345];
 const far = (a: [number, number], b: [number, number]) => Math.hypot(a[0] - b[0], a[1] - b[1]);
-// 길드 g의 본부에서 미궁 i까지 오가는 날 · 관리국에서 길드 g의 본부까지 공고가 닿는 날: 지도 위 거리로 셈한다
-export const wayOf = (g: GuildId, i: number) => Math.max(1, Math.ceil(far(B.GUILD[g].at, DUNGEONS[i].at) / B.WAY_PX));
+// 길드 g의 본부에서 미궁 i까지 오가는 날 · 관리국에서 길드 g의 본부까지 공고가 닿는 날: 지도 위 거리로 셈한다.
+// 외진 미궁은 길이 없어 wild일 더 들고, 발전도 단계마다 하루씩 준다. 지부를 낸 길드는 하루 길
+export const devStage = (d: Dungeon) => B.DEV.filter(t => d.dev >= t).length;
+export const wildOf = (d: Dungeon) => Math.max(0, d.wild - devStage(d));
+export const wayOf = (W: World, g: GuildId, i: number) => {
+  const d = W.dungeons[i];
+  return d.branch === g ? 1 : Math.max(1, Math.ceil(far(B.GUILD[g].at, d.at) / B.WAY_PX)) + wildOf(d);
+};
 export const hqOf = (g: GuildId) => Math.max(1, Math.ceil(far(B.GUILD[g].at, BUREAU_AT) / B.NEWS_PX));
 
 export function newWorld(seed: number, o: Opts = {}): World {
@@ -200,6 +212,7 @@ export function newWorld(seed: number, o: Opts = {}): World {
     rise: i ? +(d.rise * (0.85 + rnd() * 0.3)).toFixed(2) : d.rise,
     yld: i ? Math.round(d.yld * (0.8 + rnd() * 0.4)) : d.yld,
     teams: Object.fromEntries(GUILDS.map(g => [g, i ? B.GUILD[g].start : 0])) as Record<GuildId, number>, fear: i ? 0 : B.ORDER.fear, floods: 0, dead: 0, sub: 0, dangerAt: null,
+    dev: 0, gdev: Object.fromEntries(GUILDS.map(g => [g, 0])) as Record<GuildId, number>, branch: null,
   }));
   const guild = (id: GuildId): Guild => {
     const g = B.GUILD[id];
@@ -216,7 +229,7 @@ export function newWorld(seed: number, o: Opts = {}): World {
       { day: 0, from: '왕국군', title: '폐광 1차 진압, 주둔 중', chips: ['수위를 붙들고 있음', '길드에 넘기면 물러남'] },
       { day: 0, from: '중앙 행정원', title: '요구서: 폐광을 왕국군에게서 넘겨받을 것', chips: [`하루 ${B.ORDER.min}조 이상 ${B.ORDER.need}일 이어서`, `예산 ${B.ORDER.pay}G · 입지 +${B.ORDER.stand}`] },
     ],
-    stats: { floods: 0, dead: 0, spent: 0, toFlood: [], pinned: {}, loops: { R1: 0, B1: 0, R3: 0, B3: 0, R4: 0, B4: 0, R5: 0, B5: 0 }, bigSize: [], clashes: 0, meets: 0, asks: 0, answered: 0, sides: 0, relMin: 0, relHist: [], litHist: [] },
+    stats: { floods: 0, dead: 0, spent: 0, toFlood: [], pinned: {}, loops: { R1: 0, B1: 0, R2: 0, R3: 0, B3: 0, R4: 0, B4: 0, R5: 0, B5: 0 }, bigSize: [], clashes: 0, meets: 0, asks: 0, answered: 0, sides: 0, relMin: 0, relHist: [], litHist: [] },
     rel: {},
     owe: Object.fromEntries(FACS.map(f => [f, 0])) as Record<FacId, number>, fowe: Object.fromEntries(FACS.map(f => [f, {}])) as World['fowe'],
     pact: null, meetAt: -99, asks: [], later: [], askN: 0, lit: [], notices: [], letters: [], docN: 0, rank: 1, clerks: 1, pts: 0,
@@ -283,21 +296,32 @@ const letterLure = (W: World, g: GuildId, i: number) =>
   ((clauseOn(W, W.dungeons[i], 'sub', g) ?? 0) * noticeTrust(W, i, g) + (letterOn(W, g, i, 'sub') ?? 0)) * cashK(g) / B.SUB_LURE - (guildRec(W, g, i) ? B.REC_LURE * Math.max(0, B.GUILD[g].info) / 10 : 0);
 // 길드의 결이 공통 끌림에 더하는 것: 오가는 날(멀면 덜 남는다)과 위험 · 꺼림을 보는 정도(안전을 볼수록 더 꺼린다)
 export const fearK = (g: GuildId) => 0.5 + B.GUILD[g].safe / 4;
-export const wayCost = (g: GuildId, i: number) => (wayOf(g, i) - 2) * B.WAY_K;
-const guildLure = (W: World, g: GuildId, i: number) => -wayCost(g, i) - (fearK(g) - 1) * harmOf(W, W.dungeons[i]);
+export const wayCost = (W: World, g: GuildId, i: number) => wayOf(W, g, i) * B.WAY_K;
+// 오가는 하루에 조 하나가 쓰는 값(G): 손익 자료에 적는다
+export const wayDayG = () => B.WAY_K * B.SUB_LURE;
+const guildLure = (W: World, g: GuildId, i: number) => -wayCost(W, g, i) - (fearK(g) - 1) * harmOf(W, W.dungeons[i]);
 // 길드 g의 조 하나가 미궁 i에서 하루 남기는 값의 어림(G, 보조금 빼고): 손익 자료의 길드별 칸
 export const pnlGuild = (W: World, g: GuildId, i: number) => Math.round(pnlOf(W, W.dungeons[i]) + guildLure(W, g, i) * B.SUB_LURE);
 export const levelOf = (standing: number) => B.STAND_LV.filter(t => standing >= t).length;
 export const docsOut = (W: World) => W.notices.length + W.letters.length;
 
-// 조 하나가 이 미궁에서 하루 남기는 값의 어림(G): 끌림에서 보조금을 뺀 몫. 국장이 보조금을 가늠하는 자료다
+// 조 하나가 이 미궁에서 하루 버는 값의 어림(G, 현장 수익): 끌림에서 보조금을 뺀 몫. 오가는 날의 값은 길드마다 따로 빠진다(pnlGuild)
 export const pnlOf = (W: World, d: Dungeon) => Math.round((lure(W, d) - d.sub / B.SUB_LURE) * B.SUB_LURE);
 // 최근 n일 평균 (기록이 모자라면 있는 만큼)
 export const pnlAvg = (W: World, i: number, n: number) => { const a = W.pnl[i].slice(-n); return a.reduce((x, y) => x + y, 0) / a.length; };
 // 위험과 꺼림: 끌림에서 빠지는 몫 (길드마다 fearK배)
 const harmOf = (W: World, d: Dungeon) => Math.max(0, d.level - 65) / 8 + (W.noFear ? 0 : d.fear / 10);
 export function lure(W: World, d: Dungeon) {
-  return d.yld * B.PRICE / 10 * richOf(d.level) * (1 - d.level / 160) + d.sub / B.SUB_LURE - harmOf(W, d);
+  return d.yld * B.PRICE / 10 * richOf(d.level) * (1 - d.level / 160) + d.sub / B.SUB_LURE - harmOf(W, d) + B.WAY_BASE * B.WAY_K;
+}
+// 미궁 i에서 길드들이 오늘 남기는 값(오가는 날 빼고, 보조금 빼고)의 중간값 · 평균값과 평균 오가는 날: 손익 자료의 요약 (길드 하나하나는 보이지 않는다)
+export function pnlSum(W: World, i: number) {
+  const v = GUILDS.map(g => pnlGuild(W, g, i)).sort((a, b) => a - b), k = v.length >> 1;
+  return {
+    mid: v.length % 2 ? v[k] : (v[k - 1] + v[k]) / 2,
+    avg: v.reduce((a, b) => a + b, 0) / v.length,
+    way: GUILDS.reduce((a, g) => a + wayOf(W, g, i), 0) / GUILDS.length,
+  };
 }
 
 // 길드가 영향력으로 더 가져가는 몫(R3)과, 다른 길드가 눈에 띄어 결집한 몫(B3). 우선권 조항은 큰 길드 쪽으로 기운다
@@ -391,6 +415,14 @@ export function step(W: World) {
     // R1: 위험 수위 위에서 조가 빠지고 있다 / B1: 보조금이 조를 들이고 있다
     if (d.level >= B.DANGER && n < r1Before[i] - 0.01) lit(W, 'R1');
     if (subAt(W, i) > 0 && n > r1Before[i] + 0.01) lit(W, 'B1');
+    // R2: 외진 미궁에 든 발길이 길을 닦고(발전도), 가까워진 길이 다시 발길을 부른다
+    if (d.wild > 0) {
+      const st = devStage(d);
+      d.dev += n;
+      for (const g of GUILDS) d.gdev[g] += d.teams[g];
+      if (devStage(d) > st) devUp(W, i);
+      if (st > 0 && n > r1Before[i] + 0.01) lit(W, 'R2');
+    }
   });
   // 세력의 돈: 판매 − 급여·보급 − 세금(견제). 넉넉하면 조를 늘리고 모자라면 줄인다
   const top = GUILDS.map(g => G[g]).reduce((a, b) => b.size > a.size ? b : a), topBefore = top.size;
@@ -468,6 +500,20 @@ export function step(W: World) {
   for (const id of W.lit) S.loops[id]++;
   S.litHist.push(W.lit);
   W.lit = [];
+}
+
+// 발전도가 새 단계에 닿았다: 1단계는 길과 여관(오가는 날 −1), 2단계는 마을이 서고(−1) 가장 많이 다닌 길드가 지부를 낸다
+function devUp(W: World, i: number) {
+  const d = W.dungeons[i], st = devStage(d);
+  if (st === 1) {
+    W.reports.push({ day: W.day, from: '왕도일보', title: `${d.name} 가는 길 닦여 · 길목에 여관`, chips: ['발전도 1단계', '오가는 날 하루 줄어'] });
+    return;
+  }
+  const g = GUILDS.reduce((a, b) => d.gdev[b] > d.gdev[a] ? b : a);
+  d.branch = g;
+  fav(W.guilds[g], B.DEV_FAV);
+  W.reports.push({ day: W.day, from: '왕도일보', title: `${d.name} 곁에 마을 · ${nameOf(W, g)} 지부`, chips: [`발전도 ${st}단계`, '오가는 날 하루 더 줄어', `${nameOf(W, g)}는 하루 길`] });
+  W.reports.push({ day: W.day, from: nameOf(W, g), title: `${d.name} 곁 지부 개설`, chips: [d.name] });
 }
 
 // 서류 한 장이 그 길드의 호감에 하루 더하는 것

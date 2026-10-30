@@ -2,7 +2,7 @@
 // 관리국 · 미궁 셋 · 길드 본부 일곱 · 영주 성을 놓는다. 본부 · 미궁 자리는 엔진에 있고(GUILD[g].at · Dungeon.at), 오가는 날은 그 거리로 셈한다(wayOf). 길드 본부에서 미궁으로 가는 길은 들어간 조만큼 굵고,
 // 미궁 표식의 고리는 보고된 수위, 세력 사이는 본부 사이의 선 색 · 낱말이다. 그리기만 하고 상태에 쓰지 않는다.
 import mapUrl from './art/map.webp';
-import { B, BUREAU_AT, type FacId, FACS, GUILDS, type World, wayOf, isGuildId, nameOf, pactK, relOf, seenLevel, subAt, teamsIn, worstPair } from '../../bureau/engine';
+import { B, BUREAU_AT, devStage, type FacId, FACS, GUILDS, type World, wayOf, isGuildId, nameOf, pactK, relOf, seenLevel, subAt, teamsIn, worstPair } from '../../bureau/engine';
 import { type BuUi, dungeonHtml, facHtml, guildsHtml, levelCls, levelWord, n0, n1, pactLine, relRow, relWord, relsTop } from './board';
 
 // 지도 자리 (viewBox 1000 × 567, 그림과 같은 비율)
@@ -41,10 +41,19 @@ export function mapHtml(W: World, ui: BuUi) {
     GUILDS.forEach((g, k) => {
       const n = d.teams[g];
       if (n < 0.3) return;
-      h += `<path class="flow f-${g}" d="${curve(FAC_AT(g), d.at, k % 2 ? 24 : -24)}" style="stroke-width:${1.5 + n * 0.9}"><title>${nameOf(W, g)} ${n1(n)}조 → ${d.name} (본부에서 ${wayOf(g, i)}일)</title></path>`;
+      h += `<path class="flow f-${g}" d="${curve(FAC_AT(g), d.at, k % 2 ? 24 : -24)}" style="stroke-width:${1.5 + n * 0.9}"><title>${nameOf(W, g)} ${n1(n)}조 → ${d.name} (본부에서 ${wayOf(W, g, i)}일)</title></path>`;
     });
     // 보고가 오는 길 (관리국 ← 미궁)
     h += `<path class="report" d="${curve(d.at, BUREAU_AT, 12)}"/>`;
+  });
+  // 외진 미궁의 발전도: 1단계부터 관리국 쪽에서 닦인 길, 2단계엔 곁에 마을(지부를 낸 길드 깃발 색)
+  W.dungeons.forEach(d => {
+    const st = d.wild > 0 ? devStage(d) : 0;
+    if (st >= 1) h += `<path class="road" d="${curve(BUREAU_AT, d.at, -30)}"><title>${d.name} 가는 길</title></path>`;
+    if (st >= 2) {
+      const [x, y] = [d.at[0] - 40, d.at[1] + 6];
+      h += `<g class="town${d.branch ? ` f-${d.branch}` : ''}"><title>${d.name} 곁 마을${d.branch ? ` · ${nameOf(W, d.branch)} 지부` : ''}</title><rect x="${x - 7}" y="${y - 4}" width="14" height="10"/><path d="M${x - 9},${y - 4} l9,-7 l9,7 z"/>${d.branch ? `<path class="flag" d="M${x + 6},${y - 8} v-12 h9 l-3,3 l3,3 h-9" style="fill:var(--gc)"/>` : ''}</g>`;
+    }
   });
   // 관리국 · 하벨 성
   h += `<g class="place bureau"><rect x="${BUREAU_AT[0] - 9}" y="${BUREAU_AT[1] - 9}" width="18" height="18" rx="2"/>${label(BUREAU_AT[0], BUREAU_AT[1] + 26, '미궁관리국', 'strong')}</g>`;

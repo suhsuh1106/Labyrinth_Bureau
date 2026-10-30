@@ -1,6 +1,6 @@
 // 미궁관리국 배경 엔진 0단계: 인과 루프 두 쌍이 폭주하거나 멈추지 않는지, 국장의 손이 판을 바꾸는지
 import { describe, expect, it } from 'vitest';
-import { B, GUILDS, answer, clauseOn, hireClerk, subAt, letterScore, meet, newWorld, over, pactK, pnlGuild, post, recall, relOf, run, send, step, teamsIn, withdraw, worstPair, wayOf, hqOf } from '../src/bureau/engine';
+import { B, GUILDS, answer, clauseOn, hireClerk, subAt, letterScore, meet, newWorld, over, pactK, pnlGuild, pnlSum, wayDayG, devStage, post, recall, relOf, run, send, step, teamsIn, withdraw, worstPair, wayOf, hqOf } from '../src/bureau/engine';
 import { BOT, playGame } from '../sim/bureau';
 import { EDGES, LINKS, LOOPS, NODES, checkLoops } from '../src/bureau/loops';
 import { type BuUi, docModalHtml, endHtml, introHtml, paneHtml, tabsHtml, topHtml, tutOf, writeHtml } from '../src/ui/bureau/board';
@@ -372,21 +372,31 @@ describe('첫 사건의 업무 안내', () => {
     expect(topHtml(W, ui)).toContain('go pulse');
     for (let t = 0; t < 6 && tutOf(W, ui) === 'wait'; t++) step(W);
     expect(tutOf(W, ui)).toBe('see');
+    // 요구서가 끝나면 다음 목표(마을이 서는 폐광)를 가리키고, 마을이 서면 사라진다
     W.order.done = 'ok';
+    expect(tutOf(W, ui)).toBe('road');
+    W.dungeons[0].dev = B.DEV[0];
+    expect(tutOf(W, ui)).toBe('town');
+    W.dungeons[0].dev = B.DEV[1];
     expect(tutOf(W, ui)).toBe('');
     expect(docModalHtml(newWorld(5), { ...ui, docSeen: 0 })).toContain('영주청 이관 기록');
   });
 });
 
 describe('미궁 손익 자료', () => {
-  it('조당 하루 손익을 날마다 적는다: 범람 뒤 폐광은 손해, 다른 미궁은 남는다. 보조금은 빼고 적는다', () => {
+  it('현장 수익을 날마다 적는다: 폐광도 현장에선 남지만, 길이 멀어 길드 대부분에겐 밑진다. 보조금은 빼고 적는다', () => {
     const W = newWorld(5);
-    expect(W.pnl[0][0]).toBeLessThan(0);
+    expect(W.pnl[0][0]).toBeGreaterThan(0);
     expect(W.pnl[1][0]).toBeGreaterThan(0);
+    // 남는 값 = 현장 수익 − 오가는 날 × 하루 값: 폐광은 중간값이 0보다 낮고, 다른 미궁은 높다
+    expect(pnlSum(W, 0).mid).toBeLessThan(0);
+    expect(pnlSum(W, 0).way).toBeGreaterThan(pnlSum(W, 1).way);
+    expect(pnlSum(W, 1).mid).toBeGreaterThan(0);
+    const p0 = W.pnl[0][0];
     W.dungeons[0].sub = 30;
     step(W);
     expect(W.pnl[0].length).toBe(2);
-    expect(W.pnl[0][1]).toBeLessThan(0);
+    expect(Math.abs(W.pnl[0][1] - p0)).toBeLessThan(10);
     const ui: BuUi = { tab: 'lib', invite: [], give: {}, intro: false, seenNews: 0, shelf: 'pnl' };
     // 서류 쓰기 창엔 참고 자료를 두지 않고, 기록 탭의 서가에서 찾는다
     expect(writeHtml(W, ui)).not.toContain('미궁 손익 자료');
@@ -415,18 +425,20 @@ describe('길드 일곱: 큰 길드 둘 · 작은 길드 다섯, 본부에서 �
   it('오가는 날 · 공고가 닿는 날은 지도 위 거리로 셈한다: 본부를 옮기면 바뀐다', () => {
     const at = B.GUILD.wolf.at;
     try {
-      B.GUILD.wolf.at = [...W5().dungeons[2].at];
-      expect(wayOf('wolf', 2)).toBe(1);
+      const W = W5();
+      B.GUILD.wolf.at = [...W.dungeons[2].at];
+      expect(wayOf(W, 'wolf', 2)).toBe(1);
       B.GUILD.wolf.at = [910, 80];
-      expect(wayOf('wolf', 0)).toBeGreaterThanOrEqual(3);
+      expect(wayOf(W, 'wolf', 0)).toBeGreaterThanOrEqual(3);
       expect(hqOf('wolf')).toBeGreaterThanOrEqual(3);
     } finally { B.GUILD.wolf.at = at; }
   });
 
-  it('본부가 먼 길드는 같은 보조금에도 폐광에 덜 온다: 손익 자료의 길드별 칸에 보인다', () => {
+  it('본부가 먼 길드는 같은 보조금에도 폐광에 덜 온다: 손익 자료엔 길드 하나하나 대신 중간값 · 평균값만', () => {
     // 몸집이 같은 작은 길드 둘: 잿빛 늑대단(폐광까지 1일) · 강나루 조합(3일)
     expect(B.GUILD.wolf.size).toBe(B.GUILD.river.size);
-    expect(wayOf('wolf', 0)).toBeLessThan(wayOf('river', 0));
+    const W0 = newWorld(5);
+    expect(wayOf(W0, 'wolf', 0)).toBeLessThan(wayOf(W0, 'river', 0));
     let near = 0, far = 0;
     for (const seed of SEEDS.slice(0, 10)) {
       const W = newWorld(seed);
@@ -437,7 +449,49 @@ describe('길드 일곱: 큰 길드 둘 · 작은 길드 다섯, 본부에서 �
     }
     expect(near).toBeGreaterThan(far * 1.2);
     const W = newWorld(5);
-    expect(paneHtml(W, { tab: 'lib', invite: [], give: {}, intro: false, seenNews: 0, shelf: 'pnl' })).toContain('길드마다 오늘');
+    const h = paneHtml(W, { tab: 'lib', invite: [], give: {}, intro: false, seenNews: 0, shelf: 'pnl' });
+    expect(h).toContain('중간값');
+    expect(h).toContain(`오가는 하루 ${wayDayG()}G`);
+    expect(h).not.toContain(B.GUILD.wolf.name);
+  });
+});
+
+describe('외진 폐광과 발전도 (R2 발길)', () => {
+  it('폐광은 어느 본부에서도 사흘 이상이다: 벌이가 아니라 길이 문제다', () => {
+    const W = newWorld(5);
+    for (const g of GUILDS) expect(wayOf(W, g, 0), g).toBeGreaterThanOrEqual(3);
+    expect(W.dungeons[0].yld).toBeGreaterThan(W.dungeons[1].yld);
+  });
+
+  it('발길이 쌓이면 길이 닦이고(−1일), 마을이 서며 가장 많이 다닌 길드가 지부를 낸다(하루 길)', () => {
+    const W = newWorld(5), way0 = GUILDS.map(g => wayOf(W, g, 0));
+    expect(devStage(W.dungeons[0])).toBe(0);
+    post(W, 0, 30, { sub: 20 });
+    let s1 = 0;
+    for (let t = 0; t < 120 && devStage(W.dungeons[0]) < 2; t++) {
+      step(W);
+      if (!s1 && devStage(W.dungeons[0]) === 1) { s1 = W.day; GUILDS.forEach((g, k) => expect(wayOf(W, g, 0)).toBe(way0[k] - 1)); }
+    }
+    expect(s1).toBeGreaterThan(0);
+    expect(devStage(W.dungeons[0])).toBe(2);
+    const br = W.dungeons[0].branch!;
+    expect(br).toBe(GUILDS.reduce((a, b) => W.dungeons[0].gdev[b] > W.dungeons[0].gdev[a] ? b : a));
+    expect(wayOf(W, br, 0)).toBe(1);
+    expect(W.reports.some(r => r.title.includes('지부 개설') && r.from === W.guilds[br].name)).toBe(true);
+    // 다른 미궁은 외지지 않아 발전도가 쌓이지 않는다
+    expect(W.dungeons[1].dev).toBe(0);
+  });
+
+  it('보조금을 거둔 뒤에도 마을이 선 폐광엔 발길이 이어진다: 보조금 없이 둔 판보다 훨씬 많다', () => {
+    let built = 0, none = 0;
+    for (const seed of SEEDS.slice(0, 6)) {
+      const A = newWorld(seed), N = newWorld(seed);
+      post(A, 0, 30, { sub: 20 });
+      for (let t = 0; t < 150; t++) { step(A); step(N); }
+      expect(subAt(A, 0)).toBe(0);
+      built += teamsIn(A.dungeons[0]); none += teamsIn(N.dungeons[0]);
+    }
+    expect(built).toBeGreaterThan(none * 3);
   });
 });
 

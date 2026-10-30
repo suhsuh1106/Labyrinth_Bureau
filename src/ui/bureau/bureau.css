@@ -115,6 +115,10 @@ button.link { border: 0; background: none; padding: 0; color: var(--accent); jus
 .dg-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding-top: 8px; border-top: 1px solid var(--rule); font-size: 13px; }
 .dg-sub > span { flex: 1 1 100%; }
 .dg-sub small { color: var(--soft); font-size: 11px; }
+.dg-dev { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding-top: 8px; border-top: 1px solid var(--rule); font-size: 13px; }
+.dg-dev > span { flex: 1 1 100%; }
+.dg-dev small { color: var(--soft); font-size: 11px; }
+.dg-dev .gauge { flex: 1 1 auto; max-width: 160px; }
 .step { display: inline-flex; align-items: center; border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; }
 .step button { border: 0; border-radius: 0; padding: 4px 11px; background: var(--paper-2); font-weight: 600; }
 .step output { min-width: 4.2em; text-align: center; padding: 0 6px; }
@@ -353,3 +357,8 @@ button.link { border: 0; background: none; padding: 0; color: var(--accent); jus
 .pulse { animation: pulse 1.6s ease-in-out infinite; }
 @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent); } 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 35%, transparent); } }
 @media (prefers-reduced-motion: reduce) { .pulse { animation: none; outline: 2px solid var(--accent); } }
+
+/* 외진 미궁의 발전도: 닦인 길(1단계) · 마을(2단계) */
+.road { fill: none; stroke: #6b4a1f; stroke-width: 4; stroke-dasharray: 12 5; stroke-linecap: round; opacity: 0.85; }
+.town rect { fill: var(--paper); stroke: var(--ink); stroke-width: 1.2; }
+.town path { fill: var(--ink); }
