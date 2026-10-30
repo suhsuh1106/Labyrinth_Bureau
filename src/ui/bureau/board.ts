@@ -150,7 +150,7 @@ function clausesHtml(W: World) {
   ${CLAUSES.filter(c => !clauseLock(W, c.id)).map(card).join('')}`;
 }
 
-// 첫 사건의 업무 안내: 서기가 한 줄로 다음 할 일을 가리킨다. 날짜가 아니라 상태로 넘어가고, 고르는 단추는 없다.
+// 첫 사건의 업무 안내: 비서 테사가 한 줄로 다음 할 일을 가리킨다. 날짜가 아니라 상태로 넘어가고, 고르는 단추는 없다.
 // 요구서를 받음 → 기록실의 영주청 장부 보기 → 서류 쓰기 → 날 넘기며 지켜보기 → 조가 들기 시작함. 요구서가 끝나면 사라진다
 export type Tut = 'lib' | 'write' | 'wait' | 'see' | '';
 export function tutOf(W: World, ui: BuUi): Tut {
@@ -161,13 +161,14 @@ export function tutOf(W: World, ui: BuUi): Tut {
   if (!W.docN) return 'write';
   return teamsIn(W.dungeons[W.order.dg]) < 1 ? 'wait' : 'see';
 }
+// 테사(집무실의 첫 서기, 부상으로 일찍 은퇴한 중소 길드 조장 출신): 해요체로 짧게, 현장 감각만. 숫자나 정답은 말하지 않는다
 const TUT: Record<Exclude<Tut, ''>, string> = {
-  lib: '영주청에서 넘어온 길드 출입 장부 사본이 기록실에 와 있습니다. 길드가 폐광을 꺼리는 까닭이 거기 적혀 있을 겁니다. <b>기록</b> 탭의 <b>손익 자료</b>입니다.',
-  write: '길드에 명령은 못 하니 서류로 청해야지요. <b>서류</b> 탭에서 길드 전체에 폐광 공고문을 씁니다. 다른 미궁과 견주어 얼마를 얹을지, 얼마나 오래 걸지 정하시면 됩니다.',
-  wait: '공고는 신문에 실려 퍼집니다. 중소 연합 회관까지 하루, 붉은 깃발단 본부까지 이틀. <b>다음 날</b>을 넘기며 지도에서 길드가 움직이는지 보시지요.',
-  see: '폐광으로 가는 길드의 발길이 지도에 보입니다. 위 띠의 <b>폐광 인계</b> 칸이 하루 몇 조가 들었는지 셉니다. 모자라면 공고문을 고쳐 내걸 수 있습니다.',
+  lib: '영주청 장부 사본이 <b>기록</b>실에 와 있어요. 길드가 왜 폐광을 피하는지, <b>손익 자료</b>에 다 적혀 있어요.',
+  write: '길드는 명령으론 안 움직여요. 남는 데로 가요. 폐광 공고문은 <b>서류</b> 탭에서 써요.',
+  wait: `공고문, 중소 연합엔 ${B.HQ_DIST.small}일, 붉은 깃발단엔 ${B.HQ_DIST.big}일 뒤에 닿아요. <b>다음 날</b> 넘기며 지도 보세요.`,
+  see: `폐광 쪽으로 발길이 생겼어요. ${B.ORDER.need}일 이어져야 군이 넘겨줘요. 위 띠 <b>폐광 인계</b> 칸이에요.`,
 };
-export const tutHtml = (W: World, ui: BuUi) => { const t = tutOf(W, ui); return t ? `<aside class="tut"><b>서기</b><p>${TUT[t]}</p></aside>` : ''; };
+export const tutHtml = (W: World, ui: BuUi) => { const t = tutOf(W, ui); return t ? `<aside class="tut"><b>테사</b><p>${TUT[t]}</p></aside>` : ''; };
 
 // 기록 탭: 도서관. 가진 조항 · 미궁 손익 자료 · 낸 서류의 기록 · 받은 서류 철. 서류를 쓸 때 참고할 것은 여기서 찾는다
 const OUT_RE = /^(공고문:|요청서:|공고 철회|공고 기한 끝|요청서 거둠|요청서 기한 끝)/;
