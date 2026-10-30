@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { B, answer, clauseOn, hireClerk, subAt, letterScore, meet, newWorld, over, pactK, post, recall, relOf, run, send, step, teamsIn, withdraw } from '../src/bureau/engine';
 import { BOT, playGame } from '../sim/bureau';
 import { EDGES, LINKS, LOOPS, NODES, checkLoops } from '../src/bureau/loops';
-import { type BuUi, docModalHtml, endHtml, introHtml, paneHtml, topHtml, writeHtml } from '../src/ui/bureau/board';
+import { type BuUi, docModalHtml, endHtml, introHtml, paneHtml, tabsHtml, topHtml, tutOf, writeHtml } from '../src/ui/bureau/board';
 import { mapHtml } from '../src/ui/bureau/map';
 import { canAdd, dropClause, toLock } from '../src/bureau/clauses';
 import { getSeed, setSeed } from '../src/core/rng';
@@ -345,6 +345,27 @@ describe('첫 화면과 받은 서류 창', () => {
     expect(h).toContain('answer:1');
     expect(h).toContain('later:1');
     expect(docModalHtml(W, { ...ui, docSeen: k + 1, askSeen: 1 })).toBe('');
+  });
+});
+
+describe('첫 사건의 업무 안내', () => {
+  it('상태로 넘어간다: 요구서 받음 → 기록 → 서류 → 날 넘기기 → 조가 듦, 요구서가 끝나면 사라진다', () => {
+    const W = newWorld(5);
+    const ui: BuUi = { tab: 'look', invite: [], give: {}, intro: false, seenNews: 0, docSeen: 0 };
+    expect(tutOf(W, ui)).toBe('');                               // 요구서를 아직 받지 않음
+    ui.docSeen = W.reports.length;
+    expect(tutOf(W, ui)).toBe('lib');
+    expect(tabsHtml(W, ui)).toContain('class="pulse" data-act="tab:lib"');
+    ui.tutPnl = true;
+    expect(tutOf(W, ui)).toBe('write');
+    post(W, 0, 30, { sub: 15 });
+    expect(tutOf(W, ui)).toBe('wait');
+    expect(topHtml(W, ui)).toContain('go pulse');
+    for (let t = 0; t < 6 && tutOf(W, ui) === 'wait'; t++) step(W);
+    expect(tutOf(W, ui)).toBe('see');
+    W.order.done = 'ok';
+    expect(tutOf(W, ui)).toBe('');
+    expect(docModalHtml(newWorld(5), { ...ui, docSeen: 0 })).toContain('영주청 이관 기록');
   });
 });
 

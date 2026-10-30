@@ -22,7 +22,7 @@ function fresh() {
 }
 
 function draw() {
-  $('top').innerHTML = topHtml(W);
+  $('top').innerHTML = topHtml(W, ui);
   $('board').innerHTML = mapHtml(W, ui);
   if (ui.tab === 'office') ui.seenNews = W.reports.length;
   $('tabs').innerHTML = tabsHtml(W, ui);
@@ -65,7 +65,7 @@ function act(a: string, d = 0) {
   else if (k === 'sel') { ui.sel = rest; ui.tab = 'look'; }
   else if (k === 'write') { ui.draft = { ...draft(), dg: +arg }; ui.tab = 'asks'; ui.modal = 'write'; }
   else if (k === 'close') { ui.modal = undefined; ui.read = undefined; }
-  else if (k === 'shelf') ui.shelf = arg as Shelf;
+  else if (k === 'shelf') { ui.shelf = arg as Shelf; if (arg === 'pnl') ui.tutPnl = true; }
   else if (k === 'read') ui.read = +arg;
   else if (k === 'unread') ui.read = undefined;
   else if (k === 'seen') ui.docSeen = +arg + 1;

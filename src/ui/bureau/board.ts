@@ -11,7 +11,7 @@ export type Shelf = 'cl' | 'pnl' | 'out' | 'in';
 // sel: 지도에서 고른 것('dg:0' · 'fac:big', 비우면 관할 요약). draft: 쓰고 있는 서류(받는 쪽 · 미궁 · 기간 · 조항과 값)
 export interface Draft { to: To; dg: number; days: number; cl: Clauses }
 // modal: 서류 쓰기 창이 열려 있나. docSeen: 받은 서류 창으로 읽은 보고 자리 · askSeen: 창으로 본 마지막 청
-export interface BuUi { tab: Tab; invite: FacId[]; give: Record<number, number>; intro: boolean; seenNews: number; sel?: string; draft?: Draft; modal?: 'write'; docSeen?: number; askSeen?: number; shelf?: Shelf; read?: number }
+export interface BuUi { tab: Tab; invite: FacId[]; give: Record<number, number>; intro: boolean; seenNews: number; sel?: string; draft?: Draft; modal?: 'write'; docSeen?: number; askSeen?: number; shelf?: Shelf; read?: number; tutPnl?: boolean }
 export const DRAFT0: Draft = { to: 'all', dg: 0, days: 20, cl: { sub: 10 } };
 
 export const n0 = (v: number) => Math.round(v).toLocaleString('ko-KR');
@@ -32,7 +32,8 @@ export function dayFlow(W: World) {
   return { fee, sub, net: fee - sub };
 }
 
-export function topHtml(W: World) {
+export function topHtml(W: World, ui?: BuUi) {
+  const wait = ui && tutOf(W, ui) === 'wait';
   const f = dayFlow(W), month = Math.floor(W.day / B.MONTH) + 1, toGrant = B.MONTH - (W.day % B.MONTH);
   const grant = B.GRANT + W.standing * B.GRANT_K;
   return `<div class="t-day"><b class="num">${Math.min(W.day + 1, B.DAYS)}</b><span>일 / ${B.DAYS} · ${month}달째</span></div>
@@ -40,7 +41,7 @@ export function topHtml(W: World) {
   <div class="t-cell"><span>입지</span><b class="num">${n1(W.standing)}</b><i class="gauge"><i style="width:${W.standing}%"></i></i></div>
   ${W.order && !W.order.done ? `<div class="t-cell t-order"><span>폐광 인계</span><b class="num">${W.order.got} / ${W.order.need}일</b><small class="num">${n1(teamsIn(W.dungeons[W.order.dg]))} / ${W.order.min}조 · 중앙 ${patWord(W.order.pat)}</small></div>`
     : `<div class="t-cell"><span>중앙 배정</span><b class="num">${n0(grant)}G</b><small>${toGrant}일 뒤</small></div>`}
-  <div class="t-btns"><button type="button" class="go" data-act="next" ${W.day >= B.DAYS ? 'disabled' : ''}>다음 날 <kbd>N</kbd></button><button type="button" data-act="ff" ${W.day >= B.DAYS ? 'disabled' : ''}>닷새</button></div>`;
+  <div class="t-btns"><button type="button" class="go${wait ? ' pulse' : ''}" data-act="next" ${W.day >= B.DAYS ? 'disabled' : ''}>다음 날 <kbd>N</kbd></button><button type="button" data-act="ff" ${W.day >= B.DAYS ? 'disabled' : ''}>닷새</button></div>`;
 }
 
 export function dungeonHtml(W: World, i: number) {
@@ -63,7 +64,7 @@ export function pnlHtml(W: World, on = -1) {
   const months = Math.ceil(Math.max(0, n - 1) / B.MONTH), from = Math.max(0, months - 6);
   const mAvg = (i: number, m: number) => { const a = W.pnl[i].slice(1 + m * B.MONTH, 1 + (m + 1) * B.MONTH); return a.reduce((x, y) => x + y, 0) / a.length; };
   const ms = Array.from({ length: months - from }, (_, k) => from + k);
-  return `<table class="pnl"><caption>미궁 손익 자료 <small>조당 하루 · 길드 장부 어림 · 보조금 빼고</small></caption>
+  return `<table class="pnl"><caption>미궁 손익 자료 <small>조당 하루 · 보조금 빼고</small></caption>
     <thead><tr><th></th><th>영주청 이관</th>${ms.map(m => `<th>${m + 1}월</th>`).join('')}<th>최근 7일</th><th>든 조</th></tr></thead>
     <tbody>${W.dungeons.map((d, i) => `<tr class="${i === on ? 'on' : ''}"><td>${d.name}</td><td>${sg(W.pnl[i][0])}</td>${ms.map(m => `<td>${sg(mAvg(i, m))}</td>`).join('')}<td>${n > 1 ? sg(pnlAvg(W, i, 7)) : '—'}</td><td class="num">${n1(teamsIn(d))}</td></tr>`).join('')}</tbody></table>`;
 }
@@ -149,13 +150,32 @@ function clausesHtml(W: World) {
   ${CLAUSES.filter(c => !clauseLock(W, c.id)).map(card).join('')}`;
 }
 
+// 첫 사건의 업무 안내: 서기가 한 줄로 다음 할 일을 가리킨다. 날짜가 아니라 상태로 넘어가고, 고르는 단추는 없다.
+// 요구서를 받음 → 기록실의 영주청 장부 보기 → 서류 쓰기 → 날 넘기며 지켜보기 → 조가 들기 시작함. 요구서가 끝나면 사라진다
+export type Tut = 'lib' | 'write' | 'wait' | 'see' | '';
+export function tutOf(W: World, ui: BuUi): Tut {
+  if (!W.order || W.order.done || ui.intro) return '';
+  const k = W.reports.findIndex(r => r.from === '중앙 행정원');
+  if (k < 0 || (ui.docSeen ?? 0) <= k) return '';
+  if (!ui.tutPnl) return 'lib';
+  if (!W.docN) return 'write';
+  return teamsIn(W.dungeons[W.order.dg]) < 1 ? 'wait' : 'see';
+}
+const TUT: Record<Exclude<Tut, ''>, string> = {
+  lib: '영주청에서 넘어온 길드 출입 장부 사본이 기록실에 와 있습니다. 길드가 폐광을 꺼리는 까닭이 거기 적혀 있을 겁니다. <b>기록</b> 탭의 <b>손익 자료</b>입니다.',
+  write: '길드에 명령은 못 하니 서류로 청해야지요. <b>서류</b> 탭에서 길드 전체에 폐광 공고문을 씁니다. 다른 미궁과 견주어 얼마를 얹을지, 얼마나 오래 걸지 정하시면 됩니다.',
+  wait: '공고는 신문에 실려 퍼집니다. 중소 연합 회관까지 하루, 붉은 깃발단 본부까지 이틀. <b>다음 날</b>을 넘기며 지도에서 길드가 움직이는지 보시지요.',
+  see: '폐광으로 가는 길드의 발길이 지도에 보입니다. 위 띠의 <b>폐광 인계</b> 칸이 하루 몇 조가 들었는지 셉니다. 모자라면 공고문을 고쳐 내걸 수 있습니다.',
+};
+export const tutHtml = (W: World, ui: BuUi) => { const t = tutOf(W, ui); return t ? `<aside class="tut"><b>서기</b><p>${TUT[t]}</p></aside>` : ''; };
+
 // 기록 탭: 도서관. 가진 조항 · 미궁 손익 자료 · 낸 서류의 기록 · 받은 서류 철. 서류를 쓸 때 참고할 것은 여기서 찾는다
 const OUT_RE = /^(공고문:|요청서:|공고 철회|공고 기한 끝|요청서 거둠|요청서 기한 끝)/;
 function libHtml(W: World, ui: BuUi) {
   const sh = ui.shelf ?? 'cl';
-  const b = (id: Shelf, name: string) => `<button type="button" class="opt ${sh === id ? 'on' : ''}" data-act="shelf:${id}" aria-pressed="${sh === id}">${name}</button>`;
+  const b = (id: Shelf, name: string) => `<button type="button" class="opt ${sh === id ? 'on' : ''}${id === 'pnl' && tutOf(W, ui) === 'lib' && sh !== 'pnl' ? ' pulse' : ''}" data-act="shelf:${id}" aria-pressed="${sh === id}">${name}</button>`;
   const nav = `<div class="opts shelf">${b('cl', '조항')}${b('pnl', '손익 자료')}${b('out', '낸 서류')}${b('in', '받은 서류')}</div>`;
-  if (sh === 'pnl') return nav + `<p class="note">미궁마다 조 하나가 하루 남기는 값의 어림. 길드 장부에서 옮겨 적고, 첫 칸은 영주청에서 넘겨받은 기록이다.</p><div class="pnl-wrap">${pnlHtml(W)}</div>`;
+  if (sh === 'pnl') return nav + `<p class="note">미궁마다 조 하나가 하루 남기는 값의 어림. 첫 칸은 영주청이 입장세를 걷으며 길드 장부에서 옮겨 적은 사본(관리국이 생기며 넘겨받음)이고, 그 뒤는 관리국 검문소가 드나든 조의 짐과 다친 사람을 보고 적는다.</p><div class="pnl-wrap">${pnlHtml(W)}</div>`;
   if (sh === 'out') {
     const rs = W.reports.filter(x => x.from === '관리국' && OUT_RE.test(x.title)).reverse();
     return nav + (rs.length ? `<ul class="news">${rs.map(x => `<li><small>${dateOf(x.day)}</small><b>${x.title}</b>${x.chips.map(c => `<span class="chip">${c}</span>`).join('')}</li>`).join('')}</ul>` : '<p class="empty">낸 서류 없음</p>');
@@ -224,15 +244,19 @@ export function pactLine(W: World) {
 const openAsks = (W: World) => W.asks.filter(a => a.got == null);
 export function tabsHtml(W: World, ui: BuUi) {
   const news = W.reports.length - ui.seenNews, asks = openAsks(W).length;
-  const t = (id: Tab, name: string, badge = 0) => `<button type="button" role="tab" data-act="tab:${id}" aria-selected="${ui.tab === id}">${name}${badge ? ` <span class="badge">${badge}</span>` : ''}</button>`;
+  const tut = tutOf(W, ui), pulse = (id: Tab) => (tut === 'lib' && id === 'lib' && ui.tab !== 'lib') || (tut === 'write' && id === 'asks' && ui.tab !== 'asks');
+  const t = (id: Tab, name: string, badge = 0) => `<button type="button" role="tab" class="${pulse(id) ? 'pulse' : ''}" data-act="tab:${id}" aria-selected="${ui.tab === id}">${name}${badge ? ` <span class="badge">${badge}</span>` : ''}</button>`;
   return t('look', '살펴보기') + t('asks', '서류', asks) + t('lib', '기록') + t('meet', '회의') + t('office', '집무실', ui.tab === 'office' ? 0 : news + W.pts);
 }
 
 export function paneHtml(W: World, ui: BuUi) {
+  return tutHtml(W, ui) + paneBody(W, ui);
+}
+function paneBody(W: World, ui: BuUi) {
   if (ui.tab === 'look') return lookHtml(W, ui);
   if (ui.tab === 'asks') {
     const asks = openAsks(W), done = W.asks.filter(a => a.got != null).slice(-4).reverse();
-    return `<button type="button" class="go wide" data-act="write:${(ui.draft ?? DRAFT0).dg}">서류 쓰기 <small class="num">낸 서류 ${docsOut(W)} / ${W.clerks}</small></button>` + postedHtml(W) + `<h4>받은 청 · 독촉</h4>` + (asks.length ? asks.map(a => {
+    return `<button type="button" class="go wide${tutOf(W, ui) === 'write' ? ' pulse' : ''}" data-act="write:${(ui.draft ?? DRAFT0).dg}">서류 쓰기 <small class="num">낸 서류 ${docsOut(W)} / ${W.clerks}</small></button>` + postedHtml(W) + `<h4>받은 청 · 독촉</h4>` + (asks.length ? asks.map(a => {
       const v = ui.give[a.id] ?? a.want;
       return `<article class="ask ${a.kind}">
         <header><b>${nameOf(W, a.from)}</b><span class="tag ${a.kind === 'dun' ? 'warn' : ''}">${a.kind === 'dun' ? '독촉' : '청'}</span><small>${a.due - W.day}일 안에</small></header>
