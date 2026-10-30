@@ -1,10 +1,11 @@
 // 미궁관리국 배경 엔진 0단계: 인과 루프 두 쌍이 폭주하거나 멈추지 않는지, 국장의 손이 판을 바꾸는지
 import { describe, expect, it } from 'vitest';
-import { B, GUILDS, answer, clauseOn, hireClerk, subAt, letterScore, meet, newWorld, over, pactK, pnlGuild, pnlSum, wayDayG, devStage, post, recall, relOf, run, send, step, teamsIn, withdraw, worstPair, wayOf, hqOf } from '../src/bureau/engine';
+import { B, BUREAU_AT, HAVEL_AT, LORD_AT, ROADS, devRoadOf, GUILDS, answer, clauseOn, hireClerk, subAt, letterScore, meet, newWorld, over, pactK, pnlGuild, pnlSum, wayDayG, devStage, post, recall, relOf, run, send, step, teamsIn, withdraw, worstPair, wayOf, hqOf } from '../src/bureau/engine';
 import { BOT, playGame } from '../sim/bureau';
 import { EDGES, LINKS, LOOPS, NODES, checkLoops } from '../src/bureau/loops';
 import { type BuUi, docModalHtml, endHtml, introHtml, paneHtml, tabsHtml, topHtml, tutOf, writeHtml } from '../src/ui/bureau/board';
 import { mapHtml } from '../src/ui/bureau/map';
+import { groundAt, isRoad, walkCost } from '../src/bureau/tiles';
 import { canAdd, dropClause, toLock } from '../src/bureau/clauses';
 import { getSeed, setSeed } from '../src/core/rng';
 
@@ -422,13 +423,13 @@ describe('길드 일곱: 큰 길드 둘 · 작은 길드 다섯, 본부에서 �
     expect(new Set(sig).size).toBe(GUILDS.length);
   });
 
-  it('오가는 날 · 공고가 닿는 날은 지도 위 거리로 셈한다: 본부를 옮기면 바뀐다', () => {
+  it('오가는 날 · 공고가 닿는 날은 지도(타일) 위를 걷는 값으로 셈한다: 본부를 옮기면 바뀐다', () => {
     const at = B.GUILD.wolf.at;
     try {
       const W = W5();
       B.GUILD.wolf.at = [...W.dungeons[2].at];
       expect(wayOf(W, 'wolf', 2)).toBe(1);
-      B.GUILD.wolf.at = [910, 80];
+      B.GUILD.wolf.at = [38, 2];
       expect(wayOf(W, 'wolf', 0)).toBeGreaterThanOrEqual(3);
       expect(hqOf('wolf')).toBeGreaterThanOrEqual(3);
     } finally { B.GUILD.wolf.at = at; }
@@ -480,6 +481,33 @@ describe('외진 폐광과 발전도 (R2 발길)', () => {
     expect(W.reports.some(r => r.title.includes('지부 개설') && r.from === W.guilds[br].name)).toBe(true);
     // 다른 미궁은 외지지 않아 발전도가 쌓이지 않는다
     expect(W.dungeons[1].dev).toBe(0);
+  });
+
+  it('관할 지도는 타일이다: 본부 · 미궁은 물이 아닌 칸에 서고, 처음 길은 폐광에 닿지 않는다. 1단계에 관리국에서 새 길이 놓인다', () => {
+    for (const g of GUILDS) expect(groundAt(...B.GUILD[g].at), g).not.toBe('~');
+    for (const at of [BUREAU_AT, LORD_AT, HAVEL_AT, ...newWorld(1).dungeons.map(d => d.at)]) expect(groundAt(...at)).not.toBe('~');
+    const pit = newWorld(1).dungeons[0].at;
+    expect(isRoad(ROADS, ...pit)).toBe(false);
+    expect(isRoad(ROADS, ...BUREAU_AT)).toBe(true);
+    const r = devRoadOf(0);
+    expect(r.length).toBeGreaterThan(0);
+    expect(r.at(-1)).toEqual(pit);
+    for (const [x, y] of r) expect(isRoad(ROADS, x, y)).toBe(false);
+    // 길은 들보다 싸다: 같은 두 칸이라도 길을 타면 덜 든다
+    expect(walkCost(ROADS, BUREAU_AT, LORD_AT)).toBeLessThan(walkCost(new Set(), BUREAU_AT, LORD_AT));
+  });
+
+  it('지도에 발전도가 보인다: 0단계엔 새 길이 없고, 2단계엔 마을과 지부 깃발', () => {
+    const W = newWorld(5), ui: BuUi = { tab: 'look', invite: [], give: {}, intro: false, seenNews: 0 };
+    expect(mapHtml(W, ui)).not.toContain('class="dev"');
+    post(W, 0, 30, { sub: 20 });
+    for (let t = 0; t < 120 && devStage(W.dungeons[0]) < 2; t++) step(W);
+    const h = mapHtml(W, ui);
+    expect(h).toContain('class="dev"');
+    expect(h).toContain('길목 여관');
+    expect(h).toContain(`town f-${W.dungeons[0].branch}`);
+    // 미궁에 든 길드는 길 위에 말이 있다
+    expect(h).toContain('class="pawn');
   });
 
   it('보조금을 거둔 뒤에도 마을이 선 폐광엔 발길이 이어진다: 보조금 없이 둔 판보다 훨씬 많다', () => {

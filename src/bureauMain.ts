@@ -2,15 +2,16 @@
 // 판을 이 브라우저에 저장한다(`lb-bureau`). 엔진은 src/bureau/engine.ts
 import './ui/bureau/bureau.css';
 import { getSeed, setSeed } from './core/rng';
-import { type FacId, type World, answer, hireClerk, meet, newWorld, over, post, recall, run, send, step, withdraw } from './bureau/engine';
+import { BUREAU_AT, type FacId, type World, answer, hireClerk, meet, newWorld, over, post, recall, run, send, step, withdraw } from './bureau/engine';
 import { BOT } from './bureau/bots';
 import { CLAUSE, type ClauseId, FORM_OF, type To, addClause, canAdd, dropClause } from './bureau/clauses';
-import { type BuUi, DRAFT0, type Shelf, type Tab, docModalHtml, reportDocHtml, endHtml, introHtml, paneHtml, tabsHtml, topHtml, writeHtml } from './ui/bureau/board';
-import { mapHtml } from './ui/bureau/map';
+import { type BuUi, DRAFT0, type Shelf, type Tab, docModalHtml, reportDocHtml, endHtml, introHtml, paneHtml, tabsHtml, topHtml, tutHtml, writeHtml } from './ui/bureau/board';
+import { T, mapHtml, terrainSvg } from './ui/bureau/map';
+import { type Pan, makePan } from './ui/bureau/pan';
 
 const $ = (id: string) => document.getElementById(id)!;
-const KEY = 'lb-bureau', VERSION = 12;
-let W: World, ui: BuUi, seed = 0;
+const KEY = 'lb-bureau', VERSION = 13;
+let W: World, ui: BuUi, seed = 0, pan: Pan | null = null;
 
 function save() { try { localStorage.setItem(KEY, JSON.stringify({ v: VERSION, seed, rng: getSeed(), W, ui })); } catch { /* 저장이 막혀도 판은 계속된다 */ } }
 function load() { try { const d = JSON.parse(localStorage.getItem(KEY) || 'null'); return d && d.v === VERSION ? d : null; } catch { return null; } }
@@ -18,15 +19,28 @@ function load() { try { const d = JSON.parse(localStorage.getItem(KEY) || 'null'
 function fresh() {
   seed = (Date.now() ^ 0x5bd1e995) >>> 0;
   W = newWorld(seed);
-  ui = { tab: 'look', sel: 'dg:0', invite: [], give: {}, intro: true, seenNews: W.reports.length, docSeen: 0, askSeen: 0 };
+  ui = { tab: 'look', open: false, sel: 'dg:0', invite: [], give: {}, intro: true, seenNews: W.reports.length, docSeen: 0, askSeen: 0 };
 }
 
 function draw() {
   $('top').innerHTML = topHtml(W, ui);
-  $('board').innerHTML = mapHtml(W, ui);
-  if (ui.tab === 'office') ui.seenNews = W.reports.length;
+  // 땅은 한 번만 깔고(끌기 · 확대는 viewBox로), 날마다 바뀌는 표식만 다시 그린다
+  if (!pan) {
+    $('board').innerHTML = `<svg class="map-svg" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="관할 지도"><g class="terrain">${terrainSvg()}</g><g id="marks"></g></svg>`;
+    pan = makePan($('board'), $('board').querySelector('svg')!, [((BUREAU_AT[0] + W.dungeons[0].at[0]) / 2 + 0.5) * T, ((BUREAU_AT[1] + W.dungeons[0].at[1]) / 2 + 0.5) * T]);
+    pan.home();
+  }
+  $('marks').innerHTML = mapHtml(W, ui);
+  if (ui.open && ui.tab === 'office') ui.seenNews = W.reports.length;
   $('tabs').innerHTML = tabsHtml(W, ui);
-  $('pane').innerHTML = paneHtml(W, ui);
+  const sheet = $('sheet');
+  sheet.hidden = !ui.open; sheet.dataset.tab = ui.tab;
+  $('pane').innerHTML = ui.open ? paneHtml(W, ui) : '';
+  $('tut').innerHTML = tutHtml(W, ui);
+  // 뜬 띠 · 단추 줄의 높이에 맞춰 시트 · 확대 단추 자리를 잡는다
+  const room = document.querySelector('.room') as HTMLElement;
+  room.style.setProperty('--top-h', `${$('top').offsetHeight}px`);
+  room.style.setProperty('--dock-h', `${$('tabs').offsetHeight}px`);
   const ov = $('over');
   if (ui.intro) { ov.innerHTML = introHtml(); ov.hidden = false; }
   else if (over(W)) {
@@ -63,9 +77,11 @@ function act(a: string, d = 0) {
   else if (k === 'new') fresh();
   // 새로 시작: 지금 판을 지우므로 한 번 묻는다
   else if (k === 'reset') { if (!confirm('지금 판을 지우고 새 임기를 시작할까요?')) return; fresh(); }
-  else if (k === 'tab') ui.tab = arg as Tab;
-  else if (k === 'sel') { ui.sel = rest; ui.tab = 'look'; }
-  else if (k === 'write') { ui.draft = { ...draft(), dg: +arg }; ui.tab = 'asks'; ui.modal = 'write'; }
+  // 단추 줄: 닫힌 시트를 열고, 열린 탭을 다시 누르면 닫는다
+  else if (k === 'tab') { if (ui.open && ui.tab === arg) ui.open = false; else { ui.tab = arg as Tab; ui.open = true; } }
+  else if (k === 'shut') ui.open = false;
+  else if (k === 'sel') { ui.sel = rest; ui.tab = 'look'; ui.open = true; }
+  else if (k === 'write') { ui.draft = { ...draft(), dg: +arg }; ui.tab = 'asks'; ui.open = true; ui.modal = 'write'; }
   else if (k === 'close') { ui.modal = undefined; ui.read = undefined; }
   else if (k === 'shelf') { ui.shelf = arg as Shelf; if (arg === 'pnl') ui.tutPnl = true; }
   else if (k === 'read') ui.read = +arg;
@@ -98,7 +114,7 @@ function act(a: string, d = 0) {
   else if (k === 'give') { const ask = W.asks.find(x => x.id === +arg); if (ask) ui.give[ask.id] = clamp((ui.give[ask.id] ?? ask.want) + d * 10, 0, ask.want); }
   else if (k === 'answer' || k === 'refuse') { const ask = W.asks.find(x => x.id === +arg); if (ask) { answer(W, ask.id, k === 'refuse' ? 0 : ui.give[ask.id] ?? ask.want); delete ui.give[ask.id]; ui.askSeen = Math.max(ui.askSeen ?? 0, ask.id); } }
   else if (k === 'inv') { const f = arg as FacId; ui.invite = ui.invite.includes(f) ? ui.invite.filter(x => x !== f) : [...ui.invite, f]; }
-  else if (k === 'meet') { meet(W, ui.invite); ui.tab = 'office'; }
+  else if (k === 'meet') { meet(W, ui.invite); ui.tab = 'office'; ui.open = true; }
   else return;
   save(); draw();
 }
@@ -121,6 +137,9 @@ document.addEventListener('change', e => {
   if (s.tagName === 'SELECT' && s.dataset.act && s.value) act(`${s.dataset.act}:${s.value}`);
 });
 document.addEventListener('click', e => {
+  // 지도 확대 단추: 판 상태와 상관없다
+  const z = (e.target as Element).closest('[data-zoom]') as HTMLElement | null;
+  if (z && pan) { +z.dataset.zoom! ? pan.zoom(+z.dataset.zoom!) : pan.home(); return; }
   const b = (e.target as Element).closest('[data-act]') as HTMLElement | null;
   if (!b || b.tagName === 'SELECT' || b.dataset.d || (b as HTMLButtonElement).disabled) return;
   act(b.dataset.act!);
@@ -132,6 +151,7 @@ document.addEventListener('keydown', e => {
   const m = (e.target as Element).closest?.('svg [data-act]') as SVGElement | null;
   if (m && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); act(m.dataset.act!); return; }
   if (e.key === 'Escape' && (ui.modal || ui.read != null)) { act('close'); return; }
+  if (e.key === 'Escape' && ui.open) { act('shut'); return; }
   // 창이 떠 있는 동안은 날을 넘기지 않는다
   if ((e.key === 'n' || e.key === 'N') && !e.metaKey && !e.ctrlKey && $('over').hidden && !over(W)) nextDays(1);
 });

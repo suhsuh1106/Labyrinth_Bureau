@@ -11,14 +11,15 @@
 </head>
 <body>
 <div class="room">
+  <div class="board" id="board" aria-label="관할 지도"></div>
   <header class="top" id="top" aria-label="오늘"></header>
-  <main class="main">
-    <div class="board" id="board"></div>
-    <aside class="side">
-      <nav class="tabs" id="tabs" role="tablist" aria-label="국장의 손"></nav>
-      <div class="pane" id="pane" role="tabpanel"></div>
-    </aside>
-  </main>
+  <div class="zoom" id="zoom"><button type="button" data-zoom="1" aria-label="확대">+</button><button type="button" data-zoom="-1" aria-label="축소">−</button><button type="button" data-zoom="0" aria-label="관리국으로">◎</button></div>
+  <div class="tut-float" id="tut"></div>
+  <aside class="sheet" id="sheet" hidden>
+    <div class="sheet-head"><span class="grip" aria-hidden="true"></span><button type="button" class="x" data-act="shut" aria-label="닫기">✕</button></div>
+    <div class="pane" id="pane" role="tabpanel"></div>
+  </aside>
+  <nav class="dock" id="tabs" role="tablist" aria-label="국장의 손"></nav>
   <div class="over" id="over" hidden></div>
 </div>
 <script type="module" src="/src/bureauMain.ts"></script>

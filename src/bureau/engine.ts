@@ -14,6 +14,7 @@
 // 숫자는 모두 자리표시: `npm run sim:bureau`로 돌려 보고 정한다. 설계는 docs/bureau.md.
 import { rnd, setSeed } from '../core/rng';
 import { CLAUSE, type Clauses, type ClauseId, CLAUSE_MAX, fits } from './clauses';
+import { type At, isRoad, layRoad, walkCost } from './tiles';
 
 export const B = {
   DAYS: 360, MONTH: 30,
@@ -23,7 +24,7 @@ export const B = {
   FEAR: 20, FEAR_FADE: 0.85,              // 사고가 남기는 꺼림(R1): 죽은 조 하나당, 하루에 남는 몫
   MOVE: 0.25,                             // 조가 하루에 바라는 자리로 옮겨 가는 몫
   SUB_LURE: 2, WANT_K: 1.4,               // 보조금 G당 끌림 · 끌림 1당 바라는 조
-  WAY_PX: 200, NEWS_PX: 150,             // 관할 지도에서 하루 걸음(미궁까지) · 신문이 하루에 퍼지는 거리(관리국에서 본부까지)
+  WAY_T: 9.5, NEWS_T: 5.5,                // 관할 지도(타일)에서 하루 걸음(미궁까지) · 신문이 하루에 퍼지는 걸음(관리국에서 본부까지). 들 한 칸이 1, 길은 tiles.ts의 ROAD
   WAY_K: 3, WAY_BASE: 2,                  // 오가는 하루가 깎는 끌림(멀면 같은 보조금으로도 덜 온다) · 현장 수익에 얹어 둔 이틀 몫(오가는 날이 이틀이면 끌림이 그대로)
   WITHDRAW_FAV: 3, WITHDRAW_LEFT: 30,     // 공고를 기한 전에 내리면 길드마다 잃는 호감 (남은 기한이 이 날 수만큼이면 곱절)
   // 공고문의 기한이 길드의 믿음이다: 길면 믿고 오고, 짧으면 망설인다. 공고문 보조금의 끌림 = 값 × 믿음(기한으로, 길드마다 GUILD[g].trust) × 돈 반응
@@ -86,26 +87,26 @@ export interface GuildDef {
 }
 const GUILD_DEF: Record<GuildId, GuildDef> = {
   // 큰 길드 둘
-  red: { at: [300, 236], name: '붉은 깃발단', big: true, size: 15, money: 1000, sale: 1.15, upkeep: 0.75, start: 5, fav: 50,
+  red: { at: [6, 8], name: '붉은 깃발단', big: true, size: 15, money: 1000, sale: 1.15, upkeep: 0.75, start: 5, fav: 50,
     cash: 0.4, safe: 1, info: 15, right: 1, trust: { base: -0.2, per: 1 / 30, lo: 0.1, hi: 1.2 },
     trait: '상단 계약으로 버는 큰 길드. 긴 공고에만 몸을 움직이고, 장부를 내보이기 싫어한다', seal: '赤旗', sign: '붉은 깃발단 단장' },
-  shield: { at: [606, 112], name: '은빛 방패단', big: true, size: 11, money: 750, sale: 1, upkeep: 0.85, start: 3.5, fav: 52,
+  shield: { at: [22, 2], name: '은빛 방패단', big: true, size: 11, money: 750, sale: 1, upkeep: 0.85, start: 3.5, fav: 52,
     cash: 0.3, safe: 2, info: -5, right: 2, trust: { base: 0.1, per: 1 / 40, lo: 0.3, hi: 1.1 },
     trait: '기사단 출신. 돈보다 명분과 체면을 본다. 관청 기록에 이름이 오르는 것은 반기고, 자리에서 빠지면 오래 서운해한다', seal: '銀盾', sign: '은빛 방패단 기사장' },
   // 작은 길드 다섯
-  wolf: { at: [500, 384], name: '잿빛 늑대단', big: false, size: 3, money: 50, sale: 1, upkeep: 1, start: 1, fav: 50,
+  wolf: { at: [16, 18], name: '잿빛 늑대단', big: false, size: 3, money: 50, sale: 1, upkeep: 1, start: 1, fav: 50,
     cash: 1.1, safe: 0.4, info: 5, right: 0, trust: { base: 0.8, per: 1 / 60, lo: 0.8, hi: 1.2 },
     trait: '돈이 되면 간다. 짧은 공고에도 덥석 들고, 위험엔 둔하다', seal: '灰狼', sign: '잿빛 늑대단 두목' },
-  lamp: { at: [318, 352], name: '등불회', big: false, size: 3, money: 90, sale: 1, upkeep: 1, start: 1, fav: 58,
+  lamp: { at: [6, 16], name: '등불회', big: false, size: 3, money: 90, sale: 1, upkeep: 1, start: 1, fav: 58,
     cash: 0.6, safe: 5, info: 3, right: 0.5, trust: { base: 0.5, per: 1 / 50, lo: 0.5, hi: 1.2 },
     trait: '미궁에서 다친 이들이 세운 길드. 위로금에 크게 움직이고, 사람을 잃은 곳은 오래 꺼린다', seal: '燈', sign: '등불회 회장' },
-  river: { at: [860, 372], name: '강나루 조합', big: false, size: 3, money: 120, sale: 1.1, upkeep: 1, start: 1, fav: 48,
+  river: { at: [37, 17], name: '강나루 조합', big: false, size: 3, money: 120, sale: 1.1, upkeep: 1, start: 1, fav: 48,
     cash: 0.8, safe: 2, info: 20, right: 0.5, trust: { base: 0.6, per: 1 / 60, lo: 0.6, hi: 1.2 },
     trait: '지도와 소문을 파는 장사꾼들. 소재 값을 잘 받고, 출입 기록을 내는 것을 가장 싫어한다', seal: '津', sign: '강나루 조합 행수' },
-  dawn: { at: [848, 112], name: '새벽 순례단', big: false, size: 2, money: 80, sale: 1, upkeep: 0.9, start: 0.7, fav: 60,
+  dawn: { at: [34, 4], name: '새벽 순례단', big: false, size: 2, money: 80, sale: 1, upkeep: 0.9, start: 0.7, fav: 60,
     cash: 0.5, safe: 3, info: 0, right: 1.5, trust: { base: 0.3, per: 1 / 40, lo: 0.4, hi: 1.2 },
     trait: '교회와 가까운 순례자들. 명분을 보고, 큰 길드를 앞세우는 조항을 싫어한다', seal: '曉', sign: '새벽 순례단 인도자' },
-  drift: { at: [262, 452], name: '떠돌이 칼', big: false, size: 3, money: 30, sale: 1, upkeep: 0.85, start: 1, fav: 45,
+  drift: { at: [4, 21], name: '떠돌이 칼', big: false, size: 3, money: 30, sale: 1, upkeep: 0.85, start: 1, fav: 45,
     cash: 1, safe: 1, info: 10, right: 0, trust: { base: 0.7, per: 0, lo: 0.7, hi: 0.7 },
     trait: '변두리를 떠도는 용병들. 어디서든 멀어 소식이 늦게 닿고, 공고 기한은 따지지 않는다', seal: '刀', sign: '떠돌이 칼 우두머리' },
 };
@@ -186,23 +187,38 @@ export type Opts = { noCheck?: boolean; noFear?: boolean };
 const DUNGEONS: Omit<Dungeon, 'teams' | 'fear' | 'floods' | 'dead' | 'sub' | 'dangerAt' | 'dev' | 'gdev' | 'branch'>[] = [
   // 폐광은 산줄기 깊숙이 외져 늦게 드러났다. 벌이는 좋지만 길이 없어 곁에 길드가 없었고, 아무도 돌보지 않다 막 넘쳤다.
   // 왕국군이 주둔해 위험 수위 언저리에 붙들고 있고, 물러나면 다시 오른다
-  { id: 'pit', name: '폐광', lord: '로이드 백작령', dist: 1, at: [466, 186], rise: 1.25, yld: 14, cap: 12, level: 75, wild: 2 },
-  { id: 'wood', name: '검은숲 미궁', lord: '하벨 자작령', dist: 2, at: [700, 140], rise: 1.0, yld: 9, cap: 10, level: 45, wild: 0 },
-  { id: 'sunk', name: '수몰 갱도', lord: '로이드 백작령', dist: 2, at: [800, 262], rise: 1.5, yld: 12, cap: 10, level: 55, wild: 0 },
+  { id: 'pit', name: '폐광', lord: '로이드 백작령', dist: 1, at: [14, 7], rise: 1.25, yld: 14, cap: 12, level: 75, wild: 2 },
+  { id: 'wood', name: '검은숲 미궁', lord: '하벨 자작령', dist: 2, at: [28, 4], rise: 1.0, yld: 9, cap: 10, level: 45, wild: 0 },
+  { id: 'sunk', name: '수몰 갱도', lord: '로이드 백작령', dist: 2, at: [35, 11], rise: 1.5, yld: 12, cap: 10, level: 55, wild: 0 },
 ];
 
-// 관할 지도 위 관리국 자리 (viewBox 1000 × 567)
-export const BUREAU_AT: [number, number] = [588, 345];
-const far = (a: [number, number], b: [number, number]) => Math.hypot(a[0] - b[0], a[1] - b[1]);
-// 길드 g의 본부에서 미궁 i까지 오가는 날 · 관리국에서 길드 g의 본부까지 공고가 닿는 날: 지도 위 거리로 셈한다.
+// 관할 지도(tiles.ts) 위 관리국 · 두 영주 성 자리
+export const BUREAU_AT: At = [21, 16];
+export const LORD_AT: At = [10, 21], HAVEL_AT: At = [33, 6];
+// 처음부터 있는 길: 관리국에서 사방으로, 영주 성과 길드 본부를 잇는다. 폐광에는 길이 없다(발전도 1단계에 관리국에서 놓인다: devRoadOf)
+const LINKS: [string, string][] = [['bureau', 'lord'], ['bureau', 'wolf'], ['bureau', 'shield'], ['bureau', 'river'], ['bureau', 'sunk'], ['sunk', 'havel'], ['havel', 'dawn'], ['havel', 'wood'], ['shield', 'wood'], ['lord', 'lamp'], ['lamp', 'red'], ['lord', 'drift']];
+export const ROADS = new Set<number>();
+{
+  const P: Record<string, At> = { bureau: BUREAU_AT, lord: LORD_AT, havel: HAVEL_AT, ...Object.fromEntries(DUNGEONS.map(d => [d.id, d.at])), ...Object.fromEntries(Object.entries(GUILD_DEF).map(([g, t]) => [g, t.at])) };
+  for (const [a, b] of LINKS) layRoad(ROADS, P[a], P[b]);
+}
+// 발전도 1단계에 놓이는 길(관리국에서 그 미궁까지, 있는 길을 타고)과 길목의 여관 자리. 그리기용
+const devRoads = new Map<number, At[]>();
+export function devRoadOf(i: number) {
+  if (!devRoads.has(i)) { const r = new Set(ROADS), p = layRoad(r, BUREAU_AT, DUNGEONS[i].at); devRoads.set(i, p.filter(([x, y]) => !isRoad(ROADS, x, y))); }
+  return devRoads.get(i)!;
+}
+const walk = new Map<string, number>();
+const far = (a: At, b: At) => { const k = a.join() + '|' + b.join(); if (!walk.has(k)) walk.set(k, walkCost(ROADS, a, b)); return walk.get(k)!; };
+// 길드 g의 본부에서 미궁 i까지 오가는 날 · 관리국에서 길드 g의 본부까지 공고가 닿는 날: 지도 위를 걷는 값으로 셈한다.
 // 외진 미궁은 길이 없어 wild일 더 들고, 발전도 단계마다 하루씩 준다. 지부를 낸 길드는 하루 길
 export const devStage = (d: Dungeon) => B.DEV.filter(t => d.dev >= t).length;
 export const wildOf = (d: Dungeon) => Math.max(0, d.wild - devStage(d));
 export const wayOf = (W: World, g: GuildId, i: number) => {
   const d = W.dungeons[i];
-  return d.branch === g ? 1 : Math.max(1, Math.ceil(far(B.GUILD[g].at, d.at) / B.WAY_PX)) + wildOf(d);
+  return d.branch === g ? 1 : Math.max(1, Math.ceil(far(B.GUILD[g].at, d.at) / B.WAY_T)) + wildOf(d);
 };
-export const hqOf = (g: GuildId) => Math.max(1, Math.ceil(far(B.GUILD[g].at, BUREAU_AT) / B.NEWS_PX));
+export const hqOf = (g: GuildId) => Math.max(1, Math.ceil(far(B.GUILD[g].at, BUREAU_AT) / B.NEWS_T));
 
 export function newWorld(seed: number, o: Opts = {}): World {
   setSeed(seed);

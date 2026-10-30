@@ -1,5 +1,5 @@
 // 미궁관리국 게임판: HTML 문자열을 만든다. 상태에 아무것도 쓰지 않고 난수도 쓰지 않는다(그리기만).
-// 위 띠(날 · 예산 · 입지 · 다음 날) · 왼쪽 관할 지도(map.ts) · 오른쪽 탭(살펴보기 · 요청서 · 조항 · 회의 · 보고)
+// 화면 전체가 관할 지도(map.ts, 타일)이고 그 위에 뜬다: 위 띠(날 · 예산 · 입지 · 다음 날) · 아래 단추 줄(살펴보기 · 서류 · 기록 · 회의 · 집무실) · 단추로 여는 시트 · 테사의 한마디
 import { lookHtml } from './map';
 import { askLetter, dateOf, docOf, floodNews, govHtml, introNews, letterHtml, newsHtml } from './docs';
 import { B, type FacId, FACS, GUILDS, type GuildId, type Report, type World, pnlAvg, pnlSum, wayDayG, devStage, isGuildId, wayOf, hqOf, depOf, docsOut, escrowOf, trustOf, withdrawFav, facOf, levelOf, nameOf, pactK, relOf, seenLevel, subAt, teamsIn, willOf } from '../../bureau/engine';
@@ -10,8 +10,8 @@ export type Tab = 'look' | 'asks' | 'lib' | 'meet' | 'office';
 export type Shelf = 'cl' | 'pnl' | 'out' | 'in';
 // sel: 지도에서 고른 것('dg:0' · 'fac:red', 비우면 관할 요약). draft: 쓰고 있는 서류(받는 쪽 · 미궁 · 기간 · 조항과 값)
 export interface Draft { to: To; dg: number; days: number; cl: Clauses }
-// modal: 서류 쓰기 창이 열려 있나. docSeen: 받은 서류 창으로 읽은 보고 자리 · askSeen: 창으로 본 마지막 청
-export interface BuUi { tab: Tab; invite: FacId[]; give: Record<number, number>; intro: boolean; seenNews: number; sel?: string; draft?: Draft; modal?: 'write'; docSeen?: number; askSeen?: number; shelf?: Shelf; read?: number; tutPnl?: boolean }
+// open: 지도 위 시트가 열려 있나(탭 단추 · 지도 표식으로 연다). modal: 서류 쓰기 창이 열려 있나. docSeen: 받은 서류 창으로 읽은 보고 자리 · askSeen: 창으로 본 마지막 청
+export interface BuUi { tab: Tab; invite: FacId[]; give: Record<number, number>; intro: boolean; seenNews: number; open?: boolean; sel?: string; draft?: Draft; modal?: 'write'; docSeen?: number; askSeen?: number; shelf?: Shelf; read?: number; tutPnl?: boolean }
 export const DRAFT0: Draft = { to: 'all', dg: 0, days: 20, cl: { sub: 10 } };
 
 export const n0 = (v: number) => Math.round(v).toLocaleString('ko-KR');
@@ -185,7 +185,7 @@ export function tutOf(W: World, ui: BuUi): Tut {
 // 테사(집무실의 첫 서기, 부상으로 일찍 은퇴한 중소 길드 조장 출신): 해요체로 짧게, 현장 감각만. 숫자나 정답은 말하지 않는다
 const TUT: Record<Exclude<Tut, ''>, string> = {
   lib: '영주청 장부 사본이 <b>기록</b>실에 와 있어요. 폐광 벌이는 나쁘지 않아요. 길이 없어서 어느 본부에서든 오가는 데만 며칠이에요. <b>손익 자료</b> 보세요.',
-  write: '길드는 명령으론 안 움직여요. 남는 데로 가요. 폐광 공고문은 <b>서류</b> 탭에서 써요.',
+  write: '길드는 명령으론 안 움직여요. 남는 데로 가요. 폐광 공고문은 아래 <b>서류</b>에서 써요.',
   wait: '공고문은 본부가 가까운 길드부터 닿아요. 먼 데는 사흘 걸려요. <b>다음 날</b> 넘기며 지도 보세요.',
   see: `폐광 쪽으로 발길이 생겼어요. ${B.ORDER.need}일 이어져야 군이 넘겨줘요. 위 띠 <b>폐광 인계</b> 칸이에요.`,
   road: '사람이 다니면 길이 나요. 길이 닦이면 길드가 알아서 와요. 폐광 <b>발전도</b>는 지도에서 폐광을 눌러 보세요.',
@@ -274,13 +274,16 @@ export function relsTop(W: World, n = 4) {
 const openAsks = (W: World) => W.asks.filter(a => a.got == null);
 export function tabsHtml(W: World, ui: BuUi) {
   const news = W.reports.length - ui.seenNews, asks = openAsks(W).length;
-  const tut = tutOf(W, ui), pulse = (id: Tab) => (tut === 'lib' && id === 'lib' && ui.tab !== 'lib') || (tut === 'write' && id === 'asks' && ui.tab !== 'asks');
-  const t = (id: Tab, name: string, badge = 0) => `<button type="button" role="tab" class="${pulse(id) ? 'pulse' : ''}" data-act="tab:${id}" aria-selected="${ui.tab === id}">${name}${badge ? ` <span class="badge">${badge}</span>` : ''}</button>`;
-  return t('look', '살펴보기') + t('asks', '서류', asks) + t('lib', '기록') + t('meet', '회의') + t('office', '집무실', ui.tab === 'office' ? 0 : news + W.pts);
+  const shown = (id: Tab) => !!ui.open && ui.tab === id;
+  const tut = tutOf(W, ui), pulse = (id: Tab) => (tut === 'lib' && id === 'lib' && !shown('lib')) || (tut === 'write' && id === 'asks' && !shown('asks'));
+  // 지도 아래 단추 줄: 누르면 시트가 열리고, 열린 탭을 다시 누르면 닫힌다
+  const t = (id: Tab, name: string, badge = 0) => `<button type="button" role="tab" class="${pulse(id) ? 'pulse' : ''}" data-act="tab:${id}" aria-selected="${shown(id)}">${name}${badge ? ` <span class="badge">${badge}</span>` : ''}</button>`;
+  return t('look', '살펴보기') + t('asks', '서류', asks) + t('lib', '기록') + t('meet', '회의') + t('office', '집무실', shown('office') ? 0 : news + W.pts);
 }
 
+// 시트의 내용. 테사의 한마디(tutHtml)는 시트 밖, 지도 위에 따로 뜬다
 export function paneHtml(W: World, ui: BuUi) {
-  return tutHtml(W, ui) + paneBody(W, ui);
+  return paneBody(W, ui);
 }
 function paneBody(W: World, ui: BuUi) {
   if (ui.tab === 'look') return lookHtml(W, ui);
