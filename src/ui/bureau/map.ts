@@ -326,6 +326,9 @@ const ART = {
 };
 const GC = (g: string) => `var(--g-${g})`;
 // f: 오늘 안에서 흐른 몫(0 ~ 1). 화면이 날을 넘기지 않아도 조가 제 걸음 비율대로 조금씩 걷게 한다(판의 수치는 날마다 바뀐다)
+// 길의 칸 중심은 길마다 한 번만 셈한다(0.25초마다 부른다)
+const cMemo = new WeakMap<At[], [number, number][]>();
+const centersOf = (p: At[]) => { let c = cMemo.get(p); if (!c) cMemo.set(p, c = centers(p)); return c; };
 export function minisOf(W: World, f = 0): Mini[] {
   const out: Mini[] = [{ key: 'bureau', x: cx(BUREAU_AT), y: cy(BUREAU_AT) + 4, w: 46, h: 56, svg: ART.bureau(), title: '미궁관리국' }];
   for (const g of GUILDS) {
@@ -338,7 +341,7 @@ export function minisOf(W: World, f = 0): Mini[] {
     if (n < 0.3) return;
     const p = d.branch === g ? [d.at, d.at] as At[] : pathOf(B.GUILD[g].at, d.at);
     if (p.length < 2) return;
-    const way = wayOf(W, g, i), k = Math.max(1, Math.min(6, Math.round(n))), c = centers(p);
+    const way = wayOf(W, g, i), k = Math.max(1, Math.min(6, Math.round(n))), c = centersOf(p);
     for (let j = 0; j < k; j++) {
       const t = (j / k + (W.day + f) / (2 * way) + hash(i, gi)) % 1, there = t < 0.5, [x, y, a] = ptAt(c, there ? t * 2 : 2 - t * 2);
       const dx = Math.cos(a) * (there ? 1 : -1);

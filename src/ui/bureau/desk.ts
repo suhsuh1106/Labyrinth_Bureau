@@ -45,14 +45,15 @@ export function makeDesk(host: HTMLElement): Desk {
     set(m) { if (m === 'map' && D.mode !== 'map') { k = 1; ox = oy = 0; } D.mode = m; put(); D.stand(); },
     zoom(d) { if (D.mode !== 'map') return; const nk = Math.max(1, Math.min(3, k * (d > 0 ? 1.25 : 0.8))); ox *= nk / k; oy *= nk / k; k = nk; put(); },
     // 세운 것들: 책상 보기에선 평면이 누운 만큼 되돌려 세우고, 지도를 세우면 그대로
-    stand() { const a = D.mode === 'desk' ? TILT : 0; plane.querySelectorAll<HTMLElement>('.st').forEach(s => s.style.transform = `rotateX(${-a}deg)`); },
+    stand() { const a = D.mode === 'desk' ? TILT : 0, t = `rotateX(${-a}deg)`; plane.querySelectorAll<HTMLElement>('.st').forEach(s => { if (s.style.transform !== t) s.style.transform = t; }); },
     minis(list) {
+      let fresh = false;
       const had = new Map([...layer.children].map(e => [(e as HTMLElement).dataset.key!, e as HTMLElement]));
       for (const m of list) {
         let el = had.get(m.key);
         if (el) had.delete(m.key);
         else {
-          el = document.createElement('div'); el.className = m.walk ? 'mini walk' : 'mini'; el.dataset.key = m.key;
+          el = document.createElement('div'); el.className = m.walk ? 'mini mv walk' : 'mini mv'; el.dataset.key = m.key; fresh = true;
           el.innerHTML = `<div class="sh"></div><div class="st" style="left:${-m.w / 2}px;top:${-m.h}px;width:${m.w}px;height:${m.h}px"><svg width="${m.w}" height="${m.h}" viewBox="${-m.w / 2} ${-m.h} ${m.w} ${m.h}"></svg></div>`;
           layer.appendChild(el);
         }
@@ -61,11 +62,16 @@ export function makeDesk(host: HTMLElement): Desk {
         if (svg.getAttribute('width') !== String(m.w)) { svg.setAttribute('width', String(m.w)); svg.setAttribute('viewBox', `${-m.w / 2} ${-m.h} ${m.w} ${m.h}`); st.style.left = `${-m.w / 2}px`; st.style.width = `${m.w}px`; }
         // 그림이 바뀔 때만 (몸집이 커진 깃발 등) 다시 그린다
         if (svg.dataset.art !== m.svg) { svg.innerHTML = `<title>${m.title}</title>${m.svg}`; svg.dataset.art = m.svg; }
-        svg.style.transform = m.face === -1 ? 'scaleX(-1)' : '';
-        el.style.left = `${m.x.toFixed(1)}px`; el.style.top = `${m.y.toFixed(1)}px`; el.style.zIndex = String(Math.round(m.y));
+        const face = m.face === -1 ? 'scaleX(-1)' : '';
+        if (svg.style.transform !== face) svg.style.transform = face;
+        // 바뀐 것만 쓴다(같은 값을 다시 써도 스타일 계산이 돈다)
+        const tr = `translate3d(${m.x.toFixed(1)}px, ${m.y.toFixed(1)}px, 0)`, z = String(Math.round(m.y));
+        if (el.style.transform !== tr) el.style.transform = tr;
+        if (el.style.zIndex !== z) el.style.zIndex = z;
       }
       for (const el of had.values()) el.remove();
-      D.stand();
+      // 새로 생긴 것만 세운다
+      if (fresh) D.stand();
     },
   };
   // 세운 지도는 끌어서 옮기고 휠로 확대한다. 끈 뒤의 누름은 표식을 고르지 않는다

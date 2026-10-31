@@ -30,6 +30,7 @@ function draw() {
   $('marks').innerHTML = mapHtml(W, ui);
   $('props').innerHTML = deskHtml(W, ui);
   desk.minis(minisOf(W, flow()));
+  desk.stand();
   if (ui.open && ui.tab === 'office') ui.seenNews = W.reports.length;
   const sheet = $('sheet');
   sheet.hidden = !ui.open; sheet.dataset.tab = ui.tab;
