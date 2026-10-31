@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { B, FACS, pairOf, BUREAU_AT, HAVEL_AT, LOYD_AT, ROADS, devRoadOf, GUILDS, answer, clauseOn, hireClerk, subAt, letterScore, meet, newWorld, over, pactK, pnlGuild, pnlSum, wayDayG, devStage, post, recall, relOf, run, send, step, teamsIn, withdraw, worstPair, wayOf, hqOf } from '../src/bureau/engine';
 import { BOT, playGame } from '../sim/bureau';
 import { EDGES, LINKS, LOOPS, NODES, checkLoops } from '../src/bureau/loops';
-import { type BuUi, asksFloatHtml, docModalHtml, setHtml, endHtml, introHtml, paneHtml, tabsHtml, topHtml, tutOf, writeHtml } from '../src/ui/bureau/board';
-import { mapHtml } from '../src/ui/bureau/map';
+import { type BuUi, asksFloatHtml, docModalHtml, setHtml, endHtml, introHtml, paneHtml, deskHtml, topHtml, tutOf, writeHtml } from '../src/ui/bureau/board';
+import { mapHtml, minisOf } from '../src/ui/bureau/map';
 import { groundAt, isRoad, walkCost } from '../src/bureau/tiles';
 import { canAdd, dropClause, toLock } from '../src/bureau/clauses';
 import { getSeed, setSeed } from '../src/core/rng';
@@ -385,7 +385,7 @@ describe('첫 사건의 업무 안내', () => {
     expect(tutOf(W, ui)).toBe('');                               // 요구서를 아직 받지 않음
     ui.docSeen = W.reports.length;
     expect(tutOf(W, ui)).toBe('lib');
-    expect(tabsHtml(W, ui)).toContain('class="pulse" data-act="tab:lib"');
+    expect(deskHtml(W, ui)).toContain('class="obj pulse" data-act="tab:lib"');
     ui.tutPnl = true;
     expect(tutOf(W, ui)).toBe('write');
     post(W, 0, 30, { sub: 15 });
@@ -526,8 +526,8 @@ describe('외진 폐광과 발전도 (R2 발길)', () => {
     expect(h).toContain('class="dev"');
     expect(h).toContain('길목 여관');
     expect(h).toContain(`town f-${W.dungeons[0].branch}`);
-    // 미궁에 든 길드는 길 위에 말이 있다
-    expect(h).toContain('class="pawn');
+    // 미궁에 든 길드는 길 위에 말(미니어처)이 있다
+    expect(minisOf(W).some(m => m.key.startsWith('t-0-'))).toBe(true);
   });
 
   it('보조금을 거둔 뒤에도 마을이 선 폐광엔 발길이 이어진다: 보조금 없이 둔 판보다 훨씬 많다', () => {
