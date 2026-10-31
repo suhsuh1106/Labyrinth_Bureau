@@ -47,11 +47,13 @@ export function makeDesk(host: HTMLElement): Desk {
         let el = had.get(m.key);
         if (el) had.delete(m.key);
         else {
-          el = document.createElement('div'); el.className = 'mini'; el.dataset.key = m.key;
+          el = document.createElement('div'); el.className = m.walk ? 'mini walk' : 'mini'; el.dataset.key = m.key;
           el.innerHTML = `<div class="sh"></div><div class="st" style="left:${-m.w / 2}px;top:${-m.h}px;width:${m.w}px;height:${m.h}px"><svg width="${m.w}" height="${m.h}" viewBox="${-m.w / 2} ${-m.h} ${m.w} ${m.h}"></svg></div>`;
           layer.appendChild(el);
         }
-        const svg = el.querySelector('svg')!;
+        const svg = el.querySelector('svg')!, st = el.querySelector('.st') as HTMLElement;
+        // 몸집이 바뀌는 것(수레 ↔ 사람)은 자리 틀도 고친다
+        if (svg.getAttribute('width') !== String(m.w)) { svg.setAttribute('width', String(m.w)); svg.setAttribute('viewBox', `${-m.w / 2} ${-m.h} ${m.w} ${m.h}`); st.style.left = `${-m.w / 2}px`; st.style.width = `${m.w}px`; }
         // 그림이 바뀔 때만 (몸집이 커진 깃발 등) 다시 그린다
         if (svg.dataset.art !== m.svg) { svg.innerHTML = `<title>${m.title}</title>${m.svg}`; svg.dataset.art = m.svg; }
         svg.style.transform = m.face === -1 ? 'scaleX(-1)' : '';

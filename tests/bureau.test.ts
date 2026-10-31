@@ -426,7 +426,7 @@ describe('미궁 손익 자료', () => {
     // 서류 쓰기 창엔 참고 자료를 두지 않고, 기록 탭의 서가에서 찾는다
     expect(writeHtml(W, ui)).not.toContain('미궁 손익 자료');
     expect(paneHtml(W, ui)).toContain('미궁 손익 자료');
-    expect(paneHtml(W, ui)).toContain('징세청 이관');
+    expect(paneHtml(W, ui)).toContain('징세청 장부');
     // 낸 서류 기록 · 받은 서류 철 (다시 보기)
     post(W, 0, 20, { sub: 10 });
     expect(paneHtml(W, { ...ui, shelf: 'out' })).toContain('공고문: 폐광');

@@ -5,7 +5,7 @@
 // 그리기만 하고 상태에 쓰지 않는다.
 import { B, BUREAU_AT, HAVEL_AT, LOYD_AT, ROADS, devRoadOf, devStage, type Dungeon, type FacId, FACS, GUILDS, type World, wayOf, nameOf, pactK, relOf, seenLevel, subAt, teamsIn, worstPair } from '../../bureau/engine';
 import { type At, MAP_H, MAP_W, groundAt, isRoad, walkPath } from '../../bureau/tiles';
-import { type BuUi, dungeonHtml, facHtml, guildsHtml, levelCls, levelWord, n0, n1, pactLine, relRow, relWord, relsTop } from './board';
+import { type BuUi, dungeonHtml, facHtml, levelCls, levelWord, n0, n1, pactLine, relRow, relWord, relsTop } from './board';
 
 // 칸 하나 = T (viewBox 단위). 지도 전체는 MAP_W·T × MAP_H·T
 export const T = 32;
@@ -311,19 +311,22 @@ export function mapHtml(W: World, ui: BuUi) {
 
 // ── 지도 위에 선 미니어처: 길드 조(본부 ↔ 미궁 길 위, 날마다 걸음을 옮긴다) · 본부 천막과 깃발 · 관리국 청사 ─────────────
 // 자리(지도 단위)와 그림만 내고, 세우는 일(각도 · 옮겨 가는 연출)은 책상 장면(desk.ts)이 한다. key가 같으면 같은 말이다
-export interface Mini { key: string; x: number; y: number; w: number; h: number; svg: string; face?: -1 | 1; title: string }
+export interface Mini { key: string; x: number; y: number; w: number; h: number; svg: string; face?: -1 | 1; title: string; walk?: boolean }
 const dark = (c: string) => `color-mix(in srgb, ${c} 70%, #000)`, light = (c: string) => `color-mix(in srgb, ${c} 55%, #fff)`;
 const BASE = (r: number) => `<ellipse cx="0" cy="0" rx="${r}" ry="${f1(r * 0.32)}" fill="#2a2420"/><path d="M${-r},0 v-3 a${r},${f1(r * 0.32)} 0 0 1 ${2 * r},0 v3 a${r},${f1(r * 0.32)} 0 0 1 ${-2 * r},0" fill="#4a4038"/><ellipse cx="0" cy="-3" rx="${r}" ry="${f1(r * 0.32)}" fill="#6d7a4a"/>`;
 const ART = {
   // 조: 망토 두른 모험가 둘, 하나는 길드 깃대
-  team: (c: string) => `${BASE(12)}<path d="M-9,-4 q-1,-12 3,-20 q3,-3 6,0 q4,8 2,20 z" fill="${dark(c)}" stroke="#1d1712" stroke-width="0.8"/><circle cx="-3" cy="-27" r="3.6" fill="#e2b98f" stroke="#1d1712" stroke-width="0.7"/><path d="M-7,-27 q4,-7 8,0 q-4,-2 -8,0" fill="${dark(c)}"/><path d="M1,-4 q0,-14 3,-19 q3,-3 6,0 q3,6 1,19 z" fill="#7b6c5a" stroke="#1d1712" stroke-width="0.8"/><circle cx="6.5" cy="-26" r="3.4" fill="#d9ad84" stroke="#1d1712" stroke-width="0.7"/><path d="M3,-26 q3,-6 7,0 z" fill="#8a8a8a" stroke="#1d1712" stroke-width="0.5"/><path d="M-10,-6 V-44" stroke="#3a2a1a" stroke-width="1.4"/><path d="M-10,-44 h13 l-3,4 l3,4 h-13 z" fill="${c}" stroke="#1d1712" stroke-width="0.7"/><path d="M-10,-44 h13" stroke="${light(c)}" stroke-width="1"/><path d="M11,-12 l4,-14" stroke="#9aa0a6" stroke-width="1.2"/>`,
+  team: (c: string, load = false) => `${BASE(12)}<path d="M-9,-4 q-1,-12 3,-20 q3,-3 6,0 q4,8 2,20 z" fill="${dark(c)}" stroke="#1d1712" stroke-width="0.8"/><circle cx="-3" cy="-27" r="3.6" fill="#e2b98f" stroke="#1d1712" stroke-width="0.7"/><path d="M-7,-27 q4,-7 8,0 q-4,-2 -8,0" fill="${dark(c)}"/><path d="M1,-4 q0,-14 3,-19 q3,-3 6,0 q3,6 1,19 z" fill="#7b6c5a" stroke="#1d1712" stroke-width="0.8"/><circle cx="6.5" cy="-26" r="3.4" fill="#d9ad84" stroke="#1d1712" stroke-width="0.7"/><path d="M3,-26 q3,-6 7,0 z" fill="#8a8a8a" stroke="#1d1712" stroke-width="0.5"/><path d="M-10,-6 V-44" stroke="#3a2a1a" stroke-width="1.4"/><path d="M-10,-44 h13 l-3,4 l3,4 h-13 z" fill="${c}" stroke="#1d1712" stroke-width="0.7"/><path d="M-10,-44 h13" stroke="${light(c)}" stroke-width="1"/><path d="M11,-12 l4,-14" stroke="#9aa0a6" stroke-width="1.2"/>${load ? `<path d="M5,-22 q7,-3 9,4 q1,7 -5,8 q-6,0 -4,-12 z" fill="#b0915e" stroke="#1d1712" stroke-width="0.7"/><path d="M7,-20 l5,9" stroke="#6d5432" stroke-width="0.6"/>` : ''}`,
+  // 짐수레: 돌아오는 길에 짐을 실은 수레와 노새
+  cart: (c: string) => `${BASE(16)}<path d="M-16,-9 h20 v-9 h-20 z" fill="#8a6a3e" stroke="#1d1712" stroke-width="0.8"/><path d="M-15,-18 q5,-7 9,-1 q4,-6 9,1 z" fill="#c9b07a" stroke="#1d1712" stroke-width="0.7"/><circle cx="-10" cy="-5" r="4.5" fill="none" stroke="#1d1712" stroke-width="1.2"/><circle cx="-1" cy="-5" r="4.5" fill="none" stroke="#1d1712" stroke-width="1.2"/><path d="M4,-12 h6" stroke="#3a2a1a" stroke-width="1.2"/><path d="M9,-7 l1,-8 q1,-4 6,-4 l3,-4 l1,4 q1,3 -2,4 l0,8 M11,-7 v-1 M17,-7 v-1" fill="#7a6656" stroke="#1d1712" stroke-width="0.8"/><path d="M-16,-18 v-6 h3 l2,2 h-5" fill="${c}" stroke="#1d1712" stroke-width="0.5"/>`,
   // 본부: 천막과 큰 깃발, 몸집만큼 크다
   hq: (c: string, k: number) => `${BASE(16)}<path d="M-13,-3 L-3,-22 L7,-3 z" fill="#d8cdb0" stroke="#1d1712" stroke-width="0.8"/><path d="M-3,-22 L-3,-3" stroke="#1d1712" stroke-width="0.6"/><path d="M-5,-3 l2,-7 l2,7" fill="#3a2a1a"/><path d="M10,-3 V${f1(-30 - k * 14)}" stroke="#3a2a1a" stroke-width="1.8"/><path d="M10,${f1(-30 - k * 14)} h${f1(16 + k * 6)} q-3,${f1(5 + k)} 0,${f1(10 + k * 2)} h${f1(-16 - k * 6)} z" fill="${c}" stroke="#1d1712" stroke-width="0.8"/><path d="M10,${f1(-30 - k * 14)} h${f1(16 + k * 6)}" stroke="${light(c)}" stroke-width="1.2"/><circle cx="10" cy="${f1(-31 - k * 14)}" r="1.8" fill="#c9a64a"/>`,
   // 관리국: 작은 청사 모형
   bureau: () => `${BASE(20)}<rect x="-15" y="-22" width="30" height="19" fill="#d9d2c2" stroke="#1d1712" stroke-width="0.9"/><path d="M-18,-22 L0,-34 L18,-22 z" fill="#6c2b23" stroke="#1d1712" stroke-width="0.9"/><rect x="-3" y="-44" width="6" height="12" fill="#d9d2c2" stroke="#1d1712" stroke-width="0.8"/><path d="M-4,-44 L0,-50 L4,-44 z" fill="#6c2b23" stroke="#1d1712" stroke-width="0.7"/>${[-11, -5, 5, 11].map(x => `<rect x="${x - 1.5}" y="-17" width="3" height="5" fill="#3b3a44"/>`).join('')}<rect x="-2.5" y="-11" width="5" height="8" fill="#4a3220"/>`,
 };
 const GC = (g: string) => `var(--g-${g})`;
-export function minisOf(W: World): Mini[] {
+// f: 오늘 안에서 흐른 몫(0 ~ 1). 화면이 날을 넘기지 않아도 조가 제 걸음 비율대로 조금씩 걷게 한다(판의 수치는 날마다 바뀐다)
+export function minisOf(W: World, f = 0): Mini[] {
   const out: Mini[] = [{ key: 'bureau', x: cx(BUREAU_AT), y: cy(BUREAU_AT) + 4, w: 46, h: 56, svg: ART.bureau(), title: '미궁관리국' }];
   for (const g of GUILDS) {
     const k = Math.min(1.4, W.guilds[g].size / 10);
@@ -337,9 +340,11 @@ export function minisOf(W: World): Mini[] {
     if (p.length < 2) return;
     const way = wayOf(W, g, i), k = Math.max(1, Math.min(6, Math.round(n))), c = centers(p);
     for (let j = 0; j < k; j++) {
-      const t = (j / k + W.day / (2 * way) + hash(i, gi)) % 1, there = t < 0.5, [x, y, a] = ptAt(c, there ? t * 2 : 2 - t * 2);
+      const t = (j / k + (W.day + f) / (2 * way) + hash(i, gi)) % 1, there = t < 0.5, [x, y, a] = ptAt(c, there ? t * 2 : 2 - t * 2);
       const dx = Math.cos(a) * (there ? 1 : -1);
-      out.push({ key: `t-${i}-${g}-${j}`, x, y: y + 3, w: 34, h: 50, svg: ART.team(GC(g)), face: dx < 0 ? -1 : 1, title: `${nameOf(W, g)} 조 → ${d.name}${there ? '' : ' (돌아오는 길)'}` });
+      // 돌아오는 조는 짐을 지고, 셋 이상 든 길드는 그중 하나가 짐수레를 끈다
+      const cart = !there && k >= 3 && j === 0;
+      out.push({ key: `t-${i}-${g}-${j}`, x, y: y + 3, w: cart ? 44 : 34, h: 50, svg: cart ? ART.cart(GC(g)) : ART.team(GC(g), !there), face: dx < 0 ? -1 : 1, walk: true, title: `${nameOf(W, g)} 조 → ${d.name}${there ? '' : ' (돌아오는 길 · 짐)'}` });
     }
   }));
   return out;
@@ -357,6 +362,6 @@ export function lookHtml(W: World, ui: BuUi) {
   }
   return `<p class="note">지도에서 미궁이나 깃발을 누르면 자세히 본다.</p>
   <div class="sum">${W.dungeons.map((d, i) => { const lv = seenLevel(W, i); return `<button type="button" class="sum-row ${levelCls(lv)}" data-act="sel:dg:${i}"><b>${d.name}</b><span class="num">${n0(lv)}</span><span class="tag">${levelWord(lv)}</span><small class="num">${n1(teamsIn(d))}조 · 보조금 ${subAt(W, i)}G</small></button>`; }).join('')}</div>
-  ${guildsHtml(W)}
+  <button type="button" class="link" data-act="read:-1">관할 길드 현황 (기록실 보고)</button>
   <section class="rels"><h2>세력 사이 <small>나쁜 짝부터</small></h2>${relsTop(W)}${pactLine(W)}</section>`;
 }

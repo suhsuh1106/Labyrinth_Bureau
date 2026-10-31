@@ -28,7 +28,7 @@ function draw() {
   if (!desk) { $('map').querySelector('.terrain')!.innerHTML = terrainSvg(W); desk = makeDesk($('desk')); }
   $('marks').innerHTML = mapHtml(W, ui);
   $('props').innerHTML = deskHtml(W, ui);
-  desk.minis(minisOf(W));
+  desk.minis(minisOf(W, flow()));
   if (ui.open && ui.tab === 'office') ui.seenNews = W.reports.length;
   const sheet = $('sheet');
   sheet.hidden = !ui.open; sheet.dataset.tab = ui.tab;
@@ -53,7 +53,15 @@ function draw() {
 }
 
 // 하루 넘기기. 닷새는 새 요청서 · 새 보고가 오면 멈춘다
+// 날 사이의 걸음: 날을 넘기지 않아도 조가 제 걸음 비율대로 조금씩 걸어 다음 날 자리에 다가간다(그날 몫의 92%까지, 점점 느리게).
+// 화면만 움직이고 판의 수치는 날마다 바뀐다
+let dayAt = performance.now();
+const STILL = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const flow = () => STILL ? 0 : 0.92 * (1 - Math.exp(-(performance.now() - dayAt) / 30000));
+setInterval(() => { if (desk && !document.hidden && !ui.intro && !over(W)) desk.minis(minisOf(W, flow())); }, 250);
+
 function nextDays(n: number) {
+  dayAt = performance.now();
   const asks = W.asks.filter(a => a.got == null).length, news = W.reports.length;
   for (let k = 0; k < n && !over(W); k++) {
     step(W);
