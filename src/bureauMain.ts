@@ -5,12 +5,13 @@ import { getSeed, setSeed } from './core/rng';
 import { type FacId, type World, answer, hireClerk, meet, newWorld, over, post, recall, run, send, step, withdraw } from './bureau/engine';
 import { BOT } from './bureau/bots';
 import { CLAUSE, type ClauseId, FORM_OF, type To, addClause, canAdd, dropClause } from './bureau/clauses';
-import { type BuUi, DRAFT0, type Shelf, type Tab, docModalHtml, reportDocHtml, endHtml, introHtml, paneHtml, tabsHtml, topHtml, writeHtml } from './ui/bureau/board';
-import { mapHtml } from './ui/bureau/map';
+import { type BuUi, DRAFT0, type Shelf, type Tab, asksFloatHtml, deskHtml, docModalHtml, setHtml, reportDocHtml, endHtml, introHtml, paneHtml, topHtml, tutHtml, writeHtml } from './ui/bureau/board';
+import { mapHtml, minisOf, terrainSvg } from './ui/bureau/map';
+import { type Desk, makeDesk } from './ui/bureau/desk';
 
 const $ = (id: string) => document.getElementById(id)!;
-const KEY = 'lb-bureau', VERSION = 12;
-let W: World, ui: BuUi, seed = 0;
+const KEY = 'lb-bureau', VERSION = 14;
+let W: World, ui: BuUi, seed = 0, desk: Desk | null = null;
 
 function save() { try { localStorage.setItem(KEY, JSON.stringify({ v: VERSION, seed, rng: getSeed(), W, ui })); } catch { /* 저장이 막혀도 판은 계속된다 */ } }
 function load() { try { const d = JSON.parse(localStorage.getItem(KEY) || 'null'); return d && d.v === VERSION ? d : null; } catch { return null; } }
@@ -18,15 +19,22 @@ function load() { try { const d = JSON.parse(localStorage.getItem(KEY) || 'null'
 function fresh() {
   seed = (Date.now() ^ 0x5bd1e995) >>> 0;
   W = newWorld(seed);
-  ui = { tab: 'look', sel: 'dg:0', invite: [], give: {}, intro: true, seenNews: W.reports.length, docSeen: 0, askSeen: 0 };
+  ui = { tab: 'look', open: false, sel: 'dg:0', invite: [], give: {}, intro: true, seenNews: W.reports.length, docSeen: 0, askSeen: 0 };
 }
 
 function draw() {
   $('top').innerHTML = topHtml(W, ui);
-  $('board').innerHTML = mapHtml(W, ui);
-  if (ui.tab === 'office') ui.seenNews = W.reports.length;
-  $('tabs').innerHTML = tabsHtml(W, ui);
-  $('pane').innerHTML = paneHtml(W, ui);
+  // 땅은 한 번만 깔고, 날마다 바뀌는 표식 · 미니어처 · 책상 위 물건만 다시 그린다
+  if (!desk) { $('map').querySelector('.terrain')!.innerHTML = terrainSvg(W); desk = makeDesk($('desk')); }
+  $('marks').innerHTML = mapHtml(W, ui);
+  $('props').innerHTML = deskHtml(W, ui);
+  desk.minis(minisOf(W));
+  if (ui.open && ui.tab === 'office') ui.seenNews = W.reports.length;
+  const sheet = $('sheet');
+  sheet.hidden = !ui.open; sheet.dataset.tab = ui.tab;
+  $('pane').innerHTML = ui.open ? paneHtml(W, ui) : '';
+  $('tut').innerHTML = tutHtml(W, ui);
+  $('asks').innerHTML = asksFloatHtml(W, ui);
   const ov = $('over');
   if (ui.intro) { ov.innerHTML = introHtml(); ov.hidden = false; }
   else if (over(W)) {
@@ -35,9 +43,10 @@ function draw() {
     setSeed(keep);
     ov.innerHTML = endHtml(W, idle, smart); ov.hidden = false;
   } else if (ui.read != null) { ov.innerHTML = reportDocHtml(W, ui.read, true); ov.hidden = false; }
+  else if (ui.modal === 'set') { ov.innerHTML = setHtml(W); ov.hidden = false; }
   else if (ui.modal === 'write') { ov.innerHTML = `<div class="card modal write-modal">${writeHtml(W, ui)}</div>`; ov.hidden = false; }
   else {
-    // 받은 서류는 한 장씩 새 창으로
+    // 받은 서류는 한 장씩 새 창으로(청 · 독촉은 오른쪽 위 쪽지를 눌러 펼친다)
     const doc = docModalHtml(W, ui);
     ov.innerHTML = doc; ov.hidden = !doc;
   }
@@ -63,10 +72,14 @@ function act(a: string, d = 0) {
   else if (k === 'new') fresh();
   // 새로 시작: 지금 판을 지우므로 한 번 묻는다
   else if (k === 'reset') { if (!confirm('지금 판을 지우고 새 임기를 시작할까요?')) return; fresh(); }
-  else if (k === 'tab') ui.tab = arg as Tab;
-  else if (k === 'sel') { ui.sel = rest; ui.tab = 'look'; }
-  else if (k === 'write') { ui.draft = { ...draft(), dg: +arg }; ui.tab = 'asks'; ui.modal = 'write'; }
-  else if (k === 'close') { ui.modal = undefined; ui.read = undefined; }
+  // 단추 줄: 닫힌 시트를 열고, 열린 탭을 다시 누르면 닫는다
+  else if (k === 'tab') { if (ui.open && ui.tab === arg) ui.open = false; else { ui.tab = arg as Tab; ui.open = true; } }
+  else if (k === 'shut') ui.open = false;
+  else if (k === 'sel') { ui.sel = rest; ui.tab = 'look'; ui.open = true; }
+  else if (k === 'write') { ui.draft = { ...draft(), dg: +arg }; ui.tab = 'asks'; ui.open = true; ui.modal = 'write'; }
+  else if (k === 'close') { ui.modal = undefined; ui.read = undefined; ui.ask = undefined; }
+  else if (k === 'set') ui.modal = 'set';
+  else if (k === 'ask') { ui.ask = +arg; ui.askSeen = Math.max(ui.askSeen ?? 0, +arg); }
   else if (k === 'shelf') { ui.shelf = arg as Shelf; if (arg === 'pnl') ui.tutPnl = true; }
   else if (k === 'read') ui.read = +arg;
   else if (k === 'unread') ui.read = undefined;
@@ -96,9 +109,9 @@ function act(a: string, d = 0) {
   else if (k === 'clerk') hireClerk(W);
   else if (k === 'withdraw') withdraw(W, +arg);
   else if (k === 'give') { const ask = W.asks.find(x => x.id === +arg); if (ask) ui.give[ask.id] = clamp((ui.give[ask.id] ?? ask.want) + d * 10, 0, ask.want); }
-  else if (k === 'answer' || k === 'refuse') { const ask = W.asks.find(x => x.id === +arg); if (ask) { answer(W, ask.id, k === 'refuse' ? 0 : ui.give[ask.id] ?? ask.want); delete ui.give[ask.id]; ui.askSeen = Math.max(ui.askSeen ?? 0, ask.id); } }
+  else if (k === 'answer' || k === 'refuse') { const ask = W.asks.find(x => x.id === +arg); if (ask) { answer(W, ask.id, k === 'refuse' ? 0 : ui.give[ask.id] ?? ask.want); delete ui.give[ask.id]; ui.askSeen = Math.max(ui.askSeen ?? 0, ask.id); ui.ask = undefined; } }
   else if (k === 'inv') { const f = arg as FacId; ui.invite = ui.invite.includes(f) ? ui.invite.filter(x => x !== f) : [...ui.invite, f]; }
-  else if (k === 'meet') { meet(W, ui.invite); ui.tab = 'office'; }
+  else if (k === 'meet') { meet(W, ui.invite); ui.tab = 'office'; ui.open = true; }
   else return;
   save(); draw();
 }
@@ -121,6 +134,11 @@ document.addEventListener('change', e => {
   if (s.tagName === 'SELECT' && s.dataset.act && s.value) act(`${s.dataset.act}:${s.value}`);
 });
 document.addEventListener('click', e => {
+  // 지도 확대 · 책상으로 단추: 판 상태와 상관없다
+  const z = (e.target as Element).closest('[data-zoom]') as HTMLElement | null;
+  if (z && desk) { +z.dataset.zoom! ? desk.zoom(+z.dataset.zoom!) : desk.set('desk'); return; }
+  // 책상 보기에서 지도를 누르면 지도를 세운다
+  if (desk && desk.mode === 'desk' && (e.target as Element).closest('#map')) desk.set('map');
   const b = (e.target as Element).closest('[data-act]') as HTMLElement | null;
   if (!b || b.tagName === 'SELECT' || b.dataset.d || (b as HTMLButtonElement).disabled) return;
   act(b.dataset.act!);
@@ -131,7 +149,9 @@ document.addEventListener('keydown', e => {
   // 지도 표식(svg)은 단추가 아니라서 Enter를 직접 받는다
   const m = (e.target as Element).closest?.('svg [data-act]') as SVGElement | null;
   if (m && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); act(m.dataset.act!); return; }
-  if (e.key === 'Escape' && (ui.modal || ui.read != null)) { act('close'); return; }
+  if (e.key === 'Escape' && (ui.modal || ui.read != null || ui.ask != null)) { act('close'); return; }
+  if (e.key === 'Escape' && ui.open) { act('shut'); return; }
+  if (e.key === 'Escape' && desk?.mode === 'map') { desk.set('desk'); return; }
   // 창이 떠 있는 동안은 날을 넘기지 않는다
   if ((e.key === 'n' || e.key === 'N') && !e.metaKey && !e.ctrlKey && $('over').hidden && !over(W)) nextDays(1);
 });

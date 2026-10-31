@@ -46,7 +46,7 @@ export const CLAUSES: Clause[] = [
     field: { unit: '장', min: 1, max: 4, step: 1, def: 2 },
     line: v => `기록을 낸 조에 보급 표 ${v}장을 준다.`,
     fx: '출입 기록에 걸린 조항. 기록이 장부의 값이 된다.' },
-  { id: 'first', name: '등록 길드 우선 출입', give: ['권리'], take: [], forms: ['notice'], needs: 'rec', lock: '영주청 법령이 있어야',
+  { id: 'first', name: '등록 길드 우선 출입', give: ['권리'], take: [], forms: ['notice'], needs: 'rec', lock: '중앙 법령이 있어야',
     line: () => '기록을 낸 길드가 먼저 들어간다.',
     fx: '떠돌이 · 신생 길드가 밀려난다. 큰 길드가 반긴다.' },
   { id: 'excl', name: '독점 출입', give: ['권리'], take: [], forms: ['letter'], lock: '개별 길드 서신이 열려야',
