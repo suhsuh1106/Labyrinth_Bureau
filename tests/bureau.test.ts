@@ -8,6 +8,7 @@ import { mapHtml, minisOf } from '../src/ui/bureau/map';
 import { groundAt, isRoad, walkCost } from '../src/bureau/tiles';
 import { canAdd, dropClause, toLock } from '../src/bureau/clauses';
 import { getSeed, setSeed } from '../src/core/rng';
+import { docOf } from '../src/ui/bureau/docs';
 
 const SEEDS = Array.from({ length: 30 }, (_, i) => 1000 + i);
 const avg = (bot: string, f: (W: ReturnType<typeof playGame>) => number, o = {}) =>
@@ -356,7 +357,7 @@ describe('국장의 서류 (조항 조합)', () => {
 describe('첫 화면과 받은 서류 창', () => {
   it('신문 한 면으로 시작하고, 업무를 시작하면 요구서가 창으로 온다. 청 · 독촉은 오른쪽 위 쪽지로 떠 있고 누르면 펼친다', () => {
     expect(introHtml()).toContain('업무 시작');
-    expect(introHtml()).toContain('미궁관리국 신설');
+    expect(introHtml()).toContain('미궁관리국 새로 둬');
     expect(introHtml()).toContain('왕 도 일 보');
     const W = newWorld(5);
     const ui: BuUi = { tab: 'look', invite: [], give: {}, intro: false, seenNews: 0, docSeen: 0, askSeen: 0 };
@@ -400,7 +401,10 @@ describe('첫 사건의 업무 안내', () => {
     expect(tutOf(W, ui)).toBe('town');
     W.dungeons[0].dev = B.DEV[1];
     expect(tutOf(W, ui)).toBe('');
-    expect(docModalHtml(newWorld(5), { ...ui, docSeen: 0 })).toContain('징세청 이관 기록');
+    expect(docModalHtml(newWorld(5), { ...ui, docSeen: 0 })).toContain('징세청 길드 출입 장부 사본');
+    // 서류 글은 세상 안의 말로만: 입지 같은 판의 수치를 적지 않는다
+    for (const title of ['폐광 인계 · 요구서 달성', '인내가 다함 · 왕국군 철수'])
+      expect(JSON.stringify(docOf({ day: 9, from: '중앙 행정원', title, chips: ['예산 +1000G', '입지 +10'] }))).not.toContain('입지');
   });
 });
 
