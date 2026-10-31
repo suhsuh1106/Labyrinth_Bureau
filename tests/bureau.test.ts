@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { B, FACS, pairOf, BUREAU_AT, HAVEL_AT, LOYD_AT, ROADS, devRoadOf, GUILDS, answer, clauseOn, hireClerk, subAt, letterScore, meet, newWorld, over, pactK, pnlGuild, pnlSum, wayDayG, devStage, post, recall, relOf, run, send, step, teamsIn, withdraw, worstPair, wayOf, hqOf } from '../src/bureau/engine';
 import { BOT, playGame } from '../sim/bureau';
 import { EDGES, LINKS, LOOPS, NODES, checkLoops } from '../src/bureau/loops';
-import { type BuUi, docModalHtml, endHtml, introHtml, paneHtml, tabsHtml, topHtml, tutOf, writeHtml } from '../src/ui/bureau/board';
+import { type BuUi, asksFloatHtml, docModalHtml, setHtml, endHtml, introHtml, paneHtml, tabsHtml, topHtml, tutOf, writeHtml } from '../src/ui/bureau/board';
 import { mapHtml } from '../src/ui/bureau/map';
 import { groundAt, isRoad, walkCost } from '../src/bureau/tiles';
 import { canAdd, dropClause, toLock } from '../src/bureau/clauses';
@@ -321,14 +321,18 @@ describe('국장의 서류 (조항 조합)', () => {
     expect(letterScore(W, { to: 'shield', cl: { rec: 1 } }).why).toContain('＋ 관청 기록');
   });
 
-  it('서류 탭: 열린 받는 쪽 · 조항만 드롭다운에, 받는 쪽마다 양식이 바뀐다', () => {
+  it('서류 쓰기: 열린 받는 쪽 · 조항만 단추와 서랍에, 받는 쪽마다 양식이 바뀐다', () => {
     const W = newWorld(7);
     const ui: BuUi = { tab: 'asks', invite: [], give: {}, intro: false, seenNews: 0, draft: { to: 'all', dg: 2, days: 30, cl: { sub: 25, rec: 1 } } };
     let h = writeHtml(W, ui);
     expect(h).toContain('공고문');
-    expect(h).toContain('<select data-act="wto"');
+    expect(h).toContain('data-act="wto:all" aria-pressed="true"');
+    expect(h).toContain('조항 서랍');
+    expect(h).toContain('data-act="wadd:comfort"');                 // 서랍에서 넣기
+    expect(h).not.toContain('data-act="wadd:sub"');                 // 넣은 조항은 '넣음'
+    expect(h).toContain('data-act="wdel:rec"');
     expect(h).toContain('미궁 출입 길드 전체');
-    expect(h).toContain('제2조 출입 기록 제출');
+    expect(h).toMatch(/제2조<\/b><div class="c-body"><p>들고 난 조의 인원/);
     expect(h).not.toContain('🔒');
     expect(h).not.toContain('붉은 깃발단 · 요청서');
     expect(h).not.toContain('상단');
@@ -350,7 +354,7 @@ describe('국장의 서류 (조항 조합)', () => {
 });
 
 describe('첫 화면과 받은 서류 창', () => {
-  it('신문 한 면으로 시작하고, 업무를 시작하면 요구서가 창으로 온다. 길드 답신 · 청도 한 장씩 창으로', () => {
+  it('신문 한 면으로 시작하고, 업무를 시작하면 요구서가 창으로 온다. 청 · 독촉은 오른쪽 위 쪽지로 떠 있고 누르면 펼친다', () => {
     expect(introHtml()).toContain('업무 시작');
     expect(introHtml()).toContain('미궁관리국 신설');
     expect(introHtml()).toContain('왕 도 일 보');
@@ -362,10 +366,15 @@ describe('첫 화면과 받은 서류 창', () => {
     const k = Number(/seen:(\d+)/.exec(h)![1]);
     expect(docModalHtml(W, { ...ui, docSeen: k + 1 })).toBe('');
     W.asks.push({ id: 1, day: 0, due: 5, from: 'wolf', kind: 'aid', want: 200, chips: [] });
-    h = docModalHtml(W, { ...ui, docSeen: k + 1 });
+    expect(docModalHtml(W, { ...ui, docSeen: k + 1 })).toBe('');          // 저절로 뜨지 않는다
+    expect(asksFloatHtml(W, { ...ui, docSeen: k + 1 })).toContain('data-act="ask:1"');
+    expect(asksFloatHtml(W, { ...ui, docSeen: k + 1 })).toContain('pulse');   // 아직 펼치지 않음
+    expect(asksFloatHtml(W, { ...ui, askSeen: 1 })).not.toContain('pulse');
+    h = docModalHtml(W, { ...ui, docSeen: k + 1, ask: 1 });
     expect(h).toContain('answer:1');
-    expect(h).toContain('later:1');
-    expect(docModalHtml(W, { ...ui, docSeen: k + 1, askSeen: 1 })).toBe('');
+    expect(h).toContain('refuse:1');
+    W.asks[0].got = 0;
+    expect(asksFloatHtml(W, ui)).toBe('');
   });
 });
 
@@ -569,7 +578,9 @@ describe('미궁관리국 게임판 (ui/bureau)', () => {
       }
     }
     expect(endHtml(W, W, W)).toContain('임기');
-    expect(topHtml(W)).toContain('data-act="reset"');      // 새로 시작 단추는 늘 위 띠에
+    expect(topHtml(W)).not.toContain('data-act="reset"');  // 새로 시작은 위 띠 구석의 설정 창에만
+    expect(topHtml(W)).toContain('data-act="set"');
+    expect(setHtml(W)).toContain('data-act="reset"');
   });
 
   it('저장한 판(JSON + 난수 자리)을 이어 하면 그대로 흘러간다', () => {

@@ -5,7 +5,7 @@ import { getSeed, setSeed } from './core/rng';
 import { BUREAU_AT, type FacId, type World, answer, hireClerk, meet, newWorld, over, post, recall, run, send, step, withdraw } from './bureau/engine';
 import { BOT } from './bureau/bots';
 import { CLAUSE, type ClauseId, FORM_OF, type To, addClause, canAdd, dropClause } from './bureau/clauses';
-import { type BuUi, DRAFT0, type Shelf, type Tab, docModalHtml, reportDocHtml, endHtml, introHtml, paneHtml, tabsHtml, topHtml, tutHtml, writeHtml } from './ui/bureau/board';
+import { type BuUi, DRAFT0, type Shelf, type Tab, asksFloatHtml, docModalHtml, setHtml, reportDocHtml, endHtml, introHtml, paneHtml, tabsHtml, topHtml, tutHtml, writeHtml } from './ui/bureau/board';
 import { T, mapHtml, terrainSvg } from './ui/bureau/map';
 import { type Pan, makePan } from './ui/bureau/pan';
 
@@ -37,6 +37,7 @@ function draw() {
   sheet.hidden = !ui.open; sheet.dataset.tab = ui.tab;
   $('pane').innerHTML = ui.open ? paneHtml(W, ui) : '';
   $('tut').innerHTML = tutHtml(W, ui);
+  $('asks').innerHTML = asksFloatHtml(W, ui);
   // 뜬 띠 · 단추 줄의 높이에 맞춰 시트 · 확대 단추 자리를 잡는다
   const room = document.querySelector('.room') as HTMLElement;
   room.style.setProperty('--top-h', `${$('top').offsetHeight}px`);
@@ -49,9 +50,10 @@ function draw() {
     setSeed(keep);
     ov.innerHTML = endHtml(W, idle, smart); ov.hidden = false;
   } else if (ui.read != null) { ov.innerHTML = reportDocHtml(W, ui.read, true); ov.hidden = false; }
+  else if (ui.modal === 'set') { ov.innerHTML = setHtml(W); ov.hidden = false; }
   else if (ui.modal === 'write') { ov.innerHTML = `<div class="card modal write-modal">${writeHtml(W, ui)}</div>`; ov.hidden = false; }
   else {
-    // 받은 서류는 한 장씩 새 창으로
+    // 받은 서류는 한 장씩 새 창으로(청 · 독촉은 오른쪽 위 쪽지를 눌러 펼친다)
     const doc = docModalHtml(W, ui);
     ov.innerHTML = doc; ov.hidden = !doc;
   }
@@ -82,7 +84,9 @@ function act(a: string, d = 0) {
   else if (k === 'shut') ui.open = false;
   else if (k === 'sel') { ui.sel = rest; ui.tab = 'look'; ui.open = true; }
   else if (k === 'write') { ui.draft = { ...draft(), dg: +arg }; ui.tab = 'asks'; ui.open = true; ui.modal = 'write'; }
-  else if (k === 'close') { ui.modal = undefined; ui.read = undefined; }
+  else if (k === 'close') { ui.modal = undefined; ui.read = undefined; ui.ask = undefined; }
+  else if (k === 'set') ui.modal = 'set';
+  else if (k === 'ask') { ui.ask = +arg; ui.askSeen = Math.max(ui.askSeen ?? 0, +arg); }
   else if (k === 'shelf') { ui.shelf = arg as Shelf; if (arg === 'pnl') ui.tutPnl = true; }
   else if (k === 'read') ui.read = +arg;
   else if (k === 'unread') ui.read = undefined;
@@ -112,7 +116,7 @@ function act(a: string, d = 0) {
   else if (k === 'clerk') hireClerk(W);
   else if (k === 'withdraw') withdraw(W, +arg);
   else if (k === 'give') { const ask = W.asks.find(x => x.id === +arg); if (ask) ui.give[ask.id] = clamp((ui.give[ask.id] ?? ask.want) + d * 10, 0, ask.want); }
-  else if (k === 'answer' || k === 'refuse') { const ask = W.asks.find(x => x.id === +arg); if (ask) { answer(W, ask.id, k === 'refuse' ? 0 : ui.give[ask.id] ?? ask.want); delete ui.give[ask.id]; ui.askSeen = Math.max(ui.askSeen ?? 0, ask.id); } }
+  else if (k === 'answer' || k === 'refuse') { const ask = W.asks.find(x => x.id === +arg); if (ask) { answer(W, ask.id, k === 'refuse' ? 0 : ui.give[ask.id] ?? ask.want); delete ui.give[ask.id]; ui.askSeen = Math.max(ui.askSeen ?? 0, ask.id); ui.ask = undefined; } }
   else if (k === 'inv') { const f = arg as FacId; ui.invite = ui.invite.includes(f) ? ui.invite.filter(x => x !== f) : [...ui.invite, f]; }
   else if (k === 'meet') { meet(W, ui.invite); ui.tab = 'office'; ui.open = true; }
   else return;
@@ -150,7 +154,7 @@ document.addEventListener('keydown', e => {
   // 지도 표식(svg)은 단추가 아니라서 Enter를 직접 받는다
   const m = (e.target as Element).closest?.('svg [data-act]') as SVGElement | null;
   if (m && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); act(m.dataset.act!); return; }
-  if (e.key === 'Escape' && (ui.modal || ui.read != null)) { act('close'); return; }
+  if (e.key === 'Escape' && (ui.modal || ui.read != null || ui.ask != null)) { act('close'); return; }
   if (e.key === 'Escape' && ui.open) { act('shut'); return; }
   // 창이 떠 있는 동안은 날을 넘기지 않는다
   if ((e.key === 'n' || e.key === 'N') && !e.metaKey && !e.ctrlKey && $('over').hidden && !over(W)) nextDays(1);
