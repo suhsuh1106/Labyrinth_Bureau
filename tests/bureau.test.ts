@@ -1,13 +1,14 @@
 // 미궁관리국 배경 엔진 0단계: 인과 루프 두 쌍이 폭주하거나 멈추지 않는지, 국장의 손이 판을 바꾸는지
 import { describe, expect, it } from 'vitest';
-import { B, FACS, pairOf, BUREAU_AT, HAVEL_AT, LOYD_AT, ROADS, devRoadOf, GUILDS, answer, clauseOn, hireClerk, subAt, letterScore, meet, newWorld, over, pactK, pnlGuild, pnlSum, wayDayG, devStage, post, recall, relOf, run, send, step, teamsIn, withdraw, worstPair, wayOf, hqOf } from '../src/bureau/engine';
+import { B, FACS, pairOf, BUREAU_AT, HAVEL_AT, LOYD_AT, ROADS, devRoadOf, GUILDS, answer, clauseOn, hireClerk, subAt, letterScore, meet, newWorld, over, pactK, pnlGuild, pnlSum, devStage, post, recall, relOf, run, send, step, teamsIn, withdraw, worstPair, wayOf, hqOf } from '../src/bureau/engine';
 import { BOT, playGame } from '../sim/bureau';
 import { EDGES, LINKS, LOOPS, NODES, checkLoops } from '../src/bureau/loops';
-import { type BuUi, asksFloatHtml, docModalHtml, setHtml, endHtml, introHtml, paneHtml, deskHtml, topHtml, tutOf, writeHtml } from '../src/ui/bureau/board';
+import { type BuUi, asksFloatHtml, docModalHtml, setHtml, endHtml, introHtml, paneHtml, deskHtml, topHtml, tutOf, tessaReportHtml, writeHtml } from '../src/ui/bureau/board';
 import { mapHtml, minisOf } from '../src/ui/bureau/map';
 import { groundAt, isRoad, walkCost } from '../src/bureau/tiles';
 import { canAdd, dropClause, toLock } from '../src/bureau/clauses';
 import { getSeed, setSeed } from '../src/core/rng';
+import { docOf } from '../src/ui/bureau/docs';
 
 const SEEDS = Array.from({ length: 30 }, (_, i) => 1000 + i);
 const avg = (bot: string, f: (W: ReturnType<typeof playGame>) => number, o = {}) =>
@@ -356,7 +357,7 @@ describe('국장의 서류 (조항 조합)', () => {
 describe('첫 화면과 받은 서류 창', () => {
   it('신문 한 면으로 시작하고, 업무를 시작하면 요구서가 창으로 온다. 청 · 독촉은 오른쪽 위 쪽지로 떠 있고 누르면 펼친다', () => {
     expect(introHtml()).toContain('업무 시작');
-    expect(introHtml()).toContain('미궁관리국 신설');
+    expect(introHtml()).toContain('미궁관리국 새로 둬');
     expect(introHtml()).toContain('왕 도 일 보');
     const W = newWorld(5);
     const ui: BuUi = { tab: 'look', invite: [], give: {}, intro: false, seenNews: 0, docSeen: 0, askSeen: 0 };
@@ -374,7 +375,12 @@ describe('첫 화면과 받은 서류 창', () => {
     expect(h).toContain('answer:1');
     expect(h).toContain('refuse:1');
     W.asks[0].got = 0;
-    expect(asksFloatHtml(W, ui)).toBe('');
+    expect(asksFloatHtml(W, ui)).not.toContain('ask-note');
+    // 쪽지 맨 위엔 할 일(받은 요구서를 줄인 것) · 효력 중인 서류
+    expect(asksFloatHtml(W, ui)).toContain('폐광 인계');
+    expect(asksFloatHtml(W, ui)).not.toContain('효력 중');
+    post(W, 0, 20, { sub: 10 });
+    expect(asksFloatHtml(W, ui)).toContain('효력 중');
   });
 });
 
@@ -400,7 +406,10 @@ describe('첫 사건의 업무 안내', () => {
     expect(tutOf(W, ui)).toBe('town');
     W.dungeons[0].dev = B.DEV[1];
     expect(tutOf(W, ui)).toBe('');
-    expect(docModalHtml(newWorld(5), { ...ui, docSeen: 0 })).toContain('징세청 이관 기록');
+    expect(docModalHtml(newWorld(5), { ...ui, docSeen: 0 })).toContain('징세청 길드 출입 장부 사본');
+    // 서류 글은 세상 안의 말로만: 입지 같은 판의 수치를 적지 않는다
+    for (const title of ['폐광 인계 · 요구서 달성', '인내가 다함 · 왕국군 철수'])
+      expect(JSON.stringify(docOf({ day: 9, from: '중앙 행정원', title, chips: ['예산 +1000G', '입지 +10'] }))).not.toContain('입지');
   });
 });
 
@@ -418,11 +427,17 @@ describe('미궁 손익 자료', () => {
     step(W);
     expect(W.pnl[0].length).toBe(2);
     expect(Math.abs(W.pnl[0][1] - p0)).toBeLessThan(10);
-    const ui: BuUi = { tab: 'lib', invite: [], give: {}, intro: false, seenNews: 0, shelf: 'pnl' };
-    // 서류 쓰기 창엔 참고 자료를 두지 않고, 기록 탭의 서가에서 찾는다
-    expect(writeHtml(W, ui)).not.toContain('미궁 손익 자료');
-    expect(paneHtml(W, ui)).toContain('미궁 손익 자료');
-    expect(paneHtml(W, ui)).toContain('징세청 이관');
+    const ui: BuUi = { tab: 'lib', invite: [], give: {}, intro: false, seenNews: 0, shelf: 'in' };
+    // 손익 자료는 아직 서가에 없다(미궁 앞 기록소가 서면 받은 서류로 온다). 대신 테사의 첫 보고가 받은 서류 맨 위에 있다
+    expect(writeHtml(W, ui)).not.toContain('손익 자료');
+    expect(paneHtml(W, { ...ui, shelf: 'cl' })).not.toContain('손익 자료');
+    expect(paneHtml(W, ui)).toContain('read:-2');
+    expect(tessaReportHtml(W)).toContain('징세청 장부');
+    // 받은 서류는 종류로 거른다
+    expect(paneHtml(W, { ...ui, dkind: '신문' })).not.toContain('read:-2');
+    // 조항은 꼬리표로 거른다
+    expect(paneHtml(W, { ...ui, shelf: 'cl', ctag: '안전' })).not.toContain('진입 보조금');
+    expect(paneHtml(W, { ...ui, shelf: 'cl', ctag: '돈' })).toContain('진입 보조금');
     // 낸 서류 기록 · 받은 서류 철 (다시 보기)
     post(W, 0, 20, { sub: 10 });
     expect(paneHtml(W, { ...ui, shelf: 'out' })).toContain('공고문: 폐광');
@@ -470,9 +485,9 @@ describe('길드 일곱: 큰 길드 둘 · 작은 길드 다섯, 본부에서 �
     }
     expect(near).toBeGreaterThan(far * 1.2);
     const W = newWorld(5);
-    const h = paneHtml(W, { tab: 'lib', invite: [], give: {}, intro: false, seenNews: 0, shelf: 'pnl' });
-    expect(h).toContain('중간값');
-    expect(h).toContain(`오가는 하루 ${wayDayG()}G`);
+    const h = tessaReportHtml(W);
+    expect(h).toContain('길드마다');
+    expect(h).toContain(' ~ ');
     expect(h).not.toContain(B.GUILD.wolf.name);
   });
 });

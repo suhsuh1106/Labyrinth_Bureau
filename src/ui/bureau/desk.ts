@@ -21,8 +21,13 @@ export function makeDesk(host: HTMLElement): Desk {
     fit.style.transform = `translate(${offL}px, ${offT}px) scale(${fs})`;
     // 위에 뜨는 것(숫자 띠 · 다음 날 · 쪽지)의 배율: 1280 × 720을 1.15로 두고 화면을 따라 0.85 ~ 1.4
     // 시트 너비도 여기서 px로 정한다(뜨는 것들이 zoom 안에서 이 값을 다시 셈하지 않게)
-    host.parentElement?.style.setProperty('--sheet-w', `${w <= 640 || h <= 480 ? 340 : Math.round(Math.max(380, Math.min(520, w * 0.3)))}px`);
-    host.parentElement?.style.setProperty('--hz', Math.max(0.85, Math.min(1.4, 1.15 * Math.min(w / 1280, h / 720))).toFixed(3));
+    // 글자 배율 U: 브라우저를 150%로 키운 것과 같게(화면이 넉넉할 때 1.5, 작은 화면은 1까지). 시트 · 띠 · 창은 화면을 U로 나눈 크기로 잰 뒤 U를 곱한다
+    const U = Math.max(1, Math.min(1.5, w / 960, h / 600)), vw = w / U, vh = h / U, P = host.parentElement?.style;
+    P?.setProperty('--uz', U.toFixed(3));
+    // 서류 쓰기 창은 세 칸이 넓어 화면 너비가 허락하는 만큼만 키운다
+    P?.setProperty('--wz', Math.max(1, Math.min(U, (w - 32) / 1180)).toFixed(3));
+    P?.setProperty('--sheet-w', `${Math.round(U * (vw <= 640 || vh <= 480 ? 340 : Math.max(380, Math.min(520, vw * 0.3))))}px`);
+    P?.setProperty('--hz', (U * Math.max(0.85, Math.min(1.4, 1.15 * Math.min(vw / 1280, vh / 720)))).toFixed(3));
   };
   const clamp = () => {
     const s = base() * k, lim = [(MAP[0] * s - STAGE[0]) / 2 + 80, (MAP[1] * s - STAGE[1]) / 2 + 80];
@@ -40,25 +45,33 @@ export function makeDesk(host: HTMLElement): Desk {
     set(m) { if (m === 'map' && D.mode !== 'map') { k = 1; ox = oy = 0; } D.mode = m; put(); D.stand(); },
     zoom(d) { if (D.mode !== 'map') return; const nk = Math.max(1, Math.min(3, k * (d > 0 ? 1.25 : 0.8))); ox *= nk / k; oy *= nk / k; k = nk; put(); },
     // 세운 것들: 책상 보기에선 평면이 누운 만큼 되돌려 세우고, 지도를 세우면 그대로
-    stand() { const a = D.mode === 'desk' ? TILT : 0; plane.querySelectorAll<HTMLElement>('.st').forEach(s => s.style.transform = `rotateX(${-a}deg)`); },
+    stand() { const a = D.mode === 'desk' ? TILT : 0, t = `rotateX(${-a}deg)`; plane.querySelectorAll<HTMLElement>('.st').forEach(s => { if (s.style.transform !== t) s.style.transform = t; }); },
     minis(list) {
+      let fresh = false;
       const had = new Map([...layer.children].map(e => [(e as HTMLElement).dataset.key!, e as HTMLElement]));
       for (const m of list) {
         let el = had.get(m.key);
         if (el) had.delete(m.key);
         else {
-          el = document.createElement('div'); el.className = 'mini'; el.dataset.key = m.key;
+          el = document.createElement('div'); el.className = m.walk ? 'mini mv walk' : 'mini mv'; el.dataset.key = m.key; fresh = true;
           el.innerHTML = `<div class="sh"></div><div class="st" style="left:${-m.w / 2}px;top:${-m.h}px;width:${m.w}px;height:${m.h}px"><svg width="${m.w}" height="${m.h}" viewBox="${-m.w / 2} ${-m.h} ${m.w} ${m.h}"></svg></div>`;
           layer.appendChild(el);
         }
-        const svg = el.querySelector('svg')!;
+        const svg = el.querySelector('svg')!, st = el.querySelector('.st') as HTMLElement;
+        // 몸집이 바뀌는 것(수레 ↔ 사람)은 자리 틀도 고친다
+        if (svg.getAttribute('width') !== String(m.w)) { svg.setAttribute('width', String(m.w)); svg.setAttribute('viewBox', `${-m.w / 2} ${-m.h} ${m.w} ${m.h}`); st.style.left = `${-m.w / 2}px`; st.style.width = `${m.w}px`; }
         // 그림이 바뀔 때만 (몸집이 커진 깃발 등) 다시 그린다
         if (svg.dataset.art !== m.svg) { svg.innerHTML = `<title>${m.title}</title>${m.svg}`; svg.dataset.art = m.svg; }
-        svg.style.transform = m.face === -1 ? 'scaleX(-1)' : '';
-        el.style.left = `${m.x.toFixed(1)}px`; el.style.top = `${m.y.toFixed(1)}px`; el.style.zIndex = String(Math.round(m.y));
+        const face = m.face === -1 ? 'scaleX(-1)' : '';
+        if (svg.style.transform !== face) svg.style.transform = face;
+        // 바뀐 것만 쓴다(같은 값을 다시 써도 스타일 계산이 돈다)
+        const tr = `translate3d(${m.x.toFixed(1)}px, ${m.y.toFixed(1)}px, 0)`, z = String(Math.round(m.y));
+        if (el.style.transform !== tr) el.style.transform = tr;
+        if (el.style.zIndex !== z) el.style.zIndex = z;
       }
       for (const el of had.values()) el.remove();
-      D.stand();
+      // 새로 생긴 것만 세운다
+      if (fresh) D.stand();
     },
   };
   // 세운 지도는 끌어서 옮기고 휠로 확대한다. 끈 뒤의 누름은 표식을 고르지 않는다

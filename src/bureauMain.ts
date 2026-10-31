@@ -4,13 +4,14 @@ import './ui/bureau/bureau.css';
 import { getSeed, setSeed } from './core/rng';
 import { type FacId, type World, answer, hireClerk, meet, newWorld, over, post, recall, run, send, step, withdraw } from './bureau/engine';
 import { BOT } from './bureau/bots';
-import { CLAUSE, type ClauseId, FORM_OF, type To, addClause, canAdd, dropClause } from './bureau/clauses';
-import { type BuUi, DRAFT0, type Shelf, type Tab, asksFloatHtml, deskHtml, docModalHtml, setHtml, reportDocHtml, endHtml, introHtml, paneHtml, topHtml, tutHtml, writeHtml } from './ui/bureau/board';
+import { CLAUSE, type ClauseId, type Tag, FORM_OF, type To, addClause, canAdd, dropClause } from './bureau/clauses';
+import { type BuUi, type DocKind, DRAFT0, type Shelf, type Tab, asksFloatHtml, deskHtml, docModalHtml, setHtml, reportDocHtml, endHtml, introHtml, paneHtml, topHtml, tutHtml, writeHtml } from './ui/bureau/board';
 import { mapHtml, minisOf, terrainSvg } from './ui/bureau/map';
 import { type Desk, makeDesk } from './ui/bureau/desk';
+import { rumorAt } from './ui/bureau/rumor';
 
 const $ = (id: string) => document.getElementById(id)!;
-const KEY = 'lb-bureau', VERSION = 14;
+const KEY = 'lb-bureau', VERSION = 15;
 let W: World, ui: BuUi, seed = 0, desk: Desk | null = null;
 
 function save() { try { localStorage.setItem(KEY, JSON.stringify({ v: VERSION, seed, rng: getSeed(), W, ui })); } catch { /* 저장이 막혀도 판은 계속된다 */ } }
@@ -28,13 +29,15 @@ function draw() {
   if (!desk) { $('map').querySelector('.terrain')!.innerHTML = terrainSvg(W); desk = makeDesk($('desk')); }
   $('marks').innerHTML = mapHtml(W, ui);
   $('props').innerHTML = deskHtml(W, ui);
-  desk.minis(minisOf(W));
+  desk.minis(minisOf(W, flow()));
+  desk.stand();
   if (ui.open && ui.tab === 'office') ui.seenNews = W.reports.length;
   const sheet = $('sheet');
   sheet.hidden = !ui.open; sheet.dataset.tab = ui.tab;
   $('pane').innerHTML = ui.open ? paneHtml(W, ui) : '';
   $('tut').innerHTML = tutHtml(W, ui);
   $('asks').innerHTML = asksFloatHtml(W, ui);
+  rumor();
   const ov = $('over');
   if (ui.intro) { ov.innerHTML = introHtml(); ov.hidden = false; }
   else if (over(W)) {
@@ -53,7 +56,22 @@ function draw() {
 }
 
 // 하루 넘기기. 닷새는 새 요청서 · 새 보고가 오면 멈춘다
+// 날 사이의 걸음: 날을 넘기지 않아도 조가 제 걸음 비율대로 조금씩 걸어 다음 날 자리에 다가간다(그날 몫의 92%까지, 점점 느리게).
+// 화면만 움직이고 판의 수치는 날마다 바뀐다
+let dayAt = performance.now();
+const STILL = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const flow = () => STILL ? 0 : 0.92 * (1 - Math.exp(-(performance.now() - dayAt) / 30000));
+// 소문은 몇 초마다 하나씩 바뀐다 (같은 말이면 다시 그리지 않는다)
+const RUMOR_MS = 9000;
+function rumor() {
+  const el = $('rumor'), t = ui.intro || over(W) ? '' : rumorAt(W, Math.floor(performance.now() / RUMOR_MS));
+  if (el.dataset.t === t) return;
+  el.dataset.t = t; el.innerHTML = t ? `<span>${t}</span>` : '';
+}
+setInterval(() => { if (desk && !document.hidden && !ui.intro && !over(W)) { desk.minis(minisOf(W, flow())); rumor(); } }, 250);
+
 function nextDays(n: number) {
+  dayAt = performance.now();
   const asks = W.asks.filter(a => a.got == null).length, news = W.reports.length;
   for (let k = 0; k < n && !over(W); k++) {
     step(W);
@@ -80,8 +98,11 @@ function act(a: string, d = 0) {
   else if (k === 'close') { ui.modal = undefined; ui.read = undefined; ui.ask = undefined; }
   else if (k === 'set') ui.modal = 'set';
   else if (k === 'ask') { ui.ask = +arg; ui.askSeen = Math.max(ui.askSeen ?? 0, +arg); }
-  else if (k === 'shelf') { ui.shelf = arg as Shelf; if (arg === 'pnl') ui.tutPnl = true; }
-  else if (k === 'read') ui.read = +arg;
+  else if (k === 'shelf') ui.shelf = arg as Shelf;
+  else if (k === 'ctag') ui.ctag = (arg || undefined) as Tag | undefined;
+  else if (k === 'dkind') ui.dkind = (arg || undefined) as DocKind | undefined;
+  // 테사의 첫 보고를 읽으면 안내가 다음(서류 쓰기)으로 넘어간다
+  else if (k === 'read') { ui.read = +arg; if (+arg === -2) ui.tutPnl = true; }
   else if (k === 'unread') ui.read = undefined;
   else if (k === 'seen') ui.docSeen = +arg + 1;
   else if (k === 'later') ui.askSeen = Math.max(ui.askSeen ?? 0, +arg);
