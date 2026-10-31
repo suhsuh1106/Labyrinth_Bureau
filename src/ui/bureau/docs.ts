@@ -66,9 +66,9 @@ export const floodNews = (W: World, r: Report, no: number): News => {
   const d = W.dungeons.find(x => r.title.startsWith(x.name));
   return {
     day: r.day, no, extra: true,
-    head: r.title.replace(' 범람', ' 다시 범람') + `, ${d?.lord ?? ''} 마을 피해`,
+    head: r.title.replace(' 범람', ' 다시 범람') + `, ${d?.land ?? ''} 마을 피해`,
     deck: r.chips.join(' · '),
-    lead: `${d?.name ?? '미궁'}이 넘쳐 ${d?.lord ?? '인근'} 마을이 피해를 입었다. 복구비는 관리국 예산에서 나간다. 영주청과 길드들은 관리국이 무엇을 했느냐고 묻고 있다.`,
+    lead: `${d?.name ?? '미궁'}이 넘쳐 ${d?.land ?? '인근'} 마을이 피해를 입었다. 복구비는 관리국 예산에서 나간다. 중앙과 길드들은 관리국이 무엇을 했느냐고 묻고 있다.`,
     cols: [{ h: '길드들 발길 끊겨', p: '범람 뒤 미궁에 드는 조가 크게 줄었다. 한 길드 관계자는 "사람을 잃은 곳에 다시 들어가려면 그만한 까닭이 있어야 한다"고 말했다.' }],
   };
 };
@@ -86,11 +86,11 @@ export function docOf(r: Report): { gov: Gov } | { letter: Letter } {
       return { gov: gov(r, '폐광 인계에 관한 요구', [
         '로이드 백작령 폐광 범람과 관련하여 왕국군이 1차 진압 뒤 주둔하고 있으나, 군을 미궁에 오래 둘 수 없음을 알립니다.',
         `귀 국은 길드의 조를 폐광에 들여 왕국군으로부터 인계받으시기 바랍니다. 인계는 <b>하루 ${o.min}조 이상 든 날이 ${o.need}일 이어진 때</b>로 봅니다.`,
-        '폐광은 외진 곳이라 늦게 드러났고 곁에 길드가 없습니다. 길드가 폐광을 꺼리는 사정은 첨부한 영주청 이관 기록(길드 출입 장부 사본)을 참고하여 헤아리시기 바랍니다. 길드는 남는 곳으로 갑니다.',
+        '폐광은 외진 곳이라 늦게 드러났고 곁에 길드가 없습니다. 길드가 폐광을 꺼리는 사정은 첨부한 징세청 이관 기록(길드 출입 장부 사본)을 참고하여 헤아리시기 바랍니다. 길드는 남는 곳으로 갑니다.',
         '길이 닦이고 사람이 모이면 폐광은 나라의 손을 빌리지 않고도 돌아갈 것입니다. 그때까지 귀 국이 맡아 돌보시기 바랍니다.',
         `인계를 마치면 예산 ${num(o.pay)}G를 추가 배정하고 귀 국의 입지를 올립니다.`,
         '길드의 출입이 요구에 미치지 못하는 날이 이어지면 본원의 인내에도 한도가 있어, 왕국군은 인계 없이 철수하고 귀 국의 입지는 하향 조정됩니다.',
-      ], ['폐광 수위 보고(왕국군) 1부', '영주청 이관 기록(길드 출입 장부 사본) 1부, 관리국 기록실 비치']) };
+      ], ['폐광 수위 보고(왕국군) 1부', '징세청 이관 기록(길드 출입 장부 사본) 1부, 관리국 기록실 비치']) };
     }
     if (r.title.startsWith('폐광 인계')) return { gov: gov(r, '폐광 인계 완료 및 예산 추가 배정 통보', [
       '귀 국이 길드의 조를 폐광에 들여 왕국군으로부터 인계를 마쳤음을 확인합니다.',
@@ -139,13 +139,13 @@ export function docOf(r: Report): { gov: Gov } | { letter: Letter } {
 
 // 청원 · 독촉: 길드 서신
 export function askLetter(W: World, a: { day: number; from: string; kind: 'aid' | 'dun'; want: number; chips: string[] }): Letter {
-  const name = a.from === 'lord' ? W.lord.name : W.guilds[a.from as GuildId].name;
-  const g = guildBy(name) ?? { sign: '영주청 집사', seal: '領', tone: undefined };
+  const name = W.guilds[a.from as GuildId].name;
+  const g = guildBy(name) ?? { sign: '', seal: '', tone: undefined };
   return {
     house: name, day: a.day, to: '미궁관리국장 귀하', sign: g.sign, seal: g.seal, tone: g.tone,
     title: a.kind === 'dun' ? '제목: 지난 신세에 관하여' : '제목: 도움을 청하는 글',
     body: a.kind === 'dun'
       ? ['국장님께. 늘 애써 주시는 데 감사드립니다.', `지난번 회의에서 저희가 서명해 드린 일을 기억하시리라 믿습니다. 이제 저희 사정도 넉넉지 않아 <b>${num(a.want)}G</b>를 돌려받고자 하니 헤아려 주시기 바랍니다.`]
-      : ['국장님께. 염치 불고하고 글을 올립니다.', `${a.from === 'lord' ? '요즘 영주 몫이 적어 살림이 빠듯합니다' : '요즘 저희 금고가 바닥을 드러내 조를 꾸리기도 버겁습니다'}. <b>${num(a.want)}G</b>를 도와주시기를 청합니다. 이 은혜는 잊지 않겠습니다.`],
+      : ['국장님께. 염치 불고하고 글을 올립니다.', `요즘 저희 금고가 바닥을 드러내 조를 꾸리기도 버겁습니다. <b>${num(a.want)}G</b>를 도와주시기를 청합니다. 이 은혜는 잊지 않겠습니다.`],
   };
 }

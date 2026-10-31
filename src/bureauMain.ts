@@ -10,7 +10,7 @@ import { T, mapHtml, terrainSvg } from './ui/bureau/map';
 import { type Pan, makePan } from './ui/bureau/pan';
 
 const $ = (id: string) => document.getElementById(id)!;
-const KEY = 'lb-bureau', VERSION = 13;
+const KEY = 'lb-bureau', VERSION = 14;
 let W: World, ui: BuUi, seed = 0, pan: Pan | null = null;
 
 function save() { try { localStorage.setItem(KEY, JSON.stringify({ v: VERSION, seed, rng: getSeed(), W, ui })); } catch { /* 저장이 막혀도 판은 계속된다 */ } }

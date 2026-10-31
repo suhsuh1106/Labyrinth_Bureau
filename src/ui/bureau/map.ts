@@ -1,15 +1,15 @@
-// 미궁관리국 관할 지도: 40 × 24칸 타일(src/bureau/tiles.ts) 위에 관리국 · 미궁 셋 · 길드 본부 일곱 · 두 영주 성을 칸 자리에 놓는다.
+// 미궁관리국 관할 지도: 40 × 24칸 타일(src/bureau/tiles.ts) 위에 관리국 · 미궁 셋 · 길드 본부 일곱 · 두 지방 성(중앙의 징세소, 표식만)을 칸 자리에 놓는다.
 // 땅과 처음부터 있는 길은 판마다 같아 한 번만 그리고(terrainSvg), 날마다 바뀌는 것은 그 위 층(mapHtml)에 그린다:
 // 외진 미궁의 발전도(1단계 관리국에서 오는 새 길과 길목 여관, 2단계 곁 마을과 지부 깃발), 길드 조가 본부와 미궁을 오가는 말(날마다 칸을 옮긴다),
 // 미궁 표식의 고리(보고된 수위), 세력 사이(본부 사이 선). 그리기만 하고 상태에 쓰지 않는다.
-import { B, BUREAU_AT, HAVEL_AT, LORD_AT, ROADS, devRoadOf, devStage, type FacId, FACS, GUILDS, type World, wayOf, isGuildId, nameOf, pactK, relOf, seenLevel, subAt, teamsIn, worstPair } from '../../bureau/engine';
+import { B, BUREAU_AT, HAVEL_AT, LOYD_AT, ROADS, devRoadOf, devStage, type FacId, FACS, GUILDS, type World, wayOf, nameOf, pactK, relOf, seenLevel, subAt, teamsIn, worstPair } from '../../bureau/engine';
 import { type At, GRID, type Ground, MAP_H, MAP_W, groundAt, isRoad, walkPath } from '../../bureau/tiles';
 import { type BuUi, dungeonHtml, facHtml, guildsHtml, levelCls, levelWord, n0, n1, pactLine, relRow, relWord, relsTop } from './board';
 
 // 칸 하나 = T (viewBox 단위). 지도 전체는 MAP_W·T × MAP_H·T
 export const T = 32;
 export const MAP_PX: [number, number] = [MAP_W * T, MAP_H * T];
-const FAC_AT = (f: FacId): At => f === 'lord' ? LORD_AT : B.GUILD[f].at;
+const FAC_AT = (f: FacId): At => B.GUILD[f].at;
 const cx = (a: At) => a[0] * T + T / 2, cy = (a: At) => a[1] * T + T / 2;
 // 칸마다 같은 값을 내는 해시 (난수를 쓰지 않는다)
 const hash = (x: number, y: number, k = 0) => { let h = (x * 374761393 + y * 668265263 + k * 2147483647) | 0; h = (h ^ (h >>> 13)) * 1274126177; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
@@ -128,7 +128,7 @@ export function mapHtml(W: World, ui: BuUi) {
   // 세력 사이: 험악하거나 우호적인 짝 · 협정을 맺은 짝만 본부 사이에 선을 긋는다
   const [wa, wb] = worstPair(W);
   FACS.forEach((a, i) => FACS.slice(i + 1).forEach(b => {
-    const v = relOf(W, a, b), pact = isGuildId(a) && isGuildId(b) && W.pact && W.day < W.pact.until && W.pact.who.includes(a) && W.pact.who.includes(b);
+    const v = relOf(W, a, b), pact = W.pact && W.day < W.pact.until && W.pact.who.includes(a) && W.pact.who.includes(b);
     if (Math.abs(v) < 25 && !pact) return;
     h += `<path class="rel-line ${v < -5 ? 'neg' : v >= 25 ? 'pos' : ''}" d="M${cx(FAC_AT(a))},${cy(FAC_AT(a))}L${cx(FAC_AT(b))},${cy(FAC_AT(b))}" style="stroke-width:${1 + Math.abs(v) / 25}"/>`;
   }));
@@ -155,19 +155,20 @@ export function mapHtml(W: World, ui: BuUi) {
       h += '</g>';
     });
   });
-  // 관리국 · 두 영주 성
+  // 관리국 · 두 지방 성 (중앙 직할 지방의 징세소. 세력이 아니라 표식만)
   h += `<g class="place bureau"><rect class="lot" x="${BUREAU_AT[0] * T + 1}" y="${BUREAU_AT[1] * T + 1}" width="${T - 2}" height="${T - 2}" rx="3"/>${house(cx(BUREAU_AT), cy(BUREAU_AT) + 2, 1.35, '#27465f')}${label(cx(BUREAU_AT), cy(BUREAU_AT) + 30, '미궁관리국', 'strong')}</g>`;
-  h += `<g class="place castle">${keep(cx(HAVEL_AT), cy(HAVEL_AT), 1.1)}${label(cx(HAVEL_AT), cy(HAVEL_AT) + 28, '하벨 자작령', 'small')}</g>`;
-  // 세력 표식: 본부 칸에 집과 깃발(몸집만큼 크다). 로이드 백작령은 성
+  h += `<g class="place castle">${keep(cx(HAVEL_AT), cy(HAVEL_AT), 1.1)}${label(cx(HAVEL_AT), cy(HAVEL_AT) + 28, '하벨 성', 'small')}</g>`;
+  h += `<g class="place castle">${keep(cx(LOYD_AT), cy(LOYD_AT), 1.25)}${label(cx(LOYD_AT), cy(LOYD_AT) + 28, '로이드 성', 'small')}</g>`;
+  // 길드 표식: 본부 칸에 집과 깃발(몸집만큼 크다)
   for (const f of FACS) {
-    const at = FAC_AT(f), x = cx(at), y = cy(at), on = sel === `fac:${f}`, g = isGuildId(f) ? W.guilds[f] : null;
-    const k = g ? Math.min(1.8, 0.75 + g.size / 25) : 1;
-    h += `<g class="mk fac-mk f-${f}${on ? ' on' : ''}" data-act="sel:fac:${f}" role="button" tabindex="0" aria-label="${nameOf(W, f)}${g ? ` ${n0(g.size)}조` : ''}">
+    const at = FAC_AT(f), x = cx(at), y = cy(at), on = sel === `fac:${f}`, g = W.guilds[f];
+    const k = Math.min(1.8, 0.75 + g.size / 25);
+    h += `<g class="mk fac-mk f-${f}${on ? ' on' : ''}" data-act="sel:fac:${f}" role="button" tabindex="0" aria-label="${nameOf(W, f)} ${n0(g.size)}조">
       <rect class="hit lot" x="${at[0] * T + 1}" y="${at[1] * T + 1}" width="${T - 2}" height="${T - 2}" rx="3"/>
-      ${f === 'lord' ? keep(x, y + 2, 1.25) : house(x - 4, y + 5, 1)}
-      ${f === 'lord' ? '' : `<path class="flag" transform="translate(${x + 5} ${y + 9}) scale(${k})" d="M0,0V-24h13l-4,4.5l4,4.5h-13"/>`}
-      ${label(x, y + T / 2 + 14, f === 'lord' ? '로이드 백작령' : W.guilds[f].name, on ? 'strong' : '')}
-      ${g ? label(x, y + T / 2 + 27, `${n0(g.size)}조`, 'small') : ''}</g>`;
+      ${house(x - 4, y + 5, 1)}
+      <path class="flag" transform="translate(${x + 5} ${y + 9}) scale(${k})" d="M0,0V-24h13l-4,4.5l4,4.5h-13"/>
+      ${label(x, y + T / 2 + 14, g.name, on ? 'strong' : '')}
+      ${label(x, y + T / 2 + 27, `${n0(g.size)}조`, 'small')}</g>`;
   }
   // 미궁 표식: 굴 입구, 둘레 고리가 보고된 수위
   W.dungeons.forEach((d, i) => {
@@ -191,7 +192,7 @@ export function lookHtml(W: World, ui: BuUi) {
   if (k === 'dg') return back + dungeonHtml(W, +v);
   if (k === 'fac') {
     const f = v as FacId, others = FACS.filter(x => x !== f);
-    return back + facHtml(W, f) + `<section class="rels">${others.map(o => relRow(W, f, o)).join('')}${f !== 'lord' ? pactLine(W) : ''}</section>`;
+    return back + facHtml(W, f) + `<section class="rels">${others.map(o => relRow(W, f, o)).join('')}${pactLine(W)}</section>`;
   }
   return `<p class="note">지도에서 미궁이나 깃발을 누르면 자세히 본다.</p>
   <div class="sum">${W.dungeons.map((d, i) => { const lv = seenLevel(W, i); return `<button type="button" class="sum-row ${levelCls(lv)}" data-act="sel:dg:${i}"><b>${d.name}</b><span class="num">${n0(lv)}</span><span class="tag">${levelWord(lv)}</span><small class="num">${n1(teamsIn(d))}조 · 보조금 ${subAt(W, i)}G</small></button>`; }).join('')}</div>

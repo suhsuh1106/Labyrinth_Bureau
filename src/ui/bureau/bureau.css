@@ -20,7 +20,7 @@
 * { box-sizing: border-box; }
 /* 세력마다 색: f-<길드> 가 --gc를 정한다 */
 .f-red { --gc: var(--g-red); } .f-shield { --gc: var(--g-shield); } .f-wolf { --gc: var(--g-wolf); } .f-lamp { --gc: var(--g-lamp); }
-.f-river { --gc: var(--g-river); } .f-dawn { --gc: var(--g-dawn); } .f-drift { --gc: var(--g-drift); } .f-lord { --gc: var(--lord); }
+.f-river { --gc: var(--g-river); } .f-dawn { --gc: var(--g-dawn); } .f-drift { --gc: var(--g-drift); }
 html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--f-body); }
 .num, output { font-family: var(--f-num); font-variant-numeric: tabular-nums; }
@@ -83,7 +83,7 @@ h2, h3, h4 { margin: 0; }
 .rel-line.neg { stroke: #9c2b23; } .rel-line.pos { stroke: #3f6b3a; }
 .mk { cursor: pointer; outline: none; }
 .mk .flag { stroke: #2e2112; stroke-width: 1.5; }
-.fac-mk .flag { fill: var(--gc); } .fac-mk.f-lord .flag { fill: #b08a2e; }
+.fac-mk .flag { fill: var(--gc); }
 .fac-mk.on .hit, .dg-mk.on .disc { stroke: #1d1409; stroke-width: 2.5; }
 .fac-mk .hit { fill: rgba(239, 226, 196, .55); }
 .mk:focus-visible .hit, .mk:focus-visible .disc { stroke: #27465f; stroke-width: 3; }
