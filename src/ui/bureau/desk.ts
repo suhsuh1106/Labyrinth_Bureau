@@ -16,9 +16,13 @@ export function makeDesk(host: HTMLElement): Desk {
   const base = () => Math.min(STAGE[0] / MAP[0], STAGE[1] / MAP[1]);
   const resize = () => {
     const w = host.clientWidth || 1, h = host.clientHeight || 1;
-    // 가로 화면을 꽉 채운다(남는 쪽은 책상이 더 보인다)
-    fs = Math.max(w / STAGE[0], h / STAGE[1]); offL = (w - STAGE[0] * fs) / 2; offT = (h - STAGE[1] * fs) / 2;
+    // 가로 화면을 꽉 채우되, 4:3처럼 좁으면 양옆 물건이, 21:9처럼 넓으면 위아래 지도 · 종이 잘리지 않을 만큼만 (남는 쪽은 책상이 더 보인다)
+    fs = Math.min(Math.max(w / STAGE[0], h / STAGE[1]), w / 1560, h / 900); offL = (w - STAGE[0] * fs) / 2; offT = (h - STAGE[1] * fs) / 2;
     fit.style.transform = `translate(${offL}px, ${offT}px) scale(${fs})`;
+    // 위에 뜨는 것(숫자 띠 · 다음 날 · 쪽지)의 배율: 1280 × 720을 1.15로 두고 화면을 따라 0.85 ~ 1.4
+    // 시트 너비도 여기서 px로 정한다(뜨는 것들이 zoom 안에서 이 값을 다시 셈하지 않게)
+    host.parentElement?.style.setProperty('--sheet-w', `${w <= 640 || h <= 480 ? 340 : Math.round(Math.max(380, Math.min(520, w * 0.3)))}px`);
+    host.parentElement?.style.setProperty('--hz', Math.max(0.85, Math.min(1.4, 1.15 * Math.min(w / 1280, h / 720))).toFixed(3));
   };
   const clamp = () => {
     const s = base() * k, lim = [(MAP[0] * s - STAGE[0]) / 2 + 80, (MAP[1] * s - STAGE[1]) / 2 + 80];
