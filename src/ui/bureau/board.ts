@@ -1,5 +1,6 @@
 // 미궁관리국 게임판: HTML 문자열을 만든다. 상태에 아무것도 쓰지 않고 난수도 쓰지 않는다(그리기만).
-// 화면 전체가 관할 지도(map.ts, 타일)이고 그 위에 뜬다: 위 띠(날 · 예산 · 입지 · 다음 날) · 아래 단추 줄(살펴보기 · 서류 · 기록 · 회의 · 집무실) · 단추로 여는 시트 · 테사의 한마디
+// 화면 전체가 국장의 책상(desk.ts)이고 그 위에 지도(map.ts, 타일)가 누워 있다. 왼쪽 위 정보(날 · 예산 · 입지 → 집무실 · 폐광 인계) · 오른쪽 아래 다음 날 ·
+// 책상 위 물건(깃펜 → 서류, 기록 더미 → 기록, 종 → 회의) · 지도에서 고른 것(살펴보기)을 여는 시트 · 테사의 한마디
 import { lookHtml } from './map';
 import { askLetter, dateOf, docOf, floodNews, govHtml, introNews, letterHtml, newsHtml } from './docs';
 import { B, type FacId, FACS, GUILDS, type GuildId, type Report, type World, pnlAvg, pnlSum, wayDayG, devStage, wayOf, hqOf, depOf, docsOut, escrowOf, trustOf, withdrawFav, facOf, levelOf, nameOf, pactK, relOf, seenLevel, subAt, teamsIn, willOf } from '../../bureau/engine';
@@ -32,7 +33,7 @@ export function dayFlow(W: World) {
   return { fee, sub, net: fee - sub };
 }
 
-// 설정 단추(위 띠 구석): 톱니 모양
+// 설정 단추(왼쪽 위 정보 끝): 톱니 모양
 const GEAR = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg>';
 // 설정 창: 새 임기는 여기에만 둔다(누르면 한 번 더 묻는다)
 export function setHtml(W: World) {
@@ -59,7 +60,7 @@ export function topHtml(W: World, ui?: BuUi) {
   const grant = B.GRANT + W.standing * B.GRANT_K;
   return `<div class="t-day"><b class="num">${Math.min(W.day + 1, B.DAYS)}</b><span>일 / ${B.DAYS} · ${month}달째</span></div>
   <div class="t-cell"><span>예산</span><b class="num ${W.budget < 0 ? 'neg' : ''}">${n0(W.budget)}G</b><small class="num ${f.net < 0 ? 'neg' : ''}">하루 ${sgn(f.net)}${escrowOf(W) > 0 ? ` · 공탁 ${n0(escrowOf(W))}` : ''}</small></div>
-  <div class="t-cell"><span>입지</span><b class="num">${n1(W.standing)}</b><i class="gauge"><i style="width:${W.standing}%"></i></i></div>
+  <button type="button" class="t-cell t-office${ui?.open && ui.tab === 'office' ? ' on' : ''}" data-act="tab:office" title="집무실"><span>입지</span><b class="num">${n1(W.standing)}</b><i class="gauge"><i style="width:${W.standing}%"></i></i>${ui && !(ui.open && ui.tab === 'office') && W.reports.length - ui.seenNews + W.pts > 0 ? `<i class="badge">${W.reports.length - ui.seenNews + W.pts}</i>` : ''}</button>
   ${W.order && !W.order.done ? `<div class="t-cell t-order"><span>폐광 인계</span><b class="num">${W.order.got} / ${W.order.need}일</b><small class="num">${n1(teamsIn(W.dungeons[W.order.dg]))} / ${W.order.min}조 · 중앙 ${patWord(W.order.pat)}</small></div>`
     : `<div class="t-cell"><span>중앙 배정</span><b class="num">${n0(grant)}G</b><small>${toGrant}일 뒤</small></div>`}
   <div class="t-btns"><button type="button" class="go${wait ? ' pulse' : ''}" data-act="next" ${W.day >= B.DAYS ? 'disabled' : ''}>다음 날 <kbd>N</kbd></button><button type="button" data-act="ff" ${W.day >= B.DAYS ? 'disabled' : ''}>닷새</button></div>
@@ -220,10 +221,10 @@ export function tutOf(W: World, ui: BuUi): Tut {
 }
 // 테사(집무실의 첫 서기, 부상으로 일찍 은퇴한 중소 길드 조장 출신): 해요체로 짧게, 현장 감각만. 숫자나 정답은 말하지 않는다
 const TUT: Record<Exclude<Tut, ''>, string> = {
-  lib: '징세청 장부 사본이 <b>기록</b>실에 와 있어요. 폐광 벌이는 나쁘지 않아요. 길이 없어서 어느 본부에서든 오가는 데만 며칠이에요. <b>손익 자료</b> 보세요.',
-  write: '길드는 명령으론 안 움직여요. 남는 데로 가요. 폐광 공고문은 아래 <b>서류</b>에서 써요.',
+  lib: '징세청 장부 사본이 <b>기록</b> 더미(책상 오른쪽)에 와 있어요. 폐광 벌이는 나쁘지 않아요. 길이 없어서 어느 본부에서든 오가는 데만 며칠이에요. <b>손익 자료</b> 보세요.',
+  write: '길드는 명령으론 안 움직여요. 남는 데로 가요. 폐광 공고문은 책상 왼쪽 <b>깃펜</b>으로 써요.',
   wait: '공고문은 본부가 가까운 길드부터 닿아요. 먼 데는 사흘 걸려요. <b>다음 날</b> 넘기며 지도 보세요.',
-  see: `폐광 쪽으로 발길이 생겼어요. ${B.ORDER.need}일 이어져야 군이 넘겨줘요. 위 띠 <b>폐광 인계</b> 칸이에요.`,
+  see: `폐광 쪽으로 발길이 생겼어요. ${B.ORDER.need}일 이어져야 군이 넘겨줘요. 왼쪽 위 <b>폐광 인계</b> 칸이에요.`,
   road: '사람이 다니면 길이 나요. 길이 닦이면 길드가 알아서 와요. 폐광 <b>발전도</b>는 지도에서 폐광을 눌러 보세요.',
   town: '길이 났어요. 마을이 서면 보조금 없이도 와요. 가장 많이 다닌 길드가 지부를 낼 거예요.',
 };
@@ -308,13 +309,26 @@ export function relsTop(W: World, n = 4) {
 }
 
 const openAsks = (W: World) => W.asks.filter(a => a.got == null);
-export function tabsHtml(W: World, ui: BuUi) {
-  const news = W.reports.length - ui.seenNews, asks = openAsks(W).length;
-  const shown = (id: Tab) => !!ui.open && ui.tab === id;
+// 책상 위 물건: 지도 왼쪽 깃펜과 빈 서식(서류: 받은 청은 봉인 편지로 얹힌다), 오른쪽 기록 더미, 왼쪽 아래 종과 소집장(회의).
+// 평면 위 자리(지도 단위)에 놓고, 서 있는 것(.st)은 책상 장면이 세운다. 누르면 그 탭의 시트를 연다
+export function deskHtml(W: World, ui: BuUi) {
+  const asks = openAsks(W).length, shown = (id: Tab) => !!ui.open && ui.tab === id;
   const tut = tutOf(W, ui), pulse = (id: Tab) => (tut === 'lib' && id === 'lib' && !shown('lib')) || (tut === 'write' && id === 'asks' && !shown('asks'));
-  // 지도 아래 단추 줄: 누르면 시트가 열리고, 열린 탭을 다시 누르면 닫힌다
-  const t = (id: Tab, name: string, badge = 0) => `<button type="button" role="tab" class="${pulse(id) ? 'pulse' : ''}" data-act="tab:${id}" aria-selected="${shown(id)}">${name}${badge ? ` <span class="badge">${badge}</span>` : ''}</button>`;
-  return t('look', '살펴보기') + t('asks', '서류', asks) + t('lib', '기록') + t('meet', '회의') + t('office', '집무실', shown('office') ? 0 : news + W.pts);
+  const pg = (n: number, col: string, top: string, jit = 2) => Array.from({ length: n }, (_, i) => `<i class="pg" style="background:${col};transform:translateZ(${(i * 1.8).toFixed(1)}px) rotate(${(Math.sin(i * 7.3 + n) * jit).toFixed(1)}deg)">${i === n - 1 ? top : ''}</i>`).join('');
+  const stand = (x: number, y: number, w: number, h: number, svg: string) => `<span class="mini" style="left:${x}px;top:${y}px"><span class="st" style="left:${-w / 2}px;top:${-h}px;width:${w}px;height:${h}px"><svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">${svg}</svg></span></span>`;
+  const obj = (id: Tab, x: number, y: number, w: number, h: number, inner: string, name: string, plateY = h + 14) =>
+    `<button type="button" class="obj${pulse(id) ? ' pulse' : ''}" data-act="tab:${id}" aria-pressed="${shown(id)}" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px"><i class="osh"></i><span class="lift">${inner}</span><span class="plate" style="top:${plateY}px">${name}</span></button>`;
+  const writ = `낸 서류 ${docsOut(W)} / ${W.clerks}`;
+  return obj('asks', -320, 60, 250, 330, pg(5, '#f3ecda', '<b class="hd">미궁관리국 공고</b><i class="lines"></i>')
+      + openAsks(W).slice(0, 3).map((a, i) => `<i class="pg letter" style="top:${190 + i * 22}px;bottom:${-20 - i * 22}px;transform:translateZ(${12 + i * 3}px) rotate(${-8 + i * 9}deg)"><b class="hd">${nameOf(W, a.from)}${a.kind === 'dun' ? ' 독촉' : '의 청'}</b><i class="seal"></i></i>`).join('')
+      + stand(210, 40, 90, 190, '<ellipse cx="45" cy="182" rx="30" ry="9" fill="#0e1013"/><path d="M15,182 V150 Q15,128 45,128 Q75,128 75,150 V182 Z" fill="#2a2f38" stroke="#0e1013" stroke-width="2"/><ellipse cx="45" cy="132" rx="16" ry="5" fill="#0e1013"/><path d="M38,8 Q72,-10 80,6 Q60,30 52,70 L47,134 L44,134 L48,70 Q40,40 38,8 Z" fill="#efe9dc" stroke="#6b5b45" stroke-width="1.5"/><path d="M78,6 Q60,40 46,134" stroke="#6b5b45" stroke-width="1.2" fill="none"/>'),
+      `서류 <small>${asks ? `받은 청 ${asks}` : writ}</small>`, 420)
+    + obj('lib', 1340, 120, 260, 320, pg(9, '#ece3cc', '<b class="hd">관할 일지</b><i class="lines"></i>', 3)
+      + '<i class="tie"></i>' + ['#5b2b26', '#2f4a3a'].map((c, i) => `<i class="pg book" style="background:${c};left:${60 + i * 10}px;right:${-40 - i * 6}px;top:${210 + i * 24}px;bottom:${-50 - i * 24}px;transform:translateZ(${22 + i * 10}px) rotate(${6 - i * 10}deg)"></i>`).join(''),
+      '기록', 400)
+    + obj('meet', -215, 640, 210, 150, pg(2, '#e9dfc4', '<b class="hd">회의 소집장</b><i class="lines"></i>', 4)
+      + stand(200, 140, 70, 84, '<rect x="32" y="0" width="6" height="16" fill="#3a2a1a"/><path d="M10,74 Q10,22 35,18 Q60,22 60,74 Z" fill="#c9a24a" stroke="#5c430f" stroke-width="2"/><rect x="3" y="74" width="64" height="9" rx="3" fill="#a8812c" stroke="#5c430f" stroke-width="2"/>'),
+      '회의');
 }
 
 // 시트의 내용. 테사의 한마디(tutHtml)는 시트 밖, 지도 위에 따로 뜬다

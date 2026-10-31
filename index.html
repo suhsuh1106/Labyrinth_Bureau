@@ -11,16 +11,23 @@
 </head>
 <body>
 <div class="room">
-  <div class="board" id="board" aria-label="관할 지도"></div>
+  <div class="desk" id="desk" aria-label="국장의 책상">
+    <div class="fit"><div class="persp"><div class="plane">
+      <i class="table" aria-hidden="true"></i>
+      <svg class="map-svg" id="map" viewBox="0 0 1280 768" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="관할 지도"><g class="terrain"></g><g id="marks"></g></svg>
+      <div class="minis" aria-hidden="true"></div>
+      <div class="props" id="props"></div>
+    </div></div></div>
+  </div>
   <header class="top" id="top" aria-label="오늘"></header>
-  <div class="zoom" id="zoom"><button type="button" data-zoom="1" aria-label="확대">+</button><button type="button" data-zoom="-1" aria-label="축소">−</button><button type="button" data-zoom="0" aria-label="관리국으로">◎</button></div>
+  <div class="zoom" id="zoom"><button type="button" data-zoom="1" aria-label="확대">+</button><button type="button" data-zoom="-1" aria-label="축소">−</button><button type="button" class="to-desk" data-zoom="0">↩ 책상으로</button></div>
   <div class="tut-float" id="tut"></div>
   <div class="asks-float" id="asks" aria-label="받은 청" aria-live="polite"></div>
   <aside class="sheet" id="sheet" hidden>
     <div class="sheet-head"><span class="grip" aria-hidden="true"></span><button type="button" class="x" data-act="shut" aria-label="닫기">✕</button></div>
     <div class="pane" id="pane" role="tabpanel"></div>
   </aside>
-  <nav class="dock" id="tabs" role="tablist" aria-label="국장의 손"></nav>
+  <div class="turn" aria-hidden="true"><p>가로로 돌려 주세요</p></div>
   <div class="over" id="over" hidden></div>
 </div>
 <script type="module" src="/src/bureauMain.ts"></script>
