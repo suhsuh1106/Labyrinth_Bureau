@@ -6,7 +6,7 @@ import { type FacId, type World, answer, hireClerk, meet, newWorld, over, post, 
 import { BOT } from './bureau/bots';
 import { CLAUSE, type ClauseId, type Tag, FORM_OF, type To, addClause, canAdd, dropClause } from './bureau/clauses';
 import { type BuUi, type DocKind, DRAFT0, type Shelf, type Tab, asksFloatHtml, deskHtml, docModalHtml, setHtml, fsOn, reportDocHtml, endHtml, introHtml, paneHtml, topHtml, tutHtml, writeHtml } from './ui/bureau/board';
-import { mapHtml, minisOf, terrainSvg } from './ui/bureau/map';
+import { mapHtml, minisOf, paintWash, terrainSvg } from './ui/bureau/map';
 import { type Desk, makeDesk } from './ui/bureau/desk';
 import { rumorAt } from './ui/bureau/rumor';
 
@@ -48,7 +48,7 @@ function put(id: string, html: string) {
 function draw() {
   put('top', topHtml(W, ui));
   // 땅은 한 번만 깔고(제 층), 날마다 바뀌는 표식 · 미니어처 · 책상 위 물건만 다시 그린다
-  if (!desk) { document.querySelector('.map-ground .terrain')!.innerHTML = terrainSvg(W); desk = makeDesk($('desk')); }
+  if (!desk) { paintWash(document.querySelector('.map-wash')!); document.querySelector('.map-ground .terrain')!.innerHTML = terrainSvg(W); desk = makeDesk($('desk')); }
   put('marks', mapHtml(W, ui));
   put('props', deskHtml(W, ui));
   desk.minis(minisOf(W, flow()));

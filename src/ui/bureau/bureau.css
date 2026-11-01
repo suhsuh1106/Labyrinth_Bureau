@@ -85,7 +85,9 @@ button.t-cell.on { outline: 2px solid #8c2f25; }
   linear-gradient(180deg, #5c3b22, #4a2f1b); }
 .plane > .map-svg { position: absolute; inset: 0; width: 1280px; height: 768px; }
 /* 땅(먹 번짐 필터가 무겁다)은 제 층에 한 번만 칠해 두고, 날마다 · 창을 열 때마다 바뀌는 표식은 위의 투명한 지도(#map)에만 그린다 */
-.plane > .map-ground { box-shadow: 0 30px 60px rgba(0,0,0,.55), 0 4px 10px rgba(0,0,0,.4); transform: translateZ(0); }
+.plane > .map-ground { transform: translateZ(0); }
+/* 구워 둔 먹 번짐(종이 결 · 물가). 굽기 전엔 종이 빛만 */
+.plane > .map-wash { position: absolute; left: 0; top: 0; width: 1280px; height: 768px; background: #e8dcc0; box-shadow: 0 30px 60px rgba(0,0,0,.55), 0 4px 10px rgba(0,0,0,.4); }
 .minis, .props { position: absolute; inset: 0; transform-style: preserve-3d; pointer-events: none; }
 .mini { position: absolute; width: 0; height: 0; transform-style: preserve-3d; }
 /* 움직이는 미니어처는 자리를 transform으로만 옮긴다(지도를 다시 칠하지 않게) */
