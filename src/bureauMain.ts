@@ -8,7 +8,6 @@ import { CLAUSE, type ClauseId, type Tag, FORM_OF, type To, addClause, canAdd, d
 import { type BuUi, type DocKind, DISP0, DRAFT0, dispHtml, svOf, type Shelf, type Tab, SPEED, asksFloatHtml, deskHtml, docModalHtml, setHtml, fsOn, reportDocHtml, endHtml, introHtml, paneHtml, topHtml, tutHtml, writeHtml } from './ui/bureau/board';
 import { mapHtml, minisOf, paintWash, terrainSvg } from './ui/bureau/map';
 import { type Desk, makeDesk } from './ui/bureau/desk';
-import { rumorAt } from './ui/bureau/rumor';
 import { playOpening } from './ui/bureau/opening';
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -65,7 +64,6 @@ function draw() {
   put('pane', ui.open ? paneHtml(W, ui) : '');
   put('tut', tutHtml(W, ui));
   put('asks', asksFloatHtml(W, ui));
-  rumor();
   // 첫 장면: 부임 첫날 신문 앞에 한 번(설정에서 다시 볼 수 있다). 끝나면 신문이 책상에 떨어진다
   if (ui.cut && !cutOn) { cutOn = true; playOpening($('cut'), () => { cutOn = false; ui.cut = false; save(); draw(); }); }
   const ov = $('over');
@@ -93,13 +91,6 @@ let dayAt = performance.now();
 const STILL = matchMedia('(prefers-reduced-motion: reduce)').matches;
 // 자동 진행 중에는 하루의 시간이 정해져 있으니 그만큼 고르게 다가간다
 const flow = () => STILL ? 0 : play ? Math.min(1, held / dayMs()) : 0.92 * (1 - Math.exp(-(performance.now() - dayAt) / 30000));
-// 소문은 몇 초마다 하나씩 바뀐다 (같은 말이면 다시 그리지 않는다)
-const RUMOR_MS = 9000;
-function rumor() {
-  const el = $('rumor'), t = ui.intro || over(W) ? '' : rumorAt(W, Math.floor(performance.now() / RUMOR_MS));
-  if (el.dataset.t === t) return;
-  el.dataset.t = t; el.innerHTML = t ? `<span>${t}</span>` : '';
-}
 // 자동 진행(세미 실시간): 재생하면 하루가 SPEED만큼 흐르고 저절로 넘어간다. 창(서류 · 청 · 설정 · 서류 쓰기)이 떠 있거나 탭이 숨으면 시계가 선다.
 // 새 청 · 새 보고가 오면 멈춘다(읽고 정한 뒤 다시 재생). 다음 날 · 닷새 단추는 그대로 쓸 수 있다
 let play = false, held = 0, last = performance.now();
@@ -116,7 +107,7 @@ function tick() {
   }
   const bar = document.getElementById('dayBar');
   if (bar) bar.style.width = `${Math.min(100, held / dayMs() * 100)}%`;
-  desk.minis(minisOf(W, flow())); rumor();
+  desk.minis(minisOf(W, flow()));
 }
 setInterval(tick, 250);
 

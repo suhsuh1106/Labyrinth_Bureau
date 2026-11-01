@@ -8,7 +8,7 @@ export interface Loop { id: LoopId; kind: 'R' | 'B'; name: string; path: string[
 
 // 그림 자리 (viewBox 1000 × 560)
 export const NODES: LoopNode[] = [
-  { id: 'level', label: '수위', x: 190, y: 90 },
+  { id: 'level', label: '마물', x: 190, y: 90 },
   { id: 'acc', label: '사고', x: 320, y: 175 },
   { id: 'fear', label: '꺼림', x: 290, y: 300 },
   { id: 'teams', label: '들어간 조', x: 150, y: 300 },
@@ -71,7 +71,7 @@ export const LINKS: LoopEdge[] = [
 
 // when: 엔진이 그날 고리를 켜는 조건 (`engine.ts`의 `lit`)
 export const LOOPS: Loop[] = [
-  { id: 'R1', kind: 'R', name: '범람', path: ['level', 'acc', 'fear', 'teams', 'level'], when: '위험 수위 위에서 조가 빠진 날', at: [235, 225] },
+  { id: 'R1', kind: 'R', name: '범람', path: ['level', 'acc', 'fear', 'teams', 'level'], when: '마물이 들끓는데 조가 빠진 날', at: [235, 225] },
   { id: 'B1', kind: 'B', name: '개입', path: ['level', 'sub', 'teams', 'level'], when: '보조금이 조를 들인 날', at: [118, 222] },
   { id: 'R2', kind: 'R', name: '발길', path: ['teams', 'dev', 'way', 'teams'], when: '길이 닦인 외진 미궁에 조가 늘어난 날', at: [92, 322] },
   { id: 'R3', kind: 'R', name: '몸집', path: ['size', 'infl', 'share', 'money', 'size'], when: '가장 큰 길드가 조를 늘린 날', at: [530, 190] },

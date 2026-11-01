@@ -621,15 +621,6 @@ button.danger small { color: var(--soft); font-size: 11px; }
 .quest small { font-size: 11.5px; color: #6d6250; }
 @media (max-width: 640px), (max-height: 480px) { .asks-float { width: 200px; } .quest { padding: 5px 8px; } .quest b { font-size: 12px; } }
 
-/* 소문: 화면 아래 가운데 한 줄 */
-.rumor { position: absolute; z-index: 2; zoom: var(--hz); left: 50%; transform: translateX(-50%); bottom: calc((var(--gut) + var(--sa-b)) / var(--hz) + 10px); margin: 0; width: max-content; max-width: min(620px, calc(100vw / var(--hz) - 640px)); pointer-events: none; text-align: center; }
-.rumor span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; vertical-align: bottom; }
-.rumor:empty { display: none; }
-.rumor span { display: inline-block; font: italic 14px var(--f-body); color: #f1e6cc; background: rgba(28, 20, 12, .62); border-radius: 14px; padding: 5px 14px; text-shadow: 0 1px 2px rgba(0, 0, 0, .5); animation: hear 9s ease-in-out both; }
-.rumor span::before { content: '“ '; opacity: .7; } .rumor span::after { content: ' ”'; opacity: .7; }
-@keyframes hear { 0% { opacity: 0; translate: 0 6px; } 8%, 88% { opacity: 1; translate: 0 0; } 100% { opacity: 0; } }
-.room:has(.sheet:not([hidden])) .rumor { display: none; }
-@media (max-width: 640px), (max-height: 480px) { .rumor span { font-size: 11.5px; padding: 3px 10px; } }
 
 /* 첫 장면(opening.ts): 먹선 그림 여덟 장이 천천히 다가오며 엇갈려 바뀐다. 위아래 검은 띠 · 아래 한두 줄 · 건너뛰기 */
 .cut-host[hidden] { display: none; }

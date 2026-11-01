@@ -1,10 +1,10 @@
 // 첫 장면: 부임 첫날 신문 앞에 도는 짧은 컷신(먹선 그림 여덟 장 · 한 장에 한두 줄).
-// 세계(미궁이 열리고 길드가 캔다) → 들지 않는 미궁이 넘친다 → 폐광 범람 · 왕국군 → 관리국 신설 → 국장 부임
+// 세계(미궁이 열리고 길드가 캔다 · 드나드는 조가 마물을 솎는다) → 아무도 들지 않는 미궁에 마물이 차서 넘친다 → 폐광 범람 · 왕국군 → 관리국 신설 → 국장 부임
 // 화면을 누르거나 Space · Enter · → 로 넘기고, 건너뛰기 · Esc로 바로 신문으로 간다. 고르는 단추는 없다.
 // 그리기만 하고 판 상태에 쓰지 않으며 난수도 쓰지 않는다(산 능선의 들쭉날쭉은 해시).
 import { dateOf } from './docs';
 
-const INK = '#1d1712', SEP = '#3b2f22', PAPER = '#e8dcc0', RED = '#a3392b', WATER = '#5d7480';
+const INK = '#1d1712', SEP = '#3b2f22', PAPER = '#e8dcc0', RED = '#a3392b';
 const hash = (k: number) => { let h = Math.imul(k ^ 0x9e3779b9, 0x85ebca6b); h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
 // 능선: 왼쪽에서 오른쪽으로 봉우리를 이어 아래를 막는다
 const ridge = (y: number, amp: number, k: number, fill: string, step = 80) => {
@@ -53,21 +53,31 @@ const P1 = svg(`${sky('s1', ['#1c1f24', '#33373a', '#4a4a44'])}
   <circle cx="990" cy="150" r="110" fill="${PAPER}" opacity=".07"/><circle cx="990" cy="150" r="44" fill="${PAPER}" opacity=".8"/>
   ${ridge(430, 120, 1, '#3a3d3e')}${ridge(500, 80, 2, '#2c2b28', 70)}
   <path d="M0,720 L0,420 Q260,350 470,400 Q760,470 1280,560 L1280,720 Z" fill="#1f1c18"/>
-  ${mouth(390, 446, 1.1)}<ellipse class="cut-glow" cx="390" cy="436" rx="20" ry="9" fill="#7fa3ad"/>
+  ${mouth(390, 446, 1.1)}<ellipse class="cut-glow" cx="390" cy="436" rx="20" ry="9" fill="#a8603a"/>
   <path d="M370,450 L330,720 M412,450 L470,720" stroke="#5a4a3a" stroke-width="5"/>${[0, 1, 2, 3, 4, 5].map(i => `<path d="M${355 - i * 7},${490 + i * 42} L${430 + i * 10},${490 + i * 42}" stroke="#5a4a3a" stroke-width="4"/>`).join('')}
   <path d="M560,430 L566,520" stroke="${INK}" stroke-width="6"/><rect x="520" y="420" width="96" height="30" fill="#6b5137" stroke="${INK}" stroke-width="2" transform="rotate(14 566 435)"/>
   <path d="M150,400 L160,300 M160,330 L130,300 M158,316 L190,282 M720,486 L728,400 M726,420 L750,396" stroke="${INK}" stroke-width="5" fill="none" stroke-linecap="round"/>`);
 
-const P2 = svg(`${sky('s2', ['#15171b', '#24282c', '#2d3236'])}
+// 범람: 마물로 가득 찬 미궁이 끝내 넘친다. 굴에서 마물 떼가 비탈을 타고 쏟아져 아랫마을을 덮친다(물이 아니다)
+// 마물 하나: 웅크린 등 · 가시 · 두 눈 (먹 그림자)
+const beast = (x: number, y: number, s: number, k: number) => `<g transform="translate(${x},${y}) scale(${s * (hash(k) < .5 ? -1 : 1)},${s})">
+  <path d="M-26,0 Q-30,-22 -10,-30 L-6,-40 L0,-30 L6,-42 L10,-29 Q30,-24 28,0 Q14,6 0,2 Q-14,6 -26,0 Z" fill="#0f0d0b" stroke="${INK}" stroke-width="1.5"/>
+  <path d="M-20,0 l-6,10 M-6,2 l-2,10 M10,2 l4,10 M22,0 l6,9" stroke="#0f0d0b" stroke-width="4" stroke-linecap="round"/></g>`;
+// 비탈 위 떼의 자리: 굴 어귀(220, 260)에서 마을(1000, 600) 쪽으로 퍼지며 내려온다
+const HORDE = Array.from({ length: 26 }, (_, i) => {
+  const t = (i + hash(i * 7 + 1)) / 26, sp = 30 + t * 210;
+  return { x: 220 + t * 760 + (hash(i * 7 + 2) - .5) * sp, y: 262 + t * 360 + (hash(i * 7 + 3) - .5) * sp * .45, s: .45 + t * .75, k: i };
+});
+const P2 = svg(`${sky('s2', ['#15171b', '#2a2224', '#4a2e26'])}
   ${ridge(300, 80, 3, '#262829')}
   <path d="M0,720 L0,190 Q170,160 330,230 Q520,320 640,720 Z" fill="#1c1a17"/>
-  ${mouth(220, 250, .9)}
-  <path d="M190,250 Q240,250 260,262 Q420,330 520,450 Q640,560 1280,560 L1280,720 L0,720 L0,560 Q120,520 180,420 Q200,330 190,250 Z" fill="${WATER}"/>
+  <path d="M0,720 L0,560 Q420,520 1280,560 L1280,720 Z" fill="#2b2620"/>
+  ${mouth(220, 250, .9)}<ellipse class="cut-glow" cx="220" cy="232" rx="26" ry="16" fill="#c0502a"/>
+  ${[0, 1, 2].map(i => `<ellipse class="cut-glow" style="animation-delay:${i * .6}s" cx="${880 + i * 150}" cy="${540 - i * 8}" rx="90" ry="60" fill="#d0662e"/>`).join('')}
   ${house(820, 600, 120)}${house(980, 610, 100)}${house(1140, 596, 130)}
-  <rect x="0" y="584" width="1280" height="136" fill="#4f6672" opacity=".96"/>
-  <path d="M230,280 q40,30 70,70 M300,340 q50,40 90,100 M420,430 q60,50 120,80 M0,600 q160,-18 320,0 t320,0 t320,0 t320,0 M0,650 q160,-14 320,0 t320,0 t320,0 t320,0" stroke="#c9d4d6" stroke-width="3" fill="none" opacity=".7"/>
-  <ellipse cx="520" cy="620" rx="70" ry="22" fill="#26343b"/><ellipse cx="700" cy="680" rx="54" ry="18" fill="#26343b"/><ellipse cx="300" cy="660" rx="60" ry="20" fill="#26343b"/>
-  ${eyes(498, 612, 0)}${eyes(684, 674, .7)}${eyes(282, 652, 1.4)}${eyes(1020, 640, 2)}`);
+  ${[820, 980, 1140].map((x, i) => `<path d="M${x - 10},${520 - i * 6} q-24,-50 6,-90 q28,-40 -4,-90" stroke="#3a302a" stroke-width="16" fill="none" stroke-linecap="round" opacity=".6"/>`).join('')}
+  ${[...HORDE].sort((a, b) => a.y - b.y).map(b => beast(b.x, b.y, b.s, b.k)).join('')}
+  ${HORDE.filter((_, i) => i % 3 === 1).map((b, i) => eyes(b.x - 8 * b.s, b.y - 20 * b.s, i * .4)).join('')}`);
 
 const P3 = svg(`${sky('s3', ['#5d6b78', '#c7956a', '#f1d39e'])}
   <circle cx="930" cy="350" r="150" fill="#f8e6b4" opacity=".25"/><circle cx="930" cy="350" r="74" fill="#f8e6b4"/>
@@ -109,9 +119,9 @@ const P6 = svg(`<rect width="1280" height="720" fill="#14110e"/>`);
 interface Shot { art: string; say: string[]; ms: number; kb: string; title?: boolean }
 const SHOTS: Shot[] = [
   { art: W1, say: ['언제부턴가 왕국 곳곳에 미궁이 열렸다.', '깊이 들수록 귀한 소재가 나왔다.'], ms: 5200, kb: '0%, 2%' },
-  { art: W2, say: ['길드들이 몰려들어 미궁을 캤다.', '캐 가는 만큼 미궁은 잠잠했다.'], ms: 5000, kb: '-2%, 0%' },
+  { art: W2, say: ['길드들이 몰려들어 미궁을 캤다.', '조가 드나들며 마물을 솎으니 미궁은 잠잠했다.'], ms: 5000, kb: '-2%, 0%' },
   { art: P1, say: ['하지만 길이 먼 미궁에는 아무도 들지 않았다.', '로이드 지방 산속의 폐광처럼.'], ms: 5000, kb: '-2%, 1%' },
-  { art: P2, say: ['차오른 미궁은 끝내 넘쳤다.', '아랫마을 셋이 물과 마물에 잠겼다.'], ms: 5000, kb: '2%, -1%' },
+  { art: P2, say: ['마물로 가득 찬 미궁은 끝내 넘쳤다.', '쏟아진 마물이 아랫마을 셋을 덮쳤다.'], ms: 5000, kb: '2%, -1%' },
   { art: P3, say: ['왕국군이 막아 섰지만,', '군은 미궁을 지키는 곳이 아니다.'], ms: 4800, kb: '0%, 2%' },
   { art: P4, say: ['중앙은 미궁을 맡을 관리국을 새로 두었다.'], ms: 4600, kb: '-1%, -2%' },
   { art: P5, say: ['길드에 명령할 수는 없다.', '공고와 편지로 움직일 뿐.'], ms: 5000, kb: '1%, 1%' },

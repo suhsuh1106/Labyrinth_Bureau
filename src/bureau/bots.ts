@@ -1,5 +1,5 @@
 // 국장 봇 셋: 시뮬레이터(`sim/bureau.ts`) · 테스트 · 개발용 확인 화면(`dev/loops.html`)이 함께 쓴다.
-// idle(손 놓음, 요청서도 답하지 않음) · normal(위험 수위 보고를 보면 보조금, 요청서는 다 들어줌, 가장 나쁜 두 길드 사이가 크게 틀어지면 둘만 불러 회의)
+// idle(손 놓음, 요청서도 답하지 않음) · normal(위험선 보고를 보면 보조금, 요청서는 다 들어줌, 가장 나쁜 두 길드 사이가 크게 틀어지면 둘만 불러 회의)
 // smart(늦은 보고를 추세로 메우고, 예산 · 조항, 청은 신세를 받아 둔 쪽엔 반만, 사이가 틀어지는 길드들을 체면 보는 길드까지 한 자리에 불러 회의)
 import { B, GPAIRS, GUILDS, type World, answer, meet, relOf, seenLevel, willOf, worstPair } from './engine';
 
@@ -12,8 +12,8 @@ export const BOT: Record<string, (W: World) => void> = {
     if (relOf(W, a, b) < -40) meet(W, [a, b]);
   },
   smart: W => {
-    // 보고는 거리만큼 늦다: 추세를 더해 오늘 수위를 어림하고, 위험 수위에 닿기 전에 들인다.
-    // 보조금은 상대 값이라 여기저기 주면 아무 데도 안 준 것과 같다: 가장 급한 두 곳에만, 수위가 내려갈 때까지
+    // 보고는 거리만큼 늦다: 추세를 더해 오늘 마물 수를 어림하고, 위험선에 닿기 전에 들인다.
+    // 보조금은 상대 값이라 여기저기 주면 아무 데도 안 준 것과 같다: 가장 급한 두 곳에만, 마물 수가 내려갈 때까지
     const est = W.dungeons.map((d, i) => {
       const s = W.seen[i], now = s.at(-1)!, trend = (now - (s.at(-6) ?? now)) / 5;
       return now + trend * (d.dist + 1);
