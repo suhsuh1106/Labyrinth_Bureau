@@ -97,7 +97,7 @@ export function dungeonHtml(W: World, i: number) {
   const n = teamsIn(d);
   return `<article class="dg ${levelCls(lv)}">
     <header><h3>${d.name}</h3><span class="lord">${d.land} · 거리 ${d.dist}일</span></header>
-    <div class="lv"><div class="lv-bar"><i style="height:${Math.min(100, lv)}%"></i><b style="bottom:${B.DANGER}%"></b></div>
+    <div class="lv" title="미궁에 찬 마물"><div class="lv-bar"><i style="height:${Math.min(100, lv)}%"></i><b style="bottom:${B.DANGER}%"></b></div>
       <div class="lv-num"><b class="num">${n0(lv)}</b><span class="tag">${levelWord(lv)}</span><small class="num">${tr >= 0.05 ? '▲' : tr <= -0.05 ? '▼' : '–'} 하루 ${n1(Math.abs(tr))}</small><small>${d.dist}일 전 보고</small></div></div>
     <dl class="dg-teams">${[...GUILDS].sort((a, b) => d.teams[b] - d.teams[a]).map(g => `<dt>${B.GUILD[g].name} <small>본부에서 ${wayOf(W, g, i)}일</small></dt><dd class="num">${n1(d.teams[g])}조</dd>`).join('')}<dt>범람 · 잃은 조</dt><dd class="num">${d.floods} · ${n1(d.dead)}</dd></dl>
     ${devHtml(W, i)}

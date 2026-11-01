@@ -1,7 +1,7 @@
 // 미궁관리국 관할 지도: 국장 책상에 펼친 먹선 지도(40 × 24칸 타일, src/bureau/tiles.ts). 관리국 · 미궁 셋 · 길드 본부 일곱 · 두 지방 성이 칸 자리에 선다.
 // 땅과 처음부터 있는 길은 판마다 같아 한 번만 그리고(terrainSvg), 날마다 바뀌는 것은 그 위 층(mapHtml)에 그린다:
 // 외진 미궁의 발전도(devPct: 길이 그어지고, 집이 길을 따라 한 채씩 늘고, 둘레 숲이 베여 밭이 되고, 목책이 두른다),
-// 미궁 표식의 고리(보고된 수위), 세력 사이(본부 사이 선). 길드 조 · 본부 깃발 · 관리국은 지도 위에 선 미니어처(minisOf, 책상 장면이 세운다).
+// 미궁 표식의 고리(보고된 마물 수), 세력 사이(본부 사이 선). 길드 조 · 본부 깃발 · 관리국은 지도 위에 선 미니어처(minisOf, 책상 장면이 세운다).
 // 그리기만 하고 상태에 쓰지 않는다.
 import { B, BUREAU_AT, HAVEL_AT, LOYD_AT, ROADS, devRoadOf, devStage, type Dungeon, type FacId, FACS, GUILDS, type World, wayOf, nameOf, pactK, relOf, seenLevel, subAt, teamsIn, worstPair } from '../../bureau/engine';
 import { type At, MAP_H, MAP_W, groundAt, isRoad, walkPath } from '../../bureau/tiles';
@@ -294,10 +294,10 @@ export function mapHtml(W: World, ui: BuUi) {
       ${label(x, y + T / 2 + 14, g.name, on ? 'strong' : '')}
       ${label(x, y + T / 2 + 27, `${n0(g.size)}조`, 'small')}</g>`;
   }
-  // 미궁 표식: 먹으로 그린 굴 입구, 둘레 고리가 보고된 수위
+  // 미궁 표식: 먹으로 그린 굴 입구, 둘레 고리가 보고된 마물 수
   W.dungeons.forEach((d, i) => {
     const x = cx(d.at), y = cy(d.at), lv = seenLevel(W, i), on = sel === `dg:${i}`, R = 20, C = 2 * Math.PI * R;
-    h += `<g class="mk dg-mk ${levelCls(lv)}${on ? ' on' : ''}${lv >= B.DANGER ? ' hot' : ''}" data-act="sel:dg:${i}" role="button" tabindex="0" aria-label="${d.name} 수위 ${n0(lv)}">
+    h += `<g class="mk dg-mk ${levelCls(lv)}${on ? ' on' : ''}${lv >= B.DANGER ? ' hot' : ''}" data-act="sel:dg:${i}" role="button" tabindex="0" aria-label="${d.name} 마물 ${n0(lv)}">
       <circle class="disc" cx="${x}" cy="${y}" r="${R}"/>
       <circle class="ring" cx="${x}" cy="${y}" r="${R}" style="stroke-dasharray:${(C * Math.min(1, lv / 100)).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 ${x} ${y})"/>
       <path class="cave" d="M${x - 11},${y + 8}v-6a11,10 0 0 1 22,0v6z"/>

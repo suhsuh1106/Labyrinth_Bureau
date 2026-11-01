@@ -65,7 +65,7 @@ function main() {
     for (const bot of Object.keys(BOT)) {
       const W = playGame(1000, bot, o);
       console.log(`\n[${bot}]`);
-      W.dungeons.forEach((d, i) => console.log(`  ${d.name.padEnd(6)} 수위 ${spark(W.hist[i], 0, 100)} 끝 ${f1(d.level)} · 범람 ${d.floods}`));
+      W.dungeons.forEach((d, i) => console.log(`  ${d.name.padEnd(6)} 마물 ${spark(W.hist[i], 0, 100)} 끝 ${f1(d.level)} · 범람 ${d.floods}`));
       console.log(`  가장 큰 길드 ${spark(W.stats.bigSize, 0, 40)} 끝 ${f1(Math.max(...Object.values(W.guilds).map(g => g.size)))}`);
       console.log(`  나쁜 두 길드 ${spark(W.stats.relHist, -100, 100)} 끝 ${f1(relOf(W, ...worstPair(W)))}`);
     }

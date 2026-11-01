@@ -247,7 +247,7 @@ describe('국장의 서류 (조항 조합)', () => {
     expect(canAdd(W, 'notice', { sub: 5 }, 'rec')).toBe(true);
   });
 
-  it('출입 기록 제출: 그 미궁의 수위 보고가 그날 오고, 붉은 깃발단이 언짢아한다', () => {
+  it('출입 기록 제출: 그 미궁의 마물 보고가 그날 오고, 붉은 깃발단이 언짢아한다', () => {
     const a = newWorld(8), b = newWorld(8);
     post(b, 1, 30, { rec: 1 });
     setSeed(8); step(a); const ra = getSeed();

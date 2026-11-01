@@ -8,7 +8,6 @@ import { CLAUSE, type ClauseId, type Tag, FORM_OF, type To, addClause, canAdd, d
 import { type BuUi, type DocKind, DRAFT0, type Shelf, type Tab, asksFloatHtml, deskHtml, docModalHtml, setHtml, fsOn, reportDocHtml, endHtml, introHtml, paneHtml, topHtml, tutHtml, writeHtml } from './ui/bureau/board';
 import { mapHtml, minisOf, terrainSvg } from './ui/bureau/map';
 import { type Desk, makeDesk } from './ui/bureau/desk';
-import { rumorAt } from './ui/bureau/rumor';
 
 const $ = (id: string) => document.getElementById(id)!;
 const KEY = 'lb-bureau', VERSION = 15;
@@ -52,7 +51,6 @@ function draw() {
   $('pane').innerHTML = ui.open ? paneHtml(W, ui) : '';
   $('tut').innerHTML = tutHtml(W, ui);
   $('asks').innerHTML = asksFloatHtml(W, ui);
-  rumor();
   const ov = $('over');
   if (ui.intro) { ov.innerHTML = introHtml(); ov.hidden = false; }
   else if (over(W)) {
@@ -76,14 +74,7 @@ function draw() {
 let dayAt = performance.now();
 const STILL = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const flow = () => STILL ? 0 : 0.92 * (1 - Math.exp(-(performance.now() - dayAt) / 30000));
-// 소문은 몇 초마다 하나씩 바뀐다 (같은 말이면 다시 그리지 않는다)
-const RUMOR_MS = 9000;
-function rumor() {
-  const el = $('rumor'), t = ui.intro || over(W) ? '' : rumorAt(W, Math.floor(performance.now() / RUMOR_MS));
-  if (el.dataset.t === t) return;
-  el.dataset.t = t; el.innerHTML = t ? `<span>${t}</span>` : '';
-}
-setInterval(() => { if (desk && !document.hidden && !ui.intro && !over(W)) { desk.minis(minisOf(W, flow())); rumor(); } }, 250);
+setInterval(() => { if (desk && !document.hidden && !ui.intro && !over(W)) { desk.minis(minisOf(W, flow())); } }, 250);
 
 function nextDays(n: number) {
   dayAt = performance.now();
