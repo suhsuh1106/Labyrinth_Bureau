@@ -5,7 +5,7 @@ import { getSeed, setSeed } from './core/rng';
 import { type FacId, type World, answer, hireClerk, meet, newWorld, over, post, recall, run, send, step, withdraw } from './bureau/engine';
 import { BOT } from './bureau/bots';
 import { CLAUSE, type ClauseId, type Tag, FORM_OF, type To, addClause, canAdd, dropClause } from './bureau/clauses';
-import { type BuUi, type DocKind, DRAFT0, type Shelf, type Tab, asksFloatHtml, deskHtml, docModalHtml, setHtml, reportDocHtml, endHtml, introHtml, paneHtml, topHtml, tutHtml, writeHtml } from './ui/bureau/board';
+import { type BuUi, type DocKind, DRAFT0, type Shelf, type Tab, asksFloatHtml, deskHtml, docModalHtml, setHtml, fsOn, reportDocHtml, endHtml, introHtml, paneHtml, topHtml, tutHtml, writeHtml } from './ui/bureau/board';
 import { mapHtml, minisOf, terrainSvg } from './ui/bureau/map';
 import { type Desk, makeDesk } from './ui/bureau/desk';
 import { rumorAt } from './ui/bureau/rumor';
@@ -16,6 +16,19 @@ let W: World, ui: BuUi, seed = 0, desk: Desk | null = null;
 
 function save() { try { localStorage.setItem(KEY, JSON.stringify({ v: VERSION, seed, rng: getSeed(), W, ui })); } catch { /* 저장이 막혀도 판은 계속된다 */ } }
 function load() { try { const d = JSON.parse(localStorage.getItem(KEY) || 'null'); return d && d.v === VERSION ? d : null; } catch { return null; } }
+
+type FsEl = HTMLElement & { webkitRequestFullscreen?: () => void };
+type FsD = Document & { webkitExitFullscreen?: () => void };
+function toggleFs() {
+  const el = document.documentElement as FsEl, d = document as FsD;
+  try {
+    if (fsOn()) { if (d.exitFullscreen) void d.exitFullscreen().catch(() => {}); else d.webkitExitFullscreen?.(); }
+    else if (el.requestFullscreen) void el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+    else el.webkitRequestFullscreen?.();
+  } catch { /* 막히면 그대로 둔다 */ }
+}
+// 전체 화면이 켜지거나 꺼지면(Esc 포함) 단추 모양을 바꾼다
+for (const ev of ['fullscreenchange', 'webkitfullscreenchange']) document.addEventListener(ev, () => { if (W) draw(); });
 
 function fresh() {
   seed = (Date.now() ^ 0x5bd1e995) >>> 0;
@@ -97,6 +110,8 @@ function act(a: string, d = 0) {
   else if (k === 'write') { ui.draft = { ...draft(), dg: +arg }; ui.tab = 'asks'; ui.open = true; ui.modal = 'write'; }
   else if (k === 'close') { ui.modal = undefined; ui.read = undefined; ui.ask = undefined; }
   else if (k === 'set') ui.modal = 'set';
+  // 전체 화면: 주소창 · 탭 줄을 숨긴다. 막힌 곳(일부 iframe · 아이폰)에선 단추가 뜨지 않는다
+  else if (k === 'fs') { toggleFs(); return; }
   else if (k === 'ask') { ui.ask = +arg; ui.askSeen = Math.max(ui.askSeen ?? 0, +arg); }
   else if (k === 'shelf') ui.shelf = arg as Shelf;
   else if (k === 'ctag') ui.ctag = (arg || undefined) as Tag | undefined;
