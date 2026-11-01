@@ -1,8 +1,8 @@
-// 용병단 엔진 (docs/plan.md 1단계): 장부, 재현성, 시장 규칙이 깨지지 않는지 확인한다
+// 용병단 엔진 (docs/legacy/plan.md 1단계): 장부, 재현성, 시장 규칙이 깨지지 않는지 확인한다
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { setSeed } from '../src/core/rng';
 import type { World as W0 } from '../src/core/company';
-// 옛 길: 구역 없이 (임무 · 횃불 · 남은 채비가 돌아오는 옛 탐사. docs/zones.md 6단계에서 지운다)
+// 옛 길: 구역 없이 (임무 · 횃불 · 남은 채비가 돌아오는 옛 탐사. docs/legacy/zones.md 6단계에서 지운다)
 const old = (W: W0) => { delete W.zones; return W; };
 import { CO, FLOORS, ITEMS, defaultPlan, emptyPlan, newWorld, potionPrice, priceOf, runMonth, us, worth } from '../src/core/company';
 import { FILE_KEYS, TAX, detOf, auditChance, billOf, closeBooks, fileFix, gainOf, jobsExplore, lawsAt, preview } from '../src/core/company';
@@ -1665,7 +1665,7 @@ describe('밀고', () => {
   });
 });
 
-describe('구역 탐사 (docs/zones.md)', () => {
+describe('구역 탐사 (docs/legacy/zones.md)', () => {
   it('층마다 구역 여덟이 입구에서 거리 1 · 2 · 3으로 퍼져 있고, 층 매장량은 구역 남은 양의 합이다', () => {
     setSeed(2); const W = newWorld();
     FLOORS.forEach((F, f) => {
@@ -1728,7 +1728,7 @@ describe('구역 탐사 (docs/zones.md)', () => {
 });
 const D = (o: { days?: import('../src/core/expedition').Day[] }) => o.days || [];
 
-describe('판 (docs/board.md 1단계)', () => {
+describe('판 (docs/legacy/board.md 1단계)', () => {
   it('판은 열린 층의 구역 · 깃발 · 단추 줄을 그리고, 시트(구역 보고서 · 명령서 · 단추 탭)마다 깨지지 않으며, 그려도 판은 그대로다', async () => {
     const { boardShellHtml, MENUS } = await import('../src/ui/co/board');
     setSeed(31); const W = newWorld();
@@ -1747,7 +1747,7 @@ describe('판 (docs/board.md 1단계)', () => {
     W.history.flatMap(M => M.ours).flatMap(o => o.seen || []).forEach(x => { expect(x.z).toBeDefined(); expect(W.zones![x.z!].f).toBe(x.f); });
   });
 });
-describe('인원 시트 (docs/board.md 2단계)', () => {
+describe('인원 시트 (docs/legacy/board.md 2단계)', () => {
   it('조 편성 · 명단 · 지원자는 사람마다 한 줄이고, 기록 카드를 펼쳐도 깨지지 않으며 판은 그대로다', async () => {
     const { teamsHtml, listHtml, candsHtml } = await import('../src/ui/co/crew');
     setSeed(32); const W = newWorld(); runMonth(W, BOT.even(W)); closeBooks(W);
@@ -1760,7 +1760,7 @@ describe('인원 시트 (docs/board.md 2단계)', () => {
     expect(JSON.stringify(W)).toBe(snap);
   });
 });
-describe('물자 시트 (docs/board.md 3단계)', () => {
+describe('물자 시트 (docs/legacy/board.md 3단계)', () => {
   it('구매 · 배분 · 팔기는 깨지지 않고, 담은 만큼 금액이 보이며 판은 그대로다', async () => {
     const { buyHtml, kitHtml, sellHtml } = await import('../src/ui/co/goods');
     setSeed(33); const W = newWorld(); runMonth(W, BOT.even(W)); closeBooks(W);
@@ -1773,7 +1773,7 @@ describe('물자 시트 (docs/board.md 3단계)', () => {
     expect(JSON.stringify(W)).toBe(snap);
   });
 });
-describe('기록 시트 (docs/board.md 4단계)', () => {
+describe('기록 시트 (docs/legacy/board.md 4단계)', () => {
   it('이달은 순이익 예측과 줄마다 이번 달 · 지난달, 구역은 열린 층의 구역마다 카드이고, 깨지지 않으며 판은 그대로다', async () => {
     const { zoneCards } = await import('../src/ui/co/records');
     const { ledgerHtml } = await import('../src/ui/co/ledger');
@@ -1805,7 +1805,7 @@ describe('장부 · 귀환 손익 (본 화면)', () => {
     expect(JSON.stringify(W)).toBe(snap);
   });
 });
-describe('단장의 인계 (화면만, docs/plan.md)', () => {
+describe('단장의 인계 (화면만, docs/legacy/plan.md)', () => {
   it('새 판은 판 · 인원 · 보급만 열고, 조건이 차면 업무를 하나씩 넘겨받으며, 첫 신고서는 장부 그대로다', async () => {
     const { boardShellHtml } = await import('../src/ui/co/board');
     const { DUTIES, dutyDue, tabOpen } = await import('../src/ui/co/duty');

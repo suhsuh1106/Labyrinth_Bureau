@@ -1,4 +1,4 @@
-// 기록 시트 (docs/board.md 4단계): 세로 카드. 구역(구역마다 카드, 누르면 판의 구역 보고서). 이달(돈)은 본 화면의 장부(ledger.ts)로 옮겼다
+// 기록 시트 (docs/legacy/board.md 4단계): 세로 카드. 구역(구역마다 카드, 누르면 판의 구역 보고서). 이달(돈)은 본 화면의 장부(ledger.ts)로 옮겼다
 // 귀환 · 지난달 보고서 · 신문 · 도감 · 정보는 원래 세로 문서라 그대로 띄운다. 읽기만 한다 (상태를 쓰지 않는다)
 import { FLOORS, type Plan, type World, dayAbs, richEst, riskEst, zoneKnown, zoneWay } from '../../core/company';
 import { type Zone, lvOf, zonesOn } from '../../core/zones';

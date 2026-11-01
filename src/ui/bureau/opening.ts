@@ -118,13 +118,13 @@ const P6 = svg(`<rect width="1280" height="720" fill="#14110e"/>`);
 
 interface Shot { art: string; say: string[]; ms: number; kb: string; title?: boolean }
 const SHOTS: Shot[] = [
-  { art: W1, say: ['언제부턴가 왕국 곳곳에 미궁이 열렸다.', '깊이 들수록 귀한 소재가 나왔다.'], ms: 5200, kb: '0%, 2%' },
-  { art: W2, say: ['길드들이 몰려들어 미궁을 캤다.', '조가 드나들며 마물을 솎으니 미궁은 잠잠했다.'], ms: 5000, kb: '-2%, 0%' },
-  { art: P1, say: ['하지만 길이 먼 미궁에는 아무도 들지 않았다.', '로이드 지방 산속의 폐광처럼.'], ms: 5000, kb: '-2%, 1%' },
-  { art: P2, say: ['마물로 가득 찬 미궁은 끝내 넘쳤다.', '쏟아진 마물이 아랫마을 셋을 덮쳤다.'], ms: 5000, kb: '2%, -1%' },
-  { art: P3, say: ['왕국군이 막아 섰지만,', '군은 미궁을 지키는 곳이 아니다.'], ms: 4800, kb: '0%, 2%' },
-  { art: P4, say: ['중앙은 미궁을 맡을 관리국을 새로 두었다.'], ms: 4600, kb: '-1%, -2%' },
-  { art: P5, say: ['길드에 명령할 수는 없다.', '공고와 편지로 움직일 뿐.'], ms: 5000, kb: '1%, 1%' },
+  { art: W1, say: ['왕국의 산과 들 아래, 아무도 판 적 없는 굴이 열리기 시작한 지 서른 해.', '깊이 내려갈수록, 땅 위에는 없는 것들이 올라왔다.'], ms: 5600, kb: '0%, 2%' },
+  { art: W2, say: ['길드는 그 굴을 광맥이라 불렀다.', '조가 드나드는 동안에는, 안쪽의 것들도 제 수를 넘지 못했다.'], ms: 5600, kb: '-2%, 0%' },
+  { art: P1, say: ['길이 닿지 않는 굴은 장부에서도 지워졌다.', '로이드 산중의 폐광. 마지막 조가 나온 지 일곱 해째.'], ms: 5600, kb: '-2%, 1%' },
+  { art: P2, say: ['안에서 불어난 것들이 끝내 갱도를 거슬러 올랐고,', '사흘 만에, 아랫마을 셋이 세금 장부에서 빠졌다.'], ms: 5600, kb: '2%, -1%' },
+  { art: P3, say: ['국경에서 빼 온 창병 이천이 갱도 어귀에 말뚝을 박았다.', '창은 쏟아지는 것을 막을 뿐, 굴 안을 비우지는 못한다.'], ms: 5600, kb: '0%, 2%' },
+  { art: P4, say: ['중앙은 관청 하나와 도장 하나를 내려보냈다.', '병사도, 명령권도 딸려 보내지 않은 채.'], ms: 5200, kb: '-1%, -2%' },
+  { art: P5, say: ['길드는 왕의 신하가 아니다. 그들은 남는 곳으로 간다.', '국장의 손에 남은 것은 종이와, 빠듯한 예산뿐.'], ms: 5600, kb: '1%, 1%' },
   { art: P6, say: [], ms: 4200, kb: '0%, 0%', title: true },
 ];
 export const SHOT_N = SHOTS.length;
@@ -133,7 +133,7 @@ export function openingHtml() {
   return `<div class="cut" role="dialog" aria-label="첫 장면">
   ${SHOTS.map((s, i) => `<figure class="cut-p${s.title ? ' cut-title' : ''}" data-k="${i}" style="--dur:${s.ms}ms;--kb:${s.kb}">
     <div class="cut-art">${s.art}</div>
-    ${s.title ? `<div class="cut-name"><small>왕도 · ${dateOf(0)}</small><h1>미 궁 관 리 국</h1><p>초대 국장, 오늘 부임.</p></div>` : `<figcaption>${s.say.map((t, j) => `<span style="animation-delay:${.5 + j * 1.1}s">${t}</span>`).join('')}</figcaption>`}
+    ${s.title ? `<div class="cut-name"><small>왕도 · ${dateOf(0)}</small><h1>미 궁 관 리 국</h1><p>초대 국장 부임</p></div>` : `<figcaption>${s.say.map((t, j) => `<span style="animation-delay:${.5 + j * 1.1}s">${t}</span>`).join('')}</figcaption>`}
   </figure>`).join('')}
   <i class="cut-bar t" aria-hidden="true"></i><i class="cut-bar b" aria-hidden="true"></i><i class="cut-rain" aria-hidden="true"></i>
   <div class="cut-dots" aria-hidden="true">${SHOTS.map(() => '<b></b>').join('')}</div>

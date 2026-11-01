@@ -682,3 +682,7 @@ button.danger small { color: var(--soft); font-size: 11px; }
   .cut-p.on .cut-art, .cut-rain, .cut-glow, .cut-eye, .card.intro { animation: none; }
   .cut-glow { opacity: .3; } .cut-eye { opacity: 1; }
 }
+/* 폐광 실태 조사서: 개조식 본문 안의 길드 표 */
+.s-report .gd-body li { line-height: 1.7; }
+.s-report .s-table { margin: 6px 0 2px; }
+.s-report .s-table td:first-of-type { width: auto; }

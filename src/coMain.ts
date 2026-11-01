@@ -46,7 +46,7 @@ function draw() {
   if (over) ui.phase = 3;
   $('weeks').innerHTML = weeksHtml(W, ui.phase);
   $('desk').className = `co-desk ph${ui.phase}`;
-  // 날마다의 본 화면은 판 (docs/board.md): 명패는 판의 위 띠가 맡는다
+  // 날마다의 본 화면은 판 (docs/legacy/board.md): 명패는 판의 위 띠가 맡는다
   document.body.classList.toggle('mode-board', ui.phase === 0);
   $('desk').innerHTML = ui.phase === 0 ? boardShellHtml(W, plan, ui) : ui.phase === 2 ? draftHtml(W, ui.file || {}, live, !hasDuty(ui, 'books')) : resultWeekHtml(W, live, !!ui.mute);
   const cv = document.getElementById('bs-terrain') as HTMLCanvasElement | null;
@@ -167,7 +167,7 @@ function say(t: string) {
 function act(b: HTMLElement) {
   const a = b.dataset.act;
   if (a === 'phase') return setPhase(+(b.dataset.phase || 0));
-  // 판 (docs/board.md)
+  // 판 (docs/legacy/board.md)
   if (a === 'bs-menu') { const m = b.dataset.m || 'crew'; if (ui.menu === m) { closeSheet(); render(); save(); return; } return openMenu(m, ui.mtab && MENUS[m].tabs.some(x => x[0] === ui.mtab) ? ui.mtab : undefined); }
   if (a === 'bs-tab') { ui.mtab = b.dataset.k; render(); save(); return; }
   if (a === 'bs-menu-tab') return openMenu(b.dataset.m || 'rec', b.dataset.k);

@@ -2,7 +2,7 @@
 // 화면 전체가 국장의 책상(desk.ts)이고 그 위에 지도(map.ts, 타일)가 누워 있다. 왼쪽 위 정보(날 · 예산 · 입지 → 집무실 · 폐광 인계) · 오른쪽 아래 다음 날 ·
 // 책상 위 물건(깃펜 → 서류, 기록 더미 → 기록, 종 → 회의) · 지도에서 고른 것(살펴보기)을 여는 시트 · 테사의 한마디
 import { lookHtml } from './map';
-import { askLetter, dateOf, moneyWord, docOf, floodNews, govHtml, introNews, letterHtml, newsHtml, peekLines, tripGov } from './docs';
+import { askLetter, dateOf, moneyWord, mineSurveyHtml, docOf, floodNews, govHtml, introNews, letterHtml, newsHtml, peekLines, tripGov } from './docs';
 import { B, type FacId, FACS, GUILDS, type GuildId, type Report, type World, knowLv, lagOf, grantOf, payOf, crewMax, deptCost, deptOpen, DEPTS, type DeptId, pnlGuild, pnlOf, pnlSum, devStage, wayOf, hqOf, depOf, docsOut, escrowOf, crewFree, svWay, svName, type SvTo, trustOf, withdrawFav, facOf, levelOf, nameOf, pactK, relOf, seenLevel, subAt, teamsIn, willOf } from '../../bureau/engine';
 import { CLAUSE, CLAUSES, CLAUSE_MAX, type Clause, type Clauses, type ClauseId, FORM_NAME, type Tag, FORM_OF, type Form, toName, type To, clauseLock, fits, toLock } from '../../bureau/clauses';
 
@@ -307,8 +307,8 @@ export function tutOf(W: World, ui: BuUi): Tut {
 }
 // 테사(집무실의 첫 서기, 부상으로 일찍 은퇴한 중소 길드 조장 출신): 해요체로 짧게, 현장 감각만. 숫자나 정답은 말하지 않는다
 const TUT: Record<Exclude<Tut, ''>, string> = {
-  lib: '징세청 장부를 보고 첫 보고서를 올렸어요. <b>기록</b> 더미(책상 오른쪽)의 <b>받은 서류</b>에 있어요.',
-  write: '길드는 명령으론 안 움직여요. 남는 데로 가요. 폐광 공고문은 책상 왼쪽 <b>깃펜</b>으로 써요.',
+  lib: '요구서에 붙은 조사서, 군인들 셈이라 길드 사정은 빠져 있어요. 징세청 장부로 길드마다 따로 셈해 봤어요. <b>기록</b> 더미(책상 오른쪽)의 <b>받은 서류</b>에 있어요.',
+  write: '길드는 명령으론 안 움직여요. 저도 조장 시절엔 남는 데로만 갔어요. 폐광 공고문은 책상 왼쪽 <b>깃펜</b>으로 써요.',
   wait: '공고문은 본부가 가까운 길드부터 닿아요. 그사이 깃펜에서 <b>파견서</b>로 사신을 보낼 수 있어요. 미궁의 출입 기록을 살피거나, 길드 본부에 가 관리국의 뜻을 퍼뜨리게 해요.',
   see: `폐광 쪽으로 발길이 생겼어요. ${B.ORDER.need}일 이어져야 군이 넘겨줘요. 오른쪽 위 <b>할 일</b>에 적어 뒀어요.`,
   road: '사람이 다니면 길이 나요. 길이 닦이면 길드가 알아서 와요. 폐광 <b>발전도</b>는 지도에서 폐광을 눌러 보세요.',
@@ -342,6 +342,7 @@ function libHtml(W: World, ui: BuUi) {
       `<li class="${cls}"><small>${day} · ${from}</small><b>${title}<span class="dk">${kind}</span></b><button type="button" class="link" data-act="read:${k}">${word}</button></li>`;
     const fb = (k: DocKind | '', name: string) => `<button type="button" class="opt ${(kd ?? '') === k ? 'on' : ''}" data-act="dkind:${k}" aria-pressed="${(kd ?? '') === k}">${name}</button>`;
     const rows = li('보고', '서기 테사', dateOf(0), '폐광 길 어림 · 첫 보고', -2, '보기', tut ? 'g-rep pulse' : 'g-rep')
+      + li('보고', '로이드 주둔대 · 징세소', dateOf(0), '폐광 실태 조사서', -3, '보기', 'g-rep')
       + li('보고', '기록실', dateOf(W.day), '관할 길드 현황', -1, '보기', 'g-rep')
       + ks.map(k => { const x = W.reports[k]; return li(kindOf(x), x.from, dateOf(x.day), x.title, k, '다시 보기'); }).join('');
     return nav + `<div class="opts ftags">${fb('', '전체')}${(['보고', '공문', '서신', '신문'] as DocKind[]).map(k => fb(k, k)).join('')}</div><ul class="news">${rows || '<li class="empty">없음</li>'}</ul>`;
@@ -399,13 +400,16 @@ function officeHtml(W: World, ui: BuUi) {
 // 길드 현황 보고: 기록실이 날마다 고쳐 두는 보고서 한 장(받은 서류 철 맨 위 · 살펴보기에서 연다). 큰 길드 둘을 위에
 export function guildReportHtml(W: World) {
   const top = Math.max(1, ...GUILDS.map(g => W.guilds[g].size));
-  const row = (g: GuildId) => { const o = W.guilds[g]; return `<tr class="f-${g}"><th><b>${o.name}</b><small>${B.GUILD[g].trait}</small></th>
+  // 그 길드의 조가 지금 가장 많이 든 곳 (기록실이 출입 장부로 아는 만큼)
+  const where = (g: GuildId) => { const at = W.dungeons.map((d, i) => [i, d.teams[g]] as const).filter(([, v]) => v >= 0.5).sort((a, b) => b[1] - a[1])[0];
+    return at ? `${W.dungeons[at[0]].name}에 ${n0(at[1])}조` : '본부에 머묾'; };
+  const row = (g: GuildId) => { const o = W.guilds[g]; return `<tr class="f-${g}"><th><b>${o.name}</b><small>${where(g)}</small></th>
     <td><i class="gs-bar"><i style="width:${Math.max(2, o.size / top * 100)}%"></i><b class="num">${n0(o.size)}조</b></i></td>
-    <td>${knowLv(o.know) >= 2 ? moneyWord(o) : '—'}</td><td class="num">${wayOf(W, g, 0)}일</td><td><span class="tag">${favWord(o.fav)}</span></td></tr>`; };
+    <td>${knowLv(o.know) >= 2 ? moneyWord(o) : '—'}</td><td><span class="tag">${favWord(o.fav)}</span></td></tr>`; };
   return `<article class="gov-doc g-report">
     <header class="gd-org">미 궁 관 리 국 기 록 실</header>
     <dl class="gd-meta"><dt>수신</dt><dd>국장</dd><dt>제목</dt><dd><b>관할 길드 현황</b></dd></dl>
-    <table class="g-table"><thead><tr><th></th><th>몸집</th><th>금고</th><th>폐광까지</th><th>관리국을</th></tr></thead>
+    <table class="g-table"><thead><tr><th></th><th>몸집</th><th>금고</th><th>관계</th></tr></thead>
       <tbody>${GUILDS.filter(g => B.GUILD[g].big).map(row).join('')}</tbody><tbody>${GUILDS.filter(g => !B.GUILD[g].big).map(row).join('')}</tbody></table>
     <p class="gd-no"><span>기록실 서기</span><span>${dateOf(W.day)} 기준</span></p>
   </article>`;
@@ -531,7 +535,7 @@ export function tessaReportHtml(W: World) {
   return `<article class="gov-doc t-report">
     <header class="gd-org">미 궁 관 리 국 서 기</header>
     <dl class="gd-meta"><dt>수신</dt><dd>국장</dd><dt>제목</dt><dd><b>폐광 길 어림 · 첫 보고</b></dd></dl>
-    <div class="t-say">${TESSA}<p>징세청 장부로 대강 셈했어요. 폐광은 벌이는 괜찮은데 길이 멀어서, 오가는 날을 빼면 밑지는 길드가 많아요. 모자란 만큼 메워 주면 들어가요.</p></div>
+    <div class="t-say">${TESSA}<p>징세청 장부로 대강 셈했어요. 폐광은 캐는 건 좋은데, 산길에서 새는 날을 빼고 나면 손에 남는 게 없는 길드가 많아요. 조장들은 그 빈 데를 누가 메워 주느냐만 봐요.</p></div>
     <section class="pnl-doc">${W.dungeons.map((_, i) => card(i)).join('')}</section>
     <p class="gd-no"><span>서기 테사</span><span>${dateOf(0)}</span></p>
   </article>`;
@@ -562,6 +566,7 @@ export function docModalHtml(W: World, ui: BuUi) {
 export function reportDocHtml(W: World, k: number, again: boolean) {
   if (k === -2) return `<div class="card modal g-modal">${tessaReportHtml(W)}<button type="button" class="go wide" data-act="unread">닫기</button></div>`;
   if (k === -1) return `<div class="card modal g-modal">${guildReportHtml(W)}<button type="button" class="go wide" data-act="unread">닫기</button></div>`;
+  if (k === -3) return `<div class="card modal g-modal">${mineSurveyHtml(W)}<button type="button" class="go wide" data-act="unread">닫기</button></div>`;
   const r = W.reports[k];
   if (!r) return '';
   const btn = (label: string) => `<button type="button" class="go wide" data-act="${again ? 'unread' : `seen:${k}`}">${again ? '닫기' : label}</button>`;
