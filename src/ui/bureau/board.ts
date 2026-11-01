@@ -3,7 +3,7 @@
 // 책상 위 물건(깃펜 → 서류, 기록 더미 → 기록, 종 → 회의) · 지도에서 고른 것(살펴보기)을 여는 시트 · 테사의 한마디
 import { lookHtml } from './map';
 import { askLetter, dateOf, docOf, floodNews, govHtml, introNews, letterHtml, newsHtml } from './docs';
-import { B, type FacId, FACS, GUILDS, type GuildId, type Report, type World, pnlGuild, pnlOf, pnlSum, devStage, wayOf, hqOf, depOf, docsOut, escrowOf, trustOf, withdrawFav, facOf, levelOf, nameOf, pactK, relOf, seenLevel, subAt, teamsIn, willOf } from '../../bureau/engine';
+import { B, type FacId, FACS, GUILDS, type GuildId, type Report, type World, pnlGuild, pnlOf, pnlSum, devStage, wayOf, hqOf, depOf, docsOut, escrowOf, crewFree, trustOf, withdrawFav, facOf, levelOf, nameOf, pactK, relOf, seenLevel, subAt, teamsIn, willOf } from '../../bureau/engine';
 import { CLAUSE, CLAUSES, CLAUSE_MAX, type Clause, type Clauses, type ClauseId, FORM_NAME, type Tag, FORM_OF, type Form, toName, type To, clauseLock, fits, toLock } from '../../bureau/clauses';
 
 export type Tab = 'look' | 'asks' | 'lib' | 'meet' | 'office';
@@ -28,10 +28,11 @@ export const levelCls = (v: number) => v >= B.DANGER ? 'bad' : v >= B.RISK_AT ? 
 const stepper = (act: string, val: string, label: string) =>
   `<span class="step" role="group" aria-label="${label}"><button type="button" data-act="${act}" data-d="-1" aria-label="${label} 내리기">−</button><output>${val}</output><button type="button" data-act="${act}" data-d="1" aria-label="${label} 올리기">+</button></span>`;
 
-// 하루 예산 흐름의 어림: 입장료(중앙 몫 뺌) − 보조금
+// 하루 예산 흐름의 어림: 입장료(중앙 몫 뺌) − 보조금 − 조사원 품삯
 export function dayFlow(W: World) {
   let fee = 0, sub = 0;
-  W.dungeons.forEach((d, i) => { const n = teamsIn(d); fee += n * B.FEE * (1 - W.crownShare / 100); sub += n * subAt(W, i); });
+  W.dungeons.forEach((d, i) => { const n = teamsIn(d); fee += n * B.FEE * (1 - W.crownShare / 100); sub += n * subAt(W, i) + d.svy * B.SVY.pay; });
+  for (const g of GUILDS) sub += W.guilds[g].svy * B.SVY.pay;
   return { fee, sub, net: fee - sub };
 }
 
@@ -96,11 +97,30 @@ export function dungeonHtml(W: World, i: number) {
   return `<article class="dg ${levelCls(lv)}">
     <header><h3>${d.name}</h3><span class="lord">${d.land} · 거리 ${d.dist}일</span></header>
     <div class="lv"><div class="lv-bar"><i style="height:${Math.min(100, lv)}%"></i><b style="bottom:${B.DANGER}%"></b></div>
-      <div class="lv-num"><b class="num">${n0(lv)}</b><span class="tag">${levelWord(lv)}</span><small class="num">${tr >= 0.05 ? '▲' : tr <= -0.05 ? '▼' : '–'} 하루 ${n1(Math.abs(tr))}</small><small>${d.dist}일 전 보고</small></div></div>
+      <div class="lv-num"><b class="num">${n0(lv)}</b><span class="tag">${levelWord(lv)}</span><small class="num">${tr >= 0.05 ? '▲' : tr <= -0.05 ? '▼' : '–'} 하루 ${n1(Math.abs(tr))}</small><small>${d.svy > 0 ? '조사원 보고 · 오늘' : `${d.dist}일 전 보고`}</small></div></div>
     <dl class="dg-teams">${[...GUILDS].sort((a, b) => d.teams[b] - d.teams[a]).map(g => `<dt>${B.GUILD[g].name} <small>본부에서 ${wayOf(W, g, i)}일</small></dt><dd class="num">${n1(d.teams[g])}조</dd>`).join('')}<dt>범람 · 잃은 조</dt><dd class="num">${d.floods} · ${n1(d.dead)}</dd></dl>
     ${devHtml(W, i)}
+    ${surveyHtml(W, i)}
     <div class="dg-sub"><span>진입 보조금 <small>${noticeWord(W, i)}</small></span><b class="num">${subAt(W, i)}G</b><small class="num">하루 ${n0(n * subAt(W, i))}G</small><button type="button" data-act="write:${i}">서류 쓰기</button></div>
   </article>`;
+}
+
+// 조사원: 들여보낼 사람 − + · 하루 품삯 · 갱도 조사 보고서까지 막대 · 잃은 사람
+export function surveyHtml(W: World, i: number) {
+  const d = W.dungeons[i], S = B.SVY, pct = Math.min(100, d.sv / S.map * 100);
+  return `<div class="dg-svy"><span>조사원 <small>관리국 ${W.crew}명 · 남은 ${crewFree(W)}명${d.svLost ? ` · 잃은 ${d.svLost}명` : ''}</small></span>
+    ${stepper(`svy:${i}`, `${d.svy}명`, '조사원')}<small class="num">하루 ${n0(d.svy * S.pay)}G</small>
+    <span class="svy-map"><small>${d.mapped ? '갱도 조사 보고서 나옴' : '갱도 조사'}</small><i class="gauge"><i style="width:${pct.toFixed(0)}%"></i></i></span></div>`;
+}
+
+// 길드 본부에 보낸 조사원: − + · 품삯 · 마지막으로 알아 온 것(미궁마다 조 하나가 남기는 값 · 바라는 조 · 서명할 마음 · 견제)
+export function spyHtml(W: World, g: GuildId) {
+  const o = W.guilds[g], p = o.peek;
+  return `<div class="dg-svy"><span>조사원 <small>관리국 ${W.crew}명 · 남은 ${crewFree(W)}명</small></span>
+    ${stepper(`spy:${g}`, `${o.svy}명`, '조사원')}<small class="num">하루 ${n0(o.svy * B.SVY.pay)}G</small></div>
+    ${p ? `<dl class="peek"><dt>조사 보고 <small class="num">${W.day - p.day ? `${W.day - p.day}일 전` : '오늘'}</small></dt><dd></dd>
+      ${W.dungeons.map((d, i) => `<dt>${d.name}</dt><dd class="num">조당 ${sgG(p.pnl[i])} · 바라는 조 ${n1(p.want[i])}</dd>`).join('')}
+      <dt>서명할 마음</dt><dd class="num">${p.will}</dd><dt>견제</dt><dd class="num">${n1(p.check)}</dd></dl>` : ''}`;
 }
 
 // 외진 미궁의 발전도: 단계 · 다음 단계까지 막대 · 지금 길의 모습
@@ -233,7 +253,7 @@ export function tutOf(W: World, ui: BuUi): Tut {
 const TUT: Record<Exclude<Tut, ''>, string> = {
   lib: '징세청 장부를 보고 첫 보고서를 올렸어요. <b>기록</b> 더미(책상 오른쪽)의 <b>받은 서류</b>에 있어요.',
   write: '길드는 명령으론 안 움직여요. 남는 데로 가요. 폐광 공고문은 책상 왼쪽 <b>깃펜</b>으로 써요.',
-  wait: '공고문은 본부가 가까운 길드부터 닿아요. 먼 데는 사흘 걸려요. <b>다음 날</b> 넘기며 지도 보세요.',
+  wait: '공고문은 본부가 가까운 길드부터 닿아요. 그사이 지도에서 폐광을 눌러 <b>조사원</b>을 들여보낼 수 있어요. 갱도가 알려지면 덜 꺼려요. 물이 높으면 사람을 잃고요.',
   see: `폐광 쪽으로 발길이 생겼어요. ${B.ORDER.need}일 이어져야 군이 넘겨줘요. 오른쪽 위 <b>할 일</b>에 적어 뒀어요.`,
   road: '사람이 다니면 길이 나요. 길이 닦이면 길드가 알아서 와요. 폐광 <b>발전도</b>는 지도에서 폐광을 눌러 보세요.',
   town: '길이 났어요. 마을이 서면 보조금 없이도 와요. 가장 많이 다닌 길드가 지부를 낼 거예요.',
@@ -326,6 +346,7 @@ export function facHtml(W: World, f: FacId) {
       <dt>호감</dt><dd><span class="tag">${favWord(o.fav)}</span> <span class="num">${n0(o.fav)}</span></dd>
       <dt>신세</dt><dd class="num ${owe < -0.5 ? 'neg' : ''}">${Math.abs(owe) < 0.5 ? '없음' : owe > 0 ? `받을 것 ${n1(owe)}` : `진 빚 ${n1(-owe)}`}</dd>
     </dl>
+    ${g ? spyHtml(W, f as GuildId) : ''}
   </article>`;
 }
 

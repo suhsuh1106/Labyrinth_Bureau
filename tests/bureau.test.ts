@@ -1,6 +1,6 @@
 // 미궁관리국 배경 엔진 0단계: 인과 루프 두 쌍이 폭주하거나 멈추지 않는지, 국장의 손이 판을 바꾸는지
 import { describe, expect, it } from 'vitest';
-import { B, FACS, pairOf, BUREAU_AT, HAVEL_AT, LOYD_AT, ROADS, devRoadOf, GUILDS, answer, clauseOn, hireClerk, subAt, letterScore, meet, newWorld, over, pactK, pnlGuild, pnlSum, devStage, post, recall, relOf, run, send, step, teamsIn, withdraw, worstPair, wayOf, hqOf } from '../src/bureau/engine';
+import { B, FACS, pairOf, BUREAU_AT, HAVEL_AT, LOYD_AT, ROADS, devRoadOf, GUILDS, answer, clauseOn, hireClerk, subAt, letterScore, meet, newWorld, over, pactK, pnlGuild, pnlSum, devStage, post, recall, relOf, run, send, spy, step, survey, teamsIn, withdraw, worstPair, wayOf, hqOf } from '../src/bureau/engine';
 import { BOT, playGame } from '../sim/bureau';
 import { EDGES, LINKS, LOOPS, NODES, checkLoops } from '../src/bureau/loops';
 import { type BuUi, asksFloatHtml, docModalHtml, setHtml, endHtml, introHtml, paneHtml, deskHtml, topHtml, tutOf, tessaReportHtml, writeHtml } from '../src/ui/bureau/board';
@@ -265,6 +265,66 @@ describe('국장의 서류 (조항 조합)', () => {
     for (let t = 0; t < 30; t++) { setSeed(900 + t); step(a); setSeed(900 + t); step(b); }
     expect(b.dungeons[0].dead).toBeGreaterThan(0);
     expect(b.dungeons[0].fear).toBeLessThan(a.dungeons[0].fear);
+  });
+
+  it('조사원: 그날 수위가 오고 품삯이 나가며 꺼림이 빨리 걷힌다. 사람 × 날이 차면 갱도 조사 보고서가 나와 짧은 공고로도 인계한다', () => {
+    const a = newWorld(5), b = newWorld(5);
+    // 관리국에 있는 사람만큼만, 미궁마다 넷까지
+    expect(survey(b, 0, 9)).toBe(B.SVY.max);
+    expect(survey(b, 1, 2)).toBe(0);
+    expect(survey(b, 0, 0)).toBe(0);
+    survey(b, 0, 4);
+    step(a); step(b);
+    expect(b.budget).toBeCloseTo(a.budget - 4 * B.SVY.pay, 0);
+    expect(b.dungeons[0].fear).toBeLessThan(a.dungeons[0].fear);
+    expect(b.seen[0].at(-1)).toBe(b.hist[0].at(-1));
+    expect(a.seen[0].at(-1)).not.toBe(a.hist[0].at(-1));
+    // 15G · 20일 공고는 짧아 혼자로는 넘겨받지 못하지만, 조사원 넷이 보고서를 내면 넘겨받는다
+    let ok = 0, rep = 0, lost = 0;
+    for (const seed of [1, 2, 3, 4, 5, 6]) {
+      const x = newWorld(seed), y = newWorld(seed);
+      post(x, 0, 20, { sub: 15 }); post(y, 0, 20, { sub: 15 });
+      for (let t = 0; t < 40; t++) { survey(y, 0, y.dungeons[0].mapped ? 0 : 4); step(x); step(y); }
+      expect(x.order.done).not.toBe('ok');
+      if (y.order.done === 'ok') ok++;
+      if (y.reports.some(r => r.title.endsWith('갱도 조사 보고서'))) rep++;
+      lost += y.dungeons[0].svLost;
+    }
+    expect(ok).toBeGreaterThanOrEqual(5);
+    expect(rep).toBe(6);
+    // 수위 75 언저리에선 가끔 사람을 잃는다
+    expect(lost).toBeGreaterThan(0);
+  });
+
+  it('조사원을 잃으면 꺼림이 오르고 입지가 깎이며, 다음 달 첫날 다시 채운다', () => {
+    const W = newWorld(3);
+    W.dungeons[0].level = 99;
+    let t = 0;
+    for (; t < 29 && !W.dungeons[0].svLost; t++) { survey(W, 0, 4); W.dungeons[0].level = 99; step(W); }
+    const d = W.dungeons[0];
+    expect(d.svLost).toBeGreaterThan(0);
+    expect(W.crew).toBe(B.SVY.crew - d.svLost);
+    expect(W.reports.some(r => r.title.includes('돌아오지 못함'))).toBe(true);
+    survey(W, 0, 0);
+    while (W.day % B.MONTH) step(W);
+    expect(W.crew).toBe(B.SVY.crew);
+  });
+
+  it('길드 본부의 조사원: 같은 사람들을 나눠 쓰고, 그날의 남기는 값 · 서명할 마음을 알아 온다. 들키면 돌아오고 그 길드가 서운해한다', () => {
+    const W = newWorld(7);
+    expect(spy(W, 'river', 3)).toBe(3);
+    expect(survey(W, 0, 4)).toBe(1);
+    step(W);
+    const p = W.guilds.river.peek!;
+    expect(p.day).toBe(1);
+    expect(p.pnl.length).toBe(W.dungeons.length);
+    expect(p.pnl[0]).toBeLessThan(p.pnl[1]);   // 폐광은 강나루에서 멀어 덜 남는다
+    expect(W.guilds.wolf.peek).toBeNull();
+    // 강나루 조합은 정보를 가장 꺼려 곧 들킨다
+    const fav0 = W.guilds.river.fav;
+    for (let t = 0; t < 60 && !W.reports.some(r => r.from === '강나루 조합'); t++) { spy(W, 'river', 3); step(W); }
+    expect(W.reports.some(r => r.from === '강나루 조합' && r.title.includes('기웃거린'))).toBe(true);
+    expect(W.guilds.river.fav).toBeLessThan(fav0 + 3);
   });
 
   it('공고문을 기한 전에 내리면 조항이 멎고 길드들이 서운해한다', () => {

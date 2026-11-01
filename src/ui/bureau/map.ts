@@ -304,7 +304,7 @@ export function mapHtml(W: World, ui: BuUi) {
       <text class="lv" x="${x}" y="${y + 5}" text-anchor="middle">${n0(lv)}</text>
       ${subAt(W, i) > 0 ? `<g class="coin"><circle cx="${x + 18}" cy="${y - 17}" r="8"/><text x="${x + 18}" y="${y - 13.5}" text-anchor="middle">${subAt(W, i)}</text></g>` : ''}
       ${label(x, y + R + 15, d.name, on ? 'strong' : '')}
-      ${label(x, y + R + 28, `${levelWord(lv)} · ${n1(teamsIn(d))}조${d.floods ? ` · 범람 ${d.floods}` : ''}`, 'small')}</g>`;
+      ${label(x, y + R + 28, `${levelWord(lv)} · ${n1(teamsIn(d))}조${d.svy ? ` · 조사원 ${d.svy}` : ''}${d.floods ? ` · 범람 ${d.floods}` : ''}`, 'small')}</g>`;
   });
   return h;
 }

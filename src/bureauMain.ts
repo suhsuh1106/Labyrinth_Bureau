@@ -2,7 +2,7 @@
 // 판을 이 브라우저에 저장한다(`lb-bureau`). 엔진은 src/bureau/engine.ts
 import './ui/bureau/bureau.css';
 import { getSeed, setSeed } from './core/rng';
-import { type FacId, type World, answer, hireClerk, meet, newWorld, over, post, recall, run, send, step, withdraw } from './bureau/engine';
+import { type FacId, type GuildId, type World, answer, hireClerk, meet, newWorld, over, post, recall, run, send, spy, step, survey, withdraw } from './bureau/engine';
 import { BOT } from './bureau/bots';
 import { CLAUSE, type ClauseId, type Tag, FORM_OF, type To, addClause, canAdd, dropClause } from './bureau/clauses';
 import { type BuUi, type DocKind, DRAFT0, type Shelf, type Tab, asksFloatHtml, deskHtml, docModalHtml, setHtml, fsOn, reportDocHtml, endHtml, introHtml, paneHtml, topHtml, tutHtml, writeHtml } from './ui/bureau/board';
@@ -11,7 +11,7 @@ import { type Desk, makeDesk } from './ui/bureau/desk';
 import { rumorAt } from './ui/bureau/rumor';
 
 const $ = (id: string) => document.getElementById(id)!;
-const KEY = 'lb-bureau', VERSION = 15;
+const KEY = 'lb-bureau', VERSION = 16;
 let W: World, ui: BuUi, seed = 0, desk: Desk | null = null;
 
 function save() { try { localStorage.setItem(KEY, JSON.stringify({ v: VERSION, seed, rng: getSeed(), W, ui })); } catch { /* 저장이 막혀도 판은 계속된다 */ } }
@@ -141,6 +141,8 @@ function act(a: string, d = 0) {
     const done = FORM_OF(f.to) === 'notice' ? post(W, f.dg, f.days, f.cl) : f.to !== 'all' && f.to !== 'trade' ? send(W, f.to, f.dg, f.days, f.cl) : null;
     if (done) ui.modal = undefined;
   }
+  else if (k === 'svy') survey(W, +arg, W.dungeons[+arg].svy + d);
+  else if (k === 'spy') spy(W, arg as GuildId, W.guilds[arg as GuildId].svy + d);
   else if (k === 'recall') recall(W, +arg);
   else if (k === 'clerk') hireClerk(W);
   else if (k === 'withdraw') withdraw(W, +arg);
