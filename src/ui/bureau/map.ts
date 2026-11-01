@@ -3,7 +3,7 @@
 // 외진 미궁의 발전도(devPct: 길이 그어지고, 집이 길을 따라 한 채씩 늘고, 둘레 숲이 베여 밭이 되고, 목책이 두른다),
 // 미궁 표식의 고리(보고된 마물 수), 세력 사이(본부 사이 선). 길드 조 · 본부 깃발 · 관리국은 지도 위에 선 미니어처(minisOf, 책상 장면이 세운다).
 // 그리기만 하고 상태에 쓰지 않는다.
-import { B, BUREAU_AT, HAVEL_AT, LOYD_AT, ROADS, devRoadOf, devStage, type Dungeon, type FacId, FACS, GUILDS, type World, wayOf, nameOf, pactK, relOf, seenLevel, subAt, teamsIn, worstPair } from '../../bureau/engine';
+import { B, BUREAU_AT, HAVEL_AT, LOYD_AT, ROADS, devRoadOf, devStage, type Dungeon, type FacId, FACS, GUILDS, type World, wayOf, nameOf, svAt, svName, pactK, relOf, seenLevel, subAt, teamsIn, worstPair } from '../../bureau/engine';
 import { type At, MAP_H, MAP_W, groundAt, isRoad, walkPath } from '../../bureau/tiles';
 import { type BuUi, dungeonHtml, facHtml, levelCls, levelWord, n0, n1, pactLine, relRow, relWord, relsTop } from './board';
 
@@ -157,10 +157,12 @@ function cutTrees(W: World) {
 const treesOf = (x: number, y: number) => [0, 1, 2].map(k => ({ x: x * T + 6 + hash(x, y, 20 + k) * 20, y: y * T + 8 + hash(x, y, 30 + k) * 18, s: hash(x, y, 40 + k) * 1.5, k }));
 
 // ── 땅: 판마다 같으니 한 번만 만든다 ─────────────────────────────
-let terrain = '';
-export function terrainSvg(W: World) {
-  if (terrain) return terrain;
-  const cut = cutTrees(W);
+// 땅에는 글자를 두지 않는다: 웹 글꼴 조각이 새로 내려올 때마다(처음 보는 글자가 창에 뜰 때) 그 글꼴의 글자가 모두 다시 칠해지는데,
+// 땅 층에 글자가 있으면 무거운 먹 번짐 필터까지 통째로 다시 돈다. 지방 이름은 표식 층(mapHtml)에 쓴다
+const regions = () => label(cx(LOYD_AT), cy(LOYD_AT) + 52, '로 이 드', 'rg') + label(cx(HAVEL_AT) - 30, cy(HAVEL_AT) - 34, '하 벨', 'rg') + label(28 * T, 1.5 * T, '검 은 숲', 'rg');
+// 먹 번짐(종이 결 · 물가)은 필터가 무거워 한 번만 그림(canvas)으로 구워 두고, 그 위의 먹선(기호 · 길 · 테두리)만 SVG로 둔다.
+// SVG 필터는 그 층이 다시 칠해질 때마다(웹 글꼴 조각이 새로 내려오는 등 문서 전체의 스타일이 바뀔 때) 처음부터 다시 돌아 휴대폰에서 한참 멈춘다
+function washSvg() {
   const goo = (id: string, erode = 0) => `<filter id="t-${id}" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceGraphic" stdDeviation="8" result="b"/><feTurbulence type="fractalNoise" baseFrequency="0.011" numOctaves="1" seed="7" result="n"/><feDisplacementMap in="b" in2="n" scale="26" xChannelSelector="R" yChannelSelector="G"/><feGaussianBlur stdDeviation="2"/><feComponentTransfer><feFuncA type="linear" slope="18" intercept="-8"/></feComponentTransfer>${erode ? `<feMorphology operator="erode" radius="${erode}"/>` : ''}</filter>`;
   // 바깥 물 칸은 지도 밖으로 늘려 흐림이 가장자리에서 끊기지 않게
   const water = (fill: string) => {
@@ -174,10 +176,33 @@ export function terrainSvg(W: World) {
   };
   let h = `<defs>${goo('g')}${goo('g1', 1.6)}${goo('g2', 7)}${goo('g3', 8.4)}${goo('g4', 14)}${goo('g5', 15.2)}
     <filter id="t-paper" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="4"/><feColorMatrix values="0 0 0 0 0.42  0 0 0 0 0.33  0 0 0 0 0.2  0 0 0 0.16 0"/><feComposite in2="SourceGraphic" operator="in"/></filter>
-    <radialGradient id="t-vig" cx="50%" cy="50%" r="72%"><stop offset="62%" stop-color="#6b4f2a" stop-opacity="0"/><stop offset="100%" stop-color="#6b4f2a" stop-opacity="0.32"/></radialGradient></defs>`;
+    </defs>`;
   h += `<rect width="${MAP_PX[0]}" height="${MAP_PX[1]}" fill="${PAPER}"/><rect width="${MAP_PX[0]}" height="${MAP_PX[1]}" fill="#000" filter="url(#t-paper)"/>`;
   // 물: 먹 해안선과 바다 쪽 물결선 두 겹
   h += `<g filter="url(#t-g)">${water(INK)}</g><g filter="url(#t-g1)">${water(WASH)}</g><g filter="url(#t-g2)" opacity="0.55">${water(SEP)}</g><g filter="url(#t-g3)">${water(WASH)}</g><g filter="url(#t-g4)" opacity="0.35">${water(SEP)}</g><g filter="url(#t-g5)">${water(WASH)}</g>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${MAP_PX[0]}" height="${MAP_PX[1]}" viewBox="0 0 ${MAP_PX[0]} ${MAP_PX[1]}">${h}</svg>`;
+}
+// 번짐을 한 번 그림으로 굽는다(canvas로 그려 PNG로 받아 <img>에). 흐린 그림이라 화면 픽셀만큼 촘촘할 필요는 없다(지도 한 칸에 최대 2픽셀).
+// canvas를 그대로 두지 않는 것은 휴대폰에서 canvas 층이 프레임마다 합성 비용을 내서다
+export function paintWash(out: HTMLImageElement) {
+  const k = Math.min(2, Math.max(1, Math.ceil((devicePixelRatio || 1) * 2.5) / 2));
+  const cv = document.createElement('canvas'), img = new Image();
+  cv.width = MAP_PX[0] * k; cv.height = MAP_PX[1] * k;
+  img.onload = () => {
+    const g = cv.getContext('2d');
+    if (!g) return;
+    try { g.drawImage(img, 0, 0, cv.width, cv.height); } catch { return; }
+    // blob 주소가 막힌 곳(일부 미리보기 창)에선 data 주소로. 그마저 막히면 종이 빛 바탕만 남는다
+    out.onerror = () => { out.onerror = null; try { out.src = cv.toDataURL(); } catch { /* 그대로 둔다 */ } };
+    try { cv.toBlob(b => { if (b) out.src = URL.createObjectURL(b); else out.onerror?.(new Event('error')); }); } catch { out.onerror?.(new Event('error')); }
+  };
+  img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(washSvg())}`;
+}
+let terrain = '';
+export function terrainSvg(W: World) {
+  if (terrain) return terrain;
+  const cut = cutTrees(W);
+  let h = `<defs><radialGradient id="t-vig" cx="50%" cy="50%" r="72%"><stop offset="62%" stop-color="#6b4f2a" stop-opacity="0"/><stop offset="100%" stop-color="#6b4f2a" stop-opacity="0.32"/></radialGradient></defs>`;
   // 기호: 아래쪽이 앞에 오도록 y 순서로
   const gl: [number, string][] = [];
   for (let y = 0; y < MAP_H; y++) for (let x = 0; x < MAP_W; x++) {
@@ -189,7 +214,6 @@ export function terrainSvg(W: World) {
   }
   gl.sort((a, b) => a[0] - b[0]).forEach(([, s]) => h += s);
   h += `<path class="road" d="${roadSegs((x, y) => isRoad(ROADS, x, y))}"/>`;
-  h += label(cx(LOYD_AT), cy(LOYD_AT) + 52, '로 이 드', 'rg') + label(cx(HAVEL_AT) - 30, cy(HAVEL_AT) - 34, '하 벨', 'rg') + label(28 * T, 1.5 * T, '검 은 숲', 'rg');
   h += `<rect width="${MAP_PX[0]}" height="${MAP_PX[1]}" fill="url(#t-vig)" pointer-events="none"/><rect x="1" y="1" width="${MAP_PX[0] - 2}" height="${MAP_PX[1] - 2}" fill="none" stroke="${INK}" stroke-width="2"/>`;
   return terrain = h;
 }
@@ -260,7 +284,7 @@ const ptAt = (p: [number, number][], t: number): [number, number, number] => {
 
 export function mapHtml(W: World, ui: BuUi) {
   const sel = ui.sel ?? '';
-  let h = '';
+  let h = regions();
   // 외진 미궁의 발전도
   W.dungeons.forEach((d, i) => { if (d.wild > 0) h += townSvg(W, i, d); });
   // 세력 사이: 험악하거나 우호적인 짝 · 협정을 맺은 짝만 본부 사이에 선을 긋는다
@@ -304,17 +328,21 @@ export function mapHtml(W: World, ui: BuUi) {
       <text class="lv" x="${x}" y="${y + 5}" text-anchor="middle">${n0(lv)}</text>
       ${subAt(W, i) > 0 ? `<g class="coin"><circle cx="${x + 18}" cy="${y - 17}" r="8"/><text x="${x + 18}" y="${y - 13.5}" text-anchor="middle">${subAt(W, i)}</text></g>` : ''}
       ${label(x, y + R + 15, d.name, on ? 'strong' : '')}
-      ${label(x, y + R + 28, `${levelWord(lv)} · ${n1(teamsIn(d))}조${d.floods ? ` · 범람 ${d.floods}` : ''}`, 'small')}</g>`;
+      ${label(x, y + R + 28, `${levelWord(lv)} · ${n1(teamsIn(d))}조${onSite(W, i) ? ` · 조사원 ${onSite(W, i)}` : ''}${d.floods ? ` · 범람 ${d.floods}` : ''}`, 'small')}</g>`;
   });
   return h;
 }
 
 // ── 지도 위에 선 미니어처: 길드 조(본부 ↔ 미궁 길 위, 날마다 걸음을 옮긴다) · 본부 천막과 깃발 · 관리국 청사 ─────────────
 // 자리(지도 단위)와 그림만 내고, 세우는 일(각도 · 옮겨 가는 연출)은 책상 장면(desk.ts)이 한다. key가 같으면 같은 말이다
+// 그곳에 머무는 조사원 수 (가는 중 · 돌아오는 중 빼고)
+const onSite = (W: World, i: number) => W.trips.reduce((a, t) => a + (t.to === i && W.day >= t.at && W.day < t.until ? t.n : 0), 0);
 export interface Mini { key: string; x: number; y: number; w: number; h: number; svg: string; face?: -1 | 1; title: string; walk?: boolean }
 const dark = (c: string) => `color-mix(in srgb, ${c} 70%, #000)`, light = (c: string) => `color-mix(in srgb, ${c} 55%, #fff)`;
 const BASE = (r: number) => `<ellipse cx="0" cy="0" rx="${r}" ry="${f1(r * 0.32)}" fill="#2a2420"/><path d="M${-r},0 v-3 a${r},${f1(r * 0.32)} 0 0 1 ${2 * r},0 v3 a${r},${f1(r * 0.32)} 0 0 1 ${-2 * r},0" fill="#4a4038"/><ellipse cx="0" cy="-3" rx="${r}" ry="${f1(r * 0.32)}" fill="#6d7a4a"/>`;
 const ART = {
+  // 관리국 조사원: 먹빛 외투 · 등불 · 서판
+  svy: (load = false) => `${BASE(9)}<path d="M-5,-3 q-1,-13 2,-19 q3,-3 6,0 q3,7 2,19 z" fill="#3d3a44" stroke="#1d1712" stroke-width="0.8"/><circle cx="0" cy="-25" r="3.4" fill="#e2b98f" stroke="#1d1712" stroke-width="0.7"/><path d="M-4,-25 q4,-7 8,0 z" fill="#6c2b23" stroke="#1d1712" stroke-width="0.5"/><path d="M5,-14 l4,4" stroke="#3a2a1a" stroke-width="1"/><circle cx="9.5" cy="-8" r="2.4" fill="#f2c45a" stroke="#1d1712" stroke-width="0.6"/>${load ? '<rect x="-9" y="-17" width="5" height="7" fill="#e9dcc0" stroke="#1d1712" stroke-width="0.6"/>' : ''}`,
   // 조: 망토 두른 모험가 둘, 하나는 길드 깃대
   team: (c: string, load = false) => `${BASE(12)}<path d="M-9,-4 q-1,-12 3,-20 q3,-3 6,0 q4,8 2,20 z" fill="${dark(c)}" stroke="#1d1712" stroke-width="0.8"/><circle cx="-3" cy="-27" r="3.6" fill="#e2b98f" stroke="#1d1712" stroke-width="0.7"/><path d="M-7,-27 q4,-7 8,0 q-4,-2 -8,0" fill="${dark(c)}"/><path d="M1,-4 q0,-14 3,-19 q3,-3 6,0 q3,6 1,19 z" fill="#7b6c5a" stroke="#1d1712" stroke-width="0.8"/><circle cx="6.5" cy="-26" r="3.4" fill="#d9ad84" stroke="#1d1712" stroke-width="0.7"/><path d="M3,-26 q3,-6 7,0 z" fill="#8a8a8a" stroke="#1d1712" stroke-width="0.5"/><path d="M-10,-6 V-44" stroke="#3a2a1a" stroke-width="1.4"/><path d="M-10,-44 h13 l-3,4 l3,4 h-13 z" fill="${c}" stroke="#1d1712" stroke-width="0.7"/><path d="M-10,-44 h13" stroke="${light(c)}" stroke-width="1"/><path d="M11,-12 l4,-14" stroke="#9aa0a6" stroke-width="1.2"/>${load ? `<path d="M5,-22 q7,-3 9,4 q1,7 -5,8 q-6,0 -4,-12 z" fill="#b0915e" stroke="#1d1712" stroke-width="0.7"/><path d="M7,-20 l5,9" stroke="#6d5432" stroke-width="0.6"/>` : ''}`,
   // 짐수레: 돌아오는 길에 짐을 실은 수레와 노새
@@ -350,6 +378,16 @@ export function minisOf(W: World, f = 0): Mini[] {
       out.push({ key: `t-${i}-${g}-${j}`, x, y: y + 3, w: cart ? 44 : 34, h: 50, svg: cart ? ART.cart(GC(g)) : ART.team(GC(g), !there), face: dx < 0 ? -1 : 1, walk: true, title: `${nameOf(W, g)} 조 → ${d.name}${there ? '' : ' (돌아오는 길 · 짐)'}` });
     }
   }));
+  // 관리국 조사원: 관리국에서 보낸 곳까지 걸어가 머물다 돌아온다. 무리마다 미니어처 하나
+  for (const t of W.trips) {
+    const p = pathOf(BUREAU_AT, svAt(W, t.to));
+    if (p.length < 2) continue;
+    const c = centersOf(p), now = W.day + f;
+    const go = now < t.at, home = now >= t.until;
+    const k = go ? (now - t.day) / Math.max(1, t.at - t.day) : home ? 1 - (now - t.until) / Math.max(1, t.back - t.until) : 1;
+    const [x, y, a] = ptAt(c, Math.max(0, Math.min(1, k))), dx = Math.cos(a) * (home ? -1 : 1);
+    out.push({ key: `svy-${t.id}`, x: x + (go || home ? 0 : 14), y: y + 6, w: 26, h: 40, svg: ART.svy(home), face: dx < 0 ? -1 : 1, walk: go || home, title: `조사원 ${t.n}명 · ${svName(W, t.to)}${go ? ' 가는 길' : home ? ' 돌아오는 길' : ''}` });
+  }
   return out;
 }
 const f1n = (v: number) => Math.round(v * 10) / 10;

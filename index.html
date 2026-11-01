@@ -19,7 +19,9 @@
   <div class="desk" id="desk" aria-label="국장의 책상">
     <div class="fit"><div class="persp"><div class="plane">
       <i class="table" aria-hidden="true"></i>
-      <svg class="map-svg" id="map" viewBox="0 0 1280 768" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="관할 지도"><g class="terrain"></g><g id="marks"></g></svg>
+      <img class="map-wash" alt="" aria-hidden="true">
+      <svg class="map-svg map-ground" viewBox="0 0 1280 768" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g class="terrain"></g></svg>
+      <svg class="map-svg" id="map" viewBox="0 0 1280 768" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="관할 지도"><g id="marks"></g></svg>
       <div class="minis" aria-hidden="true"></div>
       <div class="props" id="props"></div>
     </div></div></div>
@@ -34,6 +36,7 @@
   </aside>
   <div class="turn" aria-hidden="true"><p>가로로 돌려 주세요</p></div>
   <div class="over" id="over" hidden></div>
+  <div class="cut-host" id="cut" hidden></div>
 </div>
 <script type="module" src="/src/bureauMain.ts"></script>
 </body>
