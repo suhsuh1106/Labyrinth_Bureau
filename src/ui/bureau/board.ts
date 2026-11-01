@@ -15,7 +15,7 @@ export type DocKind = '보고' | '공문' | '서신' | '신문';
 export interface Draft { to: To; dg: number; days: number; cl: Clauses }
 // spd: 자동 진행 빠르기(SPEED의 자리, 재생 여부는 저장하지 않는다: 판을 다시 열면 늘 멈춘 채)
 // open: 지도 위 시트가 열려 있나(탭 단추 · 지도 표식으로 연다). modal: 서류 쓰기 창이 열려 있나. docSeen: 받은 서류 창으로 읽은 보고 자리 · askSeen: 오른쪽 위 쪽지로 본 마지막 청 · ask: 펼쳐 읽는 청
-export interface BuUi { tab: Tab; invite: FacId[]; give: Record<number, number>; intro: boolean; seenNews: number; open?: boolean; sel?: string; draft?: Draft; modal?: 'write' | 'set'; ask?: number; docSeen?: number; askSeen?: number; shelf?: Shelf; read?: number; tutPnl?: boolean; ctag?: Tag; dkind?: DocKind; spd?: number }
+export interface BuUi { tab: Tab; invite: FacId[]; give: Record<number, number>; intro: boolean; seenNews: number; open?: boolean; sel?: string; draft?: Draft; modal?: 'write' | 'set'; ask?: number; docSeen?: number; askSeen?: number; shelf?: Shelf; read?: number; tutPnl?: boolean; cut?: boolean; ctag?: Tag; dkind?: DocKind; spd?: number }
 export const DRAFT0: Draft = { to: 'all', dg: 0, days: 20, cl: { sub: 10 } };
 
 export const n0 = (v: number) => Math.round(v).toLocaleString('ko-KR');
@@ -55,6 +55,7 @@ export function setHtml(W: World, ask = false) {
   return `<div class="card modal set"><h2>설정</h2>
   <p class="note num">임기 ${Math.min(W.day + 1, B.DAYS)}일째 / ${B.DAYS}일 · 이 브라우저에 저장됨</p>
   ${fsCan() ? `<button type="button" data-act="fs">${fsOn() ? '전체 화면 끄기' : '전체 화면'}</button>` : `<p class="note">이 창에선 전체 화면을 막아 둠 · PC는 F11 · 휴대폰은 브라우저 메뉴의 '홈 화면에 추가'</p>`}
+  <button type="button" data-act="replay">첫 장면 다시 보기</button>
   ${ask ? `<p class="note">지금 판을 지우고 새 임기를 시작할까요?</p>
   <button type="button" class="danger" data-act="resetyes">지우고 새 임기</button>
   <button type="button" data-act="resetno">그대로 두기</button>` : `<button type="button" class="danger" data-act="reset">새 임기 시작 <small>지금 판을 지움</small></button>`}
