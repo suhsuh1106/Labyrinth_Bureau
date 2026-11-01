@@ -157,6 +157,9 @@ function cutTrees(W: World) {
 const treesOf = (x: number, y: number) => [0, 1, 2].map(k => ({ x: x * T + 6 + hash(x, y, 20 + k) * 20, y: y * T + 8 + hash(x, y, 30 + k) * 18, s: hash(x, y, 40 + k) * 1.5, k }));
 
 // ── 땅: 판마다 같으니 한 번만 만든다 ─────────────────────────────
+// 땅에는 글자를 두지 않는다: 웹 글꼴 조각이 새로 내려올 때마다(처음 보는 글자가 창에 뜰 때) 그 글꼴의 글자가 모두 다시 칠해지는데,
+// 땅 층에 글자가 있으면 무거운 먹 번짐 필터까지 통째로 다시 돈다. 지방 이름은 표식 층(mapHtml)에 쓴다
+const regions = () => label(cx(LOYD_AT), cy(LOYD_AT) + 52, '로 이 드', 'rg') + label(cx(HAVEL_AT) - 30, cy(HAVEL_AT) - 34, '하 벨', 'rg') + label(28 * T, 1.5 * T, '검 은 숲', 'rg');
 let terrain = '';
 export function terrainSvg(W: World) {
   if (terrain) return terrain;
@@ -189,7 +192,6 @@ export function terrainSvg(W: World) {
   }
   gl.sort((a, b) => a[0] - b[0]).forEach(([, s]) => h += s);
   h += `<path class="road" d="${roadSegs((x, y) => isRoad(ROADS, x, y))}"/>`;
-  h += label(cx(LOYD_AT), cy(LOYD_AT) + 52, '로 이 드', 'rg') + label(cx(HAVEL_AT) - 30, cy(HAVEL_AT) - 34, '하 벨', 'rg') + label(28 * T, 1.5 * T, '검 은 숲', 'rg');
   h += `<rect width="${MAP_PX[0]}" height="${MAP_PX[1]}" fill="url(#t-vig)" pointer-events="none"/><rect x="1" y="1" width="${MAP_PX[0] - 2}" height="${MAP_PX[1] - 2}" fill="none" stroke="${INK}" stroke-width="2"/>`;
   return terrain = h;
 }
@@ -260,7 +262,7 @@ const ptAt = (p: [number, number][], t: number): [number, number, number] => {
 
 export function mapHtml(W: World, ui: BuUi) {
   const sel = ui.sel ?? '';
-  let h = '';
+  let h = regions();
   // 외진 미궁의 발전도
   W.dungeons.forEach((d, i) => { if (d.wild > 0) h += townSvg(W, i, d); });
   // 세력 사이: 험악하거나 우호적인 짝 · 협정을 맺은 짝만 본부 사이에 선을 긋는다
