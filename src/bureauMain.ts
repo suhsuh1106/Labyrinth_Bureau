@@ -5,7 +5,7 @@ import { getSeed, setSeed } from './core/rng';
 import { type FacId, type World, answer, hireClerk, meet, newWorld, over, post, recall, run, send, step, withdraw } from './bureau/engine';
 import { BOT } from './bureau/bots';
 import { CLAUSE, type ClauseId, type Tag, FORM_OF, type To, addClause, canAdd, dropClause } from './bureau/clauses';
-import { type BuUi, type DocKind, DRAFT0, type Shelf, type Tab, asksFloatHtml, deskHtml, docModalHtml, setHtml, fsOn, reportDocHtml, endHtml, introHtml, paneHtml, topHtml, tutHtml, writeHtml } from './ui/bureau/board';
+import { type BuUi, type DocKind, DRAFT0, type Shelf, type Tab, SPEED, asksFloatHtml, deskHtml, docModalHtml, setHtml, fsOn, reportDocHtml, endHtml, introHtml, paneHtml, topHtml, tutHtml, writeHtml } from './ui/bureau/board';
 import { mapHtml, minisOf, terrainSvg } from './ui/bureau/map';
 import { type Desk, makeDesk } from './ui/bureau/desk';
 import { rumorAt } from './ui/bureau/rumor';
@@ -37,7 +37,7 @@ function fresh() {
 }
 
 function draw() {
-  $('top').innerHTML = topHtml(W, ui);
+  $('top').innerHTML = topHtml(W, ui, play);
   // 땅은 한 번만 깔고, 날마다 바뀌는 표식 · 미니어처 · 책상 위 물건만 다시 그린다
   if (!desk) { $('map').querySelector('.terrain')!.innerHTML = terrainSvg(W); desk = makeDesk($('desk')); }
   $('marks').innerHTML = mapHtml(W, ui);
@@ -73,7 +73,8 @@ function draw() {
 // 화면만 움직이고 판의 수치는 날마다 바뀐다
 let dayAt = performance.now();
 const STILL = matchMedia('(prefers-reduced-motion: reduce)').matches;
-const flow = () => STILL ? 0 : 0.92 * (1 - Math.exp(-(performance.now() - dayAt) / 30000));
+// 자동 진행 중에는 하루의 시간이 정해져 있으니 그만큼 고르게 다가간다
+const flow = () => STILL ? 0 : play ? Math.min(1, held / dayMs()) : 0.92 * (1 - Math.exp(-(performance.now() - dayAt) / 30000));
 // 소문은 몇 초마다 하나씩 바뀐다 (같은 말이면 다시 그리지 않는다)
 const RUMOR_MS = 9000;
 function rumor() {
@@ -81,15 +82,34 @@ function rumor() {
   if (el.dataset.t === t) return;
   el.dataset.t = t; el.innerHTML = t ? `<span>${t}</span>` : '';
 }
-setInterval(() => { if (desk && !document.hidden && !ui.intro && !over(W)) { desk.minis(minisOf(W, flow())); rumor(); } }, 250);
+// 자동 진행(세미 실시간): 재생하면 하루가 SPEED만큼 흐르고 저절로 넘어간다. 창(서류 · 청 · 설정 · 서류 쓰기)이 떠 있거나 탭이 숨으면 시계가 선다.
+// 새 청 · 새 보고가 오면 멈춘다(읽고 정한 뒤 다시 재생). 다음 날 · 닷새 단추는 그대로 쓸 수 있다
+let play = false, held = 0, last = performance.now();
+const dayMs = () => (SPEED[ui.spd ?? 0] ?? SPEED[0]).ms;
+const stalled = () => document.hidden || ui.intro || over(W) || !$('over').hidden;
+function setPlay(on: boolean) { play = on && !over(W); held = 0; last = performance.now(); }
+function tick() {
+  const now = performance.now(), dt = now - last;
+  last = now;
+  if (!desk || document.hidden || ui.intro || over(W)) return;
+  if (play && !stalled()) {
+    held += dt;
+    if (held >= dayMs()) { nextDays(1, true); return; }
+  }
+  const bar = document.getElementById('dayBar');
+  if (bar) bar.style.width = `${Math.min(100, held / dayMs() * 100)}%`;
+  desk.minis(minisOf(W, flow())); rumor();
+}
+setInterval(tick, 250);
 
-function nextDays(n: number) {
-  dayAt = performance.now();
+function nextDays(n: number, auto = false) {
+  dayAt = performance.now(); held = 0;
   const asks = W.asks.filter(a => a.got == null).length, news = W.reports.length;
   for (let k = 0; k < n && !over(W); k++) {
     step(W);
-    if (W.asks.filter(a => a.got == null).length > asks || W.reports.length > news) break;
+    if (W.asks.filter(a => a.got == null).length > asks || W.reports.length > news) { if (auto || play) play = false; break; }
   }
+  if (over(W)) play = false;
   save(); draw();
 }
 
@@ -99,6 +119,8 @@ function act(a: string, d = 0) {
   const [k, arg] = a.split(':'), rest = a.slice(k.length + 1);
   if (k === 'next') return nextDays(1);
   if (k === 'ff') return nextDays(5);
+  if (k === 'play') { setPlay(!play); draw(); return; }
+  if (k === 'spd') { const keep = held / dayMs(); ui.spd = ((ui.spd ?? 0) + 1) % SPEED.length; held = keep * dayMs(); save(); draw(); return; }
   if (k === 'start') ui.intro = false;
   else if (k === 'new') fresh();
   // 새로 시작: 지금 판을 지우므로 한 번 묻는다
@@ -189,6 +211,8 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && ui.open) { act('shut'); return; }
   if (e.key === 'Escape' && desk?.mode === 'map') { desk.set('desk'); return; }
   // 창이 떠 있는 동안은 날을 넘기지 않는다
+  // Space: 자동 진행 켜고 끄기 (단추 · 입력칸에 있을 때는 그쪽 몫)
+  if (e.key === ' ' && !(e.target as Element).closest?.('button, input, select, textarea, [data-act]') && $('over').hidden && !over(W)) { e.preventDefault(); act('play'); return; }
   if ((e.key === 'n' || e.key === 'N') && !e.metaKey && !e.ctrlKey && $('over').hidden && !over(W)) nextDays(1);
 });
 
