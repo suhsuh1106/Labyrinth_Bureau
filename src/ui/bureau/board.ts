@@ -2,8 +2,8 @@
 // 화면 전체가 국장의 책상(desk.ts)이고 그 위에 지도(map.ts, 타일)가 누워 있다. 왼쪽 위 정보(날 · 예산 · 입지 → 집무실 · 폐광 인계) · 오른쪽 아래 다음 날 ·
 // 책상 위 물건(깃펜 → 서류, 기록 더미 → 기록, 종 → 회의) · 지도에서 고른 것(살펴보기)을 여는 시트 · 테사의 한마디
 import { lookHtml } from './map';
-import { askLetter, dateOf, docOf, floodNews, govHtml, introNews, letterHtml, newsHtml, peekLines, tripGov } from './docs';
-import { B, type FacId, FACS, GUILDS, type GuildId, type Report, type World, pnlGuild, pnlOf, pnlSum, devStage, wayOf, hqOf, depOf, docsOut, escrowOf, crewFree, svWay, svName, type SvTo, trustOf, withdrawFav, facOf, levelOf, nameOf, pactK, relOf, seenLevel, subAt, teamsIn, willOf } from '../../bureau/engine';
+import { askLetter, dateOf, moneyWord, docOf, floodNews, govHtml, introNews, letterHtml, newsHtml, peekLines, tripGov } from './docs';
+import { B, type FacId, FACS, GUILDS, type GuildId, type Report, type World, knowLv, pnlGuild, pnlOf, pnlSum, devStage, wayOf, hqOf, depOf, docsOut, escrowOf, crewFree, svWay, svName, type SvTo, trustOf, withdrawFav, facOf, levelOf, nameOf, pactK, relOf, seenLevel, subAt, teamsIn, willOf } from '../../bureau/engine';
 import { CLAUSE, CLAUSES, CLAUSE_MAX, type Clause, type Clauses, type ClauseId, FORM_NAME, type Tag, FORM_OF, type Form, toName, type To, clauseLock, fits, toLock } from '../../bureau/clauses';
 
 export type Tab = 'look' | 'asks' | 'lib' | 'meet' | 'office';
@@ -33,7 +33,7 @@ export const levelCls = (v: number) => v >= B.DANGER ? 'bad' : v >= B.RISK_AT ? 
 const stepper = (act: string, val: string, label: string) =>
   `<span class="step" role="group" aria-label="${label}"><button type="button" data-act="${act}" data-d="-1" aria-label="${label} 내리기">−</button><output>${val}</output><button type="button" data-act="${act}" data-d="1" aria-label="${label} 올리기">+</button></span>`;
 
-// 하루 예산 흐름의 어림: 입장료(중앙 몫 뺌) − 보조금 − 조사원 품삯
+// 하루 예산 흐름의 어림: 입장료(중앙 몫 뺌) − 보조금 − 사신 품삯
 export function dayFlow(W: World) {
   let fee = 0, sub = 0;
   W.dungeons.forEach((d, i) => { const n = teamsIn(d); fee += n * B.FEE * (1 - W.crownShare / 100); sub += n * subAt(W, i); });
@@ -124,23 +124,25 @@ export function dungeonHtml(W: World, i: number) {
   </article>`;
 }
 
-// 조사원: 그곳에 나가 있는 조사원(가는 중 · 머무는 중 · 돌아오는 중) 줄과 파견서 쓰기
+// 사신: 그곳에 나가 있는 사신(가는 중 · 머무는 중 · 돌아오는 중) 줄과 파견서 쓰기
 const tripWord = (W: World, t: { at: number; until: number; back: number }) =>
   W.day < t.at ? `가는 중 · ${t.at - W.day}일 뒤 닿음` : W.day < t.until ? `머무는 중 · ${t.until - W.day}일 더` : `돌아오는 중 · ${t.back - W.day}일 뒤`;
 function tripsHtml(W: World, to: SvTo) {
   const ts = W.trips.filter(t => t.to === to);
-  return `<div class="dg-svy"><span>조사원 <small>관리국에 ${crewFree(W)} / ${W.crew}명 · 가는 데 ${svWay(W, to)}일</small></span>
+  return `<div class="dg-svy"><span>사신 <small>관리국에 ${crewFree(W)} / ${W.crew}명 · 가는 데 ${svWay(W, to)}일</small></span>
     ${ts.map(t => `<small class="svy-trip">${t.n}명 · ${tripWord(W, t)}</small>`).join('')}
     <button type="button" data-act="disp:${to}" ${crewFree(W) ? '' : 'disabled'}>파견서 쓰기</button></div>`;
 }
+const LV_WORD = ['처음 듣는 곳', '귀동냥', '낯익음', '훤함'];
 export function surveyHtml(W: World, i: number) {
-  const d = W.dungeons[i], pct = Math.min(100, d.sv / B.SVY.map * 100);
-  return tripsHtml(W, i) + `<div class="svy-map"><small>${d.mapped ? '갱도 지도 돌림' : `갱도 지도${d.svLost ? ` · 잃은 조사원 ${d.svLost}명` : ''}`}</small><i class="gauge"><i style="width:${pct.toFixed(0)}%"></i></i></div>`;
+  const d = W.dungeons[i], lv = knowLv(d.know), pct = Math.min(100, d.know / B.SVY.full * 100);
+  return tripsHtml(W, i) + `<div class="svy-map"><small>${d.logged ? '출입 기록 돌림' : `출입 기록 · 이해 ${LV_WORD[lv]}`}</small><i class="gauge"><i style="width:${pct.toFixed(0)}%"></i></i></div>`;
 }
-// 길드 본부: 나가 있는 조사원 · 마지막으로 알아 온 것(보고서와 같은 글)
+// 길드 본부: 이해도 · 영향력 · 나가 있는 사신 · 마지막으로 알아 온 것(보고서와 같은 글)
 export function spyHtml(W: World, g: GuildId) {
-  const p = W.guilds[g].peek;
-  return tripsHtml(W, g) + (p ? `<div class="peek"><small>지난 조사 · ${dateOf(p.day)} 사정</small>${peekLines(W, p).map(l => `<p>${l}</p>`).join('')}</div>` : '');
+  const o = W.guilds[g], lv = knowLv(o.know), p = o.peek;
+  return tripsHtml(W, g) + `<div class="peek"><small>이해 ${LV_WORD[lv]} <span class="num">${n0(o.know)}</span> · 영향력 <span class="num">${n0(o.grip)}</span></small></div>`
+    + (p ? `<div class="peek"><small>지난 조사 · ${dateOf(p.day)} 사정</small>${peekLines(W, p, lv, g).map(l => `<p>${l}</p>`).join('')}</div>` : '');
 }
 
 // 파견서: 왼쪽 보낼 곳(미궁 · 길드 본부, 가는 데 며칠), 가운데 종이(보낼 곳 · 인원 · 머물 날 · 할 일 · 돌아오는 날), 아래 품삯과 보내기
@@ -148,9 +150,9 @@ export function dispHtml(W: World, ui: BuUi) {
   const f = ui.disp ?? DISP0, to = svOf(f.to), way = svWay(W, to), free = crewFree(W);
   const n = Math.min(f.n, Math.max(1, free)), back = W.day + way * 2 + f.days;
   const pick = (k: string, name: string, note: string, cls = '') => `<button type="button" class="w-who${cls}" data-act="dto:${k}" aria-pressed="${k === f.to}"><b>${name}</b><small class="num">${note}</small></button>`;
-  const dgs = W.dungeons.map((d, i) => pick(String(i), d.name, `가는 데 ${svWay(W, i)}일 · 마물 ${n0(seenLevel(W, i))}`)).join('');
-  const hqs = GUILDS.map(g => pick(g, `${B.GUILD[g].name} 본부`, `가는 데 ${svWay(W, g)}일${W.guilds[g].peek ? ` · 지난 조사 ${W.day - W.guilds[g].peek!.day}일 전` : ''}`, ` f-${g}`)).join('');
-  const job = typeof to === 'number' ? '갱도에 마물이 얼마나 찼는지 살피며, 갈림길마다 표식을 남기고 갱도 지도를 그린다.' : '본부 언저리에 머물며 장부와 단원들의 말을 듣는다. 눈에 띄면 바로 돌아온다.';
+  const dgs = W.dungeons.map((d, i) => pick(String(i), d.name, `가는 데 ${svWay(W, i)}일 · 이해 ${LV_WORD[knowLv(W.dungeons[i].know)]}`)).join('');
+  const hqs = GUILDS.map(g => pick(g, `${B.GUILD[g].name} 본부`, `가는 데 ${svWay(W, g)}일 · 이해 ${LV_WORD[knowLv(W.guilds[g].know)]}`, ` f-${g}`)).join('');
+  const job = typeof to === 'number' ? '출입 기록과 반출 물건을 살피고, 드나드는 길드 사람들에게 관리국의 뜻을 알린다.' : '본부를 찾아 사람들을 사귀고 관리국의 뜻을 퍼뜨린다. 눈에 띄면 바로 돌아온다.';
   const out = W.trips.map(t => `<li><b>${svName(W, t.to)}</b> <small class="num">${t.n}명 · ${tripWord(W, t)}</small></li>`).join('');
   return `<div class="desk-w disp">
     <section class="w-side">
@@ -162,10 +164,10 @@ export function dispHtml(W: World, ui: BuUi) {
       <button type="button" class="x close" data-act="close" aria-label="닫기">✕</button>
       <header class="wp-kind">파 견 서</header>
       <p class="wp-meta"><span>보내는 곳: 미궁관리국</span><span>받는 이: 조사관실</span></p>
-      <p class="wp-lead">아래와 같이 조사원을 보낸다.</p>
+      <p class="wp-lead">아래와 같이 사신을 보낸다.</p>
       <ol class="wp-cl">
         <li><b class="c-no">보낼 곳</b><div class="c-body"><p>${svName(W, to)} <small class="num">· 가는 데 ${way}일</small></p></div></li>
-        <li><b class="c-no">인원</b><div class="c-body"><p>조사원</p></div>${stepper('dn', `${n}명`, '인원')}</li>
+        <li><b class="c-no">인원</b><div class="c-body"><p>사신</p></div>${stepper('dn', `${n}명`, '인원')}</li>
         <li><b class="c-no">머물 날</b><div class="c-body"><p>닿은 날부터</p></div>${stepper('ddays', `${f.days}일`, '머물 날')}</li>
         <li><b class="c-no">할 일</b><div class="c-body"><p>${job}</p></div></li>
         <li><b class="c-no">돌아옴</b><div class="c-body"><p class="num">${dateOf(back)} <small>(${back - W.day}일 뒤)</small></p></div></li>
@@ -174,8 +176,8 @@ export function dispHtml(W: World, ui: BuUi) {
       <p class="gd-no"><span>파견 제${W.docN + 1}호</span><span>시행 ${dateOf(W.day)}</span></p>
     </section>
     <section class="w-foot"><p class="w-cost num">품삯 한 사람 하루 ${B.SVY.pay}G · 이번 파견 ${n0(n * B.SVY.pay * (back - W.day))}G 어림</p></section>
-    <button type="button" class="go wide w-post" data-act="dsend" ${free ? '' : 'disabled'}>${free ? '파견서 보내기' : '관리국에 남은 조사원이 없음'}</button>
-    <section class="w-drawer"><h4>나가 있는 조사원</h4>${out ? `<ul class="disp-out">${out}</ul>` : '<p class="empty">없음</p>'}</section>
+    <button type="button" class="go wide w-post" data-act="dsend" ${free ? '' : 'disabled'}>${free ? '파견서 보내기' : '관리국에 남은 사신이 없음'}</button>
+    <section class="w-drawer"><h4>나가 있는 사신</h4>${out ? `<ul class="disp-out">${out}</ul>` : '<p class="empty">없음</p>'}</section>
   </div>`;
 }
 
@@ -309,7 +311,7 @@ export function tutOf(W: World, ui: BuUi): Tut {
 const TUT: Record<Exclude<Tut, ''>, string> = {
   lib: '징세청 장부를 보고 첫 보고서를 올렸어요. <b>기록</b> 더미(책상 오른쪽)의 <b>받은 서류</b>에 있어요.',
   write: '길드는 명령으론 안 움직여요. 남는 데로 가요. 폐광 공고문은 책상 왼쪽 <b>깃펜</b>으로 써요.',
-  wait: '공고문은 본부가 가까운 길드부터 닿아요. 그사이 깃펜에서 <b>파견서</b>로 조사원을 보낼 수 있어요. 갱도가 알려지면 덜 꺼려요. 마물이 들끓으면 사람을 잃고요.',
+  wait: '공고문은 본부가 가까운 길드부터 닿아요. 그사이 깃펜에서 <b>파견서</b>로 사신을 보낼 수 있어요. 미궁의 출입 기록을 살피거나, 길드 본부에 가 관리국의 뜻을 퍼뜨리게 해요.',
   see: `폐광 쪽으로 발길이 생겼어요. ${B.ORDER.need}일 이어져야 군이 넘겨줘요. 오른쪽 위 <b>할 일</b>에 적어 뒀어요.`,
   road: '사람이 다니면 길이 나요. 길이 닦이면 길드가 알아서 와요. 폐광 <b>발전도</b>는 지도에서 폐광을 눌러 보세요.',
   town: '길이 났어요. 마을이 서면 보조금 없이도 와요. 가장 많이 다닌 길드가 지부를 낼 거예요.',
@@ -372,7 +374,7 @@ export function guildReportHtml(W: World) {
   const top = Math.max(1, ...GUILDS.map(g => W.guilds[g].size));
   const row = (g: GuildId) => { const o = W.guilds[g]; return `<tr class="f-${g}"><th><b>${o.name}</b><small>${B.GUILD[g].trait}</small></th>
     <td><i class="gs-bar"><i style="width:${Math.max(2, o.size / top * 100)}%"></i><b class="num">${n0(o.size)}조</b></i></td>
-    <td class="num ${o.money < 0 ? 'neg' : ''}">${n0(o.money)}G</td><td class="num">${wayOf(W, g, 0)}일</td><td><span class="tag">${favWord(o.fav)}</span></td></tr>`; };
+    <td>${knowLv(o.know) >= 2 ? moneyWord(o) : '—'}</td><td class="num">${wayOf(W, g, 0)}일</td><td><span class="tag">${favWord(o.fav)}</span></td></tr>`; };
   return `<article class="gov-doc g-report">
     <header class="gd-org">미 궁 관 리 국 기 록 실</header>
     <dl class="gd-meta"><dt>수신</dt><dd>국장</dd><dt>제목</dt><dd><b>관할 길드 현황</b></dd></dl>
@@ -385,9 +387,9 @@ export function guildReportHtml(W: World) {
 // 길드 일곱의 몸집: 조 막대 · 금고 · 영향력. 큰 길드 둘을 위에, 작은 길드 다섯을 아래에
 export function guildsHtml(W: World) {
   const top = Math.max(1, ...GUILDS.map(g => W.guilds[g].size));
-  const row = (g: GuildId) => { const o = W.guilds[g]; return `<div class="gs-row f-${g}"><b title="${B.GUILD[g].trait}">${o.name}</b><i class="gs-bar"><i style="width:${Math.max(2, o.size / top * 100)}%"></i><b class="num">${n0(o.size)}조</b></i><span class="num ${o.money < 0 ? 'neg' : ''}">${n0(o.money)}G</span><span class="num">${n0(o.infl)}</span></div>`; };
+  const row = (g: GuildId) => { const o = W.guilds[g]; return `<div class="gs-row f-${g}"><b title="${B.GUILD[g].trait}">${o.name}</b><i class="gs-bar"><i style="width:${Math.max(2, o.size / top * 100)}%"></i><b class="num">${n0(o.size)}조</b></i><span>${knowLv(o.know) >= 2 ? moneyWord(o) : '—'}</span><span class="num">${n0(o.infl)}</span></div>`; };
   return `<section class="gscale"><h2>길드 몸집</h2>
-    <div class="gs-row gs-head"><span></span><i>조</i><span>금고</span><span>영향</span></div>
+    <div class="gs-row gs-head"><span></span><i>조</i><span>금고</span><span>세력</span></div>
     ${GUILDS.filter(g => B.GUILD[g].big).map(row).join('')}<div class="gs-gap"></div>${GUILDS.filter(g => !B.GUILD[g].big).map(row).join('')}</section>`;
 }
 
@@ -397,9 +399,10 @@ export function facHtml(W: World, f: FacId) {
     <h3>${o.name}${t ? ` <small class="tag">${t.big ? '큰 길드' : '작은 길드'}</small>` : ''}</h3>
     ${t ? `<p class="trait">${t.trait}</p>` : ''}
     <dl>
-      ${g && t ? `<dt>조</dt><dd class="num">${n0(g.size)}</dd><dt>금고</dt><dd class="num ${g.money < 0 ? 'neg' : ''}">${n0(g.money)}G</dd><dt>본부에서</dt><dd class="num">${W.dungeons.map((d, i) => `${d.name.split(" ")[0]} ${wayOf(W, f as GuildId, i)}일`).join(' · ')}</dd><dt>공고가 닿는 날</dt><dd class="num">${hqOf(f as GuildId)}일 뒤</dd>` : ''}
-      <dt>영향력</dt><dd class="num">${n0(o.infl)}${o.infl > B.NOTICE ? ' <span class="tag warn">눈에 띔</span>' : ''}</dd>
+      ${g && t ? `<dt>조</dt><dd class="num">${n0(g.size)}</dd><dt>금고</dt><dd>${knowLv(g.know) >= 2 ? moneyWord(g) : '알 수 없음'}</dd><dt>본부에서</dt><dd class="num">${W.dungeons.map((d, i) => `${d.name.split(" ")[0]} ${wayOf(W, f as GuildId, i)}일`).join(' · ')}</dd><dt>공고가 닿는 날</dt><dd class="num">${hqOf(f as GuildId)}일 뒤</dd>` : ''}
+      <dt>세력</dt><dd class="num">${n0(o.infl)}${o.infl > B.NOTICE ? ' <span class="tag warn">눈에 띔</span>' : ''}</dd>
       <dt>호감</dt><dd><span class="tag">${favWord(o.fav)}</span> <span class="num">${n0(o.fav)}</span></dd>
+      ${g ? `<dt>영향력</dt><dd class="num">${n0(g.grip)}</dd><dt>이해</dt><dd>${LV_WORD[knowLv(g.know)]}</dd>` : ''}
       <dt>신세</dt><dd class="num ${owe < -0.5 ? 'neg' : ''}">${Math.abs(owe) < 0.5 ? '없음' : owe > 0 ? `받을 것 ${n1(owe)}` : `진 빚 ${n1(-owe)}`}</dd>
     </dl>
     ${g ? spyHtml(W, f as GuildId) : ''}
@@ -457,7 +460,7 @@ function paneBody(W: World, ui: BuUi) {
   if (ui.tab === 'asks') {
     const asks = openAsks(W), done = W.asks.filter(a => a.got != null).slice(-4).reverse();
     return `<button type="button" class="go wide${tutOf(W, ui) === 'write' ? ' pulse' : ''}" data-act="write:${(ui.draft ?? DRAFT0).dg}">서류 쓰기 <small class="num">낸 서류 ${docsOut(W)} / ${W.clerks}</small></button>`
-      + `<button type="button" class="go wide${tutOf(W, ui) === 'wait' && !W.trips.length ? ' pulse' : ''}" data-act="disp:${(ui.disp ?? DISP0).to}">파견서 쓰기 <small class="num">조사원 ${crewFree(W)} / ${W.crew}명</small></button>` + postedHtml(W) + `<h4>받은 청 · 독촉</h4>` + (asks.length ? asks.map(a => {
+      + `<button type="button" class="go wide${tutOf(W, ui) === 'wait' && !W.trips.length ? ' pulse' : ''}" data-act="disp:${(ui.disp ?? DISP0).to}">파견서 쓰기 <small class="num">사신 ${crewFree(W)} / ${W.crew}명</small></button>` + postedHtml(W) + `<h4>받은 청 · 독촉</h4>` + (asks.length ? asks.map(a => {
       const v = ui.give[a.id] ?? a.want;
       return `<article class="ask ${a.kind}">
         <header><b>${nameOf(W, a.from)}</b><span class="tag ${a.kind === 'dun' ? 'warn' : ''}">${a.kind === 'dun' ? '독촉' : '청'}</span><small>${a.due - W.day}일 안에</small></header>
