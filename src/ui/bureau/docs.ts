@@ -111,10 +111,10 @@ export function peekLines(W: World, p: Peek) {
 export function tripLines(W: World, t: Trip & { map?: boolean }) {
   const stay = Math.max(0, t.until - t.at);
   if (typeof t.to === 'number') {
-    const d = W.dungeons[t.to], lo = Math.min(...t.lv), hi = Math.max(...t.lv), tenth = Math.min(10, Math.floor(d.sv / B.SVY.map * 10));
+    const d = W.dungeons[t.to], hi = Math.max(...t.lv), tenth = Math.min(10, Math.floor(d.sv / B.SVY.map * 10));
     return [
       `조사원 ${t.sent}명이 ${stay}일 갱도를 살폈습니다.${t.lost ? ` ${t.lost}명은 돌아오지 못했습니다.` : ''}`,
-      t.lv.length ? `물 높이 ${lo === hi ? lo : `${lo} ~ ${hi}`}, 떠나던 날 ${t.lv.at(-1)}.` : '',
+      t.lv.length ? `갱도 안 마물은 ${hi >= B.DANGER ? '들끓었고' : hi >= B.RISK_AT ? '꽤 많았고' : '드문드문했고'}, 머무는 사이 ${t.lv.at(-1)! - t.lv[0] >= 3 ? '늘었습니다' : t.lv[0] - t.lv.at(-1)! >= 3 ? '줄었습니다' : '그대로였습니다'}.` : '',
       t.map ? '갱도 지도를 마쳐 길드들에 돌렸습니다. 위험한 구간과 광맥 자리가 적혀 있습니다.' : d.mapped ? '' : `갱도의 열에 ${tenth}쯤을 그렸습니다.`,
     ].filter(Boolean);
   }

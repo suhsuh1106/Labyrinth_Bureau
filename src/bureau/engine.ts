@@ -46,7 +46,7 @@ export const B = {
   // 조사원(파견서): 관리국의 조사원 crew명을 미궁이나 길드 본부에 보낸다. 관리국에서 걸어가고(svWay) 정한 날만큼 머물다 걸어 돌아온다.
   //   한 번에 max명 · 머물 날 days, 나가 있는 동안 한 사람 하루 pay G. 알아 온 것은 돌아온 날 보고서로 들어온다.
   //   미궁: 머무는 동안 갱도에 길을 표시해 꺼림이 날마다 calm × 사람만큼 걷히고, 사람 × 날(sv)이 map에 닿은 뒤 돌아오면 갱도 지도를 길드에 돌린다(mapped:
-  //   길드가 수위의 위험을 half만큼만 보고, 알려진 광맥이 끌림 lure를 더한다). 수위가 risk 위면 사람마다 (수위 − risk) × die의 확률로 돌아오지 못한다
+  //   길드가 마물의 위험을 half만큼만 보고, 알려진 광맥이 끌림 lure를 더한다). 마물 수가 risk 위면 사람마다 (마물 수 − risk) × die의 확률로 돌아오지 못한다
   //   (꺼림 fear · 입지 stand, 다음 달 첫날 crew로 다시 채운다).
   //   길드 본부: 머문 마지막 날의 장부 · 속내를 알아 온다(Peek). 사람마다 하루 caught × (1 + 정보를 꺼리는 결 / 10)의 확률로 들키면
   //   모두 쫓겨 돌아오고 그 길드의 호감이 fav 준다(그 길드가 서신으로 따진다)
@@ -156,7 +156,7 @@ export interface Guild {
 // 길드 본부에 보낸 조사원이 알아 오는 것: 미궁마다 조 하나가 남기는 값(pnlGuild) · 바라는 조 · 서명할 마음 · 견제
 export interface Peek { day: number; pnl: number[]; want: number[]; will: number; check: number }
 export interface Report { day: number; from: string; title: string; chips: string[]; trip?: Trip & { map: boolean } }
-// 파견서로 보낸 조사원: 보낸 날 · 닿는 날(at) · 떠나는 날(until) · 돌아오는 날(back). 머무는 동안의 물 높이(lv) · 일한 사람 × 날(sv) · 알아 온 속내(peek)
+// 파견서로 보낸 조사원: 보낸 날 · 닿는 날(at) · 떠나는 날(until) · 돌아오는 날(back). 머무는 동안 본 마물 수(lv) · 일한 사람 × 날(sv) · 알아 온 속내(peek)
 export interface Trip { id: number; to: SvTo; n: number; sent: number; day: number; at: number; until: number; back: number; lost: number; caught: boolean; sv: number; lv: number[]; peek?: Peek }
 export interface Stats {
   floods: number; dead: number; spent: number;
@@ -344,7 +344,7 @@ export const pnlOf = (W: World, d: Dungeon) => Math.round((lure(W, d) - d.sub / 
 // 최근 n일 평균 (기록이 모자라면 있는 만큼)
 export const pnlAvg = (W: World, i: number, n: number) => { const a = W.pnl[i].slice(-n); return a.reduce((x, y) => x + y, 0) / a.length; };
 // 위험과 꺼림: 끌림에서 빠지는 몫 (길드마다 fearK배)
-// 갱도 조사 보고서가 나온 미궁은 길드가 수위의 위험을 반만 보고, 알려진 광맥이 끌림을 더한다
+// 갱도 조사 보고서가 나온 미궁은 길드가 마물의 위험을 반만 보고, 알려진 광맥이 끌림을 더한다
 const harmOf = (W: World, d: Dungeon) => Math.max(0, d.level - 65) / 8 * (d.mapped ? B.SVY.half : 1) + (W.noFear ? 0 : d.fear / 10);
 export function lure(W: World, d: Dungeon) {
   return d.yld * B.PRICE / 10 * richOf(d.level) * (1 - d.level / 160) + d.sub / B.SUB_LURE - harmOf(W, d) + B.WAY_BASE * B.WAY_K + (d.mapped ? B.SVY.lure : 0);
@@ -772,7 +772,7 @@ function tripsDay(W: World, want: Record<GuildId, number[]>) {
         t.n -= lost; t.lost += lost; d.svLost += lost; W.crew -= lost;
         d.fear += lost * S.fear;
         W.standing = clamp(W.standing - lost * S.stand, 0, 100);
-        W.reports.push({ day: W.day, from: '관리국 조사관', title: `${d.name} 조사원 ${lost}명 돌아오지 못함`, chips: [`물 높이 ${Math.round(d.level)}`, '길드가 꺼림', `입지 −${lost * S.stand}`] });
+        W.reports.push({ day: W.day, from: '관리국 조사관', title: `${d.name} 조사원 ${lost}명 돌아오지 못함`, chips: ['마물에 당함', '길드가 꺼림', `입지 −${lost * S.stand}`] });
         if (!t.n) t.back = W.day;
       }
     } else if (here) {

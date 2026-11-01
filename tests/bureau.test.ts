@@ -294,7 +294,7 @@ describe('국장의 서류 (조항 조합)', () => {
     expect(crewFree(b)).toBe(b.crew);
   });
 
-  it('파견서: 짧은 공고에 조사원을 붙이면 넘겨받는다. 수위가 높으면 가끔 사람을 잃는다', () => {
+  it('파견서: 짧은 공고에 조사원을 붙이면 넘겨받는다. 마물이 많으면 가끔 사람을 잃는다', () => {
     let ok = 0, rep = 0, lost = 0;
     for (const seed of [1, 2, 3, 4, 5, 6]) {
       const x = newWorld(seed), y = newWorld(seed);

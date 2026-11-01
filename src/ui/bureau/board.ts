@@ -148,9 +148,9 @@ export function dispHtml(W: World, ui: BuUi) {
   const f = ui.disp ?? DISP0, to = svOf(f.to), way = svWay(W, to), free = crewFree(W);
   const n = Math.min(f.n, Math.max(1, free)), back = W.day + way * 2 + f.days;
   const pick = (k: string, name: string, note: string, cls = '') => `<button type="button" class="w-who${cls}" data-act="dto:${k}" aria-pressed="${k === f.to}"><b>${name}</b><small class="num">${note}</small></button>`;
-  const dgs = W.dungeons.map((d, i) => pick(String(i), d.name, `가는 데 ${svWay(W, i)}일 · 물 ${n0(seenLevel(W, i))}`)).join('');
+  const dgs = W.dungeons.map((d, i) => pick(String(i), d.name, `가는 데 ${svWay(W, i)}일 · 마물 ${n0(seenLevel(W, i))}`)).join('');
   const hqs = GUILDS.map(g => pick(g, `${B.GUILD[g].name} 본부`, `가는 데 ${svWay(W, g)}일${W.guilds[g].peek ? ` · 지난 조사 ${W.day - W.guilds[g].peek!.day}일 전` : ''}`, ` f-${g}`)).join('');
-  const job = typeof to === 'number' ? '갱도를 살피고 물 높이를 재며, 갈림길마다 표식을 남기고 갱도 지도를 그린다.' : '본부 언저리에 머물며 장부와 단원들의 말을 듣는다. 눈에 띄면 바로 돌아온다.';
+  const job = typeof to === 'number' ? '갱도에 마물이 얼마나 찼는지 살피며, 갈림길마다 표식을 남기고 갱도 지도를 그린다.' : '본부 언저리에 머물며 장부와 단원들의 말을 듣는다. 눈에 띄면 바로 돌아온다.';
   const out = W.trips.map(t => `<li><b>${svName(W, t.to)}</b> <small class="num">${t.n}명 · ${tripWord(W, t)}</small></li>`).join('');
   return `<div class="desk-w disp">
     <section class="w-side">
@@ -309,7 +309,7 @@ export function tutOf(W: World, ui: BuUi): Tut {
 const TUT: Record<Exclude<Tut, ''>, string> = {
   lib: '징세청 장부를 보고 첫 보고서를 올렸어요. <b>기록</b> 더미(책상 오른쪽)의 <b>받은 서류</b>에 있어요.',
   write: '길드는 명령으론 안 움직여요. 남는 데로 가요. 폐광 공고문은 책상 왼쪽 <b>깃펜</b>으로 써요.',
-  wait: '공고문은 본부가 가까운 길드부터 닿아요. 그사이 깃펜에서 <b>파견서</b>로 조사원을 보낼 수 있어요. 갱도가 알려지면 덜 꺼려요. 물이 높으면 사람을 잃고요.',
+  wait: '공고문은 본부가 가까운 길드부터 닿아요. 그사이 깃펜에서 <b>파견서</b>로 조사원을 보낼 수 있어요. 갱도가 알려지면 덜 꺼려요. 마물이 들끓으면 사람을 잃고요.',
   see: `폐광 쪽으로 발길이 생겼어요. ${B.ORDER.need}일 이어져야 군이 넘겨줘요. 오른쪽 위 <b>할 일</b>에 적어 뒀어요.`,
   road: '사람이 다니면 길이 나요. 길이 닦이면 길드가 알아서 와요. 폐광 <b>발전도</b>는 지도에서 폐광을 눌러 보세요.',
   town: '길이 났어요. 마을이 서면 보조금 없이도 와요. 가장 많이 다닌 길드가 지부를 낼 거예요.',
