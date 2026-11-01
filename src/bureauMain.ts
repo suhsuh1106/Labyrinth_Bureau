@@ -6,7 +6,7 @@ import { type FacId, type World, answer, hireClerk, meet, newWorld, over, post, 
 import { BOT } from './bureau/bots';
 import { CLAUSE, type ClauseId, type Tag, FORM_OF, type To, addClause, canAdd, dropClause } from './bureau/clauses';
 import { type BuUi, type DocKind, DRAFT0, type Shelf, type Tab, SPEED, asksFloatHtml, deskHtml, docModalHtml, setHtml, fsOn, reportDocHtml, endHtml, introHtml, paneHtml, topHtml, tutHtml, writeHtml } from './ui/bureau/board';
-import { mapHtml, minisOf, terrainSvg } from './ui/bureau/map';
+import { mapHtml, minisOf, paintWash, terrainSvg } from './ui/bureau/map';
 import { type Desk, makeDesk } from './ui/bureau/desk';
 import { rumorAt } from './ui/bureau/rumor';
 
@@ -38,20 +38,32 @@ function fresh() {
   ui = { tab: 'look', open: false, sel: 'dg:0', invite: [], give: {}, intro: true, seenNews: W.reports.length, docSeen: 0, askSeen: 0 };
 }
 
+// 글이 바뀐 칸만 다시 넣는다: 같은 것을 다시 넣어도 그 칸(특히 지도 · 책상 장면)을 통째로 다시 칠해 휴대폰에서 창을 열 때마다 버벅인다
+const shown = new Map<string, string>();
+function put(id: string, html: string) {
+  if (shown.get(id) === html) return;
+  shown.set(id, html); $(id).innerHTML = html;
+}
+
 function draw() {
-  $('top').innerHTML = topHtml(W, ui, play);
-  // 땅은 한 번만 깔고, 날마다 바뀌는 표식 · 미니어처 · 책상 위 물건만 다시 그린다
-  if (!desk) { $('map').querySelector('.terrain')!.innerHTML = terrainSvg(W); desk = makeDesk($('desk')); }
-  $('marks').innerHTML = mapHtml(W, ui);
-  $('props').innerHTML = deskHtml(W, ui);
+  put('top', topHtml(W, ui, play));
+  // 땅은 한 번만 깔고(제 층), 날마다 바뀌는 표식 · 미니어처 · 책상 위 물건만 다시 그린다
+  if (!desk) {
+    desk = makeDesk($('desk'));
+    document.querySelector('.map-ground .terrain')!.innerHTML = terrainSvg(W);
+    // 번짐 굽기가 막혀도(오래된 브라우저 등) 종이 빛 바탕으로 판은 그린다
+    try { paintWash(document.querySelector('.map-wash')!); } catch { /* 그대로 둔다 */ }
+  }
+  put('marks', mapHtml(W, ui));
+  put('props', deskHtml(W, ui));
   desk.minis(minisOf(W, flow()));
   desk.stand();
   if (ui.open && ui.tab === 'office') ui.seenNews = W.reports.length;
   const sheet = $('sheet');
   sheet.hidden = !ui.open; sheet.dataset.tab = ui.tab;
-  $('pane').innerHTML = ui.open ? paneHtml(W, ui) : '';
-  $('tut').innerHTML = tutHtml(W, ui);
-  $('asks').innerHTML = asksFloatHtml(W, ui);
+  put('pane', ui.open ? paneHtml(W, ui) : '');
+  put('tut', tutHtml(W, ui));
+  put('asks', asksFloatHtml(W, ui));
   rumor();
   const ov = $('over');
   if (ui.intro) { ov.innerHTML = introHtml(); ov.hidden = false; }
@@ -223,4 +235,5 @@ document.addEventListener('keydown', e => {
 
 const d = load();
 if (d) { W = d.W; ui = d.ui; seed = d.seed; setSeed(d.rng); } else fresh();
-draw();
+// 같은 버전 번호로 모양이 다른 판(다른 빌드에서 저장한 판)이 남아 있으면 첫 그리기에서 터진다: 그때는 새 임기로 연다
+try { draw(); } catch (e) { if (!d) throw e; console.error(e); fresh(); save(); draw(); }

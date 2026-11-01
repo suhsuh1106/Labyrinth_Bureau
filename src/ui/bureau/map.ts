@@ -157,10 +157,12 @@ function cutTrees(W: World) {
 const treesOf = (x: number, y: number) => [0, 1, 2].map(k => ({ x: x * T + 6 + hash(x, y, 20 + k) * 20, y: y * T + 8 + hash(x, y, 30 + k) * 18, s: hash(x, y, 40 + k) * 1.5, k }));
 
 // ── 땅: 판마다 같으니 한 번만 만든다 ─────────────────────────────
-let terrain = '';
-export function terrainSvg(W: World) {
-  if (terrain) return terrain;
-  const cut = cutTrees(W);
+// 땅에는 글자를 두지 않는다: 웹 글꼴 조각이 새로 내려올 때마다(처음 보는 글자가 창에 뜰 때) 그 글꼴의 글자가 모두 다시 칠해지는데,
+// 땅 층에 글자가 있으면 무거운 먹 번짐 필터까지 통째로 다시 돈다. 지방 이름은 표식 층(mapHtml)에 쓴다
+const regions = () => label(cx(LOYD_AT), cy(LOYD_AT) + 52, '로 이 드', 'rg') + label(cx(HAVEL_AT) - 30, cy(HAVEL_AT) - 34, '하 벨', 'rg') + label(28 * T, 1.5 * T, '검 은 숲', 'rg');
+// 먹 번짐(종이 결 · 물가)은 필터가 무거워 한 번만 그림(canvas)으로 구워 두고, 그 위의 먹선(기호 · 길 · 테두리)만 SVG로 둔다.
+// SVG 필터는 그 층이 다시 칠해질 때마다(웹 글꼴 조각이 새로 내려오는 등 문서 전체의 스타일이 바뀔 때) 처음부터 다시 돌아 휴대폰에서 한참 멈춘다
+function washSvg() {
   const goo = (id: string, erode = 0) => `<filter id="t-${id}" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB"><feGaussianBlur in="SourceGraphic" stdDeviation="8" result="b"/><feTurbulence type="fractalNoise" baseFrequency="0.011" numOctaves="1" seed="7" result="n"/><feDisplacementMap in="b" in2="n" scale="26" xChannelSelector="R" yChannelSelector="G"/><feGaussianBlur stdDeviation="2"/><feComponentTransfer><feFuncA type="linear" slope="18" intercept="-8"/></feComponentTransfer>${erode ? `<feMorphology operator="erode" radius="${erode}"/>` : ''}</filter>`;
   // 바깥 물 칸은 지도 밖으로 늘려 흐림이 가장자리에서 끊기지 않게
   const water = (fill: string) => {
@@ -174,10 +176,33 @@ export function terrainSvg(W: World) {
   };
   let h = `<defs>${goo('g')}${goo('g1', 1.6)}${goo('g2', 7)}${goo('g3', 8.4)}${goo('g4', 14)}${goo('g5', 15.2)}
     <filter id="t-paper" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="4"/><feColorMatrix values="0 0 0 0 0.42  0 0 0 0 0.33  0 0 0 0 0.2  0 0 0 0.16 0"/><feComposite in2="SourceGraphic" operator="in"/></filter>
-    <radialGradient id="t-vig" cx="50%" cy="50%" r="72%"><stop offset="62%" stop-color="#6b4f2a" stop-opacity="0"/><stop offset="100%" stop-color="#6b4f2a" stop-opacity="0.32"/></radialGradient></defs>`;
+    </defs>`;
   h += `<rect width="${MAP_PX[0]}" height="${MAP_PX[1]}" fill="${PAPER}"/><rect width="${MAP_PX[0]}" height="${MAP_PX[1]}" fill="#000" filter="url(#t-paper)"/>`;
   // 물: 먹 해안선과 바다 쪽 물결선 두 겹
   h += `<g filter="url(#t-g)">${water(INK)}</g><g filter="url(#t-g1)">${water(WASH)}</g><g filter="url(#t-g2)" opacity="0.55">${water(SEP)}</g><g filter="url(#t-g3)">${water(WASH)}</g><g filter="url(#t-g4)" opacity="0.35">${water(SEP)}</g><g filter="url(#t-g5)">${water(WASH)}</g>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${MAP_PX[0]}" height="${MAP_PX[1]}" viewBox="0 0 ${MAP_PX[0]} ${MAP_PX[1]}">${h}</svg>`;
+}
+// 번짐을 한 번 그림으로 굽는다(canvas로 그려 PNG로 받아 <img>에). 흐린 그림이라 화면 픽셀만큼 촘촘할 필요는 없다(지도 한 칸에 최대 2픽셀).
+// canvas를 그대로 두지 않는 것은 휴대폰에서 canvas 층이 프레임마다 합성 비용을 내서다
+export function paintWash(out: HTMLImageElement) {
+  const k = Math.min(2, Math.max(1, Math.ceil((devicePixelRatio || 1) * 2.5) / 2));
+  const cv = document.createElement('canvas'), img = new Image();
+  cv.width = MAP_PX[0] * k; cv.height = MAP_PX[1] * k;
+  img.onload = () => {
+    const g = cv.getContext('2d');
+    if (!g) return;
+    try { g.drawImage(img, 0, 0, cv.width, cv.height); } catch { return; }
+    // blob 주소가 막힌 곳(일부 미리보기 창)에선 data 주소로. 그마저 막히면 종이 빛 바탕만 남는다
+    out.onerror = () => { out.onerror = null; try { out.src = cv.toDataURL(); } catch { /* 그대로 둔다 */ } };
+    try { cv.toBlob(b => { if (b) out.src = URL.createObjectURL(b); else out.onerror?.(new Event('error')); }); } catch { out.onerror?.(new Event('error')); }
+  };
+  img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(washSvg())}`;
+}
+let terrain = '';
+export function terrainSvg(W: World) {
+  if (terrain) return terrain;
+  const cut = cutTrees(W);
+  let h = `<defs><radialGradient id="t-vig" cx="50%" cy="50%" r="72%"><stop offset="62%" stop-color="#6b4f2a" stop-opacity="0"/><stop offset="100%" stop-color="#6b4f2a" stop-opacity="0.32"/></radialGradient></defs>`;
   // 기호: 아래쪽이 앞에 오도록 y 순서로
   const gl: [number, string][] = [];
   for (let y = 0; y < MAP_H; y++) for (let x = 0; x < MAP_W; x++) {
@@ -189,7 +214,6 @@ export function terrainSvg(W: World) {
   }
   gl.sort((a, b) => a[0] - b[0]).forEach(([, s]) => h += s);
   h += `<path class="road" d="${roadSegs((x, y) => isRoad(ROADS, x, y))}"/>`;
-  h += label(cx(LOYD_AT), cy(LOYD_AT) + 52, '로 이 드', 'rg') + label(cx(HAVEL_AT) - 30, cy(HAVEL_AT) - 34, '하 벨', 'rg') + label(28 * T, 1.5 * T, '검 은 숲', 'rg');
   h += `<rect width="${MAP_PX[0]}" height="${MAP_PX[1]}" fill="url(#t-vig)" pointer-events="none"/><rect x="1" y="1" width="${MAP_PX[0] - 2}" height="${MAP_PX[1] - 2}" fill="none" stroke="${INK}" stroke-width="2"/>`;
   return terrain = h;
 }
@@ -260,7 +284,7 @@ const ptAt = (p: [number, number][], t: number): [number, number, number] => {
 
 export function mapHtml(W: World, ui: BuUi) {
   const sel = ui.sel ?? '';
-  let h = '';
+  let h = regions();
   // 외진 미궁의 발전도
   W.dungeons.forEach((d, i) => { if (d.wild > 0) h += townSvg(W, i, d); });
   // 세력 사이: 험악하거나 우호적인 짝 · 협정을 맺은 짝만 본부 사이에 선을 긋는다

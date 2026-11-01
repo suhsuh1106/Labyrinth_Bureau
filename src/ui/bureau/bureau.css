@@ -92,7 +92,11 @@ button.t-cell.on { outline: 2px solid #8c2f25; }
   repeating-linear-gradient(90deg, rgba(0,0,0,.07) 0 3px, rgba(0,0,0,0) 3px 14px, rgba(255,255,255,.035) 14px 17px, rgba(0,0,0,0) 17px 37px),
   repeating-linear-gradient(90deg, rgba(0,0,0,0) 0 230px, rgba(0,0,0,.18) 230px 233px),
   linear-gradient(180deg, #5c3b22, #4a2f1b); }
-.plane > .map-svg { position: absolute; inset: 0; width: 1280px; height: 768px; box-shadow: 0 30px 60px rgba(0,0,0,.55), 0 4px 10px rgba(0,0,0,.4); }
+.plane > .map-svg { position: absolute; inset: 0; width: 1280px; height: 768px; }
+/* 땅(먹 번짐 필터가 무겁다)은 제 층에 한 번만 칠해 두고, 날마다 · 창을 열 때마다 바뀌는 표식은 위의 투명한 지도(#map)에만 그린다 */
+.plane > .map-ground { transform: translateZ(0); }
+/* 구워 둔 먹 번짐(종이 결 · 물가). 굽기 전엔 종이 빛만 */
+.plane > .map-wash { position: absolute; left: 0; top: 0; width: 1280px; height: 768px; background: #e8dcc0; box-shadow: 0 30px 60px rgba(0,0,0,.55), 0 4px 10px rgba(0,0,0,.4); }
 .minis, .props { position: absolute; inset: 0; transform-style: preserve-3d; pointer-events: none; }
 .mini { position: absolute; width: 0; height: 0; transform-style: preserve-3d; }
 /* 움직이는 미니어처는 자리를 transform으로만 옮긴다(지도를 다시 칠하지 않게) */
@@ -122,8 +126,8 @@ button.t-cell.on { outline: 2px solid #8c2f25; }
 .obj .tie { position: absolute; left: -6px; right: -6px; top: 120px; height: 10px; background: #8c2f25; transform: translateZ(18px); }
 .plate { position: absolute; left: 50%; transform: translateX(-50%) translateZ(1px); white-space: nowrap; background: linear-gradient(180deg, #d9b45a, #a8812c); color: #2b1d08; border: 1px solid #5c430f; border-radius: 3px; padding: 4px 14px; font: 600 24px/1.2 var(--f-body); box-shadow: 0 3px 6px rgba(0,0,0,.45); }
 .plate small { font-weight: 500; font-size: 19px; margin-left: 6px; }
-.obj.pulse .plate { animation: plate 1.4s ease-in-out infinite; }
-@keyframes plate { 50% { box-shadow: 0 0 0 8px rgba(242, 193, 78, .55), 0 3px 6px rgba(0,0,0,.45); } }
+/* 깜빡임은 그림자를 칠하지 않고 고리의 투명도만 바꾼다(합성만: 매 프레임 책상 장면 전체를 다시 칠하지 않게) */
+.obj.pulse .plate::after { content: ""; position: absolute; inset: -1px; border-radius: inherit; box-shadow: 0 0 0 8px rgba(242, 193, 78, .55); opacity: 0; pointer-events: none; animation: glow 1.4s ease-in-out infinite; }
 /* 세로 화면: 가로로 돌려 달라고 한다 */
 .turn { display: none; }
 @media (orientation: portrait) and (max-width: 900px) {
@@ -259,7 +263,7 @@ button.link { border: 0; background: none; padding: 0; color: var(--accent); jus
 
 /* 임명장 · 임기 끝 */
 .over[hidden] { display: none; }
-.over { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 16px; background: color-mix(in srgb, var(--bg) 70%, transparent); backdrop-filter: blur(2px); overflow-y: auto; }
+.over { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 16px; background: color-mix(in srgb, var(--bg) 78%, transparent); overflow-y: auto; }
 .card { width: min(480px, 100%); background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; padding: 20px 22px; display: grid; gap: 10px; box-shadow: 0 12px 40px rgba(0,0,0,.18); }
 .card > small { color: var(--stamp); letter-spacing: .08em; font-size: 12px; }
 .card h2 { font: 700 24px var(--f-display); text-wrap: balance; }
@@ -439,9 +443,10 @@ button.link { border: 0; background: none; padding: 0; color: var(--accent); jus
 .tut { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; align-items: start; background: color-mix(in srgb, var(--accent) 8%, var(--paper)); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--rule)); border-radius: 4px; padding: 8px 10px; margin-bottom: 10px; font-size: 13px; }
 .tut > b { font: 700 13px var(--f-display); color: var(--accent); }
 .tut p { margin: 0; }
-.pulse { animation: pulse 1.6s ease-in-out infinite; }
-@keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent); } 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 35%, transparent); } }
-@media (prefers-reduced-motion: reduce) { .pulse { animation: none; outline: 2px solid var(--accent); } }
+.pulse:not(.obj) { position: relative; }
+.pulse:not(.obj)::after { content: ""; position: absolute; inset: -1px; border-radius: inherit; box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 35%, transparent); opacity: 0; pointer-events: none; animation: glow 1.6s ease-in-out infinite; }
+@keyframes glow { 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .pulse:not(.obj) { outline: 2px solid var(--accent); } }
 
 /* 외진 미궁의 발전도: 닦인 길(1단계) · 마을(2단계) */
 .road { fill: none; stroke: #6b4a1f; stroke-width: 4; stroke-dasharray: 12 5; stroke-linecap: round; opacity: 0.85; }
