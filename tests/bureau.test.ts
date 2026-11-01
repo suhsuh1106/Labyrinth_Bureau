@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { B, FACS, pairOf, BUREAU_AT, HAVEL_AT, LOYD_AT, ROADS, devRoadOf, GUILDS, answer, clauseOn, hireClerk, subAt, letterScore, meet, newWorld, over, pactK, pnlGuild, pnlSum, devStage, post, recall, relOf, run, send, step, teamsIn, withdraw, worstPair, wayOf, hqOf } from '../src/bureau/engine';
 import { BOT, playGame } from '../sim/bureau';
 import { EDGES, LINKS, LOOPS, NODES, checkLoops } from '../src/bureau/loops';
+import { SHOT_N, openingHtml } from '../src/ui/bureau/opening';
 import { type BuUi, asksFloatHtml, docModalHtml, setHtml, endHtml, introHtml, paneHtml, deskHtml, topHtml, tutOf, tessaReportHtml, writeHtml } from '../src/ui/bureau/board';
 import { mapHtml, minisOf } from '../src/ui/bureau/map';
 import { groundAt, isRoad, walkCost } from '../src/bureau/tiles';
@@ -359,6 +360,11 @@ describe('첫 화면과 받은 서류 창', () => {
     expect(introHtml()).toContain('업무 시작');
     expect(introHtml()).toContain('미궁관리국 새로 둬');
     expect(introHtml()).toContain('왕 도 일 보');
+    // 신문 앞 첫 장면: 그림 여섯 장, 단추는 건너뛰기 하나뿐(고르는 단추 없음)
+    const cut = openingHtml();
+    expect(cut.match(/class="cut-p/g)?.length).toBe(SHOT_N);
+    expect(cut.match(/<button/g)?.length).toBe(1);
+    expect(cut).toContain('건너뛰기');
     const W = newWorld(5);
     const ui: BuUi = { tab: 'look', invite: [], give: {}, intro: false, seenNews: 0, docSeen: 0, askSeen: 0 };
     let h = docModalHtml(W, ui);
