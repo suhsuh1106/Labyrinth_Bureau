@@ -5,7 +5,7 @@ import { BOT, playGame } from '../sim/bureau';
 import { EDGES, LINKS, LOOPS, NODES, checkLoops } from '../src/bureau/loops';
 import { SHOT_N, openingHtml } from '../src/ui/bureau/opening';
 import { peekLines } from '../src/ui/bureau/docs';
-import { type BuUi, asksFloatHtml, docModalHtml, setHtml, endHtml, introHtml, paneHtml, deskHtml, topHtml, tutOf, tessaReportHtml, writeHtml } from '../src/ui/bureau/board';
+import { type BuUi, asksFloatHtml, docModalHtml, reportDocHtml, setHtml, endHtml, introHtml, paneHtml, deskHtml, topHtml, tutOf, tessaReportHtml, writeHtml } from '../src/ui/bureau/board';
 import { mapHtml, minisOf } from '../src/ui/bureau/map';
 import { groundAt, isRoad, walkCost } from '../src/bureau/tiles';
 import { canAdd, dropClause, toLock } from '../src/bureau/clauses';
@@ -447,6 +447,11 @@ describe('첫 화면과 받은 서류 창', () => {
     let h = docModalHtml(W, ui);
     expect(h).toContain('폐광 인계에 관한 요구');
     expect(h).toContain('중 앙 행 정 원');
+    // 붙임은 실제로 펼쳐진다: 폐광 실태 조사서(길드마다 오가는 길)
+    expect(h).toContain('data-act="read:-3"');
+    const sv = reportDocHtml(W, -3, true);
+    expect(sv).toContain('폐광 실태 조사');
+    for (const g of GUILDS) expect(sv).toContain(B.GUILD[g].name);
     const k = Number(/seen:(\d+)/.exec(h)![1]);
     expect(docModalHtml(W, { ...ui, docSeen: k + 1 })).toBe('');
     W.asks.push({ id: 1, day: 0, due: 5, from: 'wolf', kind: 'aid', want: 200, chips: [] });
@@ -489,7 +494,7 @@ describe('첫 사건의 업무 안내', () => {
     expect(tutOf(W, ui)).toBe('town');
     W.dungeons[0].dev = B.DEV[1];
     expect(tutOf(W, ui)).toBe('');
-    expect(docModalHtml(newWorld(5), { ...ui, docSeen: 0 })).toContain('징세청 길드 출입 장부 사본');
+    expect(docModalHtml(newWorld(5), { ...ui, docSeen: 0 })).toContain('폐광 실태 조사서 1부');
     // 서류 글은 세상 안의 말로만: 입지 같은 판의 수치를 적지 않는다
     for (const title of ['폐광 인계 · 요구서 달성', '인내가 다함 · 왕국군 철수'])
       expect(JSON.stringify(docOf({ day: 9, from: '중앙 행정원', title, chips: ['예산 +1000G', '입지 +10'] }))).not.toContain('입지');
