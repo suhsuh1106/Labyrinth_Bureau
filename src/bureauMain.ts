@@ -12,7 +12,7 @@ import { rumorAt } from './ui/bureau/rumor';
 import { playOpening } from './ui/bureau/opening';
 
 const $ = (id: string) => document.getElementById(id)!;
-const KEY = 'lb-bureau', VERSION = 16;
+const KEY = 'lb-bureau', VERSION = 17;
 let W: World, ui: BuUi, seed = 0, desk: Desk | null = null, cutOn = false;
 // 설정 창의 새 임기 확인 단계(저장하지 않는다)
 let resetAsk = false;

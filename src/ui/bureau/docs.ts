@@ -1,6 +1,6 @@
 // 종이의 꼴: 신문 지면 · 관청 공문 · 길드 서신. 그리기만 한다(상태에 쓰지 않고 난수도 쓰지 않는다).
 // 받은 보고(Report)를 그 서식에 맞는 문체의 글로 옮기는 것도 여기서 한다.
-import { B, GUILDS, type GuildId, type Peek, type Report, type Trip, type World, svName } from '../../bureau/engine';
+import { B, GUILDS, type GuildId, type Peek, type Report, type Trip, type World, knowLv, svName } from '../../bureau/engine';
 
 // 날짜: 한 달 서른 날, 임기 첫날이 왕국력 412년 1월 1일
 export const dateOf = (day: number) => `왕국력 412년 ${Math.floor(day / 30) + 1}월 ${(day % 30) + 1}일`;
@@ -94,34 +94,40 @@ function growNews(r: Report, no: number): News | null {
   return null;
 }
 
-// 조사 보고서: 돌아온 조사원이 본 것만 짧게. 판의 수치 이름(끌림 · 호감 · 견제 같은 말)은 쓰지 않는다
+// 조사 보고서: 돌아온 사신이 본 것만 짧게. 판의 수치 이름(끌림 · 호감 · 견제 같은 말)은 쓰지 않는다
 const won = (v: number) => `${num(Math.abs(v))}G`;
 // 길드 본부에서 알아 온 것: 장부 셈 · 다음에 보낼 곳 · 관리국 서류를 대하는 마음 · 징세청 눈치
-export function peekLines(W: World, p: Peek) {
+// 길드 금고는 숫자로 읽히지 않는다: 조 하나가 쓸 만한지로 말만
+export const moneyWord = (g: { money: number; size: number }) => { const m = g.money / Math.max(1, g.size); return g.money <= 0 ? '바닥' : m < 15 ? '빠듯' : m < 45 ? '보통' : '넉넉'; };
+// 본부에서 알아 온 것: 이해도 단계(lv)만큼만 읽는다. 0 마음 · 1 다음에 보낼 곳 · 2 장부 셈과 금고 · 3 징세청 눈길
+export function peekLines(W: World, p: Peek, lv: number, g?: GuildId) {
   const led = W.dungeons.map((d, i) => `${d.name} ${p.pnl[i] < 0 ? `${won(p.pnl[i])} 밑짐` : `${won(p.pnl[i])} 남음`}`).join(' · ');
   const go = W.dungeons.map((d, i) => [d.name, p.want[i]] as const).filter(([, v]) => v >= 0.5).sort((a, b) => b[1] - a[1]);
   const will = p.will >= B.SIGN_AT ? '관리국 서류에는 기꺼이 응할 듯합니다.' : p.will >= B.SIGN_AT - 20 ? '관리국 서류에는 마지못해 응할 듯합니다.' : '지금은 관리국 서류에 응하지 않을 듯합니다.';
   return [
-    `장부 셈(조 하나 · 하루, 오가는 길 넣고): ${led}.`,
-    go.length ? `다음에 보낼 곳: ${go.map(([n, v]) => `${n} ${num(v)}조`).join(' · ')} 언저리.` : '당분간 조를 더 내보낼 생각이 없어 보입니다.',
     will,
-    ...(p.check > B.CHECK_ON ? ['징세청의 눈길을 꺼려 몸을 사리는 중입니다.'] : []),
+    ...(lv >= 1 ? [go.length ? `다음에 보낼 곳: ${go.map(([n, v]) => `${n} ${num(v)}조`).join(' · ')} 언저리.` : '당분간 조를 더 내보낼 생각이 없어 보입니다.'] : []),
+    ...(lv >= 2 ? [`장부 셈(조 하나 · 하루, 오가는 길 넣고): ${led}.`, ...(g ? [`금고는 ${moneyWord(W.guilds[g])} 쪽으로 보입니다.`] : [])] : []),
+    ...(lv >= 3 && p.check > B.CHECK_ON ? ['징세청의 눈길을 꺼려 몸을 사리는 중입니다.'] : []),
   ];
 }
-export function tripLines(W: World, t: Trip & { map?: boolean }) {
+const holdWord = (y: number) => y >= 13 ? '무거운' : y >= 10 ? '보통의' : '가벼운';
+export function tripLines(W: World, t: Trip & { logged?: boolean }) {
   const stay = Math.max(0, t.until - t.at);
   if (typeof t.to === 'number') {
-    const d = W.dungeons[t.to], lo = Math.min(...t.lv), hi = Math.max(...t.lv), tenth = Math.min(10, Math.floor(d.sv / B.SVY.map * 10));
+    const d = W.dungeons[t.to], lv = knowLv(d.know), L = t.log;
+    const teams = L ? GUILDS.map((g, i) => [g, L.teams[i]] as const).filter(([, v]) => v >= 0.5).sort((a, b) => b[1] - a[1]).slice(0, 3) : [];
     return [
-      `조사원 ${t.sent}명이 ${stay}일 갱도를 살폈습니다.${t.lost ? ` ${t.lost}명은 돌아오지 못했습니다.` : ''}`,
-      t.lv.length ? `물 높이 ${lo === hi ? lo : `${lo} ~ ${hi}`}, 떠나던 날 ${t.lv.at(-1)}.` : '',
-      t.map ? '갱도 지도를 마쳐 길드들에 돌렸습니다. 위험한 구간과 광맥 자리가 적혀 있습니다.' : d.mapped ? '' : `갱도의 열에 ${tenth}쯤을 그렸습니다.`,
+      `사신 ${t.sent}명이 ${stay}일 출입 기록과 반출 물건을 살폈습니다.`,
+      ...(L && lv >= 1 ? [teams.length ? `드나드는 조: ${teams.map(([g, v]) => `${B.GUILD[g].name} ${num(v)}조`).join(' · ')}.` : '근래 드나드는 조가 거의 없습니다.'] : []),
+      ...(L && lv >= 2 ? [`갱도에서 ${holdWord(L.yld)} 짐이 실려 나갑니다.`] : []),
+      t.logged ? '출입 기록을 갖춰 길드들에 돌렸습니다. 길드가 이 미궁을 보는 눈이 한결 누그러집니다.' : d.logged ? '' : lv >= 1 ? '아직 기록이 성기니 한 번 더 다녀오면 좋겠습니다.' : '',
     ].filter(Boolean);
   }
-  const p = t.peek;
+  const p = t.peek, g = t.to as GuildId, lv = knowLv(W.guilds[g].know);
   return [
-    `조사원 ${t.sent}명이 본부 언저리에 ${stay}일 머물렀습니다.${t.caught ? ' 본부 사람들 눈에 띄어 일찍 돌아왔습니다.' : ''}`,
-    ...(p ? peekLines(W, p) : ['알아낸 것이 없습니다.']),
+    `사신 ${t.sent}명이 본부 언저리에 ${stay}일 머물렀습니다.${t.caught ? ' 본부 사람들 눈에 띄어 일찍 돌아왔습니다.' : ''}`,
+    ...(p ? peekLines(W, p, lv, g) : ['알아낸 것이 없습니다.']),
   ];
 }
 export const tripGov = (W: World, r: Report): Gov => ({
