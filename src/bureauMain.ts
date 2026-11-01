@@ -13,6 +13,8 @@ import { rumorAt } from './ui/bureau/rumor';
 const $ = (id: string) => document.getElementById(id)!;
 const KEY = 'lb-bureau', VERSION = 15;
 let W: World, ui: BuUi, seed = 0, desk: Desk | null = null;
+// 설정 창의 새 임기 확인 단계(저장하지 않는다)
+let resetAsk = false;
 
 function save() { try { localStorage.setItem(KEY, JSON.stringify({ v: VERSION, seed, rng: getSeed(), W, ui })); } catch { /* 저장이 막혀도 판은 계속된다 */ } }
 function load() { try { const d = JSON.parse(localStorage.getItem(KEY) || 'null'); return d && d.v === VERSION ? d : null; } catch { return null; } }
@@ -59,7 +61,7 @@ function draw() {
     setSeed(keep);
     ov.innerHTML = endHtml(W, idle, smart); ov.hidden = false;
   } else if (ui.read != null) { ov.innerHTML = reportDocHtml(W, ui.read, true); ov.hidden = false; }
-  else if (ui.modal === 'set') { ov.innerHTML = setHtml(W); ov.hidden = false; }
+  else if (ui.modal === 'set') { ov.innerHTML = setHtml(W, resetAsk); ov.hidden = false; }
   else if (ui.modal === 'write') { ov.innerHTML = `<div class="card modal write-modal">${writeHtml(W, ui)}</div>`; ov.hidden = false; }
   else {
     // 받은 서류는 한 장씩 새 창으로(청 · 독촉은 오른쪽 위 쪽지를 눌러 펼친다)
@@ -102,13 +104,16 @@ function act(a: string, d = 0) {
   if (k === 'start') ui.intro = false;
   else if (k === 'new') fresh();
   // 새로 시작: 지금 판을 지우므로 한 번 묻는다
-  else if (k === 'reset') { if (!confirm('지금 판을 지우고 새 임기를 시작할까요?')) return; fresh(); }
+  // confirm()은 아티팩트처럼 막힌 iframe에서 말없이 false를 돌려주므로 설정 창 안에서 한 번 더 묻는다
+  else if (k === 'reset') resetAsk = true;
+  else if (k === 'resetno') resetAsk = false;
+  else if (k === 'resetyes') { resetAsk = false; fresh(); }
   // 단추 줄: 닫힌 시트를 열고, 열린 탭을 다시 누르면 닫는다
   else if (k === 'tab') { if (ui.open && ui.tab === arg) ui.open = false; else { ui.tab = arg as Tab; ui.open = true; } }
   else if (k === 'shut') ui.open = false;
   else if (k === 'sel') { ui.sel = rest; ui.tab = 'look'; ui.open = true; }
   else if (k === 'write') { ui.draft = { ...draft(), dg: +arg }; ui.tab = 'asks'; ui.open = true; ui.modal = 'write'; }
-  else if (k === 'close') { ui.modal = undefined; ui.read = undefined; ui.ask = undefined; }
+  else if (k === 'close') { resetAsk = false; ui.modal = undefined; ui.read = undefined; ui.ask = undefined; }
   else if (k === 'set') ui.modal = 'set';
   // 전체 화면: 주소창 · 탭 줄을 숨긴다. 막힌 곳(일부 iframe · 아이폰)에선 단추가 뜨지 않는다
   else if (k === 'fs') { toggleFs(); return; }

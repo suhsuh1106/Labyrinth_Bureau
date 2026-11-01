@@ -49,12 +49,14 @@ function fsBtn() {
   const on = fsOn();
   return `<button type="button" class="t-set" data-act="fs" aria-label="${on ? '전체 화면 끄기' : '전체 화면'}" title="${on ? '전체 화면 끄기' : '전체 화면'}">${on ? FS_OFF : FS_ON}</button>`;
 }
-// 설정 창: 새 임기는 여기에만 둔다(누르면 한 번 더 묻는다)
-export function setHtml(W: World) {
+// 설정 창: 새 임기는 여기에만 둔다(누르면 창 안에서 한 번 더 묻는다)
+export function setHtml(W: World, ask = false) {
   return `<div class="card modal set"><h2>설정</h2>
   <p class="note num">임기 ${Math.min(W.day + 1, B.DAYS)}일째 / ${B.DAYS}일 · 이 브라우저에 저장됨</p>
   ${fsCan() ? `<button type="button" data-act="fs">${fsOn() ? '전체 화면 끄기' : '전체 화면'}</button>` : `<p class="note">이 창에선 전체 화면을 막아 둠 · PC는 F11 · 휴대폰은 브라우저 메뉴의 '홈 화면에 추가'</p>`}
-  <button type="button" class="danger" data-act="reset">새 임기 시작 <small>지금 판을 지움</small></button>
+  ${ask ? `<p class="note">지금 판을 지우고 새 임기를 시작할까요?</p>
+  <button type="button" class="danger" data-act="resetyes">지우고 새 임기</button>
+  <button type="button" data-act="resetno">그대로 두기</button>` : `<button type="button" class="danger" data-act="reset">새 임기 시작 <small>지금 판을 지움</small></button>`}
   <button type="button" class="go wide" data-act="close">닫기</button></div>`;
 }
 
