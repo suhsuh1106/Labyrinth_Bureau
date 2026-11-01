@@ -225,7 +225,7 @@ button.link { border: 0; background: none; padding: 0; color: var(--accent); jus
 .room:has(.sheet:not([hidden])) .zoom { right: calc((var(--gut) + var(--sa-r) + var(--sheet-w) + 10px) / var(--hz)); }
 .room:has(.desk[data-mode="map"]) .asks-float { top: calc((var(--gut) + var(--sa-t)) / var(--hz) + 46px); }
 .tut-float { position: absolute; z-index: 3; zoom: var(--hz); left: calc(50% - 130px); transform: translateX(-50%); top: calc((var(--gut) + var(--sa-t)) / var(--hz) + 74px); width: min(520px, calc(100vw / var(--hz) - 40px)); pointer-events: none; }
-.room:has(.sheet:not([hidden])) .tut-float { left: calc((100vw - var(--sheet-w)) / 2); width: min(460px, calc((100vw - var(--sheet-w)) / var(--hz) - 40px)); }
+.room:has(.sheet:not([hidden])) .tut-float { left: calc((100vw - var(--sheet-w)) / 2 / var(--hz)); width: min(460px, calc((100vw - var(--sheet-w)) / var(--hz) - 40px)); }
 .tut-float .tut { margin: 0; grid-template-columns: 56px 1fr; align-items: center; padding: 8px 14px 8px 8px; border-radius: 30px 8px 8px 30px; font-size: 14px; box-shadow: 0 2px 10px rgba(16, 24, 30, .2); background: color-mix(in srgb, var(--accent) 8%, var(--paper)); }
 .badge { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--stamp); color: var(--paper); font: 600 11px/18px var(--f-num); }
 .pane { padding: 12px; display: grid; gap: 10px; align-content: start; }
