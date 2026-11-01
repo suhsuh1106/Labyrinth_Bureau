@@ -1,4 +1,4 @@
-> **보류** (2026-10-21): 지도 시스템은 내려놓고 행정관 고유의 일(`docs/patrons.md`)부터 본다. 프로토타입 `proto/maps.html` · `proto/zones.html`은 기록으로 남긴다.
+> **보류** (2026-10-21): 지도 시스템은 내려놓고 행정관 고유의 일(`docs/legacy/patrons.md`)부터 본다. 프로토타입 `proto/maps.html` · `proto/zones.html`은 기록으로 남긴다.
 
 # 미궁 지도 · 지형 칸 · 행선지 (기획 메모)
 

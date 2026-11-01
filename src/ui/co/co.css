@@ -1404,7 +1404,7 @@ table.grid.stk td .link { display: block; font-size: 11px; }
 .tips { display: grid; gap: 6px; margin-top: 10px; }
 .tips tr.on td { background: rgba(217,180,90,.12); }
 
-/* 구역 탐사 (docs/zones.md): 구역 보고서 · 이해도 막대 · 귀환 실적 */
+/* 구역 탐사 (docs/legacy/zones.md): 구역 보고서 · 이해도 막대 · 귀환 실적 */
 .zn { font-weight: 600; }
 .zlv { display: inline-flex; align-items: center; gap: 4px; vertical-align: middle; }
 .zlv b { font: 600 12px var(--f-num); min-width: 1ch; }
@@ -1424,7 +1424,7 @@ table.zrep small.ok { color: var(--good); display: block; }
 @media (prefers-reduced-motion: reduce) { .bk-z .lvup { animation: none; } }
 .dg.wkd i.wk, i.wk { font-style: normal; font-size: 10px; color: var(--ink-soft); background: var(--paper-2); }
 
-/* ---------- 판 (docs/board.md): 세로 한 화면 · 위 요약 띠 · 작전 지도 · 아래 단추 줄 · 올라오는 시트 ---------- */
+/* ---------- 판 (docs/legacy/board.md): 세로 한 화면 · 위 요약 띠 · 작전 지도 · 아래 단추 줄 · 올라오는 시트 ---------- */
 /* 책상 위 지도 한 모습(먹색 띠 · 양피지 판)이라 낮/밤 테마를 따로 두지 않는다 */
 body.mode-board .room { padding: 0; background: #1c1814; }
 body.mode-board .wrap { grid-template-rows: minmax(0, 1fr); max-width: none; gap: 0; }
@@ -1625,7 +1625,7 @@ body.dragging, body.dragging * { cursor: grabbing !important; user-select: none;
 @media (prefers-reduced-motion: reduce) { .bs-arrows path.go { animation: none; } }
 
 body.mode-board .toast { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
-/* 인원 시트 (docs/board.md 2단계): 세로 카드 */
+/* 인원 시트 (docs/legacy/board.md 2단계): 세로 카드 */
 .bs-sheet .crew-h { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; }
 .bs-sheet .crew-h select, .bs-sheet .pps select, .bs-sheet .tc-l select { background: var(--bs-desk); color: var(--bs-chalk); border: 1px solid var(--bs-line); border-radius: 6px; padding: 4px 6px; font: 13px var(--f-body); max-width: 100%; }
 .bs-sheet .crew-sum { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--bs-dim); }
@@ -1663,7 +1663,7 @@ body.mode-board .toast { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); 
 .bs-sheet.full { max-height: calc(100% - 8px); }
 /* 판 안의 옛 창 내용도 갈색으로 (칠판 초록 대신) */
 .bs { --bl-1: #2a231c; --bl-2: #2f271f; --bl-3: #231d17; --bl-line: #4a3e31; --bl-ink: #efe6d2; --bl-soft: #b3a58c; --bl-good: #8fd0a1; --bl-bad: #f08a7e; --bl-accent: #c9993f; }
-/* 물자 시트 (docs/board.md 3단계) */
+/* 물자 시트 (docs/legacy/board.md 3단계) */
 .bs-sheet .gs-h { display: grid; gap: 2px; border-radius: 8px; padding: 8px 10px; font-size: 12px; background: var(--bs-desk); border: 1px solid var(--bs-line); }
 .bs-sheet .gs-h b { font-size: 14px; } .bs-sheet .gs-h.rush b { color: #f0a08e; } .bs-sheet .gs-h.ok b { color: var(--bs-green-l); }
 .bs-sheet .gs-h span { color: var(--bs-dim); }
@@ -1686,7 +1686,7 @@ body.mode-board .toast { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); 
 .bs-sheet .mini[aria-pressed="true"] { border-color: var(--bs-green-l); color: var(--bs-green-l); }
 .bs-sheet .step input { background: var(--bs-desk-2); color: var(--bs-chalk); border-color: var(--bs-line); }
 .bs-sheet .step button { background: var(--bs-desk-3); color: var(--bs-chalk); border-color: var(--bs-line); }
-/* 기록 시트 (docs/board.md 4단계) */
+/* 기록 시트 (docs/legacy/board.md 4단계) */
 .bs-sheet .mh { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .bs-sheet .mh > div { background: var(--bs-desk); border: 1px solid var(--bs-line); border-radius: 8px; padding: 8px 10px; display: grid; gap: 2px; min-width: 0; }
 .bs-sheet .mh small, .bs-sheet .mh span { font-size: 12px; color: var(--bs-dim); }

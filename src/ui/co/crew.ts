@@ -1,4 +1,4 @@
-// 인원 시트 (docs/board.md 2단계): 세로 카드. 조 편성(조마다 조장 · 조원 · 빈자리 · 조 장비, 대기 = 훈련) · 명단(기록 카드 · 진급 · 해고) · 지원자(이력서 · 계약)
+// 인원 시트 (docs/legacy/board.md 2단계): 세로 카드. 조 편성(조마다 조장 · 조원 · 빈자리 · 조 장비, 대기 = 훈련) · 명단(기록 카드 · 진급 · 해고) · 지원자(이력서 · 계약)
 // 어디로 보낼지는 판에서, 누가 어느 조인지는 여기서. 읽기만 한다 (상태를 쓰지 않는다)
 import { CO, FLOORS, type Person, type Plan, type World, awayIds, bedsOf, candNow, candPrice, capOf, cohesion, drillGain, eligible, grOf, hirePrice, isRook, personWage, roomOf, sanitize, stateOf, teamFx, us, zoneAt } from '../../core/company';
 import { CLASSES, GRADE_N } from '../../core/data';
