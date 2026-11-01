@@ -211,4 +211,5 @@ document.addEventListener('keydown', e => {
 
 const d = load();
 if (d) { W = d.W; ui = d.ui; seed = d.seed; setSeed(d.rng); } else fresh();
-draw();
+// 같은 버전 번호로 모양이 다른 판(다른 빌드에서 저장한 판)이 남아 있으면 첫 그리기에서 터진다: 그때는 새 임기로 연다
+try { draw(); } catch (e) { if (!d) throw e; console.error(e); fresh(); save(); draw(); }
