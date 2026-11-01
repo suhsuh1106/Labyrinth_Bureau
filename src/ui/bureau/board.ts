@@ -3,7 +3,7 @@
 // 책상 위 물건(깃펜 → 서류, 기록 더미 → 기록, 종 → 회의) · 지도에서 고른 것(살펴보기)을 여는 시트 · 테사의 한마디
 import { lookHtml } from './map';
 import { askLetter, dateOf, moneyWord, docOf, floodNews, govHtml, introNews, letterHtml, newsHtml, peekLines, tripGov } from './docs';
-import { B, type FacId, FACS, GUILDS, type GuildId, type Report, type World, knowLv, pnlGuild, pnlOf, pnlSum, devStage, wayOf, hqOf, depOf, docsOut, escrowOf, crewFree, svWay, svName, type SvTo, trustOf, withdrawFav, facOf, levelOf, nameOf, pactK, relOf, seenLevel, subAt, teamsIn, willOf } from '../../bureau/engine';
+import { B, type FacId, FACS, GUILDS, type GuildId, type Report, type World, knowLv, grantOf, pnlGuild, pnlOf, pnlSum, devStage, wayOf, hqOf, depOf, docsOut, escrowOf, crewFree, svWay, svName, type SvTo, trustOf, withdrawFav, facOf, levelOf, nameOf, pactK, relOf, seenLevel, subAt, teamsIn, willOf } from '../../bureau/engine';
 import { CLAUSE, CLAUSES, CLAUSE_MAX, type Clause, type Clauses, type ClauseId, FORM_NAME, type Tag, FORM_OF, type Form, toName, type To, clauseLock, fits, toLock } from '../../bureau/clauses';
 
 export type Tab = 'look' | 'asks' | 'lib' | 'meet' | 'office';
@@ -33,12 +33,12 @@ export const levelCls = (v: number) => v >= B.DANGER ? 'bad' : v >= B.RISK_AT ? 
 const stepper = (act: string, val: string, label: string) =>
   `<span class="step" role="group" aria-label="${label}"><button type="button" data-act="${act}" data-d="-1" aria-label="${label} 내리기">−</button><output>${val}</output><button type="button" data-act="${act}" data-d="1" aria-label="${label} 올리기">+</button></span>`;
 
-// 하루 예산 흐름의 어림: 입장료(중앙 몫 뺌) − 보조금 − 사신 품삯
-export function dayFlow(W: World) {
-  let fee = 0, sub = 0;
-  W.dungeons.forEach((d, i) => { const n = teamsIn(d); fee += n * B.FEE * (1 - W.crownShare / 100); sub += n * subAt(W, i); });
-  for (const t of W.trips) sub += t.n * B.SVY.pay;
-  return { fee, sub, net: fee - sub };
+// 다음 배정의 어림: 중앙 배정 + 이달 모인 입장료 몫 + 오늘 든 조로 남은 날을 채운 값
+export function grantNext(W: World) {
+  let fee = 0;
+  W.dungeons.forEach(d => { fee += teamsIn(d) * B.FEE * (1 - W.crownShare / 100); });
+  const left = B.MONTH - (W.day % B.MONTH);
+  return { left, g: grantOf(W) + W.feeMo + fee * left };
 }
 
 // 설정 단추(왼쪽 위 정보 끝): 톱니 모양
@@ -100,12 +100,10 @@ function autoHtml(W: World, ui: BuUi | undefined, play: boolean) {
 
 export function topHtml(W: World, ui?: BuUi, play = false) {
   const wait = ui && tutOf(W, ui) === 'wait';
-  const f = dayFlow(W), month = Math.floor(W.day / B.MONTH) + 1, toGrant = B.MONTH - (W.day % B.MONTH);
-  const grant = B.GRANT + W.standing * B.GRANT_K;
+  const nx = grantNext(W), month = Math.floor(W.day / B.MONTH) + 1;
   return `<div class="t-day"><b class="num">${Math.min(W.day + 1, B.DAYS)}</b><span>일 / ${B.DAYS} · ${month}달째</span></div>
-  <div class="t-cell"><span>예산</span><b class="num ${W.budget < 0 ? 'neg' : ''}">${n0(W.budget)}G</b><small class="num ${f.net < 0 ? 'neg' : ''}">하루 ${sgn(f.net)}${escrowOf(W) > 0 ? ` · 공탁 ${n0(escrowOf(W))}` : ''}</small></div>
-  <button type="button" class="t-cell t-office${ui?.open && ui.tab === 'office' ? ' on' : ''}" data-act="tab:office" title="집무실"><span>입지</span><b class="num">${n1(W.standing)}</b><i class="gauge"><i style="width:${W.standing}%"></i></i>${ui && !(ui.open && ui.tab === 'office') && W.reports.length - ui.seenNews + W.pts > 0 ? `<i class="badge">${W.reports.length - ui.seenNews + W.pts}</i>` : ''}</button>
-  <div class="t-cell"><span>중앙 배정</span><b class="num">${n0(grant)}G</b><small>${toGrant}일 뒤</small></div>
+  <div class="t-cell"><span>예산</span><b class="num ${W.budget < 0 ? 'neg' : ''}">${n0(W.budget)}G</b><small class="num">${nx.left}일 뒤 +${n0(nx.g)}${escrowOf(W) > 0 ? ` · 공탁 ${n0(escrowOf(W))}` : ''}</small></div>
+  <button type="button" class="t-cell t-office${ui?.open && ui.tab === 'office' ? ' on' : ''}" data-act="tab:office" title="관리국"><span>관리국</span><b class="num">${n1(W.standing)}</b><i class="gauge"><i style="width:${W.standing}%"></i></i>${ui && !(ui.open && ui.tab === 'office') && W.reports.length - ui.seenNews + W.pts > 0 ? `<i class="badge">${W.reports.length - ui.seenNews + W.pts}</i>` : ''}</button>
   <div class="t-btns">${autoHtml(W, ui, play)}<button type="button" class="go${wait && !play ? ' pulse' : ''}" data-act="next" ${W.day >= B.DAYS ? 'disabled' : ''}>다음 날 <kbd>N</kbd></button><button type="button" data-act="ff" ${W.day >= B.DAYS ? 'disabled' : ''}>닷새</button></div>
   ${fsBtn()}<button type="button" class="t-set" data-act="set" aria-label="설정" title="설정">${GEAR}</button>`;
 }

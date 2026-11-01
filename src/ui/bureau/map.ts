@@ -3,7 +3,7 @@
 // 외진 미궁의 발전도(devPct: 길이 그어지고, 집이 길을 따라 한 채씩 늘고, 둘레 숲이 베여 밭이 되고, 목책이 두른다),
 // 미궁 표식의 고리(보고된 마물 수), 세력 사이(본부 사이 선). 길드 조 · 본부 깃발 · 관리국은 지도 위에 선 미니어처(minisOf, 책상 장면이 세운다).
 // 그리기만 하고 상태에 쓰지 않는다.
-import { B, BUREAU_AT, HAVEL_AT, LOYD_AT, ROADS, devRoadOf, devStage, type Dungeon, type FacId, FACS, GUILDS, type World, wayOf, nameOf, svAt, svName, pactK, relOf, seenLevel, subAt, teamsIn, worstPair } from '../../bureau/engine';
+import { B, BUREAU_AT, armyIn, HAVEL_AT, LOYD_AT, ROADS, devRoadOf, devStage, type Dungeon, type FacId, FACS, GUILDS, type World, wayOf, nameOf, svAt, svName, pactK, relOf, seenLevel, subAt, teamsIn, worstPair } from '../../bureau/engine';
 import { type At, MAP_H, MAP_W, groundAt, isRoad, walkPath } from '../../bureau/tiles';
 import { type BuUi, dungeonHtml, facHtml, levelCls, levelWord, n0, n1, pactLine, relRow, relWord, relsTop } from './board';
 
@@ -274,6 +274,82 @@ function townSvg(W: World, i: number, d: Dungeon) {
   return h + '</g>';
 }
 
+// ── 미궁의 위험: 숫자 대신 땅이 말한다 ─────────────────────────────
+// 마물이 찬 만큼 갱 둘레에 검붉은 얼룩이 번지고(보고된 마물 수), 입구에서 밖으로 긁힌 자국이 뻗는다.
+// 범람이 지나간 자리(처음부터 넘쳤던 폐광 · 범람한 미궁)에는 불탄 마을 터, 왕국군이 주둔한 동안은 목책이 길목을 막는다.
+// 마물 떼 · 군 막사 · 병사는 미니어처(minisOf)
+const dangerK = (lv: number) => Math.max(0, Math.min(1, (lv - 50) / 40));
+// 불탄 마을 터: 미궁에서 두세 칸 떨어진 들 · 언덕 칸 셋 (판마다 같다)
+const ruinMemo = new Map<number, At[]>();
+function ruinsOf(i: number, d: Dungeon): At[] {
+  let r = ruinMemo.get(i);
+  if (r) return r;
+  const c: [number, number, At][] = [];
+  for (let y = d.at[1] - 4; y <= d.at[1] + 4; y++) for (let x = d.at[0] - 4; x <= d.at[0] + 4; x++) {
+    const g = groundAt(x, y), di = Math.hypot(x - d.at[0], y - d.at[1]);
+    if ((g === '.' || g === 'n') && di >= 2 && di <= 4 && !isRoad(ROADS, x, y)) c.push([hash(x, y, 90 + i), di, [x, y]]);
+  }
+  c.sort((a, b) => a[0] - b[0]);
+  r = [];
+  for (const [, , at] of c) { if (r.every(o => Math.hypot(o[0] - at[0], o[1] - at[1]) >= 2)) r.push(at); if (r.length >= 3) break; }
+  ruinMemo.set(i, r);
+  return r;
+}
+// 무너진 지붕 · 그을음 · 꺼진 연기 한 줄기
+const ruin = (x: number, y: number, k: number) => {
+  let h = `<ellipse cx="${f1(x)}" cy="${f1(y + 3)}" rx="15" ry="8" fill="#3a2a20" opacity=".22"/>`;
+  for (let j = 0; j < 3; j++) {
+    const hx = x + (hash(k, j, 1) - 0.5) * 20, hy = y + (hash(k, j, 2) - 0.5) * 10, a = (hash(k, j, 3) - 0.5) * 40;
+    h += `<g transform="translate(${f1(hx)} ${f1(hy)}) rotate(${a.toFixed(0)})"><path d="M-6,2 L-6,-3 L-2,-6 L1,-3 L3,-5 L6,-2 L6,2 z" fill="#2b221c" stroke="${INK}" stroke-width="0.8"/><path d="M-4,2 l2,-4 M2,2 l1,-3" stroke="#6b5a4a" stroke-width="0.7"/></g>`;
+  }
+  return h + `<path d="M${f1(x + 2)},${f1(y - 6)} q-4,-6 1,-11 q5,-5 0,-11 q-3,-4 2,-8" stroke="#5a4a3e" stroke-width="1.6" fill="none" stroke-linecap="round" opacity=".55"/>`;
+};
+function dangerSvg(W: World, i: number, d: Dungeon) {
+  const lv = seenLevel(W, i), k = dangerK(lv), x = cx(d.at), y = cy(d.at);
+  let h = '';
+  // 불탄 마을 터: 범람이 지나간 자리. 폐광은 마을이 서기 전까지
+  if (d.floods > 0 || (d.wild > 0 && devStage(d) === 0)) h += `<g class="ruins"><title>불탄 마을 터</title>${ruinsOf(i, d).map((at, j) => ruin(cx(at), cy(at), i * 7 + j)).join('')}</g>`;
+  if (k <= 0) return h;
+  // 얼룩: 들쭉날쭉한 먹 번짐 두 겹
+  const blot = (R: number, seed: number) => {
+    const pts: [number, number][] = [];
+    for (let j = 0; j < 22; j++) { const a = j / 22 * Math.PI * 2, r = R * (0.72 + hash(i, j, seed) * 0.5); pts.push([x + Math.cos(a) * r, y + Math.sin(a) * r * 0.8]); }
+    return smooth([...pts, pts[0], pts[1]]);
+  };
+  const R = T * (1.4 + k * 2.6);
+  h += `<g class="blight"><path d="${blot(R, 11)}" fill="#7a2418" opacity="${f1(0.12 + k * 0.2)}"/><path d="${blot(R * 0.62, 13)}" fill="#3a120c" opacity="${f1(0.16 + k * 0.3)}"/><path d="${blot(R * 0.32, 15)}" fill="#1d0905" opacity="${f1(0.2 + k * 0.35)}"/>`;
+  // 긁힌 자국: 입구에서 밖으로 밀려 나온 길
+  const n = 4 + Math.round(k * 6);
+  for (let j = 0; j < n; j++) {
+    const a = j / n * Math.PI * 2 + hash(i, j, 17) * 0.6, L = R * (0.8 + hash(i, j, 19) * 0.55), r0 = 18;
+    const sx = x + Math.cos(a) * r0, sy = y + Math.sin(a) * r0 * 0.8, ex = x + Math.cos(a) * L, ey = y + Math.sin(a) * L * 0.8;
+    const bx = (sx + ex) / 2 + Math.cos(a + 1.57) * 6 * (hash(i, j, 23) - 0.5), by = (sy + ey) / 2 + Math.sin(a + 1.57) * 6 * (hash(i, j, 23) - 0.5);
+    h += `<path d="M${f1(sx)},${f1(sy)} Q${f1(bx)},${f1(by)} ${f1(ex)},${f1(ey)}" stroke="#4a160f" stroke-width="${f1(1 + k * 1.6)}" fill="none" stroke-linecap="round" opacity=".7"/>`;
+    h += `<path d="M${f1(sx + 3)},${f1(sy + 2)} Q${f1(bx + 3)},${f1(by + 2)} ${f1(ex - Math.cos(a) * L * 0.3)},${f1(ey - Math.sin(a) * L * 0.24)}" stroke="#4a160f" stroke-width="0.8" fill="none" stroke-linecap="round" opacity=".5"/>`;
+  }
+  h += '</g>';
+  // 왕국군 목책: 관리국 쪽 길목을 반달로 막는다
+  if (armyIn(W, i)) {
+    const [bx, by] = armyAt(i, d), a0 = Math.atan2(by - y, bx - x), r = Math.hypot(bx - x, by - y) + 14;
+    let st = '';
+    for (let j = -6; j <= 6; j++) { const a = a0 + j * 0.13, px = x + Math.cos(a) * r, py = y + Math.sin(a) * r; st += `<path d="M${f1(px)},${f1(py + 3)} l${f1(Math.cos(a) * -2)},-8" stroke="${INK}" stroke-width="1.6" stroke-linecap="round"/>`; }
+    const p0 = [x + Math.cos(a0 - 0.8) * r, y + Math.sin(a0 - 0.8) * r], p1 = [x + Math.cos(a0 + 0.8) * r, y + Math.sin(a0 + 0.8) * r];
+    h += `<g class="palisade"><title>왕국군 목책</title><path d="M${f1(p0[0])},${f1(p0[1])} A${f1(r)},${f1(r)} 0 0 1 ${f1(p1[0])},${f1(p1[1])}" stroke="${INK}" stroke-width="1.2" fill="none"/>${st}</g>`;
+  }
+  return h;
+}
+// 왕국군 진: 미궁에서 관리국 쪽으로 난 길 위, 두 칸쯤
+const armyMemo = new Map<number, [number, number, number]>();
+function armyAt(i: number, d: Dungeon): [number, number, number] {
+  let a = armyMemo.get(i);
+  if (!a) {
+    const c = centers(pathOf(d.at, BUREAU_AT)), L = c.length - 1;
+    a = ptAt(c, Math.min(1, 2.2 / Math.max(1, L)));
+    armyMemo.set(i, a);
+  }
+  return a;
+}
+
 // 길드 조가 오가는 길(본부 → 미궁, 걷는 길). 그리기용 캐시
 const paths = new Map<string, At[]>();
 const pathOf = (a: At, b: At) => { const k = a.join() + '|' + b.join(); if (!paths.has(k)) paths.set(k, walkPath(ROADS, a, b)); return paths.get(k)!; };
@@ -287,6 +363,8 @@ export function mapHtml(W: World, ui: BuUi) {
   let h = regions();
   // 외진 미궁의 발전도
   W.dungeons.forEach((d, i) => { if (d.wild > 0) h += townSvg(W, i, d); });
+  // 미궁의 위험: 얼룩 · 긁힌 자국 · 불탄 마을 터 · 목책
+  W.dungeons.forEach((d, i) => { h += dangerSvg(W, i, d); });
   // 세력 사이: 험악하거나 우호적인 짝 · 협정을 맺은 짝만 본부 사이에 선을 긋는다
   const [wa, wb] = worstPair(W);
   FACS.forEach((a, i) => FACS.slice(i + 1).forEach(b => {
@@ -349,6 +427,12 @@ const ART = {
   cart: (c: string) => `${BASE(16)}<path d="M-16,-9 h20 v-9 h-20 z" fill="#8a6a3e" stroke="#1d1712" stroke-width="0.8"/><path d="M-15,-18 q5,-7 9,-1 q4,-6 9,1 z" fill="#c9b07a" stroke="#1d1712" stroke-width="0.7"/><circle cx="-10" cy="-5" r="4.5" fill="none" stroke="#1d1712" stroke-width="1.2"/><circle cx="-1" cy="-5" r="4.5" fill="none" stroke="#1d1712" stroke-width="1.2"/><path d="M4,-12 h6" stroke="#3a2a1a" stroke-width="1.2"/><path d="M9,-7 l1,-8 q1,-4 6,-4 l3,-4 l1,4 q1,3 -2,4 l0,8 M11,-7 v-1 M17,-7 v-1" fill="#7a6656" stroke="#1d1712" stroke-width="0.8"/><path d="M-16,-18 v-6 h3 l2,2 h-5" fill="${c}" stroke="#1d1712" stroke-width="0.5"/>`,
   // 본부: 천막과 큰 깃발, 몸집만큼 크다
   hq: (c: string, k: number) => `${BASE(16)}<path d="M-13,-3 L-3,-22 L7,-3 z" fill="#d8cdb0" stroke="#1d1712" stroke-width="0.8"/><path d="M-3,-22 L-3,-3" stroke="#1d1712" stroke-width="0.6"/><path d="M-5,-3 l2,-7 l2,7" fill="#3a2a1a"/><path d="M10,-3 V${f1(-30 - k * 14)}" stroke="#3a2a1a" stroke-width="1.8"/><path d="M10,${f1(-30 - k * 14)} h${f1(16 + k * 6)} q-3,${f1(5 + k)} 0,${f1(10 + k * 2)} h${f1(-16 - k * 6)} z" fill="${c}" stroke="#1d1712" stroke-width="0.8"/><path d="M10,${f1(-30 - k * 14)} h${f1(16 + k * 6)}" stroke="${light(c)}" stroke-width="1.2"/><circle cx="10" cy="${f1(-31 - k * 14)}" r="1.8" fill="#c9a64a"/>`,
+  // 마물: 웅크린 검은 몸 · 등의 가시 · 붉은 눈
+  mob: (s: number) => `${BASE(7)}<g transform="scale(${f1(s)})"><path d="M-8,-3 q-2,-9 4,-13 l2,-5 l2,4 l3,-5 l2,5 l3,-3 l0,5 q5,4 2,12 z" fill="#1d1410" stroke="#0c0806" stroke-width="0.8"/><path d="M-8,-3 l-3,2 M8,-3 l3,2" stroke="#0c0806" stroke-width="1.2" stroke-linecap="round"/><circle cx="-2" cy="-11" r="1.2" fill="#e0412c"/><circle cx="2.5" cy="-11" r="1.2" fill="#e0412c"/></g>`,
+  // 왕국군 병사: 강철 투구 · 창, 하나는 왕국 깃발
+  soldier: (flag: boolean) => `${BASE(9)}<path d="M-5,-3 q-1,-13 2,-19 q3,-3 6,0 q3,7 2,19 z" fill="#5c5f66" stroke="#1d1712" stroke-width="0.8"/><path d="M-5,-12 h10" stroke="#7b1f2a" stroke-width="2.2"/><circle cx="0" cy="-25" r="3.4" fill="#d9ad84" stroke="#1d1712" stroke-width="0.7"/><path d="M-4,-25 q4,-8 8,0 z" fill="#9aa0a6" stroke="#1d1712" stroke-width="0.7"/><path d="M7,-2 V-36" stroke="#3a2a1a" stroke-width="1.2"/><path d="M7,-36 l-2,4 h4 z" fill="#c8ccd2" stroke="#1d1712" stroke-width="0.5"/>${flag ? '<path d="M7,-34 h14 v10 l-7,-3 l-7,3 z" fill="#7b1f2a" stroke="#1d1712" stroke-width="0.7"/><circle cx="14" cy="-29" r="2" fill="#c9a64a"/>' : ''}`,
+  // 왕국군 막사: 각진 천막과 왕국 깃발
+  camp: () => `${BASE(15)}<path d="M-13,-3 L-13,-14 L0,-24 L13,-14 L13,-3 z" fill="#a39a86" stroke="#1d1712" stroke-width="0.9"/><path d="M0,-24 V-3 M-3,-3 l3,-9 l3,9" stroke="#1d1712" stroke-width="0.8" fill="#3a2a1a"/><path d="M0,-24 V-40" stroke="#3a2a1a" stroke-width="1.4"/><path d="M0,-40 h13 l-3,4 l3,4 h-13 z" fill="#7b1f2a" stroke="#1d1712" stroke-width="0.7"/><circle cx="6" cy="-36" r="1.8" fill="#c9a64a"/>`,
   // 관리국: 작은 청사 모형
   bureau: () => `${BASE(20)}<rect x="-15" y="-22" width="30" height="19" fill="#d9d2c2" stroke="#1d1712" stroke-width="0.9"/><path d="M-18,-22 L0,-34 L18,-22 z" fill="#6c2b23" stroke="#1d1712" stroke-width="0.9"/><rect x="-3" y="-44" width="6" height="12" fill="#d9d2c2" stroke="#1d1712" stroke-width="0.8"/><path d="M-4,-44 L0,-50 L4,-44 z" fill="#6c2b23" stroke="#1d1712" stroke-width="0.7"/>${[-11, -5, 5, 11].map(x => `<rect x="${x - 1.5}" y="-17" width="3" height="5" fill="#3b3a44"/>`).join('')}<rect x="-2.5" y="-11" width="5" height="8" fill="#4a3220"/>`,
 };
@@ -371,13 +455,34 @@ export function minisOf(W: World, f = 0): Mini[] {
     if (p.length < 2) return;
     const way = wayOf(W, g, i), k = Math.max(1, Math.min(6, Math.round(n))), c = centersOf(p);
     for (let j = 0; j < k; j++) {
-      const t = (j / k + (W.day + f) / (2 * way) + hash(i, gi)) % 1, there = t < 0.5, [x, y, a] = ptAt(c, there ? t * 2 : 2 - t * 2);
+      const t = (j / k + (W.day + f) / (2 * way) + hash(i, gi)) % 1, there = t < 0.5;
+      let [x, y, a] = ptAt(c, there ? t * 2 : 2 - t * 2);
       const dx = Math.cos(a) * (there ? 1 : -1);
       // 돌아오는 조는 짐을 지고, 셋 이상 든 길드는 그중 하나가 짐수레를 끈다
       const cart = !there && k >= 3 && j === 0;
+      // 다른 미궁 곁을 지나는 조는 갱 입구를 비켜 걷는다(그 미궁에 든 것처럼 보이지 않게)
+      for (const o of W.dungeons) {
+        if (o === d) continue;
+        const ox = cx(o.at), oy = cy(o.at), dd = Math.hypot(x - ox, y - oy);
+        if (dd < 46) { const q = 46 / Math.max(1, dd); x = ox + (x - ox) * q; y = oy + (y - oy) * q; }
+      }
       out.push({ key: `t-${i}-${g}-${j}`, x, y: y + 3, w: cart ? 44 : 34, h: 50, svg: cart ? ART.cart(GC(g)) : ART.team(GC(g), !there), face: dx < 0 ? -1 : 1, walk: true, title: `${nameOf(W, g)} 조 → ${d.name}${there ? '' : ' (돌아오는 길 · 짐)'}` });
     }
   }));
+  // 마물 떼: 보고된 마물 수만큼 갱 둘레에 우글거린다(이름표가 있는 아래쪽은 비운다)
+  W.dungeons.forEach((d, i) => {
+    const k = dangerK(seenLevel(W, i)), n = Math.round(k * 12);
+    for (let j = 0; j < n; j++) {
+      const a = Math.PI * (0.8 + hash(i, j, 61) * 1.4), r = 34 + hash(i, j, 63) * (14 + k * 40), s = 1 + hash(i, j, 67) * 0.45;
+      out.push({ key: `mob-${i}-${j}`, x: f1n(cx(d.at) + Math.cos(a) * r), y: f1n(cy(d.at) + Math.sin(a) * r * 0.8), w: 24, h: 30, svg: ART.mob(s), face: Math.cos(a) < 0 ? -1 : 1, title: `${d.name}의 마물` });
+    }
+    // 왕국군: 막사 하나 · 병사 셋이 길목을 지킨다
+    if (armyIn(W, i)) {
+      const [ax, ay, aa] = armyAt(i, d), nx = -Math.sin(aa), ny = Math.cos(aa);
+      out.push({ key: `camp-${i}`, x: f1n(ax + Math.cos(aa) * 16), y: f1n(ay + Math.sin(aa) * 16 + 4), w: 40, h: 50, svg: ART.camp(), title: '왕국군 주둔' });
+      [-1, 0, 1].forEach((o, j) => out.push({ key: `sol-${i}-${j}`, x: f1n(ax + nx * o * 22 - Math.cos(aa) * 6), y: f1n(ay + ny * o * 22 - Math.sin(aa) * 6), w: 30, h: 44, svg: ART.soldier(j === 1), face: Math.cos(aa) > 0 ? -1 : 1, title: '왕국군' }));
+    }
+  });
   // 관리국 사신: 관리국에서 보낸 곳까지 걸어가 머물다 돌아온다. 무리마다 미니어처 하나
   for (const t of W.trips) {
     const p = pathOf(BUREAU_AT, svAt(W, t.to));

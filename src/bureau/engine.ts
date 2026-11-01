@@ -171,6 +171,7 @@ export interface Stats {
 }
 export interface World {
   day: number; budget: number; standing: number;
+  feeMo: number;                  // 이달 모인 입장료(중앙 몫 뺌): 달 끝에 중앙 배정과 함께 예산으로 들어온다
   prio: number;                   // 우선권 조항 0 ~ 100: 50보다 크면 큰 길드 편
   crownShare: number;             // 입장료에서 중앙 몫 %
   dungeons: Dungeon[]; guilds: Record<GuildId, Guild>;
@@ -255,7 +256,7 @@ export function newWorld(seed: number, o: Opts = {}): World {
     return { id, name: g.name, size: g.size, money: g.money, infl: 0, fav: g.fav + Math.round((rnd() - 0.5) * 12), check: 0, peak: g.size, know: 0, grip: 0, peek: null };
   };
   const W: World = {
-    day: 0, budget: 3000, standing: 20, prio: 50, crownShare: 10,
+    day: 0, budget: 3000, feeMo: 0, standing: 20, prio: 50, crownShare: 10,
     dungeons,
     guilds: Object.fromEntries(GUILDS.map(g => [g, guild(g)])) as Record<GuildId, Guild>,
     seen: dungeons.map(d => [d.level]), hist: dungeons.map(d => [d.level]),
@@ -337,6 +338,8 @@ export const wayDayG = () => B.WAY_K * B.SUB_LURE;
 const guildLure = (W: World, g: GuildId, i: number) => -wayCost(W, g, i) - (fearK(g) - 1) * harmOf(W, W.dungeons[i]);
 // 길드 g의 조 하나가 미궁 i에서 하루 남기는 값의 어림(G, 보조금 빼고): 손익 자료의 길드별 칸
 export const pnlGuild = (W: World, g: GuildId, i: number) => Math.round(pnlOf(W, W.dungeons[i]) + guildLure(W, g, i) * B.SUB_LURE);
+// 달마다 중앙의 배정(입장료 몫 빼고)
+export const grantOf = (W: World) => B.GRANT + W.standing * B.GRANT_K;
 export const levelOf = (standing: number) => B.STAND_LV.filter(t => standing >= t).length;
 export const docsOut = (W: World) => W.notices.length + W.letters.length;
 
@@ -503,10 +506,11 @@ export function step(W: World) {
   sideWith(W);
   makeAsks(W);
   for (const f of FACS) W.owe[f] *= B.OWE_FADE;
-  // 예산: 입장료(중앙 몫을 뺀 나머지) − 보조금, 달마다 중앙의 배정
-  W.budget += fees * (1 - W.crownShare / 100) - subs + escrowPaid;
+  // 예산: 보조금은 그날 나가고, 입장료(중앙 몫을 뺀 나머지)는 징세청이 모아 두었다가 달 끝에 중앙 배정과 함께 한 번에 내려보낸다
+  W.feeMo += fees * (1 - W.crownShare / 100);
+  W.budget += escrowPaid - subs;
   S.spent += subs;
-  if (W.day % B.MONTH === 0) { W.budget += B.GRANT + W.standing * B.GRANT_K; W.crew = B.SVY.crew; }
+  if (W.day % B.MONTH === 0) { W.budget += grantOf(W) + W.feeMo; W.feeMo = 0; W.crew = B.SVY.crew; }
   // 호감: 평소로 천천히, 조항이 끌어당긴다
   // 길드마다 결대로: 우선권은 권리를 보는 큰 길드가 반기고 작은 길드가 싫어한다. 보조금 · 기록 · 위로금은 돈 · 정보 · 안전의 결만큼
   for (const o of GUILDS.map(g => G[g])) o.fav += (50 - o.fav) * B.FAV_BACK;
