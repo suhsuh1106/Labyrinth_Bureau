@@ -1,5 +1,5 @@
-// 미궁관리국 배경 엔진. 0단계: 저량 넷(수위 · 세력의 돈 · 영향력 · 호감)과 인과 루프 두 쌍
-//   R1 범람 소용돌이 ↔ B1 개입: 수위가 오르면 사고가 늘어 조가 발을 빼고, 덜 들어가니 수위가 더 오른다.
+// 미궁관리국 배경 엔진. 0단계: 저량 넷(마물 수 · 세력의 돈 · 영향력 · 호감)과 인과 루프 두 쌍
+//   R1 범람 소용돌이 ↔ B1 개입: 마물 수가 오르면 사고가 늘어 조가 발을 빼고, 덜 들어가니 마물 수가 더 오른다.
 //                              국장은 출입 보조금(예산)으로 조를 다시 들인다.
 //   R3 몸집 ↔ B3 견제: 커진 길드는 영향력으로 몫을 더 가져가 더 커진다.
 //                      눈에 띄면 중앙의 세금 · 다른 길드의 결집이 붙잡는다(어느 길드든).
@@ -18,9 +18,9 @@ import { type At, isRoad, layRoad, walkCost } from './tiles';
 
 export const B = {
   DAYS: 360, MONTH: 30,
-  DANGER: 70, FLOOD: 100, FLOOD_TO: 80,   // 위험 수위 · 범람 · 범람 뒤 수위
-  CLEAR: 0.15,                            // 조 하나가 하루에 내리는 수위 (수위 50에서. 붐빌수록 더 잡는다: clearOf)
-  RISK_AT: 55, RISK_K: 1 / 2000,          // 이 수위부터 조마다 사고(죽음, 조 단위)
+  DANGER: 70, FLOOD: 100, FLOOD_TO: 80,   // 위험선 · 범람 · 범람 뒤 마물 수
+  CLEAR: 0.15,                            // 조 하나가 하루에 내리는 마물 수 (마물 수 50에서. 붐빌수록 더 잡는다: clearOf)
+  RISK_AT: 55, RISK_K: 1 / 2000,          // 이 마물 수부터 조마다 사고(죽음, 조 단위)
   FEAR: 20, FEAR_FADE: 0.85,              // 사고가 남기는 꺼림(R1): 죽은 조 하나당, 하루에 남는 몫
   MOVE: 0.25,                             // 조가 하루에 바라는 자리로 옮겨 가는 몫
   SUB_LURE: 2, WANT_K: 1.4,               // 보조금 G당 끌림 · 끌림 1당 바라는 조
@@ -41,7 +41,7 @@ export const B = {
   // 공고문은 신문에 실려 퍼진다: 관리국에서 길드 본부까지 걸리는 날만큼(hqOf) 뒤에 그 길드에 걸린다
   // 첫 요구서(중앙 행정원): 왕국군이 눌러 두고 있는 폐광을 넘겨받아라. 길드 조가 하루 min조 이상 need일 이어 들면 군이 물러나고(인계)
   // 예산 · 입지를 준다. 군이 버티는 동안 중앙의 인내가 모자란 조만큼 줄고(pat), 바닥나면 인계 없이 물러난다(입지를 깎는다).
-  // 군은 주둔하는 동안 하루 clear만큼 수위를 누른다(오르는 만큼). fear: 범람이 남긴 꺼림
+  // 군은 주둔하는 동안 하루 clear만큼 마물 수를 누른다(오르는 만큼). fear: 범람이 남긴 꺼림
   ORDER: { dg: 0, min: 12, need: 3, pat: 100, drain: 1, clear: 1.25, fear: 30, pay: 1000, stand: 12, fail: 5 },
   // 사신(파견서): 관리국의 사신 crew명을 미궁이나 길드 본부에 보낸다. 관리국에서 걸어가고(svWay) 정한 날만큼 머물다 걸어 돌아온다.
   //   한 번에 max명 · 머물 날 days, 나가 있는 동안 한 사람 하루 pay G. 알아 온 것은 돌아온 날 보고서로 들어온다.
@@ -59,7 +59,7 @@ export const B = {
   GUILD: {} as Record<GuildId, GuildDef>,
   GROW_PER: 1 / 12, GROW_EVERY: 4,
   INFL_SIZE: 4, INFL_MONEY: 1 / 60, INFL_HALF: 60, // 영향력 = 100 × x / (x + 60), x = 조 × 4 + 돈 / 60: 끝에 붙지 않는다
-  RICH: 40,                               // 수위가 이보다 낮으면 캘 것도 적다 (몬스터 · 광맥이 함께 준다)
+  RICH: 40,                               // 마물 수가 이보다 낮으면 캘 것도 적다 (몬스터 · 광맥이 함께 준다)
   R3: 1 / 200,                            // 영향력 1이 몫 무게에 더하는 값
   NOTICE: 50, CHECK_K: 0.02, CHECK_FADE: 0.98, // B3: 영향력이 이보다 크면 견제가 쌓인다 (쌓이는 끝 = 넘친 만큼)
   CHECK_TAX: 0.02, CHECK_RALLY: 0.03,     // 견제 1당 그 길드의 세금 · 다른 길드의 몫 무게(결집)
@@ -140,7 +140,7 @@ export interface Dungeon {
   level: number; teams: Record<GuildId, number>;
   fear: number; floods: number; dead: number;
   sub: number;                    // 국장이 정한 출입 보조금 (조마다 하루 G)
-  dangerAt: number | null;        // 위험 수위를 넘은 날 (범람까지 날 수를 잰다)
+  dangerAt: number | null;        // 위험선를 넘은 날 (범람까지 날 수를 잰다)
   wild: number;                   // 길이 없어 더 드는 날 (외진 미궁). 발전도 단계마다 하루씩 준다
   dev: number;                    // 발전도: 외진 미궁에 든 조 × 날의 합
   gdev: Record<GuildId, number>;  // 그중 길드마다 든 몫 (지부를 낼 길드를 고른다)
@@ -161,7 +161,7 @@ export interface Report { day: number; from: string; title: string; chips: strin
 export interface Trip { id: number; to: SvTo; n: number; sent: number; day: number; at: number; until: number; back: number; caught: boolean; peek?: Peek; log?: { teams: number[]; yld: number } }
 export interface Stats {
   floods: number; dead: number; spent: number;
-  toFlood: number[];              // 위험 수위부터 범람까지 날 수
+  toFlood: number[];              // 위험선부터 범람까지 날 수
   pinned: Record<string, number>; // 저량이 끝에 붙은 날
   loops: Record<LoopId, number>;  // 고리가 켜진 날
   litHist: LoopId[][];            // 날마다 켜진 고리 (개발용 확인 화면이 그림 위에 불을 켠다)
@@ -174,8 +174,8 @@ export interface World {
   prio: number;                   // 우선권 조항 0 ~ 100: 50보다 크면 큰 길드 편
   crownShare: number;             // 입장료에서 중앙 몫 %
   dungeons: Dungeon[]; guilds: Record<GuildId, Guild>;
-  seen: number[][];               // 국장 책상에 도착한 미궁마다 수위 (보고가 거리만큼 늦다)
-  hist: number[][];               // 미궁마다 날마다 참 수위
+  seen: number[][];               // 국장 책상에 도착한 미궁마다 마물 수 (보고가 거리만큼 늦다)
+  hist: number[][];               // 미궁마다 날마다 참 마물 수
   reports: Report[];
   stats: Stats;
   noCheck?: boolean;              // B3를 끈 판 (고리 확인용)
@@ -205,7 +205,7 @@ export type Opts = { noCheck?: boolean; noFear?: boolean };
 
 const DUNGEONS: Omit<Dungeon, 'teams' | 'fear' | 'floods' | 'dead' | 'sub' | 'dangerAt' | 'dev' | 'gdev' | 'branch' | 'know' | 'logged'>[] = [
   // 폐광은 산줄기 깊숙이 외져 늦게 드러났다. 벌이는 좋지만 길이 없어 곁에 길드가 없었고, 아무도 돌보지 않다 막 넘쳤다.
-  // 왕국군이 주둔해 위험 수위 언저리에 붙들고 있고, 물러나면 다시 오른다
+  // 왕국군이 주둔해 위험선 언저리에 붙들고 있고, 물러나면 다시 오른다
   { id: 'pit', name: '폐광', land: '로이드 지방', dist: 1, at: [14, 7], rise: 1.25, yld: 14, cap: 12, level: 75, wild: 2 },
   { id: 'wood', name: '검은숲 미궁', land: '하벨 지방', dist: 2, at: [28, 4], rise: 1.0, yld: 9, cap: 10, level: 45, wild: 0 },
   { id: 'sunk', name: '수몰 갱도', land: '로이드 지방', dist: 2, at: [35, 11], rise: 1.5, yld: 12, cap: 10, level: 55, wild: 0 },
@@ -260,8 +260,8 @@ export function newWorld(seed: number, o: Opts = {}): World {
     guilds: Object.fromEntries(GUILDS.map(g => [g, guild(g)])) as Record<GuildId, Guild>,
     seen: dungeons.map(d => [d.level]), hist: dungeons.map(d => [d.level]),
     reports: [
-      { day: 0, from: '왕도일보', title: '폐광 아래 미궁 범람, 로이드 백작령 마을 잠겨', chips: ['범람 직후'] },
-      { day: 0, from: '왕국군', title: '폐광 1차 진압, 주둔 중', chips: ['수위를 붙들고 있음', '길드에 넘기면 물러남'] },
+      { day: 0, from: '왕도일보', title: '폐광 아래 미궁 범람, 로이드 백작령 마을에 마물', chips: ['범람 직후'] },
+      { day: 0, from: '왕국군', title: '폐광 1차 진압, 주둔 중', chips: ['입구에서 마물을 누르고 있음', '길드에 넘기면 물러남'] },
       { day: 0, from: '중앙 행정원', title: '요구서: 폐광을 왕국군에게서 넘겨받을 것', chips: [`하루 ${B.ORDER.min}조 이상 ${B.ORDER.need}일 이어서`, `예산 ${B.ORDER.pay}G · 입지 +${B.ORDER.stand}`] },
     ],
     stats: { floods: 0, dead: 0, spent: 0, toFlood: [], pinned: {}, loops: { R1: 0, B1: 0, R2: 0, R3: 0, B3: 0, R4: 0, B4: 0, R5: 0, B5: 0 }, bigSize: [], clashes: 0, meets: 0, asks: 0, answered: 0, sides: 0, relMin: 0, relHist: [], litHist: [] },
@@ -293,10 +293,10 @@ export const pactK = (W: World, a?: GuildId, b?: GuildId) =>
 export const teamsIn = (d: Dungeon) => GUILDS.reduce((a, g) => a + d.teams[g], 0);
 // 가장 나쁜 두 길드 사이
 export const worstPair = (W: World) => GPAIRS.reduce((m, [a, b]) => relOf(W, a, b) < relOf(W, m[0], m[1]) ? [a, b] : m, GPAIRS[0]);
-// 국장이 아는 수위: 거리만큼 늦은 보고
+// 국장이 아는 마물 수: 거리만큼 늦은 보고
 export const seenLevel = (W: World, i: number) => W.seen[i].at(-1)!;
 
-// 조 하나가 하루에 내리는 수위: 몬스터가 많으면 한 조가 더 잡는다
+// 조 하나가 하루에 내리는 마물 수: 몬스터가 많으면 한 조가 더 잡는다
 export const clearOf = (level: number) => B.CLEAR * (0.5 + level / 100);
 export const richOf = (level: number) => Math.min(1, level / B.RICH);
 const inflOf = (x: number) => 100 * Math.max(0, x) / (Math.max(0, x) + B.INFL_HALF);
@@ -345,7 +345,7 @@ export const pnlOf = (W: World, d: Dungeon) => Math.round((lure(W, d) - d.sub / 
 // 최근 n일 평균 (기록이 모자라면 있는 만큼)
 export const pnlAvg = (W: World, i: number, n: number) => { const a = W.pnl[i].slice(-n); return a.reduce((x, y) => x + y, 0) / a.length; };
 // 위험과 꺼림: 끌림에서 빠지는 몫 (길드마다 fearK배)
-// 갱도 조사 보고서가 나온 미궁은 길드가 수위의 위험을 반만 보고, 알려진 광맥이 끌림을 더한다
+// 갱도 조사 보고서가 나온 미궁은 길드가 마물의 위험을 반만 보고, 알려진 광맥이 끌림을 더한다
 const harmOf = (W: World, d: Dungeon) => Math.max(0, d.level - 65) / 8 * (d.logged ? B.SVY.half : 1) + (W.noFear ? 0 : d.fear / 10);
 export function lure(W: World, d: Dungeon) {
   return d.yld * B.PRICE / 10 * richOf(d.level) * (1 - d.level / 160) + d.sub / B.SUB_LURE - harmOf(W, d) + B.WAY_BASE * B.WAY_K + (d.logged ? B.SVY.lure : 0);
@@ -416,7 +416,7 @@ export function step(W: World) {
     const out = d.cap * (1 - Math.exp(-n / d.cap)) * d.yld * richOf(d.level) * (1 - d.level / 250) * (1 - Math.min(0.5, clash * B.CLASH_OUT));
     const wt = GUILDS.map(g => d.teams[g] * weightOf(W, g)), ws = wt.reduce((a, b) => a + b, 0);
     if (ws > 0) GUILDS.forEach((g, k) => { haul[g] += out * wt[k] / ws; });
-    // 사고: 위험 수위 언저리부터 죽는다. 죽음은 꺼림으로 남아 조를 밀어낸다(R1)
+    // 사고: 위험선 언저리부터 죽는다. 죽음은 꺼림으로 남아 조를 밀어낸다(R1)
     const dead = n * Math.max(0, d.level - B.RISK_AT) * B.RISK_K * (0.5 + rnd()) + clash * B.CLASH_DEAD;
     d.dead += dead; S.dead += dead;
     // 위로금: 공고문은 모두에게, 요청서는 그 길드가 잃은 몫만큼
@@ -447,8 +447,8 @@ export function step(W: World) {
     W.hist[i].push(d.level);
     W.seen[i].push(W.hist[i].at(recAt(W, i) ? -1 : -1 - d.dist) ?? W.hist[i][0]);
     const sn = W.seen[i];
-    if (sn.at(-1)! >= B.DANGER && sn.at(-2)! < B.DANGER) W.reports.push({ day: W.day, from: '관리국 조사관', title: `${d.name} 위험 수위`, chips: [`${d.name} 수위`, `${d.dist}일 전 보고`] });
-    // R1: 위험 수위 위에서 조가 빠지고 있다 / B1: 보조금이 조를 들이고 있다
+    if (sn.at(-1)! >= B.DANGER && sn.at(-2)! < B.DANGER) W.reports.push({ day: W.day, from: '관리국 조사관', title: `${d.name} 마물 들끓음`, chips: [`${d.name} 마물 보고`, `${d.dist}일 전 보고`] });
+    // R1: 위험선 위에서 조가 빠지고 있다 / B1: 보조금이 조를 들이고 있다
     if (d.level >= B.DANGER && n < r1Before[i] - 0.01) lit(W, 'R1');
     if (subAt(W, i) > 0 && n > r1Before[i] + 0.01) lit(W, 'B1');
     // R2: 외진 미궁에 든 발길이 길을 닦고(발전도), 가까워진 길이 다시 발길을 부른다
@@ -526,7 +526,7 @@ export function step(W: World) {
   W.standing = clamp(W.standing + B.STAND_OUT * Math.log(1 + out / 40) + pol * B.STAND_POL - (W.budget < 0 ? 0.15 - W.budget / 5000 : 0), 0, 100);
   // 저량이 끝에 붙은 날
   const pin = (k: string, on: boolean) => { if (on) S.pinned[k] = (S.pinned[k] ?? 0) + 1; };
-  pin('수위', W.dungeons.some(d => d.level <= 0 || d.level >= B.FLOOD - 1));
+  pin('마물 수', W.dungeons.some(d => d.level <= 0 || d.level >= B.FLOOD - 1));
   pin('돈', GUILDS.some(g => G[g].money <= B.SHRINK));
   pin('영향력', GUILDS.map(g => G[g]).some(o => o.infl <= 0 || o.infl >= 100));
   pin('호감', GUILDS.map(g => G[g]).some(o => o.fav <= 0 || o.fav >= 100));
@@ -819,7 +819,7 @@ function orderDay(W: World) {
   } else if (o.pat <= 0) {
     o.done = 'fail';
     W.standing = clamp(W.standing - B.ORDER.fail, 0, 100);
-    W.reports.push({ day: W.day, from: '중앙 행정원', title: '인내가 다함 · 왕국군 철수', chips: ['인계 없이 물러남', '폐광 수위가 다시 오름', `입지 −${B.ORDER.fail}`] });
+    W.reports.push({ day: W.day, from: '중앙 행정원', title: '인내가 다함 · 왕국군 철수', chips: ['인계 없이 물러남', '폐광에 마물이 다시 늚', `입지 −${B.ORDER.fail}`] });
   }
 }
 

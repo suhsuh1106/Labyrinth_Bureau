@@ -90,7 +90,7 @@ function spark(xs: number[], lo: number, hi: number, c: string, ref?: number) {
 function drawSparks() {
   const S = G.snaps, s = S[st.day - 1], f = (v: number) => (Math.round(v * 10) / 10).toLocaleString('ko-KR');
   const rows: [string, number[], number, number, string, number | undefined, number][] = [
-    ...G.W.dungeons.map((d, i) => [`${d.name} 수위`, S.map(x => x.lv[i]), 0, 100, 'var(--r1)', B.DANGER, s.lv[i]] as [string, number[], number, number, string, number, number]),
+    ...G.W.dungeons.map((d, i) => [`${d.name} 마물`, S.map(x => x.lv[i]), 0, 100, 'var(--r1)', B.DANGER, s.lv[i]] as [string, number[], number, number, string, number, number]),
     ['큰 길드 둘 조', S.map(x => x.big), 0, 90, 'var(--r3)', undefined, s.big],
     ['작은 길드 다섯 조', S.map(x => x.small), 0, 60, 'var(--b3)', undefined, s.small],
     ['나쁜 두 길드 사이', S.map(x => x.rel), -100, 100, 'var(--r4)', 0, s.rel],
@@ -98,7 +98,7 @@ function drawSparks() {
     ['예산', S.map(x => x.budget), Math.min(0, ...S.map(x => x.budget)), Math.max(1, ...S.map(x => x.budget)), 'var(--b5)', 0, s.budget],
   ];
   $('sparks').innerHTML = rows.map(([name, xs, lo, hi, c, ref, now]) => `<div class="spark"><span>${name}</span>${spark(xs, lo, hi, c, ref)}<b>${f(now)}</b></div>`).join('')
-    + `<p class="note">점선: 위험 수위 ${B.DANGER} · 사이 0 · 예산 0. 세로줄이 고른 날.</p>`;
+    + `<p class="note">점선: 위험선 ${B.DANGER} · 사이 0 · 예산 0. 세로줄이 고른 날.</p>`;
 }
 
 function drawReports() {
