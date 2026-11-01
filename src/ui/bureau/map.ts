@@ -3,7 +3,7 @@
 // 외진 미궁의 발전도(devPct: 길이 그어지고, 집이 길을 따라 한 채씩 늘고, 둘레 숲이 베여 밭이 되고, 목책이 두른다),
 // 미궁 표식의 고리(보고된 수위), 세력 사이(본부 사이 선). 길드 조 · 본부 깃발 · 관리국은 지도 위에 선 미니어처(minisOf, 책상 장면이 세운다).
 // 그리기만 하고 상태에 쓰지 않는다.
-import { B, BUREAU_AT, HAVEL_AT, LOYD_AT, ROADS, devRoadOf, devStage, type Dungeon, type FacId, FACS, GUILDS, type World, wayOf, nameOf, pactK, relOf, seenLevel, subAt, teamsIn, worstPair } from '../../bureau/engine';
+import { B, BUREAU_AT, HAVEL_AT, LOYD_AT, ROADS, devRoadOf, devStage, type Dungeon, type FacId, FACS, GUILDS, type World, wayOf, nameOf, svAt, svName, pactK, relOf, seenLevel, subAt, teamsIn, worstPair } from '../../bureau/engine';
 import { type At, MAP_H, MAP_W, groundAt, isRoad, walkPath } from '../../bureau/tiles';
 import { type BuUi, dungeonHtml, facHtml, levelCls, levelWord, n0, n1, pactLine, relRow, relWord, relsTop } from './board';
 
@@ -304,17 +304,21 @@ export function mapHtml(W: World, ui: BuUi) {
       <text class="lv" x="${x}" y="${y + 5}" text-anchor="middle">${n0(lv)}</text>
       ${subAt(W, i) > 0 ? `<g class="coin"><circle cx="${x + 18}" cy="${y - 17}" r="8"/><text x="${x + 18}" y="${y - 13.5}" text-anchor="middle">${subAt(W, i)}</text></g>` : ''}
       ${label(x, y + R + 15, d.name, on ? 'strong' : '')}
-      ${label(x, y + R + 28, `${levelWord(lv)} · ${n1(teamsIn(d))}조${d.svy ? ` · 조사원 ${d.svy}` : ''}${d.floods ? ` · 범람 ${d.floods}` : ''}`, 'small')}</g>`;
+      ${label(x, y + R + 28, `${levelWord(lv)} · ${n1(teamsIn(d))}조${onSite(W, i) ? ` · 조사원 ${onSite(W, i)}` : ''}${d.floods ? ` · 범람 ${d.floods}` : ''}`, 'small')}</g>`;
   });
   return h;
 }
 
 // ── 지도 위에 선 미니어처: 길드 조(본부 ↔ 미궁 길 위, 날마다 걸음을 옮긴다) · 본부 천막과 깃발 · 관리국 청사 ─────────────
 // 자리(지도 단위)와 그림만 내고, 세우는 일(각도 · 옮겨 가는 연출)은 책상 장면(desk.ts)이 한다. key가 같으면 같은 말이다
+// 그곳에 머무는 조사원 수 (가는 중 · 돌아오는 중 빼고)
+const onSite = (W: World, i: number) => W.trips.reduce((a, t) => a + (t.to === i && W.day >= t.at && W.day < t.until ? t.n : 0), 0);
 export interface Mini { key: string; x: number; y: number; w: number; h: number; svg: string; face?: -1 | 1; title: string; walk?: boolean }
 const dark = (c: string) => `color-mix(in srgb, ${c} 70%, #000)`, light = (c: string) => `color-mix(in srgb, ${c} 55%, #fff)`;
 const BASE = (r: number) => `<ellipse cx="0" cy="0" rx="${r}" ry="${f1(r * 0.32)}" fill="#2a2420"/><path d="M${-r},0 v-3 a${r},${f1(r * 0.32)} 0 0 1 ${2 * r},0 v3 a${r},${f1(r * 0.32)} 0 0 1 ${-2 * r},0" fill="#4a4038"/><ellipse cx="0" cy="-3" rx="${r}" ry="${f1(r * 0.32)}" fill="#6d7a4a"/>`;
 const ART = {
+  // 관리국 조사원: 먹빛 외투 · 등불 · 서판
+  svy: (load = false) => `${BASE(9)}<path d="M-5,-3 q-1,-13 2,-19 q3,-3 6,0 q3,7 2,19 z" fill="#3d3a44" stroke="#1d1712" stroke-width="0.8"/><circle cx="0" cy="-25" r="3.4" fill="#e2b98f" stroke="#1d1712" stroke-width="0.7"/><path d="M-4,-25 q4,-7 8,0 z" fill="#6c2b23" stroke="#1d1712" stroke-width="0.5"/><path d="M5,-14 l4,4" stroke="#3a2a1a" stroke-width="1"/><circle cx="9.5" cy="-8" r="2.4" fill="#f2c45a" stroke="#1d1712" stroke-width="0.6"/>${load ? '<rect x="-9" y="-17" width="5" height="7" fill="#e9dcc0" stroke="#1d1712" stroke-width="0.6"/>' : ''}`,
   // 조: 망토 두른 모험가 둘, 하나는 길드 깃대
   team: (c: string, load = false) => `${BASE(12)}<path d="M-9,-4 q-1,-12 3,-20 q3,-3 6,0 q4,8 2,20 z" fill="${dark(c)}" stroke="#1d1712" stroke-width="0.8"/><circle cx="-3" cy="-27" r="3.6" fill="#e2b98f" stroke="#1d1712" stroke-width="0.7"/><path d="M-7,-27 q4,-7 8,0 q-4,-2 -8,0" fill="${dark(c)}"/><path d="M1,-4 q0,-14 3,-19 q3,-3 6,0 q3,6 1,19 z" fill="#7b6c5a" stroke="#1d1712" stroke-width="0.8"/><circle cx="6.5" cy="-26" r="3.4" fill="#d9ad84" stroke="#1d1712" stroke-width="0.7"/><path d="M3,-26 q3,-6 7,0 z" fill="#8a8a8a" stroke="#1d1712" stroke-width="0.5"/><path d="M-10,-6 V-44" stroke="#3a2a1a" stroke-width="1.4"/><path d="M-10,-44 h13 l-3,4 l3,4 h-13 z" fill="${c}" stroke="#1d1712" stroke-width="0.7"/><path d="M-10,-44 h13" stroke="${light(c)}" stroke-width="1"/><path d="M11,-12 l4,-14" stroke="#9aa0a6" stroke-width="1.2"/>${load ? `<path d="M5,-22 q7,-3 9,4 q1,7 -5,8 q-6,0 -4,-12 z" fill="#b0915e" stroke="#1d1712" stroke-width="0.7"/><path d="M7,-20 l5,9" stroke="#6d5432" stroke-width="0.6"/>` : ''}`,
   // 짐수레: 돌아오는 길에 짐을 실은 수레와 노새
@@ -350,6 +354,16 @@ export function minisOf(W: World, f = 0): Mini[] {
       out.push({ key: `t-${i}-${g}-${j}`, x, y: y + 3, w: cart ? 44 : 34, h: 50, svg: cart ? ART.cart(GC(g)) : ART.team(GC(g), !there), face: dx < 0 ? -1 : 1, walk: true, title: `${nameOf(W, g)} 조 → ${d.name}${there ? '' : ' (돌아오는 길 · 짐)'}` });
     }
   }));
+  // 관리국 조사원: 관리국에서 보낸 곳까지 걸어가 머물다 돌아온다. 무리마다 미니어처 하나
+  for (const t of W.trips) {
+    const p = pathOf(BUREAU_AT, svAt(W, t.to));
+    if (p.length < 2) continue;
+    const c = centersOf(p), now = W.day + f;
+    const go = now < t.at, home = now >= t.until;
+    const k = go ? (now - t.day) / Math.max(1, t.at - t.day) : home ? 1 - (now - t.until) / Math.max(1, t.back - t.until) : 1;
+    const [x, y, a] = ptAt(c, Math.max(0, Math.min(1, k))), dx = Math.cos(a) * (home ? -1 : 1);
+    out.push({ key: `svy-${t.id}`, x: x + (go || home ? 0 : 14), y: y + 6, w: 26, h: 40, svg: ART.svy(home), face: dx < 0 ? -1 : 1, walk: go || home, title: `조사원 ${t.n}명 · ${svName(W, t.to)}${go ? ' 가는 길' : home ? ' 돌아오는 길' : ''}` });
+  }
   return out;
 }
 const f1n = (v: number) => Math.round(v * 10) / 10;
