@@ -123,7 +123,7 @@ const HIRE_SKIP = +(process.env.HIRE_SKIP || 0);
 // 인원 상한(SIZE_CAP=24면 단원을 24명까지만 뽑는다): 작게 굴리는 봇과 크게 굴리는 봇을 견주는 기준
 const SIZE_CAP = +(process.env.SIZE_CAP || 99);
 const ELITE_CAP = +(process.env.ELITE_CAP || 24);
-// 조 장비(docs/teams.md): 금고가 GEAR_KEEP을 넘는 몫의 rate만큼으로, 깊은 층에 가는 조부터 한 단계씩 max단계까지 (정예는 5단계까지. 60판: 정예가 금고 몫 0.35로 몰면 4.22위, 0.15면 3.72위, 안 사면 3.98위)
+// 조 장비(docs/legacy/teams.md): 금고가 GEAR_KEEP을 넘는 몫의 rate만큼으로, 깊은 층에 가는 조부터 한 단계씩 max단계까지 (정예는 5단계까지. 60판: 정예가 금고 몫 0.35로 몰면 4.22위, 0.15면 3.72위, 안 사면 3.98위)
 const GEAR_RATE = +(process.env.GEAR_RATE || 0.15), GEAR_MAX = +(process.env.GEAR_MAX || 3), ELITE_GEAR_RATE = +(process.env.ELITE_GEAR_RATE || 0.15), GEAR_KEEP = +(process.env.GEAR_KEEP || 1500);
 export function gearUp(W: World, Q: Plan, rate = GEAR_RATE, max = GEAR_MAX) {
   const c = us(W); if (!c.crew || !Q.teams) return Q;
@@ -216,7 +216,7 @@ export function smartPlan(W: World, rootMode: 'mine' | 'seal' | 'none' = 'mine',
     const cand = Q.teams!.filter(T => !T.mission).map(T => ({ T, d: one(T, 'hunt') - one(T, 'gather') * (1 + HUNT_EDGE) })).filter(x => x.d >= 0).sort((a, b) => b.d - a.d);
     cand.slice(0, Math.max(0, Math.floor(Q.teams!.length * HUNT_MAX) - Q.teams!.filter(T => T.mission === 'hunt').length)).forEach(x => { x.T.mission = 'hunt'; });
   }
-  // 구역 (docs/zones.md): 조마다 그 층에서 아는 산출로 가장 나은 구역 (든 날 하루에 남는 값, 잰 남은 양이 적으면 덜, 한 구역에 몰리면 덜 캔다고 본다)
+  // 구역 (docs/legacy/zones.md): 조마다 그 층에서 아는 산출로 가장 나은 구역 (든 날 하루에 남는 값, 잰 남은 양이 적으면 덜, 한 구역에 몰리면 덜 캔다고 본다)
   if (W.zones && ZONE_PICK) {
     const used: Record<number, number> = {};
     Q.teams!.forEach(T => {

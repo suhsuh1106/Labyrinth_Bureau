@@ -1,4 +1,4 @@
-// 물자 시트 (docs/board.md 3단계): 세로 카드. 구매(품목마다 단가 · 창고 · 한 달 몫 · 살 수) · 배분(조마다 포션 · 수리 도구 · 장비) · 팔기(창고 채집품 · 전리품 · 시장 소식)
+// 물자 시트 (docs/legacy/board.md 3단계): 세로 카드. 구매(품목마다 단가 · 창고 · 한 달 몫 · 살 수) · 배분(조마다 포션 · 수리 도구 · 장비) · 팔기(창고 채집품 · 전리품 · 시장 소식)
 // 보급(식량)은 명령서의 일할 날 · 여유로 저절로 셈하고, 남은 보급 · 수리 도구는 검문소가 태운다. 읽기만 한다 (상태를 쓰지 않는다)
 import { CO, FLOORS, type Person, type Plan, type World, boughtOf, buyPrice, holyRoom, potShock, potsExpiring, potsOf, rushOn, sanitize, supOf, teamMend, teamPots, us, zoneAt } from '../../core/company';
 import { GEARS, PAIR_CLASS } from '../../core/data';

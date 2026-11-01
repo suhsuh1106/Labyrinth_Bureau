@@ -1,4 +1,4 @@
-// 용병단 경영 (새 전제, docs/plan.md 1단계). 옛 관리국 규칙과 따로 돌아가는 엔진이다.
+// 용병단 경영 (새 전제, docs/legacy/plan.md 1단계). 옛 관리국 규칙과 따로 돌아가는 엔진이다.
 // 여러 용병단이 같은 층에서 전리품을 캐고 같은 시장에 판다. 층마다 캘 수 있는 양이 한정돼 몰리면 나눠 갖고,
 // 모두가 같은 시세에 팔아서 다 같이 많이 팔면 값이 떨어진다. 플레이어는 그중 한 용병단의 행정관이다.
 // 화면에 붙이기 전까지는 상태를 S가 아니라 이 파일의 World 하나로 둔다.
@@ -25,7 +25,7 @@ export const CO = {
   // 추징이 나오면 회계관 신뢰 +TIP_WIN, 헛걸음이면 −TIP_MISS, 장부가 깨끗했으면 −TIP_LOSE · 그쪽이 앙심을 품고 다음 달 우리를 일러바친다(+TIP_BACK). 신뢰 50에서 1마다 우리 의심이 TIP_REL씩 덜(더) 쌓인다
   TIP_SUS: 3, TIP_EV: 35, TIP_SEE: 60, TIP_WIN: 12, TIP_MISS: 5, TIP_LOSE: 10, TIP_BACK: 15, TIP_REL: 0.15,
   MONTH_DAYS: 10, TRIP_DAYS: [1, 2, 3, 4, 5], REST_DAYS: 1, HURT_DAYS: 5,
-  // 구역 탐사 (docs/zones.md): 조마다 구역 하나에 일할 날(1 ~ WORK_MAX, 비워 두면 그 층 TRIP_DAYS) 또는 목표량을 정한다. 오가는 날은 구역 거리만큼 먹기만 한다.
+  // 구역 탐사 (docs/legacy/zones.md): 조마다 구역 하나에 일할 날(1 ~ WORK_MAX, 비워 두면 그 층 TRIP_DAYS) 또는 목표량을 정한다. 오가는 날은 구역 거리만큼 먹기만 한다.
   // 여유(MARGIN_MAX일까지)만큼 보급을 더 들고 간다. 미궁에 들고 간 채비는 돌아오면 검문소가 거둬 태운다(장비 빼고)
   WORK_MAX: 6, MARGIN_MAX: 3, SEE_ZONE: 0.35,
   // 날 단위 시장: 시장에 풀린 양이 날마다 MQ_FADE씩 빠진다 (열흘쯤의 판매가 시세를 정한다). 창고의 채집품은 층마다 날마다 LOOT_ROT씩 상한다
@@ -52,7 +52,7 @@ export const CO = {
   // 조우는 그 층 몬스터 하나(주인 · 곁 몬스터 둘, ENC_W 무게)를 만나 조원마다 굴리고, 둘 이상 해내면 이긴다. 채집 지점에서 해낸 몫만큼 채집품을 짐에 싣는다
   // (옛 마주침 하나 몫에 LOOT_SLOT[층]칸). 짐 칸은 얕은 층이 넉넉히 받아 1층 하루에도 짐이 찬다.
   // 짐 칸: 한 사람 SLOT_PP칸. 횃불 · 포션이 먼저 차지하고, 다 쓴 만큼 비운다. 짐이 다 차면 돌아선다. 캐 오는 양은 옛 마주침(하루 ENC_DAY번, DAYS일) 몫 × FIND
-  // (SLOT_PP: 시너지를 빼며 4.25로 올렸다가 조 크기 2 ~ 6명이 들어와 대기하던 사람까지 나가게 되어 4로 되돌렸다. docs/plan.md)
+  // (SLOT_PP: 시너지를 빼며 4.25로 올렸다가 조 크기 2 ~ 6명이 들어와 대기하던 사람까지 나가게 되어 4로 되돌렸다. docs/legacy/plan.md)
   DAYS: 6, TORCH_F: [0.15, 0.25, 0.3, 0.35, 0.4], TORCH_UND: 0.4, DARK_MIN: 0.2, DARK_BACK: 0.5,
   // 부상 주사위: 해내지 못한 조원마다 INJ_BASE + INJ_K × 층 위험 (× 모르는 만큼 · 특성 · 조직력). 걸리면 포션으로 먼저 막고, 없으면 다치고(성공 −INJ_PEN),
   // 다친 채 또 걸리면 죽는다. 진 날도 해낸 사람 몫의 LOSE_LOOT배는 싣는다. INJ_REST면 다친 사람은 다음 달 쉰다.
@@ -60,7 +60,7 @@ export const CO = {
   // 숙련도: 실력 단계(신입 · 수련 · 숙련 · 노련 · 명인)마다 부상 주사위에 INJ_TIER를 곱한다 (명인은 실패해도 잘 안 다친다)
   INJ_BASE: 0.02, INJ_K: 0.3, INJ_PEN: 0.15, INJ_REST: 1, LOSE_LOOT: 0.5, INJ_TIER: [1.2, 1.1, 1, 0.9, 0.8], HARD_F: [0.095, 0.205, 0.105, 0.045, 0.045], HARD_MAIN: 0.08,
   ENC_W: [0.4, 0.3, 0.3], ENC_DAY: 4, SLOT_PP: 4, LOOT_SLOT: [4, 2.2, 1.5, 1.25, 1.2], MAT_ENC: 0.6, FIND: 1.03,
-  // 구간과 임무 (몬스터 헌터의 채집과 사냥, docs/missions.md): 탐사 한 번은 SEGS[층]구간이다(날에 앞에서부터 고르게 나눈다).
+  // 구간과 임무 (몬스터 헌터의 채집과 사냥, docs/legacy/missions.md): 탐사 한 번은 SEGS[층]구간이다(날에 앞에서부터 고르게 나눈다).
   // 구간 하나는 그 층 탐사의 TRIP_DAYS/SEGS일 몫이다: 부상 주사위 · 갈무리 · 채집 몫 · 횃불을 그만큼으로 셈한다 (옛 마주침 하나는 하루의 1/ENC_DAY).
   // 구간마다 사건 하나를 임무의 무게(MISSION_W: 채집 지점 · 조우 · 흔적)로 뽑는다. 채집 지점은 몬스터를 상대하지 않아 GATHER_EASE만큼 쉽고 부상 주사위가 없다.
   // 해낸 몫 × GATHER_K만큼 채집품(층마다 정해진 기본 소재)을 싣는다. 흔적은 TRAIL_EASE, 못 해낸 사람의 부상 주사위 ×TRAIL_INJ, 해낸 비율 × TRAIL_MAP만큼 지도를 그린다.
@@ -123,13 +123,13 @@ export const CO = {
   // 잠재력(pt): 실력이 오를 수 있는 끝(숨은 한계치, 끝까지 보이지 않는다). 가까워질수록 덜 오른다(남은 POT_SLOW 안에서).
   // 숨은 기질(hd, data.ts의 HIDDEN): 구간을 HID_SEE번 나선 뒤에야 보인다 (그 전엔 명단의 해낸 비율로 짐작한다)
   APT_SUCC: 0.06, POT_SLOW: 10, HID_SEE: 30,
-  // 등급(docs/teams.md "등급과 이력서"): 실제 실력은 숨기고 우리 길드가 등급(견습 · 정식 · 고참 · 베테랑 · 명장)을 부여한다. 급여 · 계약금 · 화면의 기대는 등급으로.
+  // 등급(docs/legacy/teams.md "등급과 이력서"): 실제 실력은 숨기고 우리 길드가 등급(견습 · 정식 · 고참 · 베테랑 · 명장)을 부여한다. 급여 · 계약금 · 화면의 기대는 등급으로.
   // 자격: GRADE_REQ[등급] = [그 층부터(층 번호), 해낸 탐사 수] (이력서 + 우리 기록). 자격이 등급보다 높으면 진급 예정자: 미루면 달마다 불만 한 칸,
   // 불만 한 칸마다 성공 −GRUDGE_PEN, GRUDGE_MAX 칸이면 그달 첫머리에 떠난다(위로금 없음)
   GRADE_REQ: [[0, 0], [0, 5], [2, 10], [3, 15], [4, 20]] as [number, number][], GRUDGE_PEN: 0.01, GRUDGE_MAX: 4,
   // 지원자의 이력서: 열린 층마다 나선 탐사 수의 끝(층마다 CAND_REC × 실력/60, 깊은 층은 실력이 있어야 다녀왔다)
   CAND_REC: [24, 16, 12, 9, 7],
-  // 조(docs/teams.md): 조장의 카리스마(1 ~ 5)가 조 크기 한도(카리스마 + 1, 2 ~ 6명)다. 지원자의 카리스마는 CH_W의 무게(1 · 2 · 3 · 4 · 5).
+  // 조(docs/legacy/teams.md): 조장의 카리스마(1 ~ 5)가 조 크기 한도(카리스마 + 1, 2 ~ 6명)다. 지원자의 카리스마는 CH_W의 무게(1 · 2 · 3 · 4 · 5).
   // 카리스마 SMALL_CH 이하 조장은 소수 조 덤: 들킴 · 조우 무게 ×SMALL_STEALTH, 채집 지점 · 흔적 성공 +SMALL_SUCC.
   // 조장 등급이 조원보다 낮으면 조원 성공 −LEAD_GR_PEN. 조장 자리를 요구하는 지원자(카리스마 4 이상 DEMAND_HI, 3이면 DEMAND_MID의 확률)는
   // 조장이 아닌 그믐마다 불만 한 칸(진급을 미룬 것과 같은 칸)
@@ -413,7 +413,7 @@ export type Person = { id: number; c: string; rk?: number; hurt?: number; n?: st
 export type Mission = 'gather' | 'hunt' | 'scout';
 export const MISSIONS: Mission[] = ['gather', 'hunt', 'scout'];
 export const MISSION_NAME: Record<Mission, string> = { gather: '채집', hunt: '사냥', scout: '탐색' };
-// 조(남는 단위, docs/teams.md): 조장(ld, 떠나면 비고 다음 조장이 이어받는다) · 장비 단계(gear 0 ~ 5) · 단계마다 낸 값(paid, 장부가)
+// 조(남는 단위, docs/legacy/teams.md): 조장(ld, 떠나면 비고 다음 조장이 이어받는다) · 장비 단계(gear 0 ~ 5) · 단계마다 낸 값(paid, 장부가)
 export type Squad = { id: number; ld?: number; gear: number; paid: number[] };
 // sq: 이 조가 쓰는 조(남는 단위)의 번호 · 첫 자리(m[0])가 조장
 // z: 일할 구역 (W.zones 번호) · days: 일할 날 · goal: 목표량(채집품 개수, 있으면 날은 보수적인 산출로 셈한다) · margin: 여유 (보급을 며칠치 더)
@@ -547,7 +547,7 @@ export type World = {
   seen?: Seen[];
   rum?: Rumor[];   // 마을 소문 (정보망 0단계): 경쟁 조의 귀환과 구역의 옛말
   wit?: Record<number, number>;   // 이달 우리 조가 본 경쟁 용병단의 짐 (밀고의 근거, 그믐에 비움)   // 우리 조가 미궁에서 본, 아직 돌아오지 않은 경쟁 용병단 조 (곧 풀릴 물량)
-  zones?: Zone[];   // 층마다 구역 여덟 (docs/zones.md). 층 매장량 W.pool은 구역 남은 양의 합
+  zones?: Zone[];   // 층마다 구역 여덟 (docs/legacy/zones.md). 층 매장량 W.pool은 구역 남은 양의 합
   mbox?: Record<string, number>;   // 우리 창고의 전리품 (돌아온 날 들어오고, 그믐에 팔 양 plan.matSell만큼 판다. 상하지 않는다)
 };
 // 이번 달 바로 산 것과 그 값 (금고에서 이미 나갔다. 정산의 지출 줄에 그대로 든다). fired: 이번 달 내보낸 사람, spoil: 들고 나갔다가 기한이 지나 버린 포션
@@ -754,7 +754,7 @@ export function memberMods(who: Person[], f: number, u = 100, real = false) {
 // 층 이해도: 용병단의 지도에, 우리 조는 그 층을 가장 잘 아는 조원 경험의 ¼(최대 UND_EX)과 길잡이를 더한다
 export const mapOf = (c: Company, f: number) => (c.map ? c.map[f] || 0 : f === 0 ? CO.MAP0 : 0);
 // ---------- 조 ----------
-// 직업 시너지(전사 둘 · 사제 하나 …)는 뺐다(2026-10-19): 조 크기가 2 ~ 6명으로 바뀌면 머릿수로 켜는 시너지가 큰 조에 몰린다(docs/teams.md).
+// 직업 시너지(전사 둘 · 사제 하나 …)는 뺐다(2026-10-19): 조 크기가 2 ~ 6명으로 바뀌면 머릿수로 켜는 시너지가 큰 조에 몰린다(docs/legacy/teams.md).
 // 직업은 맡는 속성(약점 · 역효과)으로만 남는다. 단장이 낀 조는 역효과(장비 · 맨몸)를 받지 않는다
 export function synOf(who: Person[] | null) {
   return { lead: !!who && who.some(p => p.lead) };
@@ -1052,7 +1052,7 @@ export function monthNeed(W: World, P: Plan) {
   });
   return out;
 }
-// ---------- 구역 (docs/zones.md) ----------
+// ---------- 구역 (docs/legacy/zones.md) ----------
 export const zoneAt = (W: World, id?: number): Zone | undefined => (id != null && W.zones ? W.zones[id] : undefined);
 // 지도에 있는 구역: 1층은 처음부터, 그 아래는 층이 열리면 (둘러보기 · 계단 돌파는 3단계)
 export const zoneKnown = (W: World, z: Zone) => z.known || z.f < W.unlocked;
@@ -1785,7 +1785,7 @@ function dig(W: World, f: number, want: number, zid?: number) {
 // 성공 한 번에 캐 오는 양: 층의 기본 양 × 전리품 비율(숙련 · 장비) + 거점 + 채굴장 (우리만)
 const takeOf = (W: World, c: Company, f: number, tool = 0) => FLOORS[f].take * lootMul(c, f, tool) + Math.floor(Math.min(CO.BASE_MAX, c.bases[f]) / 2) * CO.BASE_TAKE + (rootOf(W, f).done === 'mine' && c.style === 'player' ? CO.MINE_TAKE : 0);
 
-// ---------- 경쟁 조의 탐사: 우리 조와 같은 식 (docs/zones.md) ----------
+// ---------- 경쟁 조의 탐사: 우리 조와 같은 식 (docs/legacy/zones.md) ----------
 // 경쟁 용병단도 구역을 그쪽 이해도(c.zk, 일한 인일)만큼 알고, 그 짐작으로 구역을 고른다. 사냥터 · 계단이면 사냥이다(우리처럼 구역이 임무를 정한다).
 // 탐사 한 번은 그 층 TRIP_DAYS일(오가는 날은 먹기만)이고, 구간마다 채집 지점 · 조우 · 흔적이 구역의 무게대로 나온다:
 // 채집품은 우리 엔진의 채집 몫, 전리품은 우리 엔진의 갈무리(조우 × 몬스터 무게 × 소재 확률 × 해낸 비율 × MAT_ENC × 구간의 날 몫 × HUNT_MAT, 사냥이면 × HUNT_CARE),

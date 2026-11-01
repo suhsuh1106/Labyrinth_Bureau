@@ -1,4 +1,4 @@
-// 판 (docs/board.md 1단계): 휴대폰을 세로로 든 한 화면. 위 요약 띠 · 가운데 작전 지도(구역에 깃발 말을 끌어다 놓는다) · 아래 단추 줄(인원 · 물자 · 기록 · 본부 · 다음 날).
+// 판 (docs/legacy/board.md 1단계): 휴대폰을 세로로 든 한 화면. 위 요약 띠 · 가운데 작전 지도(구역에 깃발 말을 끌어다 놓는다) · 아래 단추 줄(인원 · 물자 · 기록 · 본부 · 다음 날).
 // 단추를 누르면 판 위로 시트가 올라온다 (1단계는 지금 있는 창의 내용을 시트 안에 그대로 띄운다).
 // 읽기만 한다 (상태를 쓰지 않고 난수를 쓰지 않는다). 지도 바탕은 구역 자리로만 그려 같은 판이면 같은 그림이다
 import { CO, FLOORS, type Plan, type Team, type World, awayIds, bagDays, dayAbs, rankOf, richEst, riskEst, sanitize, stateOf, teamPots, teamMend, teamReady, supOf, potsOf, us, zoneAt, zoneKnown, zoneRate, zoneWay } from '../../core/company';
@@ -178,7 +178,7 @@ function orderSheet(W: World, raw: Plan, P: Plan, t: number, ask = true) {
 
 // 단추 시트: 탭마다 지금 있는 창의 내용
 function menuSheet(W: World, raw: Plan, P: Plan, ui: DeskUi) {
-  // 단장이 아직 맡고 있는 탭은 잠근다 (docs/plan.md "단장의 인계")
+  // 단장이 아직 맡고 있는 탭은 잠근다 (docs/legacy/plan.md "단장의 인계")
   const M = MENUS[ui.menu!], open = M.tabs.filter(([k]) => tabOpen(ui, ui.menu!, k)), tab = open.some(x => x[0] === ui.mtab) ? ui.mtab! : open.length ? open[0][0] : '';
   const body = !tab ? `<p class="note">단장이 맡고 있어요 · ${M.tabs.map(([k]) => DUTIES.find(d => d.tabs.some(([m, t]) => m === ui.menu && t === k))?.n).filter((x, i, a) => x && a.indexOf(x) === i).join(' · ')}</p>` : (() => {
     if (ui.menu === 'crew') return tab === 'team' ? teamsHtml(W, raw, ui) : tab === 'list' ? listHtml(W, raw, ui) : candsHtml(W);

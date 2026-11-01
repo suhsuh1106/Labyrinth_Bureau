@@ -1,4 +1,4 @@
-// 구역 보고서 (docs/zones.md): 층마다 구역 여덟을 우리가 아는 만큼만 적는다.
+// 구역 보고서 (docs/legacy/zones.md): 층마다 구역 여덟을 우리가 아는 만큼만 적는다.
 // 이해도 단계마다 한 겹씩 더: 1 하는 일 · 2 위험 · 3 채집 몫 범위 · 잰 남은 양 · 4 좁은 범위 · 사고율 · 5 비밀. 실적은 우리가 일한 만큼.
 // 읽기만 한다 (상태를 쓰지 않고 난수도 쓰지 않는다)
 import { CO, FLOORS, type Plan, type World, dayAbs, richEst, riskEst, zoneKnown, zoneWay } from '../../core/company';
