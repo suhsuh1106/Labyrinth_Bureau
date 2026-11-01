@@ -1,4 +1,5 @@
-// 첫 장면: 부임 첫날 신문 앞에 도는 짧은 컷신(먹선 그림 여섯 장 · 한 장에 한두 줄).
+// 첫 장면: 부임 첫날 신문 앞에 도는 짧은 컷신(먹선 그림 여덟 장 · 한 장에 한두 줄).
+// 세계(미궁이 열리고 길드가 캔다) → 들지 않는 미궁이 넘친다 → 폐광 범람 · 왕국군 → 관리국 신설 → 국장 부임
 // 화면을 누르거나 Space · Enter · → 로 넘기고, 건너뛰기 · Esc로 바로 신문으로 간다. 고르는 단추는 없다.
 // 그리기만 하고 판 상태에 쓰지 않으며 난수도 쓰지 않는다(산 능선의 들쭉날쭉은 해시).
 import { dateOf } from './docs';
@@ -23,6 +24,30 @@ const eyes = (x: number, y: number, d: number) => `<g class="cut-eye" style="ani
 // 병사 하나: 투구 · 몸 · 둥근 방패 · 창
 const soldier = (x: number, y: number, s: number, c: string) => `<g transform="translate(${x},${y}) scale(${s})" fill="${c}"><path d="M10,-118 L14,40" stroke="${c}" stroke-width="4"/><path d="M8,-122 l6,-16 l6,16 z"/>
   <circle cx="0" cy="-70" r="13"/><path d="M-14,-74 q14,-18 28,0 z"/><path d="M-18,-56 L18,-56 L22,10 L-22,10 Z"/><path d="M-14,10 L-12,40 L-4,40 L-2,10 Z M2,10 L4,40 L12,40 L14,10 Z"/><ellipse cx="-16" cy="-24" rx="18" ry="26"/></g>`;
+
+// 굴 아가리(멀리 보이는 미궁) · 안에서 새는 빛
+const arch = (x: number, y: number, s: number, d = 0) => `<g transform="translate(${x},${y}) scale(${s})"><ellipse class="cut-glow" style="animation-delay:${d}s" cx="0" cy="-22" rx="46" ry="34" fill="#f0c070"/><path d="M-30,0 Q-30,-46 0,-50 Q30,-46 30,0 Z" fill="#0b0a09" stroke="${INK}" stroke-width="2"/></g>`;
+// 길드 조원 하나: 몸 · 머리 · 짐 · 길드 깃발
+const walker = (x: number, y: number, s: number, c: string) => `<g transform="translate(${x},${y}) scale(${s})"><path d="M14,-10 L14,-96" stroke="${INK}" stroke-width="3"/><path d="M14,-96 L44,-90 L14,-80 Z" fill="${c}" stroke="${INK}" stroke-width="1.5"/>
+  <rect x="-20" y="-58" width="16" height="26" rx="4" fill="#6b5137" stroke="${INK}" stroke-width="1.5"/><path d="M-8,-60 L10,-60 L12,-14 L-10,-14 Z" fill="#3b2f22"/><circle cx="1" cy="-70" r="9" fill="#d9b48c" stroke="${INK}" stroke-width="1.5"/><path d="M-8,-14 L-10,0 M8,-14 L12,0" stroke="#3b2f22" stroke-width="5" stroke-linecap="round"/></g>`;
+
+// 왕국 곳곳에 열린 미궁: 저물녘 능선 사이로 굴 아가리 셋이 빛난다
+const W1 = svg(`${sky('s0', ['#3d4a5a', '#c99a6a', '#ecd3a0'])}
+  ${ridge(360, 110, 7, '#7d6a58', 90)}${arch(300, 330, .7, .4)}
+  ${ridge(450, 90, 8, '#5a4a3c', 80)}${arch(980, 420, .9, 1.1)}
+  <path d="M0,720 L0,540 Q320,480 640,520 Q960,560 1280,500 L1280,720 Z" fill="#3a3027"/>${arch(560, 560, 1.5, 0)}
+  <path d="M1280,640 Q900,600 760,590 Q640,580 600,566" stroke="#a8916a" stroke-width="6" fill="none" stroke-dasharray="14 10"/>`);
+
+// 길드들이 미궁을 캔다: 깃발 든 조가 줄지어 들고, 소재 실은 수레가 나온다
+const GC = ['#a8323e', '#4f6a8a', '#b8761c', '#1f6d86', '#7d4f9a', '#4f6b3a'];
+const W2 = svg(`${sky('s1b', ['#a9b9c2', '#e6dcc2'])}
+  ${ridge(380, 100, 9, '#8d8a7c', 100)}
+  <path d="M380,720 L460,300 Q640,180 820,300 L920,720 Z" fill="#5c5046" stroke="${INK}" stroke-width="3"/><path d="M560,560 Q560,400 640,390 Q720,400 720,560 Z" fill="#0b0a09" stroke="${INK}" stroke-width="3"/>
+  <path d="M0,720 L0,560 L1280,560 L1280,720 Z" fill="#6b5a46"/>
+  ${GC.map((c, i) => walker(110 + i * 72, 600 - i * 6, 1.1 - i * .06, c)).join('')}
+  <g transform="translate(900,612)"><rect x="-70" y="-50" width="140" height="44" fill="#6b5137" stroke="${INK}" stroke-width="2"/><path d="M-60,-50 l14,-24 l16,14 l18,-26 l14,22 l20,-18 l14,32 z" fill="#5d8fa8" stroke="${INK}" stroke-width="2"/>
+  <circle cx="-44" cy="0" r="14" fill="#3b2f22"/><circle cx="44" cy="0" r="14" fill="#3b2f22"/><path d="M70,-30 L120,-40" stroke="${INK}" stroke-width="4"/></g>
+  ${walker(1060, 612, 1, '#6b6258')}`);
 
 const P1 = svg(`${sky('s1', ['#1c1f24', '#33373a', '#4a4a44'])}
   <circle cx="990" cy="150" r="110" fill="${PAPER}" opacity=".07"/><circle cx="990" cy="150" r="44" fill="${PAPER}" opacity=".8"/>
@@ -83,11 +108,13 @@ const P6 = svg(`<rect width="1280" height="720" fill="#14110e"/>`);
 
 interface Shot { art: string; say: string[]; ms: number; kb: string; title?: boolean }
 const SHOTS: Shot[] = [
-  { art: P1, say: ['로이드 백작령 산속.', '아무도 돌보지 않던 폐광이 있었다.'], ms: 5200, kb: '-2%, 1%' },
-  { art: P2, say: ['그날 밤, 미궁이 넘쳤다.', '아랫마을 셋이 물과 마물에 잠겼다.'], ms: 5200, kb: '2%, -1%' },
-  { art: P3, say: ['새벽, 왕국군이 폐광을 막아 섰다.', '하지만 군은 미궁을 지키는 곳이 아니다.'], ms: 5600, kb: '0%, 2%' },
-  { art: P4, say: ['중앙은 미궁관리국을 새로 두었다.'], ms: 4600, kb: '-1%, -2%' },
-  { art: P5, say: ['길드에 명령할 수는 없다.', '공고와 편지로 움직일 뿐.'], ms: 5400, kb: '1%, 1%' },
+  { art: W1, say: ['언제부턴가 왕국 곳곳에 미궁이 열렸다.', '깊이 들수록 귀한 소재가 나왔다.'], ms: 5200, kb: '0%, 2%' },
+  { art: W2, say: ['길드들이 몰려들어 미궁을 캤다.', '캐 가는 만큼 미궁은 잠잠했다.'], ms: 5000, kb: '-2%, 0%' },
+  { art: P1, say: ['하지만 길이 먼 미궁에는 아무도 들지 않았다.', '로이드 지방 산속의 폐광처럼.'], ms: 5000, kb: '-2%, 1%' },
+  { art: P2, say: ['차오른 미궁은 끝내 넘쳤다.', '아랫마을 셋이 물과 마물에 잠겼다.'], ms: 5000, kb: '2%, -1%' },
+  { art: P3, say: ['왕국군이 막아 섰지만,', '군은 미궁을 지키는 곳이 아니다.'], ms: 4800, kb: '0%, 2%' },
+  { art: P4, say: ['중앙은 미궁을 맡을 관리국을 새로 두었다.'], ms: 4600, kb: '-1%, -2%' },
+  { art: P5, say: ['길드에 명령할 수는 없다.', '공고와 편지로 움직일 뿐.'], ms: 5000, kb: '1%, 1%' },
   { art: P6, say: [], ms: 4200, kb: '0%, 0%', title: true },
 ];
 export const SHOT_N = SHOTS.length;

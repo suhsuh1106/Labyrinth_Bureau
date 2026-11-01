@@ -360,7 +360,7 @@ describe('첫 화면과 받은 서류 창', () => {
     expect(introHtml()).toContain('업무 시작');
     expect(introHtml()).toContain('미궁관리국 새로 둬');
     expect(introHtml()).toContain('왕 도 일 보');
-    // 신문 앞 첫 장면: 그림 여섯 장, 단추는 건너뛰기 하나뿐(고르는 단추 없음)
+    // 신문 앞 첫 장면: 그림 여덟 장, 단추는 건너뛰기 하나뿐(고르는 단추 없음)
     const cut = openingHtml();
     expect(cut.match(/class="cut-p/g)?.length).toBe(SHOT_N);
     expect(cut.match(/<button/g)?.length).toBe(1);

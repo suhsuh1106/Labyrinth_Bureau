@@ -610,7 +610,7 @@ button.danger small { color: var(--soft); font-size: 11px; }
 .room:has(.sheet:not([hidden])) .rumor { display: none; }
 @media (max-width: 640px), (max-height: 480px) { .rumor span { font-size: 11.5px; padding: 3px 10px; } }
 
-/* 첫 장면(opening.ts): 먹선 그림 여섯 장이 천천히 다가오며 엇갈려 바뀐다. 위아래 검은 띠 · 아래 한두 줄 · 건너뛰기 */
+/* 첫 장면(opening.ts): 먹선 그림 여덟 장이 천천히 다가오며 엇갈려 바뀐다. 위아래 검은 띠 · 아래 한두 줄 · 건너뛰기 */
 .cut-host[hidden] { display: none; }
 .cut-host { position: fixed; inset: 0; z-index: 15; }
 .cut { position: absolute; inset: 0; overflow: hidden; background: #0d0b09; color: #f4ecd8; cursor: pointer; user-select: none; -webkit-user-select: none; }
@@ -630,7 +630,7 @@ button.danger small { color: var(--soft); font-size: 11px; }
 .cut-p figcaption, .cut-name { z-index: 2; }
 /* 비: 첫 장면에서만 (배경 위치만 움직여 가볍게) */
 .cut-rain { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .9s; background: repeating-linear-gradient(105deg, transparent 0 22px, rgba(220, 230, 235, .16) 22px 23px, transparent 23px 61px); background-size: 200px 200px; animation: cut-rain .5s linear infinite; }
-.cut[data-k="0"] .cut-rain, .cut[data-k="1"] .cut-rain { opacity: 1; }
+.cut[data-k="2"] .cut-rain, .cut[data-k="3"] .cut-rain { opacity: 1; }
 @keyframes cut-rain { to { background-position: -40px 200px; } }
 .cut-glow { opacity: .15; animation: cut-glow 2.4s ease-in-out infinite alternate; }
 @keyframes cut-glow { to { opacity: .45; } }
