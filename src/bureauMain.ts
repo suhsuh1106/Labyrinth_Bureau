@@ -5,14 +5,17 @@ import { getSeed, setSeed } from './core/rng';
 import { B, type FacId, type World, answer, crewFree, dispatch, hireClerk, meet, newWorld, over, post, recall, run, send, step, withdraw } from './bureau/engine';
 import { BOT } from './bureau/bots';
 import { CLAUSE, type ClauseId, type Tag, FORM_OF, type To, addClause, canAdd, dropClause } from './bureau/clauses';
-import { type BuUi, type DocKind, DISP0, DRAFT0, dispHtml, svOf, type Shelf, type Tab, asksFloatHtml, deskHtml, docModalHtml, setHtml, fsOn, reportDocHtml, endHtml, introHtml, paneHtml, topHtml, tutHtml, writeHtml } from './ui/bureau/board';
-import { mapHtml, minisOf, terrainSvg } from './ui/bureau/map';
+import { type BuUi, type DocKind, DISP0, DRAFT0, dispHtml, svOf, type Shelf, type Tab, SPEED, asksFloatHtml, deskHtml, docModalHtml, setHtml, fsOn, reportDocHtml, endHtml, introHtml, paneHtml, topHtml, tutHtml, writeHtml } from './ui/bureau/board';
+import { mapHtml, minisOf, paintWash, terrainSvg } from './ui/bureau/map';
 import { type Desk, makeDesk } from './ui/bureau/desk';
 import { rumorAt } from './ui/bureau/rumor';
+import { playOpening } from './ui/bureau/opening';
 
 const $ = (id: string) => document.getElementById(id)!;
 const KEY = 'lb-bureau', VERSION = 16;
-let W: World, ui: BuUi, seed = 0, desk: Desk | null = null;
+let W: World, ui: BuUi, seed = 0, desk: Desk | null = null, cutOn = false;
+// 설정 창의 새 임기 확인 단계(저장하지 않는다)
+let resetAsk = false;
 
 function save() { try { localStorage.setItem(KEY, JSON.stringify({ v: VERSION, seed, rng: getSeed(), W, ui })); } catch { /* 저장이 막혀도 판은 계속된다 */ } }
 function load() { try { const d = JSON.parse(localStorage.getItem(KEY) || 'null'); return d && d.v === VERSION ? d : null; } catch { return null; } }
@@ -33,24 +36,38 @@ for (const ev of ['fullscreenchange', 'webkitfullscreenchange']) document.addEve
 function fresh() {
   seed = (Date.now() ^ 0x5bd1e995) >>> 0;
   W = newWorld(seed);
-  ui = { tab: 'look', open: false, sel: 'dg:0', invite: [], give: {}, intro: true, seenNews: W.reports.length, docSeen: 0, askSeen: 0 };
+  ui = { tab: 'look', open: false, sel: 'dg:0', invite: [], give: {}, cut: true, intro: true, seenNews: W.reports.length, docSeen: 0, askSeen: 0 };
+}
+
+// 글이 바뀐 칸만 다시 넣는다: 같은 것을 다시 넣어도 그 칸(특히 지도 · 책상 장면)을 통째로 다시 칠해 휴대폰에서 창을 열 때마다 버벅인다
+const shown = new Map<string, string>();
+function put(id: string, html: string) {
+  if (shown.get(id) === html) return;
+  shown.set(id, html); $(id).innerHTML = html;
 }
 
 function draw() {
-  $('top').innerHTML = topHtml(W, ui);
-  // 땅은 한 번만 깔고, 날마다 바뀌는 표식 · 미니어처 · 책상 위 물건만 다시 그린다
-  if (!desk) { $('map').querySelector('.terrain')!.innerHTML = terrainSvg(W); desk = makeDesk($('desk')); }
-  $('marks').innerHTML = mapHtml(W, ui);
-  $('props').innerHTML = deskHtml(W, ui);
+  put('top', topHtml(W, ui, play));
+  // 땅은 한 번만 깔고(제 층), 날마다 바뀌는 표식 · 미니어처 · 책상 위 물건만 다시 그린다
+  if (!desk) {
+    desk = makeDesk($('desk'));
+    document.querySelector('.map-ground .terrain')!.innerHTML = terrainSvg(W);
+    // 번짐 굽기가 막혀도(오래된 브라우저 등) 종이 빛 바탕으로 판은 그린다
+    try { paintWash(document.querySelector('.map-wash')!); } catch { /* 그대로 둔다 */ }
+  }
+  put('marks', mapHtml(W, ui));
+  put('props', deskHtml(W, ui));
   desk.minis(minisOf(W, flow()));
   desk.stand();
   if (ui.open && ui.tab === 'office') ui.seenNews = W.reports.length;
   const sheet = $('sheet');
   sheet.hidden = !ui.open; sheet.dataset.tab = ui.tab;
-  $('pane').innerHTML = ui.open ? paneHtml(W, ui) : '';
-  $('tut').innerHTML = tutHtml(W, ui);
-  $('asks').innerHTML = asksFloatHtml(W, ui);
+  put('pane', ui.open ? paneHtml(W, ui) : '');
+  put('tut', tutHtml(W, ui));
+  put('asks', asksFloatHtml(W, ui));
   rumor();
+  // 첫 장면: 부임 첫날 신문 앞에 한 번(설정에서 다시 볼 수 있다). 끝나면 신문이 책상에 떨어진다
+  if (ui.cut && !cutOn) { cutOn = true; playOpening($('cut'), () => { cutOn = false; ui.cut = false; save(); draw(); }); }
   const ov = $('over');
   if (ui.intro) { ov.innerHTML = introHtml(); ov.hidden = false; }
   else if (over(W)) {
@@ -59,7 +76,7 @@ function draw() {
     setSeed(keep);
     ov.innerHTML = endHtml(W, idle, smart); ov.hidden = false;
   } else if (ui.read != null) { ov.innerHTML = reportDocHtml(W, ui.read, true); ov.hidden = false; }
-  else if (ui.modal === 'set') { ov.innerHTML = setHtml(W); ov.hidden = false; }
+  else if (ui.modal === 'set') { ov.innerHTML = setHtml(W, resetAsk); ov.hidden = false; }
   else if (ui.modal === 'disp') { ov.innerHTML = `<div class="card modal write-modal">${dispHtml(W, ui)}</div>`; ov.hidden = false; }
   else if (ui.modal === 'write') { ov.innerHTML = `<div class="card modal write-modal">${writeHtml(W, ui)}</div>`; ov.hidden = false; }
   else {
@@ -74,7 +91,8 @@ function draw() {
 // 화면만 움직이고 판의 수치는 날마다 바뀐다
 let dayAt = performance.now();
 const STILL = matchMedia('(prefers-reduced-motion: reduce)').matches;
-const flow = () => STILL ? 0 : 0.92 * (1 - Math.exp(-(performance.now() - dayAt) / 30000));
+// 자동 진행 중에는 하루의 시간이 정해져 있으니 그만큼 고르게 다가간다
+const flow = () => STILL ? 0 : play ? Math.min(1, held / dayMs()) : 0.92 * (1 - Math.exp(-(performance.now() - dayAt) / 30000));
 // 소문은 몇 초마다 하나씩 바뀐다 (같은 말이면 다시 그리지 않는다)
 const RUMOR_MS = 9000;
 function rumor() {
@@ -82,15 +100,34 @@ function rumor() {
   if (el.dataset.t === t) return;
   el.dataset.t = t; el.innerHTML = t ? `<span>${t}</span>` : '';
 }
-setInterval(() => { if (desk && !document.hidden && !ui.intro && !over(W)) { desk.minis(minisOf(W, flow())); rumor(); } }, 250);
+// 자동 진행(세미 실시간): 재생하면 하루가 SPEED만큼 흐르고 저절로 넘어간다. 창(서류 · 청 · 설정 · 서류 쓰기)이 떠 있거나 탭이 숨으면 시계가 선다.
+// 새 청 · 새 보고가 오면 멈춘다(읽고 정한 뒤 다시 재생). 다음 날 · 닷새 단추는 그대로 쓸 수 있다
+let play = false, held = 0, last = performance.now();
+const dayMs = () => (SPEED[ui.spd ?? 0] ?? SPEED[0]).ms;
+const stalled = () => document.hidden || ui.intro || cutOn || over(W) || !$('over').hidden;
+function setPlay(on: boolean) { play = on && !over(W); held = 0; last = performance.now(); }
+function tick() {
+  const now = performance.now(), dt = now - last;
+  last = now;
+  if (!desk || document.hidden || ui.intro || over(W)) return;
+  if (play && !stalled()) {
+    held += dt;
+    if (held >= dayMs()) { nextDays(1, true); return; }
+  }
+  const bar = document.getElementById('dayBar');
+  if (bar) bar.style.width = `${Math.min(100, held / dayMs() * 100)}%`;
+  desk.minis(minisOf(W, flow())); rumor();
+}
+setInterval(tick, 250);
 
-function nextDays(n: number) {
-  dayAt = performance.now();
+function nextDays(n: number, auto = false) {
+  dayAt = performance.now(); held = 0;
   const asks = W.asks.filter(a => a.got == null).length, news = W.reports.length;
   for (let k = 0; k < n && !over(W); k++) {
     step(W);
-    if (W.asks.filter(a => a.got == null).length > asks || W.reports.length > news) break;
+    if (W.asks.filter(a => a.got == null).length > asks || W.reports.length > news) { if (auto || play) play = false; break; }
   }
+  if (over(W)) play = false;
   save(); draw();
 }
 
@@ -100,19 +137,25 @@ function act(a: string, d = 0) {
   const [k, arg] = a.split(':'), rest = a.slice(k.length + 1);
   if (k === 'next') return nextDays(1);
   if (k === 'ff') return nextDays(5);
+  if (k === 'play') { setPlay(!play); draw(); return; }
+  if (k === 'spd') { const keep = held / dayMs(); ui.spd = ((ui.spd ?? 0) + 1) % SPEED.length; held = keep * dayMs(); save(); draw(); return; }
   if (k === 'start') ui.intro = false;
   else if (k === 'new') fresh();
   // 새로 시작: 지금 판을 지우므로 한 번 묻는다
-  else if (k === 'reset') { if (!confirm('지금 판을 지우고 새 임기를 시작할까요?')) return; fresh(); }
+  // confirm()은 아티팩트처럼 막힌 iframe에서 말없이 false를 돌려주므로 설정 창 안에서 한 번 더 묻는다
+  else if (k === 'reset') resetAsk = true;
+  else if (k === 'resetno') resetAsk = false;
+  else if (k === 'resetyes') { resetAsk = false; fresh(); }
   // 단추 줄: 닫힌 시트를 열고, 열린 탭을 다시 누르면 닫는다
   else if (k === 'tab') { if (ui.open && ui.tab === arg) ui.open = false; else { ui.tab = arg as Tab; ui.open = true; } }
   else if (k === 'shut') ui.open = false;
   else if (k === 'sel') { ui.sel = rest; ui.tab = 'look'; ui.open = true; }
   else if (k === 'write') { ui.draft = { ...draft(), dg: +arg }; ui.tab = 'asks'; ui.open = true; ui.modal = 'write'; }
-  else if (k === 'close') { ui.modal = undefined; ui.read = undefined; ui.ask = undefined; }
+  else if (k === 'close') { resetAsk = false; ui.modal = undefined; ui.read = undefined; ui.ask = undefined; }
   else if (k === 'set') ui.modal = 'set';
   // 전체 화면: 주소창 · 탭 줄을 숨긴다. 막힌 곳(일부 iframe · 아이폰)에선 단추가 뜨지 않는다
   else if (k === 'fs') { toggleFs(); return; }
+  else if (k === 'replay') { ui.modal = undefined; ui.cut = true; }
   else if (k === 'ask') { ui.ask = +arg; ui.askSeen = Math.max(ui.askSeen ?? 0, +arg); }
   else if (k === 'shelf') ui.shelf = arg as Shelf;
   else if (k === 'ctag') ui.ctag = (arg || undefined) as Tag | undefined;
@@ -196,9 +239,12 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && ui.open) { act('shut'); return; }
   if (e.key === 'Escape' && desk?.mode === 'map') { desk.set('desk'); return; }
   // 창이 떠 있는 동안은 날을 넘기지 않는다
-  if ((e.key === 'n' || e.key === 'N') && !e.metaKey && !e.ctrlKey && $('over').hidden && !over(W)) nextDays(1);
+  // Space: 자동 진행 켜고 끄기 (단추 · 입력칸에 있을 때는 그쪽 몫)
+  if (e.key === ' ' && !(e.target as Element).closest?.('button, input, select, textarea, [data-act]') && $('over').hidden && !cutOn && !over(W)) { e.preventDefault(); act('play'); return; }
+  if ((e.key === 'n' || e.key === 'N') && !e.metaKey && !e.ctrlKey && $('over').hidden && !cutOn && !over(W)) nextDays(1);
 });
 
 const d = load();
 if (d) { W = d.W; ui = d.ui; seed = d.seed; setSeed(d.rng); } else fresh();
-draw();
+// 같은 버전 번호로 모양이 다른 판(다른 빌드에서 저장한 판)이 남아 있으면 첫 그리기에서 터진다: 그때는 새 임기로 연다
+try { draw(); } catch (e) { if (!d) throw e; console.error(e); fresh(); save(); draw(); }

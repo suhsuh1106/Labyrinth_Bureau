@@ -13,8 +13,9 @@ export type Shelf = 'cl' | 'out' | 'in';
 export type DocKind = '보고' | '공문' | '서신' | '신문';
 // sel: 지도에서 고른 것('dg:0' · 'fac:red', 비우면 관할 요약). draft: 쓰고 있는 서류(받는 쪽 · 미궁 · 기간 · 조항과 값)
 export interface Draft { to: To; dg: number; days: number; cl: Clauses }
+// spd: 자동 진행 빠르기(SPEED의 자리, 재생 여부는 저장하지 않는다: 판을 다시 열면 늘 멈춘 채)
 // open: 지도 위 시트가 열려 있나(탭 단추 · 지도 표식으로 연다). modal: 서류 쓰기 창이 열려 있나. docSeen: 받은 서류 창으로 읽은 보고 자리 · askSeen: 오른쪽 위 쪽지로 본 마지막 청 · ask: 펼쳐 읽는 청
-export interface BuUi { tab: Tab; invite: FacId[]; give: Record<number, number>; intro: boolean; seenNews: number; open?: boolean; sel?: string; draft?: Draft; modal?: 'write' | 'set' | 'disp'; disp?: Disp; ask?: number; docSeen?: number; askSeen?: number; shelf?: Shelf; read?: number; tutPnl?: boolean; ctag?: Tag; dkind?: DocKind }
+export interface BuUi { tab: Tab; invite: FacId[]; give: Record<number, number>; intro: boolean; seenNews: number; open?: boolean; sel?: string; draft?: Draft; modal?: 'write' | 'set' | 'disp'; disp?: Disp; ask?: number; docSeen?: number; askSeen?: number; shelf?: Shelf; read?: number; tutPnl?: boolean; ctag?: Tag; cut?: boolean; dkind?: DocKind; spd?: number }
 // 파견서: 보낼 곳('0' 미궁 번호 · 'red' 길드) · 사람 · 머물 날
 export interface Disp { to: string; n: number; days: number }
 export const DISP0: Disp = { to: '0', n: 2, days: 6 };
@@ -54,12 +55,15 @@ function fsBtn() {
   const on = fsOn();
   return `<button type="button" class="t-set" data-act="fs" aria-label="${on ? '전체 화면 끄기' : '전체 화면'}" title="${on ? '전체 화면 끄기' : '전체 화면'}">${on ? FS_OFF : FS_ON}</button>`;
 }
-// 설정 창: 새 임기는 여기에만 둔다(누르면 한 번 더 묻는다)
-export function setHtml(W: World) {
+// 설정 창: 새 임기는 여기에만 둔다(누르면 창 안에서 한 번 더 묻는다)
+export function setHtml(W: World, ask = false) {
   return `<div class="card modal set"><h2>설정</h2>
   <p class="note num">임기 ${Math.min(W.day + 1, B.DAYS)}일째 / ${B.DAYS}일 · 이 브라우저에 저장됨</p>
   ${fsCan() ? `<button type="button" data-act="fs">${fsOn() ? '전체 화면 끄기' : '전체 화면'}</button>` : `<p class="note">이 창에선 전체 화면을 막아 둠 · PC는 F11 · 휴대폰은 브라우저 메뉴의 '홈 화면에 추가'</p>`}
-  <button type="button" class="danger" data-act="reset">새 임기 시작 <small>지금 판을 지움</small></button>
+  <button type="button" data-act="replay">첫 장면 다시 보기</button>
+  ${ask ? `<p class="note">지금 판을 지우고 새 임기를 시작할까요?</p>
+  <button type="button" class="danger" data-act="resetyes">지우고 새 임기</button>
+  <button type="button" data-act="resetno">그대로 두기</button>` : `<button type="button" class="danger" data-act="reset">새 임기 시작 <small>지금 판을 지움</small></button>`}
   <button type="button" class="go wide" data-act="close">닫기</button></div>`;
 }
 
@@ -83,7 +87,18 @@ export function asksFloatHtml(W: World, ui: BuUi) {
     + (asks.length > shown.length ? `<button type="button" class="ask-note more" data-act="tab:asks">그 밖에 ${asks.length - shown.length}장</button>` : '');
 }
 
-export function topHtml(W: World, ui?: BuUi) {
+// 자동 진행(세미 실시간): 하루가 몇 초인지. 재생하면 날이 저절로 넘어가고, 새 청 · 새 보고가 오면 멈춘다. 창이 떠 있는 동안은 시계가 선다
+export const SPEED = [{ name: '×1', ms: 8000 }, { name: '×2', ms: 4000 }, { name: '×4', ms: 2000 }];
+const PLAY = '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M4 2.5v11l9.5-5.5z" fill="currentColor"/></svg>';
+const PAUSE = '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3.5 2.5h3v11h-3zM9.5 2.5h3v11h-3z" fill="currentColor"/></svg>';
+function autoHtml(W: World, ui: BuUi | undefined, play: boolean) {
+  const sp = SPEED[ui?.spd ?? 0] ?? SPEED[0], end = W.day >= B.DAYS;
+  return `<div class="auto${play ? ' on' : ''}" role="group" aria-label="자동 진행">
+    <button type="button" class="a-play" data-act="play" ${end ? 'disabled' : ''} aria-pressed="${play}" aria-label="${play ? '멈춤' : '자동 진행'}" title="${play ? '멈춤' : '자동 진행'} · Space">${play ? PAUSE : PLAY}<i class="a-bar"><i id="dayBar"></i></i></button>
+    <button type="button" class="a-spd num" data-act="spd" ${end ? 'disabled' : ''} title="하루 ${sp.ms / 1000}초">${sp.name}</button></div>`;
+}
+
+export function topHtml(W: World, ui?: BuUi, play = false) {
   const wait = ui && tutOf(W, ui) === 'wait';
   const f = dayFlow(W), month = Math.floor(W.day / B.MONTH) + 1, toGrant = B.MONTH - (W.day % B.MONTH);
   const grant = B.GRANT + W.standing * B.GRANT_K;
@@ -91,7 +106,7 @@ export function topHtml(W: World, ui?: BuUi) {
   <div class="t-cell"><span>예산</span><b class="num ${W.budget < 0 ? 'neg' : ''}">${n0(W.budget)}G</b><small class="num ${f.net < 0 ? 'neg' : ''}">하루 ${sgn(f.net)}${escrowOf(W) > 0 ? ` · 공탁 ${n0(escrowOf(W))}` : ''}</small></div>
   <button type="button" class="t-cell t-office${ui?.open && ui.tab === 'office' ? ' on' : ''}" data-act="tab:office" title="집무실"><span>입지</span><b class="num">${n1(W.standing)}</b><i class="gauge"><i style="width:${W.standing}%"></i></i>${ui && !(ui.open && ui.tab === 'office') && W.reports.length - ui.seenNews + W.pts > 0 ? `<i class="badge">${W.reports.length - ui.seenNews + W.pts}</i>` : ''}</button>
   <div class="t-cell"><span>중앙 배정</span><b class="num">${n0(grant)}G</b><small>${toGrant}일 뒤</small></div>
-  <div class="t-btns"><button type="button" class="go${wait ? ' pulse' : ''}" data-act="next" ${W.day >= B.DAYS ? 'disabled' : ''}>다음 날 <kbd>N</kbd></button><button type="button" data-act="ff" ${W.day >= B.DAYS ? 'disabled' : ''}>닷새</button></div>
+  <div class="t-btns">${autoHtml(W, ui, play)}<button type="button" class="go${wait && !play ? ' pulse' : ''}" data-act="next" ${W.day >= B.DAYS ? 'disabled' : ''}>다음 날 <kbd>N</kbd></button><button type="button" data-act="ff" ${W.day >= B.DAYS ? 'disabled' : ''}>닷새</button></div>
   ${fsBtn()}<button type="button" class="t-set" data-act="set" aria-label="설정" title="설정">${GEAR}</button>`;
 }
 
