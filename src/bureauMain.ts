@@ -38,20 +38,27 @@ function fresh() {
   ui = { tab: 'look', open: false, sel: 'dg:0', invite: [], give: {}, intro: true, seenNews: W.reports.length, docSeen: 0, askSeen: 0 };
 }
 
+// 글이 바뀐 칸만 다시 넣는다: 같은 것을 다시 넣어도 그 칸(특히 지도 · 책상 장면)을 통째로 다시 칠해 휴대폰에서 창을 열 때마다 버벅인다
+const shown = new Map<string, string>();
+function put(id: string, html: string) {
+  if (shown.get(id) === html) return;
+  shown.set(id, html); $(id).innerHTML = html;
+}
+
 function draw() {
-  $('top').innerHTML = topHtml(W, ui);
-  // 땅은 한 번만 깔고, 날마다 바뀌는 표식 · 미니어처 · 책상 위 물건만 다시 그린다
-  if (!desk) { $('map').querySelector('.terrain')!.innerHTML = terrainSvg(W); desk = makeDesk($('desk')); }
-  $('marks').innerHTML = mapHtml(W, ui);
-  $('props').innerHTML = deskHtml(W, ui);
+  put('top', topHtml(W, ui));
+  // 땅은 한 번만 깔고(제 층), 날마다 바뀌는 표식 · 미니어처 · 책상 위 물건만 다시 그린다
+  if (!desk) { document.querySelector('.map-ground .terrain')!.innerHTML = terrainSvg(W); desk = makeDesk($('desk')); }
+  put('marks', mapHtml(W, ui));
+  put('props', deskHtml(W, ui));
   desk.minis(minisOf(W, flow()));
   desk.stand();
   if (ui.open && ui.tab === 'office') ui.seenNews = W.reports.length;
   const sheet = $('sheet');
   sheet.hidden = !ui.open; sheet.dataset.tab = ui.tab;
-  $('pane').innerHTML = ui.open ? paneHtml(W, ui) : '';
-  $('tut').innerHTML = tutHtml(W, ui);
-  $('asks').innerHTML = asksFloatHtml(W, ui);
+  put('pane', ui.open ? paneHtml(W, ui) : '');
+  put('tut', tutHtml(W, ui));
+  put('asks', asksFloatHtml(W, ui));
   rumor();
   const ov = $('over');
   if (ui.intro) { ov.innerHTML = introHtml(); ov.hidden = false; }
