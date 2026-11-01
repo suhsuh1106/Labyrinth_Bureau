@@ -191,7 +191,7 @@ export function paintWash(out: HTMLImageElement) {
   img.onload = () => {
     const g = cv.getContext('2d');
     if (!g) return;
-    g.drawImage(img, 0, 0, cv.width, cv.height);
+    try { g.drawImage(img, 0, 0, cv.width, cv.height); } catch { return; }
     // blob 주소가 막힌 곳(일부 미리보기 창)에선 data 주소로. 그마저 막히면 종이 빛 바탕만 남는다
     out.onerror = () => { out.onerror = null; try { out.src = cv.toDataURL(); } catch { /* 그대로 둔다 */ } };
     try { cv.toBlob(b => { if (b) out.src = URL.createObjectURL(b); else out.onerror?.(new Event('error')); }); } catch { out.onerror?.(new Event('error')); }

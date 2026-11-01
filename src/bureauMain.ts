@@ -48,7 +48,12 @@ function put(id: string, html: string) {
 function draw() {
   put('top', topHtml(W, ui));
   // 땅은 한 번만 깔고(제 층), 날마다 바뀌는 표식 · 미니어처 · 책상 위 물건만 다시 그린다
-  if (!desk) { paintWash(document.querySelector('.map-wash')!); document.querySelector('.map-ground .terrain')!.innerHTML = terrainSvg(W); desk = makeDesk($('desk')); }
+  if (!desk) {
+    desk = makeDesk($('desk'));
+    document.querySelector('.map-ground .terrain')!.innerHTML = terrainSvg(W);
+    // 번짐 굽기가 막혀도(오래된 브라우저 등) 종이 빛 바탕으로 판은 그린다
+    try { paintWash(document.querySelector('.map-wash')!); } catch { /* 그대로 둔다 */ }
+  }
   put('marks', mapHtml(W, ui));
   put('props', deskHtml(W, ui));
   desk.minis(minisOf(W, flow()));
