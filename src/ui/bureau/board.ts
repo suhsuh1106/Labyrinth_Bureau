@@ -37,10 +37,23 @@ export function dayFlow(W: World) {
 
 // 설정 단추(왼쪽 위 정보 끝): 톱니 모양
 const GEAR = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg>';
+// 전체 화면 단추(설정 단추 옆): 네 귀퉁이 꺾쇠. 켜져 있으면 안으로 꺾인다
+const FS_ON = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
+const FS_OFF = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>';
+// 브라우저가 전체 화면을 허락하는지 · 지금 전체 화면인지(사파리는 webkit 이름)
+type FsDoc = Document & { webkitFullscreenEnabled?: boolean; webkitFullscreenElement?: Element | null };
+export const fsCan = () => typeof document !== 'undefined' && !!((document as FsDoc).fullscreenEnabled || (document as FsDoc).webkitFullscreenEnabled);
+export const fsOn = () => typeof document !== 'undefined' && !!(document.fullscreenElement || (document as FsDoc).webkitFullscreenElement);
+function fsBtn() {
+  if (!fsCan()) return '';
+  const on = fsOn();
+  return `<button type="button" class="t-set" data-act="fs" aria-label="${on ? '전체 화면 끄기' : '전체 화면'}" title="${on ? '전체 화면 끄기' : '전체 화면'}">${on ? FS_OFF : FS_ON}</button>`;
+}
 // 설정 창: 새 임기는 여기에만 둔다(누르면 한 번 더 묻는다)
 export function setHtml(W: World) {
   return `<div class="card modal set"><h2>설정</h2>
   <p class="note num">임기 ${Math.min(W.day + 1, B.DAYS)}일째 / ${B.DAYS}일 · 이 브라우저에 저장됨</p>
+  ${fsCan() ? `<button type="button" data-act="fs">${fsOn() ? '전체 화면 끄기' : '전체 화면'}</button>` : `<p class="note">이 창에선 전체 화면을 막아 둠 · PC는 F11 · 휴대폰은 브라우저 메뉴의 '홈 화면에 추가'</p>`}
   <button type="button" class="danger" data-act="reset">새 임기 시작 <small>지금 판을 지움</small></button>
   <button type="button" class="go wide" data-act="close">닫기</button></div>`;
 }
@@ -74,7 +87,7 @@ export function topHtml(W: World, ui?: BuUi) {
   <button type="button" class="t-cell t-office${ui?.open && ui.tab === 'office' ? ' on' : ''}" data-act="tab:office" title="집무실"><span>입지</span><b class="num">${n1(W.standing)}</b><i class="gauge"><i style="width:${W.standing}%"></i></i>${ui && !(ui.open && ui.tab === 'office') && W.reports.length - ui.seenNews + W.pts > 0 ? `<i class="badge">${W.reports.length - ui.seenNews + W.pts}</i>` : ''}</button>
   <div class="t-cell"><span>중앙 배정</span><b class="num">${n0(grant)}G</b><small>${toGrant}일 뒤</small></div>
   <div class="t-btns"><button type="button" class="go${wait ? ' pulse' : ''}" data-act="next" ${W.day >= B.DAYS ? 'disabled' : ''}>다음 날 <kbd>N</kbd></button><button type="button" data-act="ff" ${W.day >= B.DAYS ? 'disabled' : ''}>닷새</button></div>
-  <button type="button" class="t-set" data-act="set" aria-label="설정" title="설정">${GEAR}</button>`;
+  ${fsBtn()}<button type="button" class="t-set" data-act="set" aria-label="설정" title="설정">${GEAR}</button>`;
 }
 
 export function dungeonHtml(W: World, i: number) {
