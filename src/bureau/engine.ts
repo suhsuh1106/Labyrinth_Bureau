@@ -43,6 +43,14 @@ export const B = {
   // 예산 · 입지를 준다. 군이 버티는 동안 중앙의 인내가 모자란 조만큼 줄고(pat), 바닥나면 인계 없이 물러난다(입지를 깎는다).
   // 군은 주둔하는 동안 하루 clear만큼 수위를 누른다(오르는 만큼). fear: 범람이 남긴 꺼림
   ORDER: { dg: 0, min: 12, need: 3, pat: 100, drain: 1, clear: 1.25, fear: 30, pay: 1000, stand: 12, fail: 5 },
+  // 조사원(파견서): 관리국의 조사원 crew명을 미궁이나 길드 본부에 보낸다. 관리국에서 걸어가고(svWay) 정한 날만큼 머물다 걸어 돌아온다.
+  //   한 번에 max명 · 머물 날 days, 나가 있는 동안 한 사람 하루 pay G. 알아 온 것은 돌아온 날 보고서로 들어온다.
+  //   미궁: 머무는 동안 갱도에 길을 표시해 꺼림이 날마다 calm × 사람만큼 걷히고, 사람 × 날(sv)이 map에 닿은 뒤 돌아오면 갱도 지도를 길드에 돌린다(mapped:
+  //   길드가 수위의 위험을 half만큼만 보고, 알려진 광맥이 끌림 lure를 더한다). 수위가 risk 위면 사람마다 (수위 − risk) × die의 확률로 돌아오지 못한다
+  //   (꺼림 fear · 입지 stand, 다음 달 첫날 crew로 다시 채운다).
+  //   길드 본부: 머문 마지막 날의 장부 · 속내를 알아 온다(Peek). 사람마다 하루 caught × (1 + 정보를 꺼리는 결 / 10)의 확률로 들키면
+  //   모두 쫓겨 돌아오고 그 길드의 호감이 fav 준다(그 길드가 서신으로 따진다)
+  SVY: { crew: 4, max: 4, days: [2, 20] as [number, number], pay: 6, calm: 0.05, risk: 55, die: 1 / 900, fear: 8, stand: 1, map: 30, half: 0.5, lure: 2, caught: 0.02, fav: 6 },
   DEV: [260, 720], DEV_FAV: 8,            // R2 발전도: 외진 미궁에 든 조 × 날이 이만큼 쌓이면 단계가 오른다 · 지부를 낸 길드의 호감
   PRICE: 10, FEE: 2,                      // 소재 값 · 조마다 하루 입장료
   UPKEEP: 0.9, GROW: 120, GROW_COST: 100, SHRINK: -80, SIZE_MIN: 2,
@@ -137,9 +145,19 @@ export interface Dungeon {
   dev: number;                    // 발전도: 외진 미궁에 든 조 × 날의 합
   gdev: Record<GuildId, number>;  // 그중 길드마다 든 몫 (지부를 낼 길드를 고른다)
   branch: GuildId | null;         // 발전도 2단계에서 가장 많이 다닌 길드가 곁에 낸 지부 (그 길드는 하루 길)
+  sv: number;                     // 조사원이 일한 사람 × 날 (B.SVY.map에 닿으면 갱도 조사 보고서)
+  svLost: number;                 // 돌아오지 못한 조사원
+  mapped: boolean;                // 갱도 조사 보고서가 나왔다
 }
-export interface Guild { id: GuildId; name: string; size: number; money: number; infl: number; fav: number; check: number; peak: number }
-export interface Report { day: number; from: string; title: string; chips: string[] }
+export interface Guild {
+  id: GuildId; name: string; size: number; money: number; infl: number; fav: number; check: number; peak: number;
+  peek: Peek | null;              // 돌아온 조사원이 마지막으로 알아 온 것 (머문 마지막 날의 값으로 굳는다)
+}
+// 길드 본부에 보낸 조사원이 알아 오는 것: 미궁마다 조 하나가 남기는 값(pnlGuild) · 바라는 조 · 서명할 마음 · 견제
+export interface Peek { day: number; pnl: number[]; want: number[]; will: number; check: number }
+export interface Report { day: number; from: string; title: string; chips: string[]; trip?: Trip & { map: boolean } }
+// 파견서로 보낸 조사원: 보낸 날 · 닿는 날(at) · 떠나는 날(until) · 돌아오는 날(back). 머무는 동안의 물 높이(lv) · 일한 사람 × 날(sv) · 알아 온 속내(peek)
+export interface Trip { id: number; to: SvTo; n: number; sent: number; day: number; at: number; until: number; back: number; lost: number; caught: boolean; sv: number; lv: number[]; peek?: Peek }
 export interface Stats {
   floods: number; dead: number; spent: number;
   toFlood: number[];              // 위험 수위부터 범람까지 날 수
@@ -173,6 +191,8 @@ export interface World {
   docN: number;                   // 서류 번호
   rank: number; clerks: number; pts: number; // 집무실: 닿은 입지 단계 · 서기 · 서기를 들일 수 있는 몫
   order: Order;                   // 중앙 행정원의 요구서
+  crew: number;                   // 관리국의 조사원 (잃으면 줄고, 다음 달 첫날 다시 채운다)
+  trips: Trip[];                  // 파견서로 나가 있는 조사원
   pnl: number[][];                // 미궁마다 날마다 조 하나의 하루 손익 어림(G, 보조금 빼고). 첫 칸은 징세청에서 넘겨받은 기록
 }
 export interface Order { dg: number; min: number; need: number; got: number; pat: number; done: '' | 'ok' | 'fail' }
@@ -182,7 +202,7 @@ export interface Letter { id: number; day: number; to: GuildId; dg: number; days
 export interface Notice { id: number; day: number; to: 'all'; dg: number; until: number; cl: Clauses; dep: number }
 export type Opts = { noCheck?: boolean; noFear?: boolean };
 
-const DUNGEONS: Omit<Dungeon, 'teams' | 'fear' | 'floods' | 'dead' | 'sub' | 'dangerAt' | 'dev' | 'gdev' | 'branch'>[] = [
+const DUNGEONS: Omit<Dungeon, 'teams' | 'fear' | 'floods' | 'dead' | 'sub' | 'dangerAt' | 'dev' | 'gdev' | 'branch' | 'sv' | 'svLost' | 'mapped'>[] = [
   // 폐광은 산줄기 깊숙이 외져 늦게 드러났다. 벌이는 좋지만 길이 없어 곁에 길드가 없었고, 아무도 돌보지 않다 막 넘쳤다.
   // 왕국군이 주둔해 위험 수위 언저리에 붙들고 있고, 물러나면 다시 오른다
   { id: 'pit', name: '폐광', land: '로이드 지방', dist: 1, at: [14, 7], rise: 1.25, yld: 14, cap: 12, level: 75, wild: 2 },
@@ -227,10 +247,11 @@ export function newWorld(seed: number, o: Opts = {}): World {
     yld: i ? Math.round(d.yld * (0.8 + rnd() * 0.4)) : d.yld,
     teams: Object.fromEntries(GUILDS.map(g => [g, i ? B.GUILD[g].start : 0])) as Record<GuildId, number>, fear: i ? 0 : B.ORDER.fear, floods: 0, dead: 0, sub: 0, dangerAt: null,
     dev: 0, gdev: Object.fromEntries(GUILDS.map(g => [g, 0])) as Record<GuildId, number>, branch: null,
+    sv: 0, svLost: 0, mapped: false,
   }));
   const guild = (id: GuildId): Guild => {
     const g = B.GUILD[id];
-    return { id, name: g.name, size: g.size, money: g.money, infl: 0, fav: g.fav + Math.round((rnd() - 0.5) * 12), check: 0, peak: g.size };
+    return { id, name: g.name, size: g.size, money: g.money, infl: 0, fav: g.fav + Math.round((rnd() - 0.5) * 12), check: 0, peak: g.size, peek: null };
   };
   const W: World = {
     day: 0, budget: 3000, standing: 20, prio: 50, crownShare: 10,
@@ -247,7 +268,7 @@ export function newWorld(seed: number, o: Opts = {}): World {
     owe: Object.fromEntries(FACS.map(f => [f, 0])) as Record<FacId, number>, fowe: Object.fromEntries(FACS.map(f => [f, {}])) as World['fowe'],
     pact: null, meetAt: -99, asks: [], later: [], askN: 0, lit: [], notices: [], letters: [], docN: 0, rank: 1, clerks: 1, pts: 0,
     order: { dg: B.ORDER.dg, min: B.ORDER.min, need: B.ORDER.need, got: 0, pat: B.ORDER.pat, done: '' },
-    pnl: [],
+    crew: B.SVY.crew, trips: [], pnl: [],
     ...o,
   };
   FACS.forEach((a, i) => FACS.slice(i + 1).forEach(b => { const k = pairOf(a, b); W.rel[k] = (REL0[k] ?? 0) + Math.round((rnd() - 0.5) * 10); }));
@@ -323,9 +344,10 @@ export const pnlOf = (W: World, d: Dungeon) => Math.round((lure(W, d) - d.sub / 
 // 최근 n일 평균 (기록이 모자라면 있는 만큼)
 export const pnlAvg = (W: World, i: number, n: number) => { const a = W.pnl[i].slice(-n); return a.reduce((x, y) => x + y, 0) / a.length; };
 // 위험과 꺼림: 끌림에서 빠지는 몫 (길드마다 fearK배)
-const harmOf = (W: World, d: Dungeon) => Math.max(0, d.level - 65) / 8 + (W.noFear ? 0 : d.fear / 10);
+// 갱도 조사 보고서가 나온 미궁은 길드가 수위의 위험을 반만 보고, 알려진 광맥이 끌림을 더한다
+const harmOf = (W: World, d: Dungeon) => Math.max(0, d.level - 65) / 8 * (d.mapped ? B.SVY.half : 1) + (W.noFear ? 0 : d.fear / 10);
 export function lure(W: World, d: Dungeon) {
-  return d.yld * B.PRICE / 10 * richOf(d.level) * (1 - d.level / 160) + d.sub / B.SUB_LURE - harmOf(W, d) + B.WAY_BASE * B.WAY_K;
+  return d.yld * B.PRICE / 10 * richOf(d.level) * (1 - d.level / 160) + d.sub / B.SUB_LURE - harmOf(W, d) + B.WAY_BASE * B.WAY_K + (d.mapped ? B.SVY.lure : 0);
 }
 // 미궁 i에서 길드들이 오늘 남기는 값(오가는 날 빼고, 보조금 빼고)의 중간값 · 평균값과 평균 오가는 날: 손익 자료의 요약 (길드 하나하나는 보이지 않는다)
 export function pnlSum(W: World, i: number) {
@@ -437,6 +459,7 @@ export function step(W: World) {
       if (st > 0 && n > r1Before[i] + 0.01) lit(W, 'R2');
     }
   });
+  tripsDay(W, want);
   // 세력의 돈: 판매 − 급여·보급 − 세금(견제). 넉넉하면 조를 늘리고 모자라면 줄인다
   const top = GUILDS.map(g => G[g]).reduce((a, b) => b.size > a.size ? b : a), topBefore = top.size;
   for (const g of GUILDS) {
@@ -482,7 +505,7 @@ export function step(W: World) {
   // 예산: 입장료(중앙 몫을 뺀 나머지) − 보조금, 달마다 중앙의 배정
   W.budget += fees * (1 - W.crownShare / 100) - subs + escrowPaid;
   S.spent += subs;
-  if (W.day % B.MONTH === 0) W.budget += B.GRANT + W.standing * B.GRANT_K;
+  if (W.day % B.MONTH === 0) { W.budget += B.GRANT + W.standing * B.GRANT_K; W.crew = B.SVY.crew; }
   // 호감: 평소로 천천히, 조항이 끌어당긴다
   // 길드마다 결대로: 우선권은 권리를 보는 큰 길드가 반기고 작은 길드가 싫어한다. 보조금 · 기록 · 위로금은 돈 · 정보 · 안전의 결만큼
   for (const o of GUILDS.map(g => G[g])) o.fav += (50 - o.fav) * B.FAV_BACK;
@@ -712,6 +735,71 @@ export function recall(W: World, id: number) {
   W.letters = W.letters.filter(x => x !== l);
   W.reports.push({ day: W.day, from: '관리국', title: `요청서 거둠: ${nameOf(W, l.to)} · ${W.dungeons[l.dg].name}`, chips: l.until != null ? ['서명 뒤 거둠', `${nameOf(W, l.to)} 서운함`] : ['답 전에 거둠'] });
   return true;
+}
+
+// 조사원 파견: 보낼 곳은 미궁(번호) · 길드 본부(길드). 관리국에서 그곳까지 걷는 날(외진 미궁은 길 없는 날을 더함)
+export type SvTo = number | GuildId;
+export const svAt = (W: World, to: SvTo): At => typeof to === 'number' ? W.dungeons[to].at : B.GUILD[to].at;
+export const svName = (W: World, to: SvTo) => typeof to === 'number' ? W.dungeons[to].name : `${nameOf(W, to)} 본부`;
+export const svWay = (W: World, to: SvTo) => Math.max(1, Math.ceil(far(BUREAU_AT, svAt(W, to)) / B.WAY_T)) + (typeof to === 'number' ? wildOf(W.dungeons[to]) : 0);
+// 관리국에 남은 조사원 (나가 있는 사람 빼고)
+export const crewFree = (W: World) => W.crew - W.trips.reduce((a, t) => a + t.n, 0);
+export function dispatch(W: World, to: SvTo, n: number, days: number): Trip | null {
+  n = Math.round(n); days = Math.round(days);
+  if (n < 1 || n > Math.min(B.SVY.max, crewFree(W)) || days < B.SVY.days[0] || days > B.SVY.days[1]) return null;
+  if (typeof to === 'number' ? !W.dungeons[to] : !W.guilds[to]) return null;
+  const way = svWay(W, to), at = W.day + way, until = at + days;
+  const t: Trip = { id: ++W.docN, to, n, sent: n, day: W.day, at, until, back: until + way, lost: 0, caught: false, sv: 0, lv: [] };
+  W.trips.push(t);
+  W.reports.push({ day: W.day, from: '관리국', title: `파견서: ${svName(W, to)}`, chips: [`조사원 ${n}명`, `${days}일 머묾`, `가는 데 ${way}일`, `${t.back}일째 돌아옴`] });
+  return t;
+}
+// 조사원의 하루: 품삯 · 머무는 동안 일 · 잃음 · 들킴 · 돌아오면 보고서. 나간 조사원이 없으면 난수를 쓰지 않는다(봇 판이 그대로)
+function tripsDay(W: World, want: Record<GuildId, number[]>) {
+  const S = B.SVY;
+  for (const t of W.trips) {
+    W.budget -= t.n * S.pay; W.stats.spent += t.n * S.pay;
+    const here = W.day > t.at && W.day <= t.until && t.n > 0;
+    if (here && typeof t.to === 'number') {
+      const d = W.dungeons[t.to];
+      t.lv.push(Math.round(d.level));
+      d.fear *= Math.max(0, 1 - S.calm * t.n);
+      d.sv += t.n; t.sv += t.n;
+      const p = Math.max(0, d.level - S.risk) * S.die;
+      let lost = 0;
+      for (let k = 0; k < t.n; k++) if (rnd() < p) lost++;
+      if (lost) {
+        t.n -= lost; t.lost += lost; d.svLost += lost; W.crew -= lost;
+        d.fear += lost * S.fear;
+        W.standing = clamp(W.standing - lost * S.stand, 0, 100);
+        W.reports.push({ day: W.day, from: '관리국 조사관', title: `${d.name} 조사원 ${lost}명 돌아오지 못함`, chips: [`물 높이 ${Math.round(d.level)}`, '길드가 꺼림', `입지 −${lost * S.stand}`] });
+        if (!t.n) t.back = W.day;
+      }
+    } else if (here) {
+      const g = t.to as GuildId, o = W.guilds[g];
+      t.peek = { day: W.day, pnl: W.dungeons.map((_, i) => pnlGuild(W, g, i)), want: want[g].map(v => Math.round(v * 10) / 10), will: Math.round(willOf(W, g)), check: Math.round(o.check * 10) / 10 };
+      const p = S.caught * (1 + Math.max(0, B.GUILD[g].info) / 10);
+      let got = false;
+      for (let k = 0; k < t.n; k++) if (rnd() < p) got = true;
+      if (got) {
+        t.caught = true; t.until = W.day; t.back = W.day + svWay(W, g);
+        fav(o, -S.fav);
+        W.reports.push({ day: W.day, from: o.name, title: '관리국 사람이 본부를 기웃거린 일에 관하여', chips: [`조사원 ${t.n}명 돌려보냄`, `${o.name} 호감 −${S.fav}`] });
+      }
+    }
+    if (W.day >= t.back) tripHome(W, t);
+  }
+  W.trips = W.trips.filter(t => W.day < t.back);
+}
+// 조사원이 돌아왔다: 알아 온 것을 보고서로. 갱도 지도는 이때 길드에 돌린다
+function tripHome(W: World, t: Trip) {
+  let map = false;
+  if (typeof t.to === 'number') {
+    const d = W.dungeons[t.to];
+    if (!d.mapped && d.sv >= B.SVY.map && t.n > 0) { d.mapped = true; map = true; }
+  } else if (t.peek) W.guilds[t.to].peek = t.peek;
+  if (!t.n) return;
+  W.reports.push({ day: W.day, from: '관리국 조사관', title: `조사 보고: ${svName(W, t.to)}`, chips: [], trip: { ...t, map } });
 }
 
 // 왕국군이 이 미궁에 주둔해 있나: 요구서가 끝나기 전까지

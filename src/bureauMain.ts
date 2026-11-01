@@ -2,17 +2,17 @@
 // 판을 이 브라우저에 저장한다(`lb-bureau`). 엔진은 src/bureau/engine.ts
 import './ui/bureau/bureau.css';
 import { getSeed, setSeed } from './core/rng';
-import { type FacId, type World, answer, hireClerk, meet, newWorld, over, post, recall, run, send, step, withdraw } from './bureau/engine';
+import { B, type FacId, type World, answer, crewFree, dispatch, hireClerk, meet, newWorld, over, post, recall, run, send, step, withdraw } from './bureau/engine';
 import { BOT } from './bureau/bots';
 import { CLAUSE, type ClauseId, type Tag, FORM_OF, type To, addClause, canAdd, dropClause } from './bureau/clauses';
-import { type BuUi, type DocKind, DRAFT0, type Shelf, type Tab, SPEED, asksFloatHtml, deskHtml, docModalHtml, setHtml, fsOn, reportDocHtml, endHtml, introHtml, paneHtml, topHtml, tutHtml, writeHtml } from './ui/bureau/board';
+import { type BuUi, type DocKind, DISP0, DRAFT0, dispHtml, svOf, type Shelf, type Tab, SPEED, asksFloatHtml, deskHtml, docModalHtml, setHtml, fsOn, reportDocHtml, endHtml, introHtml, paneHtml, topHtml, tutHtml, writeHtml } from './ui/bureau/board';
 import { mapHtml, minisOf, paintWash, terrainSvg } from './ui/bureau/map';
 import { type Desk, makeDesk } from './ui/bureau/desk';
 import { rumorAt } from './ui/bureau/rumor';
 import { playOpening } from './ui/bureau/opening';
 
 const $ = (id: string) => document.getElementById(id)!;
-const KEY = 'lb-bureau', VERSION = 15;
+const KEY = 'lb-bureau', VERSION = 16;
 let W: World, ui: BuUi, seed = 0, desk: Desk | null = null, cutOn = false;
 // 설정 창의 새 임기 확인 단계(저장하지 않는다)
 let resetAsk = false;
@@ -77,6 +77,7 @@ function draw() {
     ov.innerHTML = endHtml(W, idle, smart); ov.hidden = false;
   } else if (ui.read != null) { ov.innerHTML = reportDocHtml(W, ui.read, true); ov.hidden = false; }
   else if (ui.modal === 'set') { ov.innerHTML = setHtml(W, resetAsk); ov.hidden = false; }
+  else if (ui.modal === 'disp') { ov.innerHTML = `<div class="card modal write-modal">${dispHtml(W, ui)}</div>`; ov.hidden = false; }
   else if (ui.modal === 'write') { ov.innerHTML = `<div class="card modal write-modal">${writeHtml(W, ui)}</div>`; ov.hidden = false; }
   else {
     // 받은 서류는 한 장씩 새 창으로(청 · 독촉은 오른쪽 위 쪽지를 눌러 펼친다)
@@ -184,6 +185,12 @@ function act(a: string, d = 0) {
     const done = FORM_OF(f.to) === 'notice' ? post(W, f.dg, f.days, f.cl) : f.to !== 'all' && f.to !== 'trade' ? send(W, f.to, f.dg, f.days, f.cl) : null;
     if (done) ui.modal = undefined;
   }
+  // 파견서: 보낼 곳 · 인원 · 머물 날을 고르고 보낸다
+  else if (k === 'disp') { ui.disp = { ...(ui.disp ?? DISP0), to: arg }; ui.tab = 'asks'; ui.open = true; ui.modal = 'disp'; }
+  else if (k === 'dto') ui.disp = { ...(ui.disp ?? DISP0), to: arg };
+  else if (k === 'dn') { const f = ui.disp ?? DISP0; ui.disp = { ...f, n: clamp(f.n + d, 1, B.SVY.max) }; }
+  else if (k === 'ddays') { const f = ui.disp ?? DISP0; ui.disp = { ...f, days: clamp(f.days + d, B.SVY.days[0], B.SVY.days[1]) }; }
+  else if (k === 'dsend') { const f = ui.disp ?? DISP0; if (dispatch(W, svOf(f.to), Math.min(f.n, crewFree(W)), f.days)) ui.modal = undefined; }
   else if (k === 'recall') recall(W, +arg);
   else if (k === 'clerk') hireClerk(W);
   else if (k === 'withdraw') withdraw(W, +arg);

@@ -1,6 +1,6 @@
 // 미궁관리국 배경 엔진 0단계: 인과 루프 두 쌍이 폭주하거나 멈추지 않는지, 국장의 손이 판을 바꾸는지
 import { describe, expect, it } from 'vitest';
-import { B, FACS, pairOf, BUREAU_AT, HAVEL_AT, LOYD_AT, ROADS, devRoadOf, GUILDS, answer, clauseOn, hireClerk, subAt, letterScore, meet, newWorld, over, pactK, pnlGuild, pnlSum, devStage, post, recall, relOf, run, send, step, teamsIn, withdraw, worstPair, wayOf, hqOf } from '../src/bureau/engine';
+import { B, FACS, pairOf, BUREAU_AT, HAVEL_AT, LOYD_AT, ROADS, devRoadOf, GUILDS, answer, clauseOn, hireClerk, subAt, letterScore, meet, newWorld, over, pactK, pnlGuild, pnlSum, devStage, post, recall, relOf, run, send, step, dispatch, crewFree, svWay, teamsIn, withdraw, worstPair, wayOf, hqOf } from '../src/bureau/engine';
 import { BOT, playGame } from '../sim/bureau';
 import { EDGES, LINKS, LOOPS, NODES, checkLoops } from '../src/bureau/loops';
 import { SHOT_N, openingHtml } from '../src/ui/bureau/opening';
@@ -266,6 +266,83 @@ describe('국장의 서류 (조항 조합)', () => {
     for (let t = 0; t < 30; t++) { setSeed(900 + t); step(a); setSeed(900 + t); step(b); }
     expect(b.dungeons[0].dead).toBeGreaterThan(0);
     expect(b.dungeons[0].fear).toBeLessThan(a.dungeons[0].fear);
+  });
+
+  it('파견서: 조사원은 걸어가 머물다 돌아오고, 품삯이 나가며 꺼림을 걷는다. 갱도 지도는 돌아온 날 돌리고 보고서가 온다', () => {
+    const a = newWorld(5), b = newWorld(5);
+    // 관리국에 남은 사람만큼만, 한 번에 넷까지, 머물 날은 정한 범위 안
+    expect(dispatch(b, 0, 5, 6)).toBeNull();
+    expect(dispatch(b, 0, 2, 1)).toBeNull();
+    const t = dispatch(b, 0, 4, 8)!;
+    expect(crewFree(b)).toBe(0);
+    expect(dispatch(b, 'wolf', 1, 4)).toBeNull();
+    const way = svWay(b, 0);
+    expect(t.at).toBe(way); expect(t.back).toBe(way * 2 + 8);
+    // 같은 날은 같은 난수로 견준다
+    const both = () => { setSeed(700 + a.day); step(a); setSeed(700 + b.day); step(b); };
+    both();
+    expect(b.budget).toBeCloseTo(a.budget - 4 * B.SVY.pay, 0);
+    // 가는 동안은 꺼림이 그대로, 닿고 나서 걷힌다
+    expect(b.dungeons[0].fear).toBe(a.dungeons[0].fear);
+    while (b.day <= t.at + 1) both();
+    expect(b.dungeons[0].fear).toBeLessThan(a.dungeons[0].fear);
+    while (b.trips.length) step(b);
+    expect(b.day).toBe(t.back);
+    const r = b.reports.find(x => x.trip)!;
+    expect(r.title).toBe('조사 보고: 폐광');
+    expect(b.dungeons[0].mapped).toBe(b.dungeons[0].sv >= B.SVY.map);
+    expect(crewFree(b)).toBe(b.crew);
+  });
+
+  it('파견서: 짧은 공고에 조사원을 붙이면 넘겨받는다. 수위가 높으면 가끔 사람을 잃는다', () => {
+    let ok = 0, rep = 0, lost = 0;
+    for (const seed of [1, 2, 3, 4, 5, 6]) {
+      const x = newWorld(seed), y = newWorld(seed);
+      post(x, 0, 20, { sub: 15 }); post(y, 0, 20, { sub: 15 });
+      dispatch(y, 0, 4, 8);
+      for (let t = 0; t < 40; t++) { step(x); step(y); }
+      expect(x.order.done).not.toBe('ok');
+      if (y.order.done === 'ok') ok++;
+      if (y.dungeons[0].mapped) rep++;
+      lost += y.dungeons[0].svLost;
+    }
+    expect(ok).toBeGreaterThanOrEqual(4);
+    expect(rep).toBeGreaterThanOrEqual(4);
+    expect(lost).toBeGreaterThan(0);
+  });
+
+  it('조사원을 잃으면 꺼림이 오르고 입지가 깎이며, 다음 달 첫날 다시 채운다', () => {
+    const W = newWorld(3);
+    dispatch(W, 0, 4, 20);
+    for (let t = 0; t < 29 && !W.dungeons[0].svLost; t++) { W.dungeons[0].level = 99; step(W); }
+    const d = W.dungeons[0];
+    expect(d.svLost).toBeGreaterThan(0);
+    expect(W.crew).toBe(B.SVY.crew - d.svLost);
+    expect(W.reports.some(r => r.title.includes('돌아오지 못함'))).toBe(true);
+    while (W.day % B.MONTH) step(W);
+    expect(W.crew).toBe(B.SVY.crew);
+  });
+
+  it('길드 본부 파견: 머문 마지막 날의 장부 · 속내를 돌아와서야 안다. 들키면 쫓겨 돌아오고 그 길드가 서운해한다', () => {
+    const W = newWorld(7);
+    const t = dispatch(W, 'wolf', 2, 4)!;
+    while (W.day < t.at + 2) step(W);
+    expect(W.guilds.wolf.peek).toBeNull();
+    while (W.trips.length) step(W);
+    const p = W.guilds.wolf.peek!;
+    expect(p.day).toBeLessThanOrEqual(t.until);
+    expect(p.pnl.length).toBe(W.dungeons.length);
+    expect(p.pnl[0]).toBeLessThan(p.pnl[1]);   // 폐광은 멀어 덜 남는다
+    const r = W.reports.find(x => x.trip)!;
+    expect(r.title).toBe('조사 보고: 잿빛 늑대단 본부');
+    // 강나루 조합은 정보를 가장 꺼려 곧 들킨다
+    let caught = false;
+    for (let k = 0; k < 8 && !caught; k++) {
+      const u = dispatch(W, 'river', 4, 20);
+      while (W.trips.length) step(W);
+      caught = !!u && W.reports.some(x => x.from === '강나루 조합' && x.title.includes('기웃거린'));
+    }
+    expect(caught).toBe(true);
   });
 
   it('공고문을 기한 전에 내리면 조항이 멎고 길드들이 서운해한다', () => {
