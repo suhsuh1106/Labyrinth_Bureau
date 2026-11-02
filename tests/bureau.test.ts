@@ -1,6 +1,6 @@
 // 미궁관리국 배경 엔진 0단계: 인과 루프 두 쌍이 폭주하거나 멈추지 않는지, 국장의 손이 판을 바꾸는지
 import { describe, expect, it } from 'vitest';
-import { B, FACS, pairOf, BUREAU_AT, HAVEL_AT, LOYD_AT, ROADS, devRoadOf, GUILDS, answer, clauseOn, hireClerk, subAt, letterScore, meet, newWorld, over, pactK, pnlGuild, pnlSum, devStage, post, recall, relOf, run, send, step, dispatch, crewFree, knowLv, willOf, svWay, teamsIn, withdraw, worstPair, wayOf, hqOf } from '../src/bureau/engine';
+import { B, FACS, pairOf, BUREAU_AT, HAVEL_AT, LOYD_AT, ROADS, devRoadOf, GUILDS, answer, clauseOn, upgrade, payOf, lagOf, crewMax, subAt, letterScore, meet, newWorld, over, pactK, pnlGuild, pnlSum, devStage, post, recall, relOf, run, send, step, dispatch, crewFree, knowLv, willOf, svWay, teamsIn, withdraw, worstPair, wayOf, hqOf } from '../src/bureau/engine';
 import { BOT, playGame } from '../sim/bureau';
 import { EDGES, LINKS, LOOPS, NODES, checkLoops } from '../src/bureau/loops';
 import { SHOT_N, openingHtml } from '../src/ui/bureau/opening';
@@ -359,23 +359,45 @@ describe('국장의 서류 (조항 조합)', () => {
     expect(post(W, 0, 20, { sub: 10 })).not.toBeNull();
     expect(post(W, 1, 20, { sub: 10 })).toBeNull();
     expect(post(W, 0, 20, { sub: 20 })).not.toBeNull();
-    W.pts = 1;
-    expect(hireClerk(W)).toBe(true);
-    expect(hireClerk(W)).toBe(false);
+    expect(upgrade(W, 'clerk')).toBe(true);
+    expect(upgrade(W, 'clerk')).toBe(false);   // 2단계는 입지 2단계에
     expect(post(W, 1, 20, { sub: 10 })).not.toBeNull();
   });
 
-  it('집무실: 입지가 새 단계에 닿으면 서기 몫이 생기고, 2단계에 요청서가 열린다', () => {
+  it('관리국: 입지가 새 단계에 닿으면 부서 다음 단계가 열리고, 2단계에 요청서가 열린다', () => {
     const W = newWorld(5);
     expect(W.rank).toBe(1);
     expect(send(W, 'wolf', 0, 20, { sub: 10 })).toBeNull();
     W.standing = B.STAND_LV[1] + 5;
     step(W);
     expect(W.rank).toBe(2);
-    expect(W.pts).toBe(1);
     expect(W.reports.at(-1)!.chips).toContain('길드 지정 서신(요청서) 열림');
     expect(toLock(W, 'wolf')).toBe('');
     expect(toLock(W, 'trade')).not.toBe('');
+  });
+
+  it('관리국 부서: 공사비는 예산에서 바로, 급료는 달 배정에서. 사신실은 사신을, 기록실은 보고 늦음을 줄인다', () => {
+    const W = newWorld(5), b0 = W.budget;
+    expect(upgrade(W, 'envoy')).toBe(true);
+    expect(upgrade(W, 'rec')).toBe(true);
+    expect(W.budget).toBe(b0 - B.DEPT.envoy.cost[0] - B.DEPT.rec.cost[0]);
+    expect(crewMax(W)).toBe(B.SVY.crew + B.DEPT.envoy.add!);
+    expect(payOf(W)).toBe(B.DEPT.envoy.pay + B.DEPT.rec.pay);
+    expect(lagOf(W, 0)).toBe(W.dungeons[0].dist - 1);
+    W.budget = 100;
+    expect(upgrade(W, 'clerk')).toBe(false);   // 예산 모자람
+  });
+
+  it('예산: 입장료는 달 끝에 중앙 배정과 함께 한 번에 들어온다', () => {
+    const W = newWorld(5);
+    for (let t = 0; t < 5; t++) step(W);
+    const b = W.budget;
+    expect(W.feeMo).toBeGreaterThan(0);
+    step(W);
+    expect(W.budget).toBe(b);   // 보조금 · 품삯 없으면 날마다는 그대로
+    while (W.day % B.MONTH) step(W);
+    expect(W.feeMo).toBe(0);
+    expect(W.budget).toBeGreaterThan(b + B.GRANT);
   });
 
   it('요청서: 이틀 뒤 답하고, 서명하면 그 길드에만 걸린다. 정보를 내달라는 청은 붉은 깃발단이 사양한다', () => {

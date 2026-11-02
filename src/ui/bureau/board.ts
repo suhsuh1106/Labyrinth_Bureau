@@ -3,7 +3,7 @@
 // 책상 위 물건(깃펜 → 서류, 기록 더미 → 기록, 종 → 회의) · 지도에서 고른 것(살펴보기)을 여는 시트 · 테사의 한마디
 import { lookHtml } from './map';
 import { askLetter, dateOf, moneyWord, mineSurveyHtml, docOf, floodNews, govHtml, introNews, letterHtml, newsHtml, peekLines, tripGov } from './docs';
-import { B, type FacId, FACS, GUILDS, type GuildId, type Report, type World, knowLv, pnlGuild, pnlOf, pnlSum, devStage, wayOf, hqOf, depOf, docsOut, escrowOf, crewFree, svWay, svName, type SvTo, trustOf, withdrawFav, facOf, levelOf, nameOf, pactK, relOf, seenLevel, subAt, teamsIn, willOf } from '../../bureau/engine';
+import { B, type FacId, FACS, GUILDS, type GuildId, type Report, type World, knowLv, lagOf, grantOf, payOf, crewMax, deptCost, deptOpen, DEPTS, type DeptId, pnlGuild, pnlOf, pnlSum, devStage, wayOf, hqOf, depOf, docsOut, escrowOf, crewFree, svWay, svName, type SvTo, trustOf, withdrawFav, facOf, levelOf, nameOf, pactK, relOf, seenLevel, subAt, teamsIn, willOf } from '../../bureau/engine';
 import { CLAUSE, CLAUSES, CLAUSE_MAX, type Clause, type Clauses, type ClauseId, FORM_NAME, type Tag, FORM_OF, type Form, toName, type To, clauseLock, fits, toLock } from '../../bureau/clauses';
 
 export type Tab = 'look' | 'asks' | 'lib' | 'meet' | 'office';
@@ -33,12 +33,12 @@ export const levelCls = (v: number) => v >= B.DANGER ? 'bad' : v >= B.RISK_AT ? 
 const stepper = (act: string, val: string, label: string) =>
   `<span class="step" role="group" aria-label="${label}"><button type="button" data-act="${act}" data-d="-1" aria-label="${label} 내리기">−</button><output>${val}</output><button type="button" data-act="${act}" data-d="1" aria-label="${label} 올리기">+</button></span>`;
 
-// 하루 예산 흐름의 어림: 입장료(중앙 몫 뺌) − 보조금 − 사신 품삯
-export function dayFlow(W: World) {
-  let fee = 0, sub = 0;
-  W.dungeons.forEach((d, i) => { const n = teamsIn(d); fee += n * B.FEE * (1 - W.crownShare / 100); sub += n * subAt(W, i); });
-  for (const t of W.trips) sub += t.n * B.SVY.pay;
-  return { fee, sub, net: fee - sub };
+// 다음 배정의 어림: 중앙 배정 + 이달 모인 입장료 몫 + 오늘 든 조로 남은 날을 채운 값
+export function grantNext(W: World) {
+  let fee = 0;
+  W.dungeons.forEach(d => { fee += teamsIn(d) * B.FEE * (1 - W.crownShare / 100); });
+  const left = B.MONTH - (W.day % B.MONTH);
+  return { left, g: grantOf(W) + W.feeMo + fee * left };
 }
 
 // 설정 단추(왼쪽 위 정보 끝): 톱니 모양
@@ -100,12 +100,10 @@ function autoHtml(W: World, ui: BuUi | undefined, play: boolean) {
 
 export function topHtml(W: World, ui?: BuUi, play = false) {
   const wait = ui && tutOf(W, ui) === 'wait';
-  const f = dayFlow(W), month = Math.floor(W.day / B.MONTH) + 1, toGrant = B.MONTH - (W.day % B.MONTH);
-  const grant = B.GRANT + W.standing * B.GRANT_K;
+  const nx = grantNext(W), month = Math.floor(W.day / B.MONTH) + 1;
   return `<div class="t-day"><b class="num">${Math.min(W.day + 1, B.DAYS)}</b><span>일 / ${B.DAYS} · ${month}달째</span></div>
-  <div class="t-cell"><span>예산</span><b class="num ${W.budget < 0 ? 'neg' : ''}">${n0(W.budget)}G</b><small class="num ${f.net < 0 ? 'neg' : ''}">하루 ${sgn(f.net)}${escrowOf(W) > 0 ? ` · 공탁 ${n0(escrowOf(W))}` : ''}</small></div>
-  <button type="button" class="t-cell t-office${ui?.open && ui.tab === 'office' ? ' on' : ''}" data-act="tab:office" title="집무실"><span>입지</span><b class="num">${n1(W.standing)}</b><i class="gauge"><i style="width:${W.standing}%"></i></i>${ui && !(ui.open && ui.tab === 'office') && W.reports.length - ui.seenNews + W.pts > 0 ? `<i class="badge">${W.reports.length - ui.seenNews + W.pts}</i>` : ''}</button>
-  <div class="t-cell"><span>중앙 배정</span><b class="num">${n0(grant)}G</b><small>${toGrant}일 뒤</small></div>
+  <div class="t-cell"><span>예산</span><b class="num ${W.budget < 0 ? 'neg' : ''}">${n0(W.budget)}G</b><small class="num">${nx.left}일 뒤 +${n0(nx.g)}${escrowOf(W) > 0 ? ` · 공탁 ${n0(escrowOf(W))}` : ''}</small></div>
+  <button type="button" class="t-cell t-office${ui?.open && ui.tab === 'office' ? ' on' : ''}" data-act="tab:office" title="관리국"><span>관리국</span><b class="num">${n1(W.standing)}</b><i class="gauge"><i style="width:${W.standing}%"></i></i>${ui && !(ui.open && ui.tab === 'office') && W.reports.length - ui.seenNews > 0 ? `<i class="badge">${W.reports.length - ui.seenNews}</i>` : ''}</button>
   <div class="t-btns">${autoHtml(W, ui, play)}<button type="button" class="go${wait && !play ? ' pulse' : ''}" data-act="next" ${W.day >= B.DAYS ? 'disabled' : ''}>다음 날 <kbd>N</kbd></button><button type="button" data-act="ff" ${W.day >= B.DAYS ? 'disabled' : ''}>닷새</button></div>
   ${fsBtn()}<button type="button" class="t-set" data-act="set" aria-label="설정" title="설정">${GEAR}</button>`;
 }
@@ -116,7 +114,7 @@ export function dungeonHtml(W: World, i: number) {
   return `<article class="dg ${levelCls(lv)}">
     <header><h3>${d.name}</h3><span class="lord">${d.land} · 거리 ${d.dist}일</span></header>
     <div class="lv" title="미궁에 찬 마물"><div class="lv-bar"><i style="height:${Math.min(100, lv)}%"></i><b style="bottom:${B.DANGER}%"></b></div>
-      <div class="lv-num"><b class="num">${n0(lv)}</b><span class="tag">${levelWord(lv)}</span><small class="num">${tr >= 0.05 ? '▲' : tr <= -0.05 ? '▼' : '–'} 하루 ${n1(Math.abs(tr))}</small><small>${d.dist}일 전 보고</small></div></div>
+      <div class="lv-num"><b class="num">${n0(lv)}</b><span class="tag">${levelWord(lv)}</span><small class="num">${tr >= 0.05 ? '▲' : tr <= -0.05 ? '▼' : '–'} 하루 ${n1(Math.abs(tr))}</small><small>${lagOf(W, i) ? `${lagOf(W, i)}일 전 보고` : '그날 보고'}</small></div></div>
     <dl class="dg-teams">${[...GUILDS].sort((a, b) => d.teams[b] - d.teams[a]).map(g => `<dt>${B.GUILD[g].name} <small>본부에서 ${wayOf(W, g, i)}일</small></dt><dd class="num">${n1(d.teams[g])}조</dd>`).join('')}<dt>범람 · 잃은 조</dt><dd class="num">${d.floods} · ${n1(d.dead)}</dd></dl>
     ${devHtml(W, i)}
     ${surveyHtml(W, i)}
@@ -352,19 +350,48 @@ function libHtml(W: World, ui: BuUi) {
   return nav + clausesHtml(W, ui);
 }
 
-// 집무실: 입지 단계 · 서기 · 다음 단계에 열리는 것, 그리고 책상에 온 보고
+// 관리국 창: 중앙의 평가(입지 단계) · 부서 셋(예산으로 증설) · 다음 배정의 장부 · 직원, 그리고 책상에 온 보고
+const DEPT_NAME: Record<DeptId, string> = { clerk: '서기실', envoy: '사신실', rec: '기록실' };
+function deptFx(W: World, k: DeptId, lv: number) {
+  if (k === 'clerk') return `서기 ${1 + lv}명`;
+  if (k === 'envoy') return `사신 ${B.SVY.crew + lv * (B.DEPT.envoy.add ?? 0)}명`;
+  const lags = W.dungeons.map(d => Math.max(0, d.dist - lv));
+  return `보고 ${Math.min(...lags) === Math.max(...lags) ? lags[0] : `${Math.min(...lags)} ~ ${Math.max(...lags)}`}일 늦음`;
+}
+function deptHtml(W: World, k: DeptId) {
+  const lv = W.dept[k], max = B.DEPT[k].cost.length, c = deptCost(W, k), open = deptOpen(W, k);
+  const why = c == null ? '끝 단계' : !open ? `입지 ${lv + 1}단계에 열림` : W.budget < c ? '예산 모자람' : '';
+  return `<div class="dept">
+    <header><b>${DEPT_NAME[k]}</b><span class="pips" aria-label="${lv} / ${max}단계">${Array.from({ length: max }, (_, j) => `<i class="${j < lv ? 'on' : ''}"></i>`).join('')}</span></header>
+    <p class="num">${deptFx(W, k, lv)}${c != null ? ` → <b>${deptFx(W, k, lv + 1)}</b>` : ''}</p>
+    <small class="num">${lv ? `달 급료 ${n0(lv * B.DEPT[k].pay)}G` : '달 급료 없음'}${c != null ? ` · 증설 뒤 +${B.DEPT[k].pay}G` : ''}</small>
+    <button type="button" class="go" data-act="dept:${k}" ${why ? 'disabled' : ''}>${c == null ? '끝 단계' : `증설 ${n0(c)}G`}${why && c != null ? `<small>${why}</small>` : ''}</button>
+  </div>`;
+}
 function officeHtml(W: World, ui: BuUi) {
   const lv = W.rank, next = B.STAND_LV[lv], prev = B.STAND_LV[lv - 1];
   const prog = next == null ? 100 : Math.max(0, Math.min(100, (W.standing - prev) / (next - prev) * 100));
-  const opens = (k: number) => k === B.LETTER_LV ? '길드 지정 서신(요청서)' : '';
+  const nx = grantNext(W), pay = payOf(W), out = W.trips.reduce((a, t) => a + t.n, 0);
   const rs = W.reports.slice().reverse().slice(0, 40);
   return `<section class="office">
+    <div class="o-rank"><span>중앙의 평가</span><b class="num">입지 ${n1(W.standing)} · ${lv}단계</b><i class="gauge"><i style="width:${prog}%"></i></i>
+      <small class="num">${next == null ? '끝 단계' : `${next}에 ${lv + 1}단계 · 부서 ${lv + 1}단계 증설${lv + 1 === B.LETTER_LV ? ' · 요청서' : ''}`}</small></div>
     ${W.order ? `<div class="o-order ${W.order.done}"><span>중앙 요구서</span><b>폐광 인계: 하루 ${W.order.min}조 이상 ${W.order.need}일 이어서</b><small class="num">${orderLine(W)}</small></div>` : ''}
-    <div class="o-rank"><span>입지 단계</span><b class="num">${lv}</b><i class="gauge"><i style="width:${prog}%"></i></i>
-      <small class="num">${next == null ? '끝 단계' : `입지 ${n1(W.standing)} / ${next} → ${lv + 1}단계${opens(lv + 1) ? ` · ${opens(lv + 1)} 열림` : ''} · 서기 한 명`}</small></div>
-    <div class="o-clerk"><span>서기</span><b class="num">${W.clerks}명</b><small>한꺼번에 낼 서류 ${W.clerks}장 · 지금 ${docsOut(W)}장</small>
-      <button type="button" class="go" data-act="clerk" ${W.pts > 0 ? '' : 'disabled'}>서기 들이기${W.pts > 0 ? ` (${W.pts})` : ''}</button></div>
-    ${levelOf(W.standing) < lv ? `<p class="note">입지가 단계 기준 아래로 내려갔다. 단계와 서기는 그대로다.</p>` : ''}
+    <h4>부서</h4>
+    <div class="depts">${DEPTS.map(k => deptHtml(W, k)).join('')}</div>
+    <h4>다음 배정 <small class="num">${nx.left}일 뒤</small></h4>
+    <dl class="o-book num">
+      <dt>중앙 배정</dt><dd>+${n0(grantOf(W))}</dd>
+      <dt>입장료 몫</dt><dd>+${n0(nx.g - grantOf(W))} <small>모인 것 ${n0(W.feeMo)}</small></dd>
+      <dt>급료</dt><dd class="${pay ? 'neg' : ''}">${pay ? `−${n0(pay)}` : '0'}</dd>
+      <dt class="sum">들어올 돈</dt><dd class="sum">${sgn(nx.g - pay)}G</dd>
+      ${escrowOf(W) > 0 ? `<dt>공탁 중</dt><dd>${n0(escrowOf(W))}</dd>` : ''}
+    </dl>
+    <h4>직원</h4>
+    <dl class="o-book num">
+      <dt>서기</dt><dd>${W.clerks}명 <small>낸 서류 ${docsOut(W)} / ${W.clerks}</small></dd>
+      <dt>사신</dt><dd>${crewMax(W)}명 <small>나가 있음 ${out} · 이달 더 보낼 수 있음 ${Math.max(0, crewFree(W))}</small></dd>
+    </dl>
   </section>
   <h4>보고</h4>
   <ul class="news">${rs.map((r, k) => `<li class="${W.reports.length - k > ui.seenNews ? 'new' : ''}"><small>${r.day}일 · ${r.from}</small><b>${r.title}</b>${r.chips.map(c => `<span class="chip">${c}</span>`).join('')}</li>`).join('')}</ul>`;

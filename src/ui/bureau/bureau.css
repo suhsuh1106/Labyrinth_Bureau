@@ -244,8 +244,9 @@ button.link { border: 0; background: none; padding: 0; color: var(--accent); jus
 .desk[data-mode="desk"] ~ .zoom { display: none; }
 .room:has(.sheet:not([hidden])) .zoom { right: calc((var(--gut) + var(--sa-r) + var(--sheet-w) + 10px) / var(--hz)); }
 .room:has(.desk[data-mode="map"]) .asks-float { top: calc((var(--gut) + var(--sa-t)) / var(--hz) + 46px); }
-.tut-float { position: absolute; z-index: 3; zoom: var(--hz); left: calc(50% - 130px); transform: translateX(-50%); top: calc((var(--gut) + var(--sa-t)) / var(--hz) + 74px); width: min(520px, calc(100vw / var(--hz) - 40px)); pointer-events: none; }
-.room:has(.sheet:not([hidden])) .tut-float { left: calc((100vw - var(--sheet-w)) / 2 / var(--hz)); width: min(460px, calc((100vw - var(--sheet-w)) / var(--hz) - 40px)); }
+.tut-float { position: absolute; z-index: 3; zoom: var(--hz); left: calc(50% - 60px); transform: translateX(-50%); bottom: calc((var(--gut) + var(--sa-b, 0px)) / var(--hz) + 4px); width: min(520px, calc(100vw / var(--hz) - 40px)); pointer-events: none; }
+/* 평소엔 아래(위쪽의 폐광을 가리지 않게), 시트가 열리면 날 넘기기 단추가 왼쪽으로 오므로 위로 */
+.room:has(.sheet:not([hidden])) .tut-float { left: calc((100vw - var(--sheet-w)) / 2 / var(--hz)); bottom: auto; top: calc((var(--gut) + var(--sa-t)) / var(--hz) + 74px); width: min(460px, calc((100vw - var(--sheet-w)) / var(--hz) - 40px)); }
 .tut-float .tut { margin: 0; grid-template-columns: 56px 1fr; align-items: center; padding: 8px 14px 8px 8px; border-radius: 30px 8px 8px 30px; font-size: 14px; box-shadow: 0 2px 10px rgba(16, 24, 30, .2); background: color-mix(in srgb, var(--accent) 8%, var(--paper)); }
 .badge { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--stamp); color: var(--paper); font: 600 11px/18px var(--f-num); }
 .pane { padding: 12px; display: grid; gap: 10px; align-content: start; }
@@ -292,7 +293,8 @@ button.link { border: 0; background: none; padding: 0; color: var(--accent); jus
   .top { gap: 4px; max-width: calc(100% - 180px); }
   .top > * { padding: 3px 8px !important; }
   .t-cell small, .t-cell span { font-size: 10px; }
-  .tut-float { width: min(440px, calc(100vw / var(--hz) - 40px)); top: calc((var(--gut) + var(--sa-t)) / var(--hz) + 60px); }
+  .tut-float { width: min(440px, calc(100vw / var(--hz) - 40px)); }
+  .room:has(.sheet:not([hidden])) .tut-float { top: calc((var(--gut) + var(--sa-t)) / var(--hz) + 60px); }
   .tut-float .tut { font-size: 11.5px; padding: 4px 10px 4px 4px; grid-template-columns: 40px 1fr; }
   .tut .face { width: 40px; height: 40px; }
 }
@@ -351,11 +353,21 @@ button.link { border: 0; background: none; padding: 0; color: var(--accent); jus
 .w-row select { justify-self: start; max-width: 100%; font: inherit; color: var(--ink); background: var(--paper-2); border: 1px solid var(--rule); border-radius: 4px; padding: 5px 8px; }
 .write h4 small { color: var(--soft); font-weight: 400; margin-left: 6px; }
 .office { display: grid; gap: 10px; }
-.o-rank, .o-clerk { display: grid; grid-template-columns: 5em auto 1fr; gap: 4px 10px; align-items: center; border: 1px solid var(--rule); border-radius: 4px; padding: 8px 10px; }
-.o-rank > span, .o-clerk > span { color: var(--soft); font-size: 12px; }
-.o-rank > b, .o-clerk > b { font-size: 20px; }
-.o-rank small, .o-clerk small { grid-column: 1 / -1; color: var(--soft); font-size: 12px; }
-.o-clerk button { grid-column: 1 / -1; justify-self: start; }
+.o-rank { display: grid; grid-template-columns: auto 1fr;  gap: 4px 10px; align-items: center; border: 1px solid var(--rule); border-radius: 4px; padding: 8px 10px; }
+.o-rank > span { color: var(--soft); font-size: 12px; }
+.o-rank > b { font-size: 17px; grid-column: 1 / -1; }
+.o-rank small { grid-column: 1 / -1; color: var(--soft); font-size: 12px; }
+.office h4 { margin: 4px 0 -4px; font-size: 13px; } .office h4 small { color: var(--soft); font-weight: 400; margin-left: 6px; }
+.depts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.dept { display: grid; gap: 4px; align-content: start; border: 1px solid var(--rule); border-radius: 4px; padding: 8px 10px; }
+.dept header { display: flex; justify-content: space-between; align-items: center; }
+.dept header b { font: 700 14px var(--f-display); }
+.dept .pips { display: flex; gap: 3px; } .dept .pips i { width: 9px; height: 9px; border: 1px solid var(--ink, #2b2116); border-radius: 50%; } .dept .pips i.on { background: var(--accent); border-color: var(--accent); }
+.dept p { margin: 0; font-size: 13px; } .dept small { color: var(--soft); font-size: 11.5px; }
+.dept button { display: grid; justify-items: center; gap: 0; margin-top: 2px; } .dept button small { font-size: 10.5px; color: inherit; opacity: .8; }
+.o-book { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; margin: 0; border: 1px solid var(--rule); border-radius: 4px; padding: 8px 10px; font-size: 13px; }
+.o-book dt { color: var(--soft); } .o-book dd { margin: 0; text-align: right; } .o-book dd small { color: var(--soft); margin-left: 6px; }
+.o-book .sum { border-top: 1px solid var(--rule); padding-top: 3px; font-weight: 700; color: inherit; }
 
 /* 첫 장면: 신문과 요구서 · 요구서 진행 */
 .paper-news { border-bottom: 3px double var(--rule); padding-bottom: 8px; }

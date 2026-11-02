@@ -36,6 +36,13 @@ export const B = {
   SUB_FAV: 1 / 4000,                      // 보조금 G당 돈을 보는 길드(cash 0.8)가 하루에 얻는 호감
   // 집무실: 입지 단계(이 입지에 닿으면 오름, 내려가지 않음). 단계가 오를 때마다 서기 한 명을 들일 수 있다. 서기 수 = 한꺼번에 내놓는 서류 수
   STAND_LV: [0, 30, 45, 60, 75], LETTER_LV: 2,
+  // 관리국 부서: 단계마다 공사비(한 번) · 늘어난 사람의 달 급료. 다음 단계는 입지 단계가 그 단계 이상일 때 연다
+  //   서기실: 서기 +1(한꺼번에 낼 서류) · 사신실: 사신 +2 · 기록실: 미궁 보고가 하루씩 덜 늦다
+  DEPT: {
+    clerk: { cost: [300, 600, 1000, 1500], pay: 40 },
+    envoy: { cost: [250, 500, 900], pay: 30, add: 2 },
+    rec: { cost: [400, 900], pay: 50 },
+  } as Record<DeptId, { cost: number[]; pay: number; add?: number }>,
   // 요청서(길드 하나에 보내는 서신): 읽고 답하는 날 · 서명할 마음의 문턱 · 길드마다 꼬리표를 보는 무게
   LETTER_DAYS: 2, LETTER_AT: 50,
   // 공고문은 신문에 실려 퍼진다: 관리국에서 길드 본부까지 걸리는 날만큼(hqOf) 뒤에 그 길드에 걸린다
@@ -171,6 +178,7 @@ export interface Stats {
 }
 export interface World {
   day: number; budget: number; standing: number;
+  feeMo: number;                  // 이달 모인 입장료(중앙 몫 뺌): 달 끝에 중앙 배정과 함께 예산으로 들어온다
   prio: number;                   // 우선권 조항 0 ~ 100: 50보다 크면 큰 길드 편
   crownShare: number;             // 입장료에서 중앙 몫 %
   dungeons: Dungeon[]; guilds: Record<GuildId, Guild>;
@@ -190,7 +198,8 @@ export interface World {
   notices: Notice[];              // 길드 전체에 내건 공고문
   letters: Letter[];              // 길드 하나에 보낸 요청서 (답을 기다림 · 서명됨)
   docN: number;                   // 서류 번호
-  rank: number; clerks: number; pts: number; // 집무실: 닿은 입지 단계 · 서기 · 서기를 들일 수 있는 몫
+  rank: number; clerks: number;   // 관리국: 닿은 입지 단계 · 서기(서기실 단계 + 1)
+  dept: Record<DeptId, number>;   // 관리국 부서 단계
   order: Order;                   // 중앙 행정원의 요구서
   crew: number;                   // 관리국의 사신 (다음 달 첫날 다시 채운다)
   trips: Trip[];                  // 파견서로 나가 있는 사신
@@ -255,7 +264,7 @@ export function newWorld(seed: number, o: Opts = {}): World {
     return { id, name: g.name, size: g.size, money: g.money, infl: 0, fav: g.fav + Math.round((rnd() - 0.5) * 12), check: 0, peak: g.size, know: 0, grip: 0, peek: null };
   };
   const W: World = {
-    day: 0, budget: 3000, standing: 20, prio: 50, crownShare: 10,
+    day: 0, budget: 3000, feeMo: 0, standing: 20, prio: 50, crownShare: 10,
     dungeons,
     guilds: Object.fromEntries(GUILDS.map(g => [g, guild(g)])) as Record<GuildId, Guild>,
     seen: dungeons.map(d => [d.level]), hist: dungeons.map(d => [d.level]),
@@ -267,7 +276,7 @@ export function newWorld(seed: number, o: Opts = {}): World {
     stats: { floods: 0, dead: 0, spent: 0, toFlood: [], pinned: {}, loops: { R1: 0, B1: 0, R2: 0, R3: 0, B3: 0, R4: 0, B4: 0, R5: 0, B5: 0 }, bigSize: [], clashes: 0, meets: 0, asks: 0, answered: 0, sides: 0, relMin: 0, relHist: [], litHist: [] },
     rel: {},
     owe: Object.fromEntries(FACS.map(f => [f, 0])) as Record<FacId, number>, fowe: Object.fromEntries(FACS.map(f => [f, {}])) as World['fowe'],
-    pact: null, meetAt: -99, asks: [], later: [], askN: 0, lit: [], notices: [], letters: [], docN: 0, rank: 1, clerks: 1, pts: 0,
+    pact: null, meetAt: -99, asks: [], later: [], askN: 0, lit: [], notices: [], letters: [], docN: 0, rank: 1, clerks: 1, dept: { clerk: 0, envoy: 0, rec: 0 },
     order: { dg: B.ORDER.dg, min: B.ORDER.min, need: B.ORDER.need, got: 0, pat: B.ORDER.pat, done: '' },
     crew: B.SVY.crew, trips: [], pnl: [],
     ...o,
@@ -337,6 +346,8 @@ export const wayDayG = () => B.WAY_K * B.SUB_LURE;
 const guildLure = (W: World, g: GuildId, i: number) => -wayCost(W, g, i) - (fearK(g) - 1) * harmOf(W, W.dungeons[i]);
 // 길드 g의 조 하나가 미궁 i에서 하루 남기는 값의 어림(G, 보조금 빼고): 손익 자료의 길드별 칸
 export const pnlGuild = (W: World, g: GuildId, i: number) => Math.round(pnlOf(W, W.dungeons[i]) + guildLure(W, g, i) * B.SUB_LURE);
+// 달마다 중앙의 배정(입장료 몫 빼고)
+export const grantOf = (W: World) => B.GRANT + W.standing * B.GRANT_K;
 export const levelOf = (standing: number) => B.STAND_LV.filter(t => standing >= t).length;
 export const docsOut = (W: World) => W.notices.length + W.letters.length;
 
@@ -445,9 +456,9 @@ export function step(W: World) {
       W.reports.push({ day: W.day, from: '왕도일보', title: `${d.name} 범람`, chips: [`${d.land} 마을 피해`, `이번이 ${d.floods}번째`] });
     }
     W.hist[i].push(d.level);
-    W.seen[i].push(W.hist[i].at(recAt(W, i) ? -1 : -1 - d.dist) ?? W.hist[i][0]);
+    W.seen[i].push(W.hist[i].at(recAt(W, i) ? -1 : -1 - lagOf(W, i)) ?? W.hist[i][0]);
     const sn = W.seen[i];
-    if (sn.at(-1)! >= B.DANGER && sn.at(-2)! < B.DANGER) W.reports.push({ day: W.day, from: '관리국 조사관', title: `${d.name} 마물 들끓음`, chips: [`${d.name} 마물 보고`, `${d.dist}일 전 보고`] });
+    if (sn.at(-1)! >= B.DANGER && sn.at(-2)! < B.DANGER) W.reports.push({ day: W.day, from: '관리국 조사관', title: `${d.name} 마물 들끓음`, chips: [`${d.name} 마물 보고`, lagOf(W, i) ? `${lagOf(W, i)}일 전 보고` : '그날 보고'] });
     // R1: 위험선 위에서 조가 빠지고 있다 / B1: 보조금이 조를 들이고 있다
     if (d.level >= B.DANGER && n < r1Before[i] - 0.01) lit(W, 'R1');
     if (subAt(W, i) > 0 && n > r1Before[i] + 0.01) lit(W, 'B1');
@@ -503,10 +514,11 @@ export function step(W: World) {
   sideWith(W);
   makeAsks(W);
   for (const f of FACS) W.owe[f] *= B.OWE_FADE;
-  // 예산: 입장료(중앙 몫을 뺀 나머지) − 보조금, 달마다 중앙의 배정
-  W.budget += fees * (1 - W.crownShare / 100) - subs + escrowPaid;
+  // 예산: 보조금은 그날 나가고, 입장료(중앙 몫을 뺀 나머지)는 징세청이 모아 두었다가 달 끝에 중앙 배정과 함께 한 번에 내려보낸다
+  W.feeMo += fees * (1 - W.crownShare / 100);
+  W.budget += escrowPaid - subs;
   S.spent += subs;
-  if (W.day % B.MONTH === 0) { W.budget += B.GRANT + W.standing * B.GRANT_K; W.crew = B.SVY.crew; }
+  if (W.day % B.MONTH === 0) { W.budget += grantOf(W) + W.feeMo; W.feeMo = 0; W.budget -= payOf(W); W.stats.spent += payOf(W); W.crew = crewMax(W); }
   // 호감: 평소로 천천히, 조항이 끌어당긴다
   // 길드마다 결대로: 우선권은 권리를 보는 큰 길드가 반기고 작은 길드가 싫어한다. 보조금 · 기록 · 위로금은 돈 · 정보 · 안전의 결만큼
   for (const o of GUILDS.map(g => G[g])) o.fav += (50 - o.fav) * B.FAV_BACK;
@@ -823,17 +835,28 @@ function orderDay(W: World) {
   }
 }
 
-// 집무실: 입지가 새 단계에 닿으면 서기를 들일 몫이 하나 생긴다. 단계는 내려가지 않는다
+// 관리국: 입지가 새 단계에 닿으면 부서의 다음 단계가 열린다. 단계는 내려가지 않는다
 function officeDay(W: World) {
   const lv = levelOf(W.standing);
   if (lv <= W.rank) return;
-  W.pts += lv - W.rank;
   W.rank = lv;
-  W.reports.push({ day: W.day, from: '중앙 행정원', title: `입지 ${lv}단계`, chips: ['서기 한 명을 더 들일 수 있음', ...(lv === B.LETTER_LV ? ['길드 지정 서신(요청서) 열림'] : [])] });
+  W.reports.push({ day: W.day, from: '중앙 행정원', title: `입지 ${lv}단계`, chips: ['관리국 부서 증설 승인', ...(lv === B.LETTER_LV ? ['길드 지정 서신(요청서) 열림'] : [])] });
 }
-export function hireClerk(W: World) {
-  if (W.pts <= 0) return false;
-  W.pts--; W.clerks++;
+export type DeptId = 'clerk' | 'envoy' | 'rec';
+export const DEPTS: DeptId[] = ['clerk', 'envoy', 'rec'];
+// 다음 단계 공사비 (끝 단계면 null) · 열렸나(입지 단계)
+export const deptCost = (W: World, k: DeptId) => B.DEPT[k].cost[W.dept[k]] ?? null;
+export const deptOpen = (W: World, k: DeptId) => W.dept[k] < W.rank;
+// 달마다 나가는 급료 · 사신 정원 · 미궁 보고가 늦는 날
+export const payOf = (W: World) => DEPTS.reduce((a, k) => a + W.dept[k] * B.DEPT[k].pay, 0);
+export const crewMax = (W: World) => B.SVY.crew + W.dept.envoy * (B.DEPT.envoy.add ?? 0);
+export const lagOf = (W: World, i: number) => Math.max(0, W.dungeons[i].dist - W.dept.rec);
+export function upgrade(W: World, k: DeptId) {
+  const c = deptCost(W, k);
+  if (c == null || !deptOpen(W, k) || W.budget < c) return false;
+  W.budget -= c; W.stats.spent += c; W.dept[k]++;
+  if (k === 'clerk') W.clerks++;
+  if (k === 'envoy') W.crew += B.DEPT.envoy.add ?? 0;
   return true;
 }
 
