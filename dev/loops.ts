@@ -4,7 +4,7 @@ import { B, GUILDS, type LoopId, type World, newWorld, over, relOf, step, worstP
 import { BOT } from '../src/bureau/bots';
 import { EDGES, LINKS, LOOPS, NODES, type LoopEdge, checkLoops } from '../src/bureau/loops';
 
-interface Snap { lv: number[]; big: number; small: number; rel: number; standing: number; budget: number; lit: LoopId[] }
+interface Snap { lv: number[]; big: number; small: number; rel: number; standing: number; budget: number; price: number; stock: number; lit: LoopId[] }
 interface Game { W: World; snaps: Snap[] }
 
 const $ = (id: string) => document.getElementById(id)!;
@@ -16,7 +16,7 @@ function play(seed: number, bot: string, noCheck: boolean): Game {
   const W = newWorld(seed, { noCheck }), snaps: Snap[] = [];
   while (!over(W)) {
     BOT[bot](W); step(W);
-    snaps.push({ lv: W.dungeons.map(d => d.level), big: GUILDS.filter(g => B.GUILD[g].big).reduce((a, g) => a + W.guilds[g].size, 0), small: GUILDS.filter(g => !B.GUILD[g].big).reduce((a, g) => a + W.guilds[g].size, 0), rel: relOf(W, ...worstPair(W)), standing: W.standing, budget: W.budget, lit: W.stats.litHist.at(-1)! });
+    snaps.push({ lv: W.dungeons.map(d => d.level), big: GUILDS.filter(g => B.GUILD[g].big).reduce((a, g) => a + W.guilds[g].size, 0), small: GUILDS.filter(g => !B.GUILD[g].big).reduce((a, g) => a + W.guilds[g].size, 0), rel: relOf(W, ...worstPair(W)), standing: W.standing, budget: W.budget, price: W.mkt.price, stock: W.mkt.stock / B.MKT.dem, lit: W.stats.litHist.at(-1)! });
   }
   return { W, snaps };
 }
@@ -95,10 +95,12 @@ function drawSparks() {
     ['작은 길드 다섯 조', S.map(x => x.small), 0, 60, 'var(--b3)', undefined, s.small],
     ['나쁜 두 길드 사이', S.map(x => x.rel), -100, 100, 'var(--r4)', 0, s.rel],
     ['국장 입지', S.map(x => x.standing), 0, 100, 'var(--b4)', undefined, s.standing],
+    ['소재 시세', S.map(x => x.price), B.MKT.lo, B.MKT.hi, 'var(--b6)', 1, s.price],
+    ['상단 재고(일치)', S.map(x => x.stock), 0, Math.max(B.MKT.hold * 2, ...S.map(x => x.stock)), 'var(--b6)', B.MKT.hold, s.stock],
     ['예산', S.map(x => x.budget), Math.min(0, ...S.map(x => x.budget)), Math.max(1, ...S.map(x => x.budget)), 'var(--b5)', 0, s.budget],
   ];
   $('sparks').innerHTML = rows.map(([name, xs, lo, hi, c, ref, now]) => `<div class="spark"><span>${name}</span>${spark(xs, lo, hi, c, ref)}<b>${f(now)}</b></div>`).join('')
-    + `<p class="note">점선: 위험선 ${B.DANGER} · 사이 0 · 예산 0. 세로줄이 고른 날.</p>`;
+    + `<p class="note">점선: 위험선 ${B.DANGER} · 사이 0 · 시세 1(제값) · 재고 ${B.MKT.hold}일치 · 예산 0. 세로줄이 고른 날.</p>`;
 }
 
 function drawReports() {

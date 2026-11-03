@@ -1,6 +1,6 @@
 // 종이의 꼴: 신문 지면 · 관청 공문 · 길드 서신. 그리기만 한다(상태에 쓰지 않고 난수도 쓰지 않는다).
 // 받은 보고(Report)를 그 서식에 맞는 문체의 글로 옮기는 것도 여기서 한다.
-import { B, GUILDS, type GuildId, type Peek, type Report, type Trip, type World, knowLv, svName, wayOf } from '../../bureau/engine';
+import { B, GUILDS, type GuildId, type Peek, type Report, type Trip, type World, demOf, knowLv, priceWord, stockWord, svName, wayOf } from '../../bureau/engine';
 
 // 날짜: 한 달 서른 날, 임기 첫날이 왕국력 412년 1월 1일
 export const dateOf = (day: number) => `왕국력 412년 ${Math.floor(day / 30) + 1}월 ${(day % 30) + 1}일`;
@@ -63,7 +63,7 @@ export const introNews = (): News => ({
 
 // 범람 기사: 보고 한 줄을 지면으로 (길 · 마을 소식은 그 기사로)
 export const floodNews = (W: World, r: Report, no: number): News => {
-  const grow = growNews(r, no);
+  const grow = growNews(r, no) ?? mktNews(r, no);
   if (grow) return grow;
   const d = W.dungeons.find(x => r.title.startsWith(x.name));
   return {
@@ -74,6 +74,24 @@ export const floodNews = (W: World, r: Report, no: number): News => {
     cols: [{ h: '발길이 끊긴 어귀', p: '범람 뒤로 그 굴에 드는 조는 눈에 띄게 줄었다. "사람을 묻은 곳에 다시 들어가려면, 그만한 셈이 맞아야 하오." 한 길드 사람의 말이다. 셈이 맞지 않는 동안 굴 안의 수는 또 불어난다.' }],
   };
 };
+
+// 시세 기사: 소재 값이 문턱을 넘을 때만(내림세 · 제자리). 값 · 재고의 수치는 쓰지 않는다
+function mktNews(r: Report, no: number): News | null {
+  if (r.title.startsWith('소재 값 내림세')) return {
+    day: r.day, no, head: '로이드 성 상단 창고에 소재 쌓여, 값 물러나', deck: '왕도 주문은 그대로 · 산에서 내려오는 수레만 늘어',
+    lead: '로이드 성 창고 마당에 지붕 없는 짐이 늘었다. 산에서 내려오는 수레는 줄지 않는데 왕도에서 올라오는 주문서는 지난 철 그대로다. 상단은 값을 깎아 부르기 시작했고, 길드 조장들은 받아 든 동전을 두 번씩 센다.',
+    cols: [
+      { h: '같은 짐, 얇아진 주머니', p: '"지난달과 똑같이 지고 내려왔는데 손에 쥔 건 덜하오." 창고 앞에서 만난 한 조장의 말이다. 같은 굴에 다음 철에도 들지 말지, 그는 셈을 처음부터 다시 하겠다고 했다.' },
+      { h: '창고는 셈을 한다', p: '상단 사람들은 짐이 오래 묵을수록 값이 빠진다고 입을 모은다. 마당에 쌓인 짐은 비를 맞고, 창고 삯은 날마다 붙는다.' },
+    ],
+  };
+  if (r.title.startsWith('소재 값 제자리로')) return {
+    day: r.day, no, head: '상단 창고 비어 가, 소재 값 제자리로', deck: '수레가 뜸해진 사이 왕도 주문이 창고를 따라잡아',
+    lead: '한 철 내내 마당을 덮었던 짐이 걷혔다. 산에서 내려오는 수레가 뜸해진 사이 왕도의 주문이 창고를 따라잡았고, 상단은 다시 제값을 부른다.',
+    cols: [{ h: '굴은 그동안', p: '값이 물러났던 동안 몇몇 굴은 발길이 줄었다. 창고가 비는 것과 굴 안이 차는 것은 같은 철에 일어났다.' }],
+  };
+  return null;
+}
 
 // 발전 기사: 외진 미궁에 길이 나고 마을이 선 소식 (발전도 같은 판의 수치는 지면에 적지 않는다)
 function growNews(r: Report, no: number): News | null {
@@ -111,6 +129,9 @@ export function peekLines(W: World, p: Peek, lv: number, g?: GuildId) {
     ...(lv >= 3 && p.check > B.CHECK_ON ? ['징세청의 눈길을 꺼려 몸을 사리는 중입니다.'] : []),
   ];
 }
+// 창고 장부를 말로: 수치 대신 상단 사람들의 말투로
+const PRICE_TALK: Record<string, string> = { '헐값': '헐값에 가깝습니다. 사 가겠다는 사람이 값을 부릅니다', '내림세': '제값을 밑돕니다. 흥정이 길어지고 있습니다', '제값': '제값을 받고 있습니다', '오름세': '제값을 웃돕니다. 왕도의 주문이 창고를 기다립니다' };
+const STOCK_TALK: Record<string, string> = { '바닥': '바닥이 드러나 있습니다', '얇음': '선반 몇 칸이 비어 있습니다', '보통': '여느 철만큼 차 있습니다', '두툼': '통로까지 짐이 나와 있습니다', '넘침': '처마 밑과 마당까지 짐이 쌓였습니다' };
 const holdWord = (y: number) => y >= 13 ? '무거운' : y >= 10 ? '보통의' : '가벼운';
 export function tripLines(W: World, t: Trip & { logged?: boolean }) {
   const stay = Math.max(0, t.until - t.at);
@@ -123,6 +144,18 @@ export function tripLines(W: World, t: Trip & { logged?: boolean }) {
       ...(L && lv >= 2 ? [`갱도에서 ${holdWord(L.yld)} 짐이 실려 나갑니다.`] : []),
       t.logged ? '모은 출입 기록을 엮어 길드마다 한 부씩 돌렸습니다. 모르는 굴보다 아는 굴이 덜 무서운 법입니다.' : d.logged ? '' : lv >= 1 ? '아직 기록이 성깁니다. 한 번 더 보내 주시면 빈칸을 메워 오겠습니다.' : '',
     ].filter(Boolean);
+  }
+  if (t.to === 'mkt') {
+    const m = t.mkt;
+    if (!m) return ['창고 문이 열리기 전에 돌아왔습니다. 장부는 넘겨 보지 못했습니다.'];
+    const turn = m.price < m.prev - 0.04 ? '열흘 전보다 값이 한 칸씩 물러나 있습니다' : m.price > m.prev + 0.04 ? '열흘 전보다 값이 올라 있습니다' : '열흘 전과 값이 크게 다르지 않습니다';
+    const inn = m.inflow > demOf() * 1.1 ? '왕도로 나가는 수레보다 산에서 들어오는 수레가 잦습니다' : m.inflow < demOf() * 0.9 ? '산에서 들어오는 수레가 왕도로 나가는 수레를 따라가지 못합니다' : '들어오는 수레와 나가는 수레가 엇비슷합니다';
+    return [
+      `사신 ${t.sent}명이 로이드 성 상단 창고에 ${stay}일 머물며 장부를 넘겼습니다.`,
+      `소재 값은 ${PRICE_TALK[priceWord(m.price)]}. ${turn}.`,
+      `창고는 ${STOCK_TALK[stockWord(m.stock)]}. ${inn}.`,
+      ['두툼', '넘침'].includes(stockWord(m.stock)) ? '장부를 덮자 상단 사람들은 관리국이 무엇을 사 줄 수 있는지부터 물었습니다. 마당의 짐을 가리키는 손이 바빴습니다.' : '상단 사람들은 장부를 순순히 내주었습니다. 관청이 창고를 들여다보는 까닭은 묻지 않았습니다.',
+    ];
   }
   const p = t.peek, g = t.to as GuildId, lv = knowLv(W.guilds[g].know);
   return [
@@ -240,6 +273,6 @@ export function askLetter(W: World, a: { day: number; from: string; kind: 'aid' 
     title: a.kind === 'dun' ? '제목: 지난 신세에 관하여' : '제목: 도움을 청하는 글',
     body: a.kind === 'dun'
       ? ['국장님께. 늘 애써 주시는 데 감사드립니다.', `지난 회의에서 저희가 이름을 적어 드린 종이를 국장님도 기억하시리라 믿습니다. 이제 저희 겨울이 길어져, 그때의 신세를 <b>${num(a.want)}G</b>로 셈해 주시기를 청합니다.`]
-      : ['국장님께. 염치 불고하고 붓을 듭니다.', `금고 바닥이 드러난 지 오래라, 다음 조를 꾸릴 횃불 값도 빠듯합니다. <b>${num(a.want)}G</b>를 빌려주십시오. 이 신세는 저희 장부 맨 앞장에 적어 두겠습니다.`],
+      : ['국장님께. 염치 불고하고 붓을 듭니다.', ...(a.chips.includes('소재 값 내림') ? ['지고 내려온 짐은 지난 철과 같은데, 로이드 창고에서 쳐 주는 값이 지난 철보다 얇습니다.'] : []), `금고 바닥이 드러난 지 오래라, 다음 조를 꾸릴 횃불 값도 빠듯합니다. <b>${num(a.want)}G</b>를 빌려주십시오. 이 신세는 저희 장부 맨 앞장에 적어 두겠습니다.`],
   };
 }

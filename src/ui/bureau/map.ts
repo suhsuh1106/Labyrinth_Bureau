@@ -3,7 +3,7 @@
 // 외진 미궁의 발전도(devPct: 길이 그어지고, 집이 길을 따라 한 채씩 늘고, 둘레 숲이 베여 밭이 되고, 목책이 두른다),
 // 미궁 표식의 고리(보고된 마물 수), 세력 사이(본부 사이 선). 길드 조 · 본부 깃발 · 관리국은 지도 위에 선 미니어처(minisOf, 책상 장면이 세운다).
 // 그리기만 하고 상태에 쓰지 않는다.
-import { B, BUREAU_AT, armyIn, HAVEL_AT, LOYD_AT, ROADS, devRoadOf, devStage, type Dungeon, type FacId, FACS, GUILDS, type World, wayOf, nameOf, svAt, svName, pactK, relOf, seenLevel, subAt, teamsIn, worstPair } from '../../bureau/engine';
+import { B, BUREAU_AT, armyIn, demOf, HAVEL_AT, LOYD_AT, ROADS, devRoadOf, devStage, type Dungeon, type FacId, FACS, GUILDS, type World, wayOf, nameOf, svAt, svName, pactK, relOf, seenLevel, subAt, teamsIn, worstPair } from '../../bureau/engine';
 import { type At, MAP_H, MAP_W, groundAt, isRoad, walkPath } from '../../bureau/tiles';
 import { type BuUi, dungeonHtml, facHtml, levelCls, levelWord, n0, n1, pactLine, relRow, relWord, relsTop } from './board';
 
@@ -358,6 +358,17 @@ const ptAt = (p: [number, number][], t: number): [number, number, number] => {
   return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, Math.atan2(b[1] - a[1], b[0] - a[0])];
 };
 
+// 로이드 성 곁 상단 창고 마당의 짐 더미: 재고만큼 쌓인다(수치는 없다. 시세는 장부를 읽어야 안다). 지난 닷새 평균으로 덜 흔들리게
+function crateSvg(W: World) {
+  const st = W.mkt.stockHist.slice(-5), v = st.reduce((a, b) => a + b, 0) / st.length / demOf();
+  const n = Math.max(1, Math.min(14, Math.round(v / 3))), x0 = cx(LOYD_AT) + 16, y0 = cy(LOYD_AT) + 8;
+  let h = `<g class="place crates"><title>로이드 성 상단 창고 마당</title>`;
+  for (let k = 0; k < n; k++) {
+    const row = Math.floor(k / 5), col = k % 5, x = x0 + col * 7 + row * 3.5, y = y0 - row * 5;
+    h += `<rect x="${f1(x)}" y="${f1(y - 6)}" width="6.5" height="6" fill="${PAPER}" stroke="${INK}" stroke-width="0.8"/><path d="M${f1(x)},${f1(y - 6)} l6.5,6" stroke="${SEP}" stroke-width="0.5"/>`;
+  }
+  return h + '</g>';
+}
 export function mapHtml(W: World, ui: BuUi) {
   const sel = ui.sel ?? '';
   let h = regions();
@@ -387,6 +398,7 @@ export function mapHtml(W: World, ui: BuUi) {
     const x = cx(at), y = cy(at);
     h += `<g class="place castle"><path d="M${x - 8},${y + 8} v-12 h3 v-3 h3 v3 h4 v-3 h3 v3 h3 v12 z" fill="${PAPER}" stroke="${INK}" stroke-width="1.2"/><path d="M${x - 2},${y + 8} v-5 a2,2 0 0 1 4,0 v5" fill="${INK}"/>${label(x, y + 24, nm, 'small')}</g>`;
   }
+  h += crateSvg(W);
   h += `<g class="place bureau">${label(cx(BUREAU_AT), cy(BUREAU_AT) + 30, '미궁관리국', 'strong')}</g>`;
   // 길드 본부: 칸 자리(누르는 곳)와 이름. 천막 · 깃발은 미니어처
   for (const f of FACS) {

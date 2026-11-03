@@ -59,7 +59,14 @@ export const B = {
   //   사람마다 하루 caught × (1 + 정보를 꺼리는 결 / 10)의 확률로 들키면 모두 쫓겨 돌아오고 그 길드의 호감 fav · 영향력 gripLoss가 깎인다
   SVY: { crew: 4, max: 4, days: [2, 20] as [number, number], pay: 6, seen: 1, full: 30, half: 0.5, lure: 2, know: 1.5, grip: 0.6, gripK: 0.2, gap: 30, rancor: 0.05, fade: 0.995, caught: 0.02, fav: 6, gripLoss: 5, tier: [25, 50, 75] as number[] },
   DEV: [260, 720], DEV_FAV: 8,            // R2 발전도: 외진 미궁에 든 조 × 날이 이만큼 쌓이면 단계가 오른다 · 지부를 낸 길드의 호감
-  PRICE: 10, FEE: 2,                      // 소재 값 · 조마다 하루 입장료
+  PRICE: 10, FEE: 2,                      // 소재 값(시세가 평소일 때) · 조마다 하루 입장료
+  // 시세 사슬(반출 과잉, docs/systems.md §0.17): 반출 짐은 lag일 걸려 로이드 성의 상단 창고에 닿고, 상단은 왕도에 하루 dem짐을 판다(시세가 낮으면 더 사 간다: el).
+  // 시세(평소 1)는 every일마다 창고 재고를 보고 목표 = (hold일치 / 재고)^k (lo ~ hi)로 step만큼 다가간다. 느리게 움직이니 반출이 늘면 몇 날 뒤에 꺾인다.
+  // 재고 비용: 재고가 hold일치 × full을 넘으면 넘친 몫의 dump만큼을 날마다 헐값에 푼다(방출).
+  // 시세는 길드의 판매(돈)와 미궁의 끌림(현장 벌이)에 곱해진다: 보조금 → 조↑ → 반출↑ → 재고↑ → 시세↓ → 벌이↓ → 조↓.
+  // 비축 매입(상단 제안서): 관리국이 창고에서 하루 v짐을 시세로 사 들인다(짐마다 buyG × 시세 G). 국장은 시세를 모르고, 사신이 창고 장부를 읽어야 안다.
+  // 신문은 시세가 news[0] 밑으로 꺾일 때 한 번, news[1] 위로 돌아올 때 한 번만 쓴다(문턱)
+  MKT: { lag: 4, dem: 135, hold: 20, k: 0.7, every: 5, step: 0.4, lo: 0.45, hi: 1.05, el: 0.8, full: 1.6, dump: 0.04, buyG: 6, news: [0.75, 0.92] as [number, number] },
   UPKEEP: 0.9, GROW: 120, GROW_COST: 100, SHRINK: -80, SIZE_MIN: 2,
   // 길드 일곱: 큰 길드 둘과 작은 길드 다섯. 몸집(조 · 금고 · 소재 값 · 조 유지비 · 미궁마다 처음 든 조)과
   // 성격(돈 · 안전 · 정보 · 권리에 반응하는 결, 공고 기한을 읽는 법, 본부까지 날)이 길드마다 다르다. GUILD_DEF 아래
@@ -85,7 +92,7 @@ export const B = {
 };
 
 export type GuildId = 'red' | 'shield' | 'wolf' | 'lamp' | 'river' | 'dawn' | 'drift';
-export type LoopId = 'R1' | 'B1' | 'R2' | 'R3' | 'B3' | 'R4' | 'B4' | 'R5' | 'B5';
+export type LoopId = 'R1' | 'B1' | 'R2' | 'R3' | 'B3' | 'R4' | 'B4' | 'R5' | 'B5' | 'B6';
 // 세력은 길드뿐이다(2026-10-31: 영주들을 중앙으로 합쳤다. 영지는 중앙 직할의 지방 이름으로만 남고, 세금 견제는 중앙의 규칙이다)
 export type FacId = GuildId;
 // 길드 하나의 몸집과 성격
@@ -165,7 +172,9 @@ export interface Guild {
 export interface Peek { day: number; pnl: number[]; want: number[]; will: number; check: number }
 export interface Report { day: number; from: string; title: string; chips: string[]; trip?: Trip & { logged: boolean } }
 // 파견서로 보낸 사신: 보낸 날 · 닿는 날(at) · 떠나는 날(until) · 돌아오는 날(back). 알아 온 속내(peek) · 미궁의 출입 기록(log: 길드마다 든 조 · 반출 짐)
-export interface Trip { id: number; to: SvTo; n: number; sent: number; day: number; at: number; until: number; back: number; caught: boolean; peek?: Peek; log?: { teams: number[]; yld: number } }
+export interface Trip { id: number; to: SvTo; n: number; sent: number; day: number; at: number; until: number; back: number; caught: boolean; peek?: Peek; log?: { teams: number[]; yld: number }; mkt?: MktPeek }
+// 상단 창고 장부에서 읽어 온 것: 머문 마지막 날의 시세 · 재고와 열흘 전 시세, 열흘 동안 들어온 짐(하루 평균)
+export interface MktPeek { day: number; price: number; prev: number; stock: number; inflow: number }
 export interface Stats {
   floods: number; dead: number; spent: number;
   toFlood: number[];              // 위험선부터 범람까지 날 수
@@ -204,7 +213,15 @@ export interface World {
   crew: number;                   // 관리국의 사신 (다음 달 첫날 다시 채운다)
   trips: Trip[];                  // 파견서로 나가 있는 사신
   pnl: number[][];                // 미궁마다 날마다 조 하나의 하루 손익 어림(G, 보조금 빼고). 첫 칸은 징세청에서 넘겨받은 기록
+  mkt: Market;                    // 소재 시장(시세 사슬). 상단은 세력이 아니라 시장이다
+  offers: Offer[];                // 상단에 낸 제안서
 }
+// 소재 시장: 시세(평소 1) · 상단 창고 재고(짐) · 오는 중인 반출 짐(앞이 먼저 닿는다) · 날마다 시세 · 재고 · 반출의 기록
+//   read: 사신이 창고 장부를 마지막으로 읽은 날(−1이면 아직. 읽으면 상단 제안서가 열린다) · low: 신문이 내림세를 쓴 뒤(돌아올 때 한 번 더 쓴다)
+//   bought: 관리국이 비축 매입으로 사 들인 짐의 합
+export interface Market { price: number; stock: number; road: number[]; hist: number[]; stockHist: number[]; outHist: number[]; read: number; low: boolean; bought: number }
+// 상단에 낸 제안서: 기한까지 걸린다. 상단은 사 주는 쪽을 마다하지 않는다
+export interface Offer { id: number; day: number; until: number; dg: number; cl: Clauses }
 export interface Order { dg: number; min: number; need: number; got: number; pat: number; done: '' | 'ok' | 'fail' }
 // 길드 하나에 보낸 요청서: 이틀 뒤 서명할 마음 + 조항의 꼬리표 무게로 답한다. 서명하면 그 길드에만 조항이 걸린다
 export interface Letter { id: number; day: number; to: GuildId; dg: number; days: number; cl: Clauses; at: number; until?: number }
@@ -273,12 +290,14 @@ export function newWorld(seed: number, o: Opts = {}): World {
       { day: 0, from: '왕국군', title: '폐광 1차 진압, 주둔 중', chips: ['입구에서 마물을 누르고 있음', '길드에 넘기면 물러남'] },
       { day: 0, from: '중앙 행정원', title: '요구서: 폐광을 왕국군에게서 넘겨받을 것', chips: [`하루 ${B.ORDER.min}조 이상 ${B.ORDER.need}일 이어서`, `예산 ${B.ORDER.pay}G · 입지 +${B.ORDER.stand}`] },
     ],
-    stats: { floods: 0, dead: 0, spent: 0, toFlood: [], pinned: {}, loops: { R1: 0, B1: 0, R2: 0, R3: 0, B3: 0, R4: 0, B4: 0, R5: 0, B5: 0 }, bigSize: [], clashes: 0, meets: 0, asks: 0, answered: 0, sides: 0, relMin: 0, relHist: [], litHist: [] },
+    stats: { floods: 0, dead: 0, spent: 0, toFlood: [], pinned: {}, loops: { R1: 0, B1: 0, R2: 0, R3: 0, B3: 0, R4: 0, B4: 0, R5: 0, B5: 0, B6: 0 }, bigSize: [], clashes: 0, meets: 0, asks: 0, answered: 0, sides: 0, relMin: 0, relHist: [], litHist: [] },
     rel: {},
     owe: Object.fromEntries(FACS.map(f => [f, 0])) as Record<FacId, number>, fowe: Object.fromEntries(FACS.map(f => [f, {}])) as World['fowe'],
     pact: null, meetAt: -99, asks: [], later: [], askN: 0, lit: [], notices: [], letters: [], docN: 0, rank: 1, clerks: 1, dept: { clerk: 0, envoy: 0, rec: 0 },
     order: { dg: B.ORDER.dg, min: B.ORDER.min, need: B.ORDER.need, got: 0, pat: B.ORDER.pat, done: '' },
     crew: B.SVY.crew, trips: [], pnl: [],
+    mkt: { price: 1, stock: B.MKT.hold * demOf(), road: Array(B.MKT.lag).fill(demOf()), hist: [1], stockHist: [B.MKT.hold * demOf()], outHist: [], read: -1, low: false, bought: 0 },
+    offers: [],
     ...o,
   };
   FACS.forEach((a, i) => FACS.slice(i + 1).forEach(b => { const k = pairOf(a, b); W.rel[k] = (REL0[k] ?? 0) + Math.round((rnd() - 0.5) * 10); }));
@@ -349,7 +368,7 @@ export const pnlGuild = (W: World, g: GuildId, i: number) => Math.round(pnlOf(W,
 // 달마다 중앙의 배정(입장료 몫 빼고)
 export const grantOf = (W: World) => B.GRANT + W.standing * B.GRANT_K;
 export const levelOf = (standing: number) => B.STAND_LV.filter(t => standing >= t).length;
-export const docsOut = (W: World) => W.notices.length + W.letters.length;
+export const docsOut = (W: World) => W.notices.length + W.letters.length + W.offers.length;
 
 // 조 하나가 이 미궁에서 하루 버는 값의 어림(G, 현장 수익): 끌림에서 보조금을 뺀 몫. 오가는 날의 값은 길드마다 따로 빠진다(pnlGuild)
 export const pnlOf = (W: World, d: Dungeon) => Math.round((lure(W, d) - d.sub / B.SUB_LURE) * B.SUB_LURE);
@@ -359,7 +378,7 @@ export const pnlAvg = (W: World, i: number, n: number) => { const a = W.pnl[i].s
 // 갱도 조사 보고서가 나온 미궁은 길드가 마물의 위험을 반만 보고, 알려진 광맥이 끌림을 더한다
 const harmOf = (W: World, d: Dungeon) => Math.max(0, d.level - 65) / 8 * (d.logged ? B.SVY.half : 1) + (W.noFear ? 0 : d.fear / 10);
 export function lure(W: World, d: Dungeon) {
-  return d.yld * B.PRICE / 10 * richOf(d.level) * (1 - d.level / 160) + d.sub / B.SUB_LURE - harmOf(W, d) + B.WAY_BASE * B.WAY_K + (d.logged ? B.SVY.lure : 0);
+  return d.yld * B.PRICE * W.mkt.price / 10 * richOf(d.level) * (1 - d.level / 160) + d.sub / B.SUB_LURE - harmOf(W, d) + B.WAY_BASE * B.WAY_K + (d.logged ? B.SVY.lure : 0);
 }
 // 미궁 i에서 길드들이 오늘 남기는 값(오가는 날 빼고, 보조금 빼고)의 중간값 · 평균값과 평균 오가는 날: 손익 자료의 요약 (길드 하나하나는 보이지 않는다)
 export function pnlSum(W: World, i: number) {
@@ -472,11 +491,13 @@ export function step(W: World) {
     }
   });
   tripsDay(W, want);
+  // 시세 사슬: 오늘 실려 나간 짐이 길에 오르고, 며칠 전 짐이 창고에 닿는다. 시세는 판매에 쓰기 전 아침 값 그대로(내일부터 바뀐다)
+  const price0 = W.mkt.price;
   // 세력의 돈: 판매 − 급여·보급 − 세금(견제). 넉넉하면 조를 늘리고 모자라면 줄인다
   const top = GUILDS.map(g => G[g]).reduce((a, b) => b.size > a.size ? b : a), topBefore = top.size;
   for (const g of GUILDS) {
     // 중앙은 눈에 띈 길드의 판매에서 더 떼어 간다(B3 견제, 중앙의 규칙)
-    const f = G[g], sale = haul[g] * B.PRICE * 0.06 * B.GUILD[g].sale;
+    const f = G[g], sale = haul[g] * B.PRICE * W.mkt.price * 0.06 * B.GUILD[g].sale;
     const tax = W.noCheck ? 0 : clamp(f.check * B.CHECK_TAX, 0, 0.4);
     f.money += sale * (1 - tax) - f.size * B.UPKEEP * B.GUILD[g].upkeep;
   }
@@ -496,6 +517,8 @@ export function step(W: World) {
     f.peak = Math.max(f.peak, f.size);
   }
   if (top.size > topBefore) lit(W, 'R3');
+  // 시장은 판매가 끝난 뒤에 움직인다(오늘 판 값은 아침 시세)
+  mktDay(W, Object.values(haul).reduce((a, b) => a + b, 0), price0);
   // B3 견제: 눈에 띈 길드에 쌓이고(중앙의 세금 · 다른 쪽의 결집), 시간이 지나면 빠진다
   if (!W.noCheck) {
     for (const g of GUILDS) { const f = G[g]; f.check = f.check * B.CHECK_FADE + Math.max(0, f.infl - B.NOTICE) * B.CHECK_K; }
@@ -550,6 +573,61 @@ export function step(W: World) {
   W.lit = [];
 }
 
+// 상단이 왕도에 하루 파는 짐(시세가 평소일 때). 보조금 없이 길드가 고루 드는 판의 반출량보다 조금 낮다: 손을 많이 쓸수록 넘친다
+export const demOf = () => B.MKT.dem;
+// 시세 사슬의 하루: 길 위의 짐 → 창고 → 왕도. 시세는 every일마다 재고를 보고 움직인다. 비축 매입은 창고에서 먼저 덜어 간다.
+// 난수를 쓰지 않는다(봇 판의 rnd 순서가 그대로)
+function mktDay(W: World, out: number, price0: number) {
+  const M = W.mkt, K = B.MKT, dem = demOf(), hold = K.hold * dem;
+  M.road.push(out);
+  M.stock += M.road.length > K.lag ? M.road.shift()! : 0;
+  // 비축 매입: 걸린 제안서마다 하루 v짐(창고에 있는 만큼). 값은 아침 시세로 예산에서
+  for (const o of W.offers) {
+    const v = Math.min(M.stock, o.cl.buy ?? 0);
+    if (v <= 0) continue;
+    const g = v * K.buyG * price0;
+    M.stock -= v; M.bought += v; W.budget -= g; W.stats.spent += g;
+  }
+  // 왕도가 사 가는 몫(시세가 낮으면 더) + 재고가 넘치면 헐값 방출
+  const over = Math.max(0, M.stock - hold * K.full);
+  M.stock = Math.max(0, M.stock - Math.min(M.stock, dem * Math.pow(price0, -K.el)) - over * K.dump);
+  if (W.day % K.every === 0) {
+    const tgt = clamp(Math.pow(hold / Math.max(1, M.stock), K.k), K.lo, K.hi);
+    M.price += (tgt - M.price) * K.step;
+  }
+  // B6 시세: 창고가 무거워 시세가 제값 밑에서 더 내려가는 중
+  if (M.stock > hold && M.price < 1 && M.price < (M.hist.at(-1) ?? 1) - 1e-9) lit(W, 'B6');
+  M.hist.push(M.price); M.stockHist.push(M.stock); M.outHist.push(out);
+  // 신문: 문턱을 넘을 때만(내림세 한 번, 돌아올 때 한 번)
+  if (!M.low && M.price < K.news[0]) { M.low = true; W.reports.push({ day: W.day, from: '왕도일보', title: '소재 값 내림세 · 상단 창고 가득', chips: ['소재 시세'] }); }
+  else if (M.low && M.price > K.news[1]) { M.low = false; W.reports.push({ day: W.day, from: '왕도일보', title: '소재 값 제자리로 · 상단 창고 비어 가', chips: ['소재 시세'] }); }
+  // 기한이 다한 제안서
+  for (const o of W.offers) if (W.day >= o.until) W.reports.push({ day: W.day, from: '관리국', title: '제안서 기한 끝: 상단', chips: clauseLine(o.cl).map(c => `${c} 멎음`) });
+  W.offers = W.offers.filter(o => W.day < o.until);
+}
+// 시세 · 재고를 말로(국장은 장부를 읽은 사신에게서만 듣는다)
+export const priceWord = (p: number) => p < 0.6 ? '헐값' : p < 0.85 ? '내림세' : p < 1.15 ? '제값' : '오름세';
+export const stockWord = (s: number) => { const d = s / demOf(); return d < 8 ? '바닥' : d < 15 ? '얇음' : d < 30 ? '보통' : d < 45 ? '두툼' : '넘침'; };
+
+// 상단 제안서: 미궁 하나에 대한 조항(비축 매입)을 days일 건다. 서기 한 명을 쓴다. 장부를 읽어야(toLock) 열린다
+export function propose(W: World, dg: number, days: number, cl: Clauses) {
+  const ids = Object.keys(cl) as ClauseId[];
+  if (W.mkt.read < 0 || !W.dungeons[dg] || days <= 0 || !ids.length || ids.length > CLAUSE_MAX || docsOut(W) >= W.clerks) return null;
+  if (ids.some(k => !fits(W, 'offer', cl, k))) return null;
+  const o: Offer = { id: ++W.docN, day: W.day, until: W.day + days, dg, cl: { ...cl } };
+  W.offers.push(o);
+  W.reports.push({ day: W.day, from: '관리국', title: '제안서: 상단', chips: [...clauseLine(cl), `${days}일`] });
+  return o;
+}
+// 제안서를 거둔다(상단은 서운해하지 않는다: 세력이 아니다)
+export function unpropose(W: World, id: number) {
+  const o = W.offers.find(x => x.id === id);
+  if (!o) return false;
+  W.offers = W.offers.filter(x => x !== o);
+  W.reports.push({ day: W.day, from: '관리국', title: '제안서 거둠: 상단', chips: clauseLine(o.cl) });
+  return true;
+}
+
 // 발전도가 새 단계에 닿았다: 1단계는 길과 여관(오가는 날 −1), 2단계는 마을이 서고(−1) 가장 많이 다닌 길드가 지부를 낸다
 function devUp(W: World, i: number) {
   const d = W.dungeons[i], st = devStage(d);
@@ -602,7 +680,7 @@ function makeAsks(W: World) {
     const o = facOf(W, f);
     let ask: Omit<Ask, 'id' | 'day' | 'due' | 'from'> | null = null;
     if (W.owe[f] <= B.DUN_AT && W.day % B.DUN_EVERY === 0) ask = { kind: 'dun', want: Math.round(-W.owe[f] * B.DUN_G), chips: ['회의에 서명해 준 일'] };
-    else if (o.money < 0 && W.day % 5 === 0) ask = { kind: 'aid', want: 200, chips: [`${o.name} 금고 바닥`] };
+    else if (o.money < 0 && W.day % 5 === 0) ask = { kind: 'aid', want: 200, chips: [`${o.name} 금고 바닥`, ...(W.mkt.price < 0.85 ? ['소재 값 내림'] : [])] };
     if (!ask) continue;
     W.asks.push({ id: ++W.askN, day: W.day, due: W.day + B.ASK_DUE, from: f, ...ask });
     W.stats.asks++;
@@ -751,9 +829,10 @@ export function recall(W: World, id: number) {
 }
 
 // 사신 파견: 보낼 곳은 미궁(번호) · 길드 본부(길드). 관리국에서 그곳까지 걷는 날(외진 미궁은 길 없는 날을 더함)
-export type SvTo = number | GuildId;
-export const svAt = (W: World, to: SvTo): At => typeof to === 'number' ? W.dungeons[to].at : B.GUILD[to].at;
-export const svName = (W: World, to: SvTo) => typeof to === 'number' ? W.dungeons[to].name : `${nameOf(W, to)} 본부`;
+// 'mkt'는 로이드 성의 상단 창고(소재 시세 · 재고 장부)
+export type SvTo = number | GuildId | 'mkt';
+export const svAt = (W: World, to: SvTo): At => typeof to === 'number' ? W.dungeons[to].at : to === 'mkt' ? LOYD_AT : B.GUILD[to].at;
+export const svName = (W: World, to: SvTo) => typeof to === 'number' ? W.dungeons[to].name : to === 'mkt' ? '로이드 성 상단 창고' : `${nameOf(W, to)} 본부`;
 export const svWay = (W: World, to: SvTo) => Math.max(1, Math.ceil(far(BUREAU_AT, svAt(W, to)) / B.WAY_T)) + (typeof to === 'number' ? wildOf(W.dungeons[to]) : 0);
 // 이해도 단계 0 ~ 3 (사신이 쌓은 이해도 know로)
 export const knowLv = (know: number) => B.SVY.tier.filter(t => know >= t).length;
@@ -762,7 +841,7 @@ export const crewFree = (W: World) => W.crew - W.trips.reduce((a, t) => a + t.n,
 export function dispatch(W: World, to: SvTo, n: number, days: number): Trip | null {
   n = Math.round(n); days = Math.round(days);
   if (n < 1 || n > Math.min(B.SVY.max, crewFree(W)) || days < B.SVY.days[0] || days > B.SVY.days[1]) return null;
-  if (typeof to === 'number' ? !W.dungeons[to] : !W.guilds[to]) return null;
+  if (typeof to === 'number' ? !W.dungeons[to] : to !== 'mkt' && !W.guilds[to]) return null;
   const way = svWay(W, to), at = W.day + way, until = at + days;
   const t: Trip = { id: ++W.docN, to, n, sent: n, day: W.day, at, until, back: until + way, caught: false };
   W.trips.push(t);
@@ -785,6 +864,10 @@ function tripsDay(W: World, want: Record<GuildId, number[]>) {
       const d = W.dungeons[t.to];
       d.know += S.seen * t.n;
       t.log = { teams: GUILDS.map(g => Math.round(d.teams[g] * 10) / 10), yld: d.yld };
+    } else if (here && t.to === 'mkt') {
+      // 창고 장부: 시세 · 재고 · 열흘 동안 들어온 짐. 상단은 관청 사람을 쫓아내지 않는다(세력이 아니다)
+      const M = W.mkt, h = M.hist, inn = M.outHist.slice(-10 - B.MKT.lag, -B.MKT.lag);
+      t.mkt = { day: W.day, price: M.price, prev: h.at(-11) ?? h[0], stock: M.stock, inflow: inn.length ? inn.reduce((a, b) => a + b, 0) / inn.length : 0 };
     } else if (here) {
       const g = t.to as GuildId, o = W.guilds[g];
       o.know = Math.min(100, o.know + S.know * t.n);
@@ -809,7 +892,8 @@ function tripHome(W: World, t: Trip) {
   if (typeof t.to === 'number') {
     const d = W.dungeons[t.to];
     if (!d.logged && d.know >= B.SVY.full) { d.logged = true; logged = true; }
-  } else if (t.peek) W.guilds[t.to].peek = t.peek;
+  } else if (t.to === 'mkt') { if (t.mkt) W.mkt.read = t.mkt.day; }
+  else if (t.peek) W.guilds[t.to].peek = t.peek;
   W.reports.push({ day: W.day, from: '관리국 조사관', title: `조사 보고: ${svName(W, t.to)}`, chips: [], trip: { ...t, logged } });
 }
 

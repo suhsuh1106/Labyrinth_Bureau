@@ -1,9 +1,9 @@
 // 미궁관리국 게임판: HTML 문자열을 만든다. 상태에 아무것도 쓰지 않고 난수도 쓰지 않는다(그리기만).
 // 화면 전체가 국장의 책상(desk.ts)이고 그 위에 지도(map.ts, 타일)가 누워 있다. 왼쪽 위 정보(날 · 예산 · 입지 → 집무실 · 폐광 인계) · 오른쪽 아래 다음 날 ·
 // 책상 위 물건(깃펜 → 서류, 기록 더미 → 기록, 종 → 회의) · 지도에서 고른 것(살펴보기)을 여는 시트 · 테사의 한마디
-import { lookHtml } from './map';
+import { lookHtml, type Mini } from './map';
 import { askLetter, dateOf, moneyWord, mineSurveyHtml, docOf, floodNews, govHtml, introNews, letterHtml, newsHtml, peekLines, tripGov } from './docs';
-import { B, type FacId, FACS, GUILDS, type GuildId, type Report, type World, knowLv, lagOf, grantOf, payOf, crewMax, deptCost, deptOpen, DEPTS, type DeptId, pnlGuild, pnlOf, pnlSum, devStage, wayOf, hqOf, depOf, docsOut, escrowOf, crewFree, svWay, svName, type SvTo, trustOf, withdrawFav, facOf, levelOf, nameOf, pactK, relOf, seenLevel, subAt, teamsIn, willOf } from '../../bureau/engine';
+import { B, type FacId, FACS, GUILDS, type GuildId, type Report, type World, knowLv, lagOf, grantOf, payOf, crewMax, deptCost, deptOpen, DEPTS, type DeptId, pnlGuild, pnlOf, pnlSum, devStage, wayOf, hqOf, depOf, docsOut, escrowOf, crewFree, svWay, svName, type SvTo, trustOf, withdrawFav, priceWord, stockWord, facOf, levelOf, nameOf, pactK, relOf, seenLevel, subAt, teamsIn, willOf } from '../../bureau/engine';
 import { CLAUSE, CLAUSES, CLAUSE_MAX, type Clause, type Clauses, type ClauseId, FORM_NAME, type Tag, FORM_OF, type Form, toName, type To, clauseLock, fits, toLock } from '../../bureau/clauses';
 
 export type Tab = 'look' | 'asks' | 'lib' | 'meet' | 'office';
@@ -143,6 +143,12 @@ export function spyHtml(W: World, g: GuildId) {
     + (p ? `<div class="peek"><small>지난 조사 · ${dateOf(p.day)} 사정</small>${peekLines(W, p, lv, g).map(l => `<p>${l}</p>`).join('')}</div>` : '');
 }
 
+// 국장이 아는 시세: 사신이 마지막으로 읽어 온 창고 장부(그 날의 값으로 굳는다). 없으면 null
+export const mktRead = (W: World) => { const r = [...W.reports].reverse().find(x => x.trip?.to === 'mkt' && x.trip.mkt); return r?.trip?.mkt ?? null; };
+export function mktReadLine(W: World) {
+  const m = mktRead(W);
+  return m ? `${dateOf(m.day)} 장부: 소재 값 ${priceWord(m.price)} · 창고 ${stockWord(m.stock)}` : '상단 창고 장부를 아직 읽지 못했다.';
+}
 // 파견서: 왼쪽 보낼 곳(미궁 · 길드 본부, 가는 데 며칠), 가운데 종이(보낼 곳 · 인원 · 머물 날 · 할 일 · 돌아오는 날), 아래 품삯과 보내기
 export function dispHtml(W: World, ui: BuUi) {
   const f = ui.disp ?? DISP0, to = svOf(f.to), way = svWay(W, to), free = crewFree(W);
@@ -150,13 +156,15 @@ export function dispHtml(W: World, ui: BuUi) {
   const pick = (k: string, name: string, note: string, cls = '') => `<button type="button" class="w-who${cls}" data-act="dto:${k}" aria-pressed="${k === f.to}"><b>${name}</b><small class="num">${note}</small></button>`;
   const dgs = W.dungeons.map((d, i) => pick(String(i), d.name, `가는 데 ${svWay(W, i)}일 · 이해 ${LV_WORD[knowLv(W.dungeons[i].know)]}`)).join('');
   const hqs = GUILDS.map(g => pick(g, `${B.GUILD[g].name} 본부`, `가는 데 ${svWay(W, g)}일 · 이해 ${LV_WORD[knowLv(W.guilds[g].know)]}`, ` f-${g}`)).join('');
-  const job = typeof to === 'number' ? '출입 기록과 반출 물건을 살피고, 드나드는 길드 사람들에게 관리국의 뜻을 알린다.' : '본부를 찾아 사람들을 사귀고 관리국의 뜻을 퍼뜨린다. 눈에 띄면 바로 돌아온다.';
+  const mk = pick('mkt', '로이드 성 상단 창고', `가는 데 ${svWay(W, 'mkt')}일 · ${W.mkt.read < 0 ? '장부 못 읽음' : `${dateOf(W.mkt.read)} 장부`}`);
+  const job = typeof to === 'number' ? '출입 기록과 반출 물건을 살피고, 드나드는 길드 사람들에게 관리국의 뜻을 알린다.' : to === 'mkt' ? '창고 장부를 넘겨 소재 값과 쌓인 짐을 적어 온다.' : '본부를 찾아 사람들을 사귀고 관리국의 뜻을 퍼뜨린다. 눈에 띄면 바로 돌아온다.';
   const out = W.trips.map(t => `<li><b>${svName(W, t.to)}</b> <small class="num">${t.n}명 · ${tripWord(W, t)}</small></li>`).join('');
   return `<div class="desk-w disp">
     <section class="w-side">
       <h4>보낼 곳 <small class="num">관리국에 ${free} / ${W.crew}명</small></h4>
       <h4>미궁</h4><div class="w-whos">${dgs}</div>
       <h4>길드 본부</h4><div class="w-whos">${hqs}</div>
+      <h4>상단</h4><div class="w-whos">${mk}</div>
     </section>
     <section class="w-paper f-disp">
       <button type="button" class="x close" data-act="close" aria-label="닫기">✕</button>
@@ -205,7 +213,7 @@ const noticeWord = (W: World, i: number) => {
 const PAPER: Record<Form, { head: (no: number) => string; to: (to: To) => string; body: (dg: string) => string; term: string }> = {
   notice: { head: no => `미궁관리국 공고 제${no}호`, to: () => '미궁 출입 길드 전체', body: dg => `${dg} 출입에 관하여 아래와 같이 알린다.`, term: '기한' },
   letter: { head: () => '미궁관리국 서신', to: to => `${toName(to)} 귀하`, body: dg => `${dg} 출입에 관하여 아래와 같이 요청드립니다.`, term: '약정 기간' },
-  offer: { head: () => '미궁관리국 서신', to: () => '상단 귀중', body: dg => `${dg} 입구 보급에 관하여 아래와 같이 제안합니다.`, term: '약정 기간' },
+  offer: { head: () => '미궁관리국 서신', to: () => '로이드 성 상단 귀중', body: () => '귀 창고에 쌓인 소재에 관하여 아래와 같이 제안합니다.', term: '약정 기간' },
 };
 // 꼬리표: 무엇이 걸린 조항인지(돈 · 정보 · 권리 · 안전)만. 색도 그것으로
 const TAG_CLS: Record<Tag, string> = { '돈': 'money', '정보': 'info', '권리': 'right', '안전': 'safe' };
@@ -220,7 +228,7 @@ export function writeHtml(W: World, ui: BuUi) {
   const n = f.to !== 'all' && f.to !== 'trade' ? d.teams[f.to] : teamsIn(d);
   const ids = Object.keys(f.cl) as ClauseId[], old = form === 'notice' && W.notices.find(x => x.dg === f.dg);
   // 왼쪽: 받는 곳 · 미궁. 누르면 바뀐다(양식이 바뀌면 그 양식에 없는 조항은 빠진다)
-  const whoNote = (t: To) => t === 'all' ? `공고문 · 지금 ${n1(teamsIn(d))}조` : t === 'trade' ? '제안서' : `요청서 · 호감 ${favWord(facOf(W, t).fav)} · ${n1(d.teams[t])}조`;
+  const whoNote = (t: To) => t === 'all' ? `공고문 · 지금 ${n1(teamsIn(d))}조` : t === 'trade' ? `제안서 · 로이드 성 창고` : `요청서 · 호감 ${favWord(facOf(W, t).fav)} · ${n1(d.teams[t])}조`;
   const who = tos.map(t => `<button type="button" class="w-who${t !== 'all' && t !== 'trade' ? ` f-${t}` : ''}" data-act="wto:${t}" aria-pressed="${t === f.to}"><b>${toName(t)}</b><small class="num">${whoNote(t)}</small></button>`).join('');
   const dgs = W.dungeons.map((x, i) => `<button type="button" class="opt" data-act="wdg:${i}" aria-pressed="${i === f.dg}">${x.name}</button>`).join('');
   // 가운데 종이: 조항마다 한 줄. 숫자 칸은 − +, 오른쪽 ✕로 뺀다
@@ -238,7 +246,10 @@ export function writeHtml(W: World, ui: BuUi) {
       <p title="${c.fx}">${c.fx}</p><div class="c-tags">${tagsHtml(c)}</div></article>`;
   }).join('');
   const sub = f.cl.sub ?? 0, comfort = f.cl.comfort;
-  const cost = [sub ? `보조금 하루 ${n0(n * sub)}G · 기한 ${n0(n * sub * f.days)}G 어림` : '', comfort ? `잃은 조마다 ${comfort}G` : ''].filter(Boolean).join(' · ');
+  // 비축 매입의 값은 국장이 아는 시세(사신이 마지막으로 읽은 장부)로 어림한다
+  const buy = f.cl.buy, readP = mktRead(W)?.price ?? 1;
+  const cost = [sub ? `보조금 하루 ${n0(n * sub)}G · 기한 ${n0(n * sub * f.days)}G 어림` : '', comfort ? `잃은 조마다 ${comfort}G` : '',
+    buy ? `매입 하루 ${n0(buy * B.MKT.buyG * readP)}G · 기한 ${n0(buy * B.MKT.buyG * readP * f.days)}G 어림(읽은 장부의 시세로)` : ''].filter(Boolean).join(' · ');
   const full = !old && docsOut(W) >= W.clerks;
   // 공고문: 공탁(기한 동안 쓸 돈을 떼어 둠)과 길드마다의 믿음(기한으로)
   const dep = form === 'notice' ? depOf(f.cl, f.days) : 0, poor = dep > W.budget + (old ? old.dep : 0);
@@ -248,7 +259,7 @@ export function writeHtml(W: World, ui: BuUi) {
     <section class="w-side">
       <h4>받는 곳 <small class="num">서기 ${W.clerks}명 · 낸 서류 ${docsOut(W)} / ${W.clerks}</small></h4>
       <div class="w-whos">${who}</div>
-      <h4>미궁</h4><div class="opts">${dgs}</div>
+      ${form === 'offer' ? `<p class="w-cost">${mktReadLine(W)}</p>` : `<h4>미궁</h4><div class="opts">${dgs}</div>`}
       ${form === 'letter' ? `<p class="w-cost">${B.LETTER_DAYS}일 뒤 답이 온다. 서명하면 ${toName(f.to)}에만 걸린다.</p>` : ''}
     </section>
     <section class="w-paper f-${form}">
@@ -262,11 +273,11 @@ export function writeHtml(W: World, ui: BuUi) {
       <p class="gd-no"><span>${P.head(W.docN + 1)}</span><span>시행 ${dateOf(W.day)} · ${ids.length} / ${CLAUSE_MAX}조</span></p>
     </section>
     <section class="w-foot">
-      ${cost ? `<p class="w-cost num">지금 ${n1(n)}조 기준 · ${cost}</p>` : ''}
+      ${cost ? `<p class="w-cost num">${form === 'offer' ? '' : `지금 ${n1(n)}조 기준 · `}${cost}</p>` : ''}
       ${dep ? `<p class="w-cost num ${poor ? 'neg' : ''}">공탁 ${n0(dep)}G${old && old.dep ? ` · 옛 공탁 ${n0(old.dep)}G 돌려받음` : ''}${poor ? ' · 예산 모자람' : ''}</p>` : ''}
       ${trust}
     </section>
-    <button type="button" class="go wide w-post" data-act="post" ${canPost ? '' : 'disabled'}>${full ? '서기가 모자람 · 집무실' : poor ? '공탁할 예산이 모자람' : form === 'notice' ? (old ? '공고문 고쳐 내걸기' : '공고문 내걸기') : '요청서 보내기'}</button>
+    <button type="button" class="go wide w-post" data-act="post" ${canPost ? '' : 'disabled'}>${full ? '서기가 모자람 · 집무실' : poor ? '공탁할 예산이 모자람' : form === 'notice' ? (old ? '공고문 고쳐 내걸기' : '공고문 내걸기') : form === 'offer' ? '제안서 보내기' : '요청서 보내기'}</button>
     <section class="w-drawer"><h4>조항 서랍</h4>${drawer}</section>
   </div>`;
 }
@@ -275,7 +286,8 @@ const clLine = (cl: Clauses) => (Object.keys(cl) as ClauseId[]).map(k => CLAUSE[
 function postedHtml(W: World) {
   if (!docsOut(W)) return '';
   return `<h4>낸 서류</h4>${W.notices.map(x => `<p class="past notice"><span>공고문 · ${W.dungeons[x.dg].name} · ${clLine(x.cl)}</span><small class="num">${x.until - W.day}일 남음${x.dep > 0 ? ` · 공탁 ${n0(x.dep)}G` : ''}</small><button type="button" data-act="withdraw:${x.id}" title="길드마다 호감 −${n1(withdrawFav(W, x))}">철회</button></p>`).join('')}
-  ${W.letters.map(l => `<p class="past notice"><span>요청서 · ${nameOf(W, l.to)} · ${W.dungeons[l.dg].name} · ${clLine(l.cl)}</span><small class="num">${l.until == null ? `답 ${l.at - W.day}일 뒤` : `서명 · ${l.until - W.day}일 남음`}</small><button type="button" data-act="recall:${l.id}">거두기</button></p>`).join('')}`;
+  ${W.letters.map(l => `<p class="past notice"><span>요청서 · ${nameOf(W, l.to)} · ${W.dungeons[l.dg].name} · ${clLine(l.cl)}</span><small class="num">${l.until == null ? `답 ${l.at - W.day}일 뒤` : `서명 · ${l.until - W.day}일 남음`}</small><button type="button" data-act="recall:${l.id}">거두기</button></p>`).join('')}
+  ${W.offers.map(o => `<p class="past notice"><span>제안서 · 상단 · ${clLine(o.cl)}</span><small class="num">${o.until - W.day}일 남음</small><button type="button" data-act="unprop:${o.id}">거두기</button></p>`).join('')}`;
 }
 
 // 조항 탭: 국장이 서류에 쓸 수 있는 조항의 설명서 (잠긴 조항은 열리기 전까지 보이지 않는다)
@@ -462,23 +474,26 @@ export function relsTop(W: World, n = 4) {
 const openAsks = (W: World) => W.asks.filter(a => a.got == null);
 // 책상 위 물건: 지도 왼쪽 깃펜과 빈 서식(서류: 받은 청은 봉인 편지로 얹힌다), 오른쪽 기록 더미, 왼쪽 아래 종과 소집장(회의).
 // 평면 위 자리(지도 단위)에 놓고, 서 있는 것(.st)은 책상 장면이 세운다. 누르면 그 탭의 시트를 연다
+// 책상 위에 선 것(깃펜 꽂힌 잉크병 · 종): 평면 위 자리(지도 왼쪽 위가 0, 0). 미니어처와 함께 납작한 층에 세운다(desk.ts)
+const deskStand = (key: string, x: number, y: number, w: number, h: number, svg: string): Mini => ({ key, x, y, w, h, svg: `<g transform="translate(${-w / 2},${-h})">${svg}</g>`, title: '' });
+export const DESK_STANDS: Mini[] = [
+  deskStand('quill', -110, 100, 90, 190, '<ellipse cx="45" cy="182" rx="30" ry="9" fill="#0e1013"/><path d="M15,182 V150 Q15,128 45,128 Q75,128 75,150 V182 Z" fill="#2a2f38" stroke="#0e1013" stroke-width="2"/><ellipse cx="45" cy="132" rx="16" ry="5" fill="#0e1013"/><path d="M38,8 Q72,-10 80,6 Q60,30 52,70 L47,134 L44,134 L48,70 Q40,40 38,8 Z" fill="#efe9dc" stroke="#6b5b45" stroke-width="1.5"/><path d="M78,6 Q60,40 46,134" stroke="#6b5b45" stroke-width="1.2" fill="none"/>'),
+  deskStand('bell', -15, 780, 70, 84, '<rect x="32" y="0" width="6" height="16" fill="#3a2a1a"/><path d="M10,74 Q10,22 35,18 Q60,22 60,74 Z" fill="#c9a24a" stroke="#5c430f" stroke-width="2"/><rect x="3" y="74" width="64" height="9" rx="3" fill="#a8812c" stroke="#5c430f" stroke-width="2"/>'),
+];
 export function deskHtml(W: World, ui: BuUi) {
   const asks = openAsks(W).length, shown = (id: Tab) => !!ui.open && ui.tab === id;
   const tut = tutOf(W, ui), pulse = (id: Tab) => (tut === 'lib' && id === 'lib' && !shown('lib')) || (tut === 'write' && id === 'asks' && !shown('asks'));
-  const pg = (n: number, col: string, top: string, jit = 2) => Array.from({ length: n }, (_, i) => `<i class="pg" style="background:${col};transform:translateZ(${(i * 1.8).toFixed(1)}px) rotate(${(Math.sin(i * 7.3 + n) * jit).toFixed(1)}deg)">${i === n - 1 ? top : ''}</i>`).join('');
-  const stand = (x: number, y: number, w: number, h: number, svg: string) => `<span class="mini" style="left:${x}px;top:${y}px"><span class="st" style="left:${-w / 2}px;top:${-h}px;width:${w}px;height:${h}px"><svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">${svg}</svg></span></span>`;
+  const pg = (n: number, col: string, top: string, jit = 2) => Array.from({ length: n }, (_, i) => `<i class="pg" style="background:${col};transform:translate(${(-i * 0.7).toFixed(1)}px, ${(-i * 1.4).toFixed(1)}px) rotate(${(Math.sin(i * 7.3 + n) * jit).toFixed(1)}deg)">${i === n - 1 ? top : ''}</i>`).join('');
   const obj = (id: Tab, x: number, y: number, w: number, h: number, inner: string, name: string, plateY = h + 14) =>
     `<button type="button" class="obj${pulse(id) ? ' pulse' : ''}" data-act="tab:${id}" aria-pressed="${shown(id)}" style="left:${x}px;top:${y}px;width:${w}px;height:${h}px"><i class="osh"></i><span class="lift">${inner}</span><span class="plate" style="top:${plateY}px">${name}</span></button>`;
   const writ = `낸 서류 ${docsOut(W)} / ${W.clerks}`;
   return obj('asks', -320, 60, 250, 330, pg(5, '#f3ecda', '<b class="hd">미궁관리국 공고</b><i class="lines"></i>')
-      + openAsks(W).slice(0, 3).map((a, i) => `<i class="pg letter" style="top:${190 + i * 22}px;bottom:${-20 - i * 22}px;transform:translateZ(${12 + i * 3}px) rotate(${-8 + i * 9}deg)"><b class="hd">${nameOf(W, a.from)}${a.kind === 'dun' ? ' 독촉' : '의 청'}</b><i class="seal"></i></i>`).join('')
-      + stand(210, 40, 90, 190, '<ellipse cx="45" cy="182" rx="30" ry="9" fill="#0e1013"/><path d="M15,182 V150 Q15,128 45,128 Q75,128 75,150 V182 Z" fill="#2a2f38" stroke="#0e1013" stroke-width="2"/><ellipse cx="45" cy="132" rx="16" ry="5" fill="#0e1013"/><path d="M38,8 Q72,-10 80,6 Q60,30 52,70 L47,134 L44,134 L48,70 Q40,40 38,8 Z" fill="#efe9dc" stroke="#6b5b45" stroke-width="1.5"/><path d="M78,6 Q60,40 46,134" stroke="#6b5b45" stroke-width="1.2" fill="none"/>'),
+      + openAsks(W).slice(0, 3).map((a, i) => `<i class="pg letter" style="top:${190 + i * 22}px;bottom:${-20 - i * 22}px;transform:translate(${-8 - i * 2}px, ${-14 - i * 3}px) rotate(${-8 + i * 9}deg)"><b class="hd">${nameOf(W, a.from)}${a.kind === 'dun' ? ' 독촉' : '의 청'}</b><i class="seal"></i></i>`).join(''),
       `서류 <small>${asks ? `받은 청 ${asks}` : writ}</small>`, 420)
     + obj('lib', 1340, 120, 260, 320, pg(9, '#ece3cc', '<b class="hd">관할 일지</b><i class="lines"></i>', 3)
-      + '<i class="tie"></i>' + ['#5b2b26', '#2f4a3a'].map((c, i) => `<i class="pg book" style="background:${c};left:${60 + i * 10}px;right:${-40 - i * 6}px;top:${210 + i * 24}px;bottom:${-50 - i * 24}px;transform:translateZ(${22 + i * 10}px) rotate(${6 - i * 10}deg)"></i>`).join(''),
+      + '<i class="tie"></i>' + ['#5b2b26', '#2f4a3a'].map((c, i) => `<i class="pg book" style="background:${c};left:${60 + i * 10}px;right:${-40 - i * 6}px;top:${210 + i * 24}px;bottom:${-50 - i * 24}px;transform:translate(${-10 - i * 6}px, ${-18 - i * 10}px) rotate(${6 - i * 10}deg)"></i>`).join(''),
       '기록', 400)
-    + obj('meet', -215, 640, 210, 150, pg(2, '#e9dfc4', '<b class="hd">회의 소집장</b><i class="lines"></i>', 4)
-      + stand(200, 140, 70, 84, '<rect x="32" y="0" width="6" height="16" fill="#3a2a1a"/><path d="M10,74 Q10,22 35,18 Q60,22 60,74 Z" fill="#c9a24a" stroke="#5c430f" stroke-width="2"/><rect x="3" y="74" width="64" height="9" rx="3" fill="#a8812c" stroke="#5c430f" stroke-width="2"/>'),
+    + obj('meet', -215, 640, 210, 150, pg(2, '#e9dfc4', '<b class="hd">회의 소집장</b><i class="lines"></i>', 4),
       '회의');
 }
 

@@ -30,6 +30,10 @@ export const NODES: LoopNode[] = [
   { id: 'dun', label: '독촉', x: 90, y: 520 },
   { id: 'dev', label: '발전도', x: 40, y: 330 },
   { id: 'way', label: '오가는 날', x: 80, y: 372 },
+  { id: 'haul', label: '반출', x: 600, y: 380 },
+  { id: 'stock', label: '상단 재고', x: 780, y: 440 },
+  { id: 'price', label: '시세', x: 620, y: 510 },
+  { id: 'buy', label: '비축 매입', x: 930, y: 500, hand: true },
 ];
 
 export const EDGES: LoopEdge[] = [
@@ -60,6 +64,10 @@ export const EDGES: LoopEdge[] = [
   { from: 'teams', to: 'dev', sign: 1 },
   { from: 'dev', to: 'way', sign: -1 },
   { from: 'way', to: 'teams', sign: -1 },
+  { from: 'teams', to: 'haul', sign: 1 },
+  { from: 'haul', to: 'stock', sign: 1 },
+  { from: 'stock', to: 'price', sign: -1 },
+  { from: 'price', to: 'teams', sign: 1, bend: 80 },
 ];
 
 // 고리 사이를 잇는 화살표 (엮임): 고리 하나에 들지 않지만 한쪽 고리가 다른 고리를 민다
@@ -67,6 +75,9 @@ export const LINKS: LoopEdge[] = [
   { from: 'clash', to: 'acc', sign: 1, bend: 150 },   // 다툼의 죽음은 사고
   { from: 'rel', to: 'check', sign: -1 },              // 사이가 나쁠수록 다른 쪽이 결집
   { from: 'budget', to: 'sub', sign: 1, bend: -60 },    // 보조금은 예산에서
+  { from: 'price', to: 'money', sign: 1 },              // 시세는 길드 판매에도 곱해진다
+  { from: 'buy', to: 'stock', sign: -1 },               // 비축 매입은 창고를 덜어 낸다
+  { from: 'sub', to: 'money', sign: 1, bend: 60 },      // 보조금은 길드 금고로
 ];
 
 // when: 엔진이 그날 고리를 켜는 조건 (`engine.ts`의 `lit`)
@@ -79,6 +90,7 @@ export const LOOPS: Loop[] = [
   { id: 'R4', kind: 'R', name: '원한', path: ['clash', 'rel', 'clash'], when: '두 길드가 다투고 사이가 나빠진 날', at: [915, 112] },
   { id: 'B4', kind: 'B', name: '회의 · 중재', path: ['rel', 'meet', 'pact', 'clash', 'rel'], when: '협정이 지켜지는 날', at: [890, 235] },
   { id: 'R5', kind: 'R', name: '신세 굴리기', path: ['give', 'fav', 'stand', 'budget', 'give'], when: '요청서에 응한 날', at: [345, 470] },
+  { id: 'B6', kind: 'B', name: '시세', path: ['teams', 'haul', 'stock', 'price', 'teams'], when: '창고가 무거워 시세가 더 내려간 날', at: [700, 450] },
   { id: 'B5', kind: 'B', name: '빚 독촉', path: ['owe', 'dun', 'give', 'owe'], when: '독촉에 답한 날', at: [128, 466] },
 ];
 
