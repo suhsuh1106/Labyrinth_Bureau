@@ -9,21 +9,22 @@ for (const [k, v] of Object.entries(process.env)) if (k.startsWith('F_')) F.B[k.
 
 function smart(W) {
   if (Math.abs(W.t - Math.round(W.t)) > 1e-6) return;
-  const { NZ, zf, total } = F;
-  if (W.t > 4 && W.obs === 0 && W.budget > 140) F.upgradeObs(W);
-  let worst = -1, ws = 0, hot = -1, hs = 0;
-  for (let z = 0; z < NZ; z++) {
-    const v = F.view(W, zf(z)); if (!F.seesMonsters(W, zf(z))) continue;
+  if (W.t === 1) { for (let i = 0; i < 4; i++) { F.setPolicy(W, 'tax', 0, 1); F.setPolicy(W, 'tax', 2, -1); F.setPolicy(W, 'tax', 3, -1); } }
+  if (W.t === 2) F.issue(W, 'camp', 4);
+  if (W.t > 8 && !W.camp[7] && W.budget > 100) F.issue(W, 'camp', 7);
+  if (W.t > 14 && W.obs === 0 && W.budget > 130) F.upgradeObs(W);
+  // 깊은 층 시세가 떨어지면 수매가로 받치고, 금고가 얇으면 뗀다
+  for (const f of [2, 3]) {
+    if (W.price[f] < F.B.VAL[f] * 0.9 && W.budget > 120 && W.buy[f] < F.B.VAL[f]) F.setPolicy(W, 'buy', f, 1);
+    if (W.budget < 60 && W.buy[f] > 0) F.setPolicy(W, 'buy', f, -1);
+  }
+  let hot = -1, hs = 0;
+  for (let z = 0; z < F.NZ; z++) {
+    const v = F.view(W, F.zf(z)); if (!F.seesMonsters(W, F.zf(z))) continue;
     let h = 0; for (const a of v.H) h += a[z];
-    const s = v.M[z] / (h + 5);
-    if (v.M[z] > 30 && s > ws) { ws = s; worst = z; }
     if (v.pd[z] > 0.05 && h > 15 && v.pd[z] > hs) { hs = v.pd[z]; hot = z; }
   }
   if (hot >= 0 && W.budget > 20) F.issue(W, 'retreat', hot);
-  if (worst >= 0 && W.budget > 70 && W.bounty[worst] <= 2) F.issue(W, 'bounty', worst);
-  for (const z of [4, 7]) if (!W.supply[z] && W.budget > 110 && W.t > 6) F.issue(W, 'supply', z);
-  if (W.M[1] > 35 && !W.seal[4] && W.budget > 60) F.issue(W, 'seal', 4);
-  if (W.seal[4] && W.M[4] < 20) F.issue(W, 'unseal', 4);
 }
 
 const games = +(process.argv[2] || 30);
@@ -37,11 +38,12 @@ for (const style of ['idle', 'smart']) {
       F.tick(W);
       if (s === 1 && Math.abs(W.t % 10) < 1e-6) {
         let h = 0, m = 0; for (let z = 0; z < F.NZ; z++) { h += F.total(W, z); m += W.M[z]; }
-        curve.push(`d${W.t} 사람${h | 0} 마물${m | 0} 마을${W.town | 0} 예산${W.budget | 0} 죽음${W.deaths | 0} 호감${W.gw.map(x => x | 0).join('/')}`);
+        const fl = [0,1,2,3].map(f => { let a = 0; for (let c = 0; c < 3; c++) a += F.total(W, f * 3 + c); return a | 0; }).join('/');
+        curve.push(`d${W.t} 층별${fl} 마물${m | 0} 마을${W.town | 0} 예산${W.budget | 0} 죽음${W.deaths | 0} 숙련${W.skill.map(x => x.toFixed(2)).join('/')} 시세${W.price.map((x, f) => (x / F.B.VAL[f]).toFixed(2)).join('/')} 호감${W.gw.map(x => x | 0).join('/')} 벌이${W.inc.map(x => x | 0).join('/')}`);
       }
     }
     if (W.over === 'fall') fall++;
-    town += W.town; deaths += W.deaths; tax += W.taxSum; named += W.named.filter(p => p.alive).length; endDay += W.t; budget += W.budget;
+    town += W.town; deaths += W.deaths; tax += W.taxSum - W.buySum; named += W.named.filter(p => p.alive).length; endDay += W.t; budget += W.budget;
   }
   const n = games;
   console.log(`${style}: 범람 ${fall}/${n} · 끝날 ${(endDay / n).toFixed(1)} · 마을 ${(town / n).toFixed(0)} · 죽음 ${(deaths / n).toFixed(0)} · 세수 ${(tax / n).toFixed(0)} · 남은 예산 ${(budget / n).toFixed(0)} · 이름 생존 ${(named / n).toFixed(1)}/3`);
