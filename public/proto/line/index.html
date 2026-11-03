@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>방어선 판 짜기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* 방어선 판 짜기: 왼쪽은 판 여섯(굴 셋 → 회랑 셋 → 마을), 오른쪽은 고른 칸에 놓을 것. 화면은 끌거나 넘기지 않는다 */
+:root {
+  color-scheme: dark;
+  --desk: #10160f; --board: #1b2a22; --board-2: #15211b; --line: #34503f;
+  --ink: #e3eadf; --soft: #9fb3a5; --mute: #6f8576; --brass: #d9b45a; --bad: #f0806f; --warn: #f2c46b; --good: #86cf9f; --nest: #b48be0;
+  --f-display: "Gowun Batang", "Nanum Myeongjo", serif;
+  --f-body: "IBM Plex Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+  --f-num: "IBM Plex Mono", ui-monospace, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; background: var(--desk); color: var(--ink); font: 13px/1.45 var(--f-body); -webkit-text-size-adjust: 100%; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+button { font: 600 12px var(--f-body); color: var(--ink); background: var(--board-2); border: 1px solid var(--line); border-radius: 3px; padding: 5px 9px; cursor: pointer; touch-action: manipulation; }
+button:hover:not(:disabled) { border-color: var(--brass); }
+button:focus-visible { outline: 2px solid var(--brass); outline-offset: 1px; }
+button:disabled { opacity: .38; cursor: default; }
+button[aria-pressed="true"] { background: #3a3220; border-color: var(--brass); color: var(--brass); }
+button.main { background: var(--brass); color: #221e18; border-color: var(--brass); }
+button.danger { border-color: #7a3a30; }
+#app { height: 100dvh; display: grid; grid-template-rows: auto minmax(0, 1fr); padding: 6px max(8px, env(safe-area-inset-right)) 6px max(8px, env(safe-area-inset-left)); gap: 6px; }
+header { display: flex; align-items: center; gap: 4px 12px; min-width: 0; }
+h1 { font: 700 16px var(--f-display); margin: 0; white-space: nowrap; }
+.stat { font: 500 12px var(--f-num); color: var(--soft); white-space: nowrap; }
+.stat b { color: var(--ink); font-weight: 500; }
+.bar { display: inline-block; width: 56px; height: 7px; background: #2a1c18; border-radius: 4px; vertical-align: middle; overflow: hidden; margin-left: 4px; }
+.bar i { display: block; height: 100%; background: var(--good); }
+.pips { display: inline-flex; gap: 3px; vertical-align: middle; margin-left: 4px; }
+.pips i { width: 10px; height: 10px; border-radius: 50%; background: #2b3a31; border: 1px solid #44604f; }
+.pips i.on { background: var(--brass); border-color: var(--brass); }
+.sp { flex: 1; }
+.ctl { display: flex; gap: 3px; }
+main { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 8px; min-height: 0; }
+#wrap { position: relative; min-height: 0; min-width: 0; background: var(--board-2); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+aside { background: var(--board); border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; display: flex; flex-direction: column; gap: 5px; min-height: 0; overflow: hidden; }
+aside h2 { font: 700 14px var(--f-display); margin: 0; display: flex; align-items: baseline; gap: 6px; }
+aside h2 small { font: 400 11px var(--f-body); color: var(--mute); }
+.sec { font-size: 10.5px; color: var(--mute); margin-top: 2px; }
+.btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.btns.two { grid-template-columns: repeat(2, 1fr); }
+.btns button { display: grid; gap: 0; padding: 4px 4px; }
+.btns button small { font: 400 10px var(--f-body); color: var(--soft); white-space: nowrap; }
+.info { font-size: 12px; color: var(--soft); }
+.info b { color: var(--ink); font-weight: 500; }
+.box { border: 1px solid var(--line); border-radius: 3px; padding: 5px 7px; font-size: 11.5px; color: var(--soft); background: var(--board-2); }
+.box b { color: var(--ink); font-weight: 500; }
+.box .t { font: 700 12px var(--f-display); color: var(--ink); margin-bottom: 1px; }
+.box.alert { border-color: var(--warn); background: #2d2716; }
+.box.alert .t { color: var(--warn); }
+.fill { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 5px; }
+.log { font-size: 11px; color: var(--soft); display: flex; flex-direction: column; gap: 1px; overflow: hidden; }
+.log div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bad { color: var(--bad); } .good { color: var(--good); } .warn { color: var(--warn); } .nest { color: var(--nest); }
+.overlay { position: fixed; inset: 0; background: rgba(6,10,8,.84); display: grid; place-items: center; padding: 12px; z-index: 5; }
+.overlay.hidden { display: none; }
+.card { max-width: 700px; max-height: calc(100dvh - 24px); background: var(--board); border: 1px solid var(--line); border-radius: 6px; padding: 14px 18px; display: grid; gap: 8px; overflow: hidden; }
+.card h2 { font: 700 19px var(--f-display); margin: 0; }
+.card .lede { font: 400 14px/1.6 var(--f-display); margin: 0; }
+.card ul { margin: 0; padding-left: 18px; color: var(--soft); display: grid; gap: 2px; font-size: 12.5px; }
+.card ul b { color: var(--ink); font-weight: 600; }
+.card .row { display: flex; justify-content: flex-end; gap: 6px; }
+.card button.main { padding: 7px 16px; font-size: 13px; }
+@media (max-height: 480px) {
+  #app { padding-top: 4px; padding-bottom: 4px; gap: 4px; }
+  h1 { font-size: 13px; } .stat { font-size: 10.5px; } header { gap: 4px 8px; }
+  .hide-s { display: none; }
+  main { grid-template-columns: minmax(0, 1fr) 226px; gap: 5px; }
+  aside { padding: 5px 7px; gap: 3px; }
+  aside h2 { font-size: 12.5px; }
+  button { padding: 3px 7px; font-size: 11px; }
+  .btns { gap: 3px; } .btns button { padding: 3px 3px; font-size: 11px; display: flex; justify-content: center; align-items: baseline; gap: 3px; } .btns button small { font-size: 9px; }
+  .info, .log { font-size: 10.5px; } .sec { font-size: 9.5px; margin-top: 0; }
+  .box { font-size: 10.5px; padding: 3px 6px; } .box .t { font-size: 11px; }
+  .card { padding: 10px 14px; gap: 5px; } .card h2 { font-size: 16px; } .card .lede { font-size: 12.5px; line-height: 1.5; } .card ul { font-size: 11px; gap: 1px; }
+  .pips i { width: 8px; height: 8px; }
+}
+@media (orientation: portrait) and (max-width: 700px) {
+  header { flex-wrap: wrap; }
+  main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1.25fr) minmax(0, 1fr); }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>방어선 판 짜기</h1>
+    <span class="stat">파도 <b id="sWave">1/10</b></span>
+    <span class="stat">마을<span class="bar"><i id="sTown"></i></span></span>
+    <span class="stat">예산 <b id="sBud">0</b></span>
+    <span class="stat">신임<span class="pips" id="sTrust"></span></span>
+    <span class="sp"></span>
+    <span class="ctl" id="ctl"></span>
+  </header>
+  <main>
+    <section id="wrap"><canvas id="cv"></canvas></section>
+    <aside id="side"></aside>
+  </main>
+</div>
+<div class="overlay" id="ov">
+  <div class="card" id="ovCard">
+    <h2>방어선 판 짜기</h2>
+    <p class="lede">깊은 곳에서 파도가 올라온다. 국장은 칼을 들지 않는다. 파도와 파도 사이, 고요한 틈에 판을 짜 두고, 짜 놓은 판이 맞물려 도는 것을 지켜본다.</p>
+    <ul>
+      <li><b>판 여섯</b>: 아래 굴 셋으로 마물이 들어와, <b>갈림길</b>을 따라 위 회랑 셋을 지나 마을로 갑니다. 굴마다 어느 회랑으로 보낼지 정할 수 있어요.</li>
+      <li><b>계획</b>(시간이 멈춤): 칸을 눌러 바리케이드 · 함정 · 기름을 놓고, 창병 · 궁수를 세웁니다. 예산은 쓰러뜨린 마물에서도 들어와요.</li>
+      <li>바리케이드는 막고, 창병은 막으며 찌르고, 궁수는 아래 세 칸을 쏩니다. <b>기름은 셋 이상 몰려야 불붙어요</b>: 막힌 칸 바로 아래가 자리. 갑각은 화살 · 함정에 강하고, 파성은 바리케이드를 부수고, 날쌘은 바리케이드 말고는 못 막아요.</li>
+      <li>지키는 부대 없이 많은 마물이 지나간 판은 <b>둥지</b>가 되어 다음 파도부터 마물을 낳습니다. 부대를 두고 파도를 넘기면 걷혀요.</li>
+      <li><b>전투</b>는 저절로 굴러갑니다. 큰 일이 터지면 멈추고, <b>신임</b>으로 긴급 개입: 붕락(판을 통째로 묻음) · 급파(창병 셋) · 길 돌리기. 열 파도를 버티면 끝.</li>
+    </ul>
+    <div class="row"><button class="main" id="ovGo">판 짜기 시작</button></div>
+  </div>
+</div>
+<script src="engine.js"></script>
+<script>
+(() => {
+  const { DT, CELLS, ZONES, MON, STRUCT, SQUAD, LEVER, STANCE, B } = LINE;
+  const $ = id => document.getElementById(id);
+  const cv = $('cv'), ctx = cv.getContext('2d');
+  let G = null, sel = { z: 4, c: 4 }, moving = null, speed = 2, running = false, acc = 0, last = 0, L = null, msg = '';
+  const SPEEDS = [1, 2, 4];
+  const iga = w => { const c = w.charCodeAt(w.length - 1) - 0xac00; return c >= 0 && c < 11172 && c % 28 ? '이' : '가'; };
+
+  function start(seed) {
+    G = LINE.newGame(seed || ((Date.now() % 100000) + 1));
+    sel = { z: 4, c: 4 }; moving = null; running = false; msg = '';
+    render(true);
+  }
+
+  // ── 그림 자리
+  function layout() {
+    const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    if (cv.width !== Math.round(r.width * dpr) || cv.height !== Math.round(r.height * dpr)) { cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr); }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const W = r.width, H = r.height, small = H < 330 || W < 420;
+    const pad = 6, townH = small ? 15 : 20, srcH = small ? 16 : 22, gapY = small ? 16 : 24, gapX = small ? 8 : 12;
+    const colW = (W - pad * 2 - gapX * 2) / 3, layerH = (H - pad * 2 - townH - srcH - gapY * 2) / 2;
+    const upY = pad + townH + gapY, dpY = upY + layerH + gapY;
+    const hdr = small ? 13 : 16;
+    const rects = ZONES.map(z => ({ x: pad + z.x * (colW + gapX), y: z.deep ? dpY : upY, w: colW, h: layerH }));
+    L = { W, H, small, pad, townH, srcH, gapY, rects, hdr, cellH: (layerH - hdr) / CELLS, srcY: dpY + layerH };
+  }
+  const cellRect = (z, c) => { const R = L.rects[z]; return { x: R.x, y: R.y + L.hdr + (CELLS - 1 - c) * L.cellH, w: R.w, h: L.cellH }; };
+  const hash = id => ((id * 2654435761) >>> 0) / 4294967296;
+
+  function draw(T) {
+    layout();
+    const { W, H, small } = L;
+    ctx.clearRect(0, 0, W, H);
+    // 마을
+    ctx.fillStyle = G.town > 10 ? '#2a3a26' : '#3a1f1a'; ctx.fillRect(L.pad, L.pad, W - L.pad * 2, L.townH);
+    ctx.fillStyle = G.town > 10 ? '#d9b45a' : '#f0806f'; ctx.font = `700 ${small ? 10.5 : 12.5}px "Gowun Batang", serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(`마을 ${Math.max(0, Math.ceil(G.town))}`, W / 2, L.pad + L.townH / 2);
+    // 길: 회랑 → 마을, 굴 → 회랑
+    for (const z of [3, 4, 5]) { const R = L.rects[z]; line(R.x + R.w / 2, R.y, R.x + R.w / 2, L.pad + L.townH, G.zones[z].closed ? '#3a3a3a' : '#5b7564', 2); }
+    for (const z of [0, 1, 2]) {
+      const R = L.rects[z], x1 = R.x + R.w / 2;
+      for (const e of ZONES[z].exits) if (G.zones[z].route !== e) { const E = L.rects[e]; line(x1, R.y, E.x + E.w / 2, E.y + E.h, '#2f4237', 1.2, [3, 4]); }
+    }
+    for (const z of [0, 1, 2]) {
+      const R = L.rects[z], e = G.zones[z].route, E = L.rects[e], x1 = R.x + R.w / 2, x2 = E.x + E.w / 2 + (z - (e - 3)) * 10;
+      line(x1, R.y, x2, E.y + E.h, G.zones[e].closed ? '#6b4a40' : '#d9b45a', 3); arrow(x1, R.y, x2, E.y + E.h, '#d9b45a');
+    }
+    // 판
+    for (const Z of ZONES) drawZone(Z, T);
+    // 들어오는 곳 (예보)
+    ctx.textBaseline = 'middle';
+    for (const z of [0, 1, 2]) {
+      const R = L.rects[z], gs = G.phase === 'plan' ? G.next.groups.filter(g => g.src === z && !g.nest) : [];
+      ctx.textAlign = 'center'; ctx.font = `600 ${small ? 9.5 : 11}px "IBM Plex Sans KR", sans-serif`;
+      if (gs.length) { ctx.fillStyle = '#ffb4a6'; ctx.fillText('▲ ' + gs.map(g => `${MON[g.type].name} ×${g.n}`).join(' · '), R.x + R.w / 2, L.srcY + L.srcH / 2 + 1); }
+      else { ctx.fillStyle = '#4b5f52'; ctx.fillText(G.phase === 'plan' ? '조용함' : '▲', R.x + R.w / 2, L.srcY + L.srcH / 2 + 1); }
+    }
+    // 글자 띄우기
+    for (const f of G.fx) {
+      const R = L.rects[f.z]; ctx.globalAlpha = Math.min(1, f.life); ctx.fillStyle = '#ffe2a6'; ctx.font = `700 ${small ? 13 : 16}px "Gowun Batang", serif`; ctx.textAlign = 'center';
+      ctx.fillText(f.text, R.x + R.w / 2, R.y + R.h / 2 - (1.6 - f.life) * 10); ctx.globalAlpha = 1;
+    }
+    ctx.textAlign = 'left';
+  }
+  function line(x1, y1, x2, y2, col, w, dash) { ctx.strokeStyle = col; ctx.lineWidth = w; ctx.setLineDash(dash || []); ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.setLineDash([]); }
+  function arrow(x1, y1, x2, y2, col) {
+    const a = Math.atan2(y2 - y1, x2 - x1), mx = (x1 + x2) / 2, my = (y1 + y2) / 2, s = 5;
+    ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(mx + Math.cos(a) * s, my + Math.sin(a) * s);
+    ctx.lineTo(mx + Math.cos(a + 2.5) * s, my + Math.sin(a + 2.5) * s); ctx.lineTo(mx + Math.cos(a - 2.5) * s, my + Math.sin(a - 2.5) * s); ctx.fill();
+  }
+  function drawZone(Z, T) {
+    const R = L.rects[Z.id], zs = G.zones[Z.id], small = L.small;
+    ctx.fillStyle = zs.nest ? '#241c2c' : '#1b2a22'; ctx.fillRect(R.x, R.y, R.w, R.h);
+    ctx.strokeStyle = sel && sel.z === Z.id ? '#8a7a4a' : '#34503f'; ctx.lineWidth = 1; ctx.strokeRect(R.x + .5, R.y + .5, R.w - 1, R.h - 1);
+    // 머리
+    ctx.font = `600 ${small ? 9.5 : 11}px "IBM Plex Sans KR", sans-serif`; ctx.textBaseline = 'middle'; ctx.textAlign = 'left'; ctx.fillStyle = '#e3eadf';
+    ctx.fillText(Z.name, R.x + 4, R.y + L.hdr / 2 + 1);
+    ctx.textAlign = 'right';
+    if (zs.nest) { ctx.fillStyle = '#b48be0'; ctx.fillText(`둥지 ${zs.nest}`, R.x + R.w - 4, R.y + L.hdr / 2 + 1); }
+    else if (Z.deep && G.phase === 'plan') { ctx.fillStyle = '#d9b45a'; ctx.fillText(`→ ${ZONES[zs.route].name.split(' ')[0]}`, R.x + R.w - 4, R.y + L.hdr / 2 + 1); }
+    else if (G.phase === 'battle') { const th = LINE.zoneThreat(G, Z.id); if (th) { ctx.fillStyle = th > 20 ? '#f0806f' : '#9fb3a5'; ctx.fillText(`마물 ${G.mons.filter(m => m.zone === Z.id).length}`, R.x + R.w - 4, R.y + L.hdr / 2 + 1); } }
+    ctx.textAlign = 'left';
+    // 칸
+    for (let c = 0; c < CELLS; c++) {
+      const C = cellRect(Z.id, c);
+      ctx.fillStyle = c % 2 ? '#1e2f26' : '#1a281f'; ctx.fillRect(C.x + 1, C.y, C.w - 2, C.h);
+      const s = zs.cells[c];
+      if (s) drawStruct(s, C, T);
+      if (sel && sel.z === Z.id && sel.c === c) { ctx.strokeStyle = moving ? '#86cf9f' : '#d9b45a'; ctx.lineWidth = 2; ctx.strokeRect(C.x + 2, C.y + 1, C.w - 4, C.h - 2); }
+    }
+    // 불
+    for (let c = 0; c < CELLS; c++) {
+      const s = zs.cells[c]; if (!s || s.k !== 'oil' || !(s.burn > 0)) continue;
+      const C0 = cellRect(Z.id, c), top = cellRect(Z.id, Math.min(CELLS - 1, c + 1));
+      ctx.fillStyle = `rgba(255,${120 + 40 * Math.sin(T * 20)},40,${0.22 + 0.1 * Math.sin(T * 13)})`; ctx.fillRect(C0.x + 1, top.y, C0.w - 2, C0.y + C0.h - top.y);
+    }
+    // 부대
+    for (const q of G.squads) if (q.zone === Z.id) drawSquad(q, cellRect(Z.id, q.cell), T);
+    // 마물
+    for (const m of G.mons) if (m.zone === Z.id) {
+      const C = cellRect(Z.id, m.cell), x = C.x + C.w * (0.22 + hash(m.id) * 0.5), y = C.y + C.h * (1 - Math.min(1, m.pos)) - 1;
+      drawMon(m, x, Math.max(C.y + 3, Math.min(C.y + C.h - 3, y)));
+    }
+    if (zs.closed) {
+      ctx.fillStyle = 'rgba(30,26,22,.85)'; ctx.fillRect(R.x + 1, R.y + L.hdr, R.w - 2, R.h - L.hdr);
+      ctx.strokeStyle = '#5a4a3a'; ctx.lineWidth = 1;
+      for (let i = -R.h; i < R.w; i += 9) { ctx.beginPath(); ctx.moveTo(R.x + i, R.y + R.h); ctx.lineTo(R.x + i + R.h - L.hdr, R.y + L.hdr); ctx.stroke(); }
+      ctx.fillStyle = '#c9a98a'; ctx.font = `700 ${small ? 11 : 13}px "Gowun Batang", serif`; ctx.textAlign = 'center'; ctx.fillText('무너짐', R.x + R.w / 2, R.y + R.h / 2); ctx.textAlign = 'left';
+    }
+  }
+  function drawStruct(s, C, T) {
+    const small = L.small, fs = small ? 9 : 10.5;
+    ctx.font = `600 ${fs}px "IBM Plex Sans KR", sans-serif`; ctx.textBaseline = 'middle';
+    if (s.k === 'wall') {
+      const f = Math.max(0, s.hp / STRUCT.wall.hp);
+      ctx.fillStyle = '#5a4630'; ctx.fillRect(C.x + 3, C.y + 1, C.w - 6, 4);
+      ctx.fillStyle = f > 0.4 ? '#c9a066' : '#e07a5a'; ctx.fillRect(C.x + 3, C.y + 1, (C.w - 6) * f, 4);
+      ctx.fillStyle = '#c9a066'; ctx.fillText('벽', C.x + 4, C.y + C.h / 2 + 2);
+    } else if (s.k === 'trap') {
+      ctx.fillStyle = '#a7b8ad'; ctx.fillText('덫' + '·'.repeat(s.uses), C.x + 4, C.y + C.h / 2);
+    } else if (s.k === 'oil') {
+      ctx.fillStyle = s.burn > 0 ? '#ffb347' : '#8a6a2a'; ctx.beginPath(); ctx.ellipse(C.x + 12, C.y + C.h / 2, 8, Math.min(5, C.h / 2 - 2), 0, 0, 7); ctx.fill();
+      ctx.fillStyle = '#e8c27a'; ctx.fillText('기름', C.x + 22, C.y + C.h / 2);
+    }
+  }
+  function drawSquad(q, C, T) {
+    const n = Math.ceil(q.hp / SQUAD[q.k].hp), r = Math.min(3.2, C.h / 5), hurt = G.t - q.hit < 0.25 && G.phase === 'battle';
+    const x0 = C.x + C.w - 6 - (q.n0 - 1) * r * 2.3, y = C.y + C.h / 2;
+    for (let i = 0; i < q.n0; i++) {
+      ctx.fillStyle = i < n ? (hurt ? '#ffdede' : q.k === 'spear' ? (q.temp ? '#d9e88a' : '#86cf9f') : '#7fc4d6') : '#33443a';
+      ctx.beginPath(); ctx.arc(x0 + i * r * 2.3, y, r, 0, 7); ctx.fill();
+    }
+    ctx.font = `600 ${L.small ? 9 : 10}px "IBM Plex Sans KR", sans-serif`; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = q.k === 'spear' ? '#86cf9f' : '#7fc4d6';
+    ctx.fillText((q.k === 'spear' ? '창' : '궁') + (q.stance === 'back' ? '↑' : ''), x0 - r - 2, y);
+    ctx.textAlign = 'left';
+  }
+  function drawMon(m, x, y) {
+    const t = m.type, s = L.small ? 0.85 : 1;
+    if (t === 'swarm') { ctx.fillStyle = '#f0806f'; ctx.beginPath(); ctx.arc(x, y, 3 * s, 0, 7); ctx.fill(); }
+    else if (t === 'armor') { ctx.fillStyle = '#c96f5c'; ctx.fillRect(x - 3.5 * s, y - 3.5 * s, 7 * s, 7 * s); ctx.strokeStyle = '#ffd0c4'; ctx.lineWidth = 1; ctx.strokeRect(x - 3.5 * s, y - 3.5 * s, 7 * s, 7 * s); }
+    else if (t === 'brute') { ctx.fillStyle = '#a3402e'; ctx.beginPath(); for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; ctx.lineTo(x + Math.cos(a) * 5.5 * s, y + Math.sin(a) * 5.5 * s); } ctx.fill(); ctx.strokeStyle = '#ffb4a6'; ctx.stroke(); }
+    else { ctx.fillStyle = '#f2a65a'; ctx.beginPath(); ctx.moveTo(x, y - 4.5 * s); ctx.lineTo(x + 3.5 * s, y + 3 * s); ctx.lineTo(x - 3.5 * s, y + 3 * s); ctx.fill(); }
+    if (m.hp < m.max && t !== 'swarm') { ctx.fillStyle = '#3a1f1a'; ctx.fillRect(x - 5, y + 6, 10, 1.5); ctx.fillStyle = '#ffb4a6'; ctx.fillRect(x - 5, y + 6, 10 * Math.max(0, m.hp / m.max), 1.5); }
+  }
+
+  // ── 오른쪽
+  let lastSide = '';
+  function once(el, html) { if (el.dataset.k !== html) { el.dataset.k = html; el.innerHTML = html; } }
+  function sideHtml() {
+    if (G.over) return '';
+    const Z = ZONES[sel.z], zs = G.zones[sel.z], s = zs.cells[sel.c], q = LINE.squadAt(G, sel.z, sel.c);
+    let h = `<h2>${Z.name} · ${sel.c + 1}칸 <small>${Z.deep ? '굴' : '회랑'}${zs.nest ? ` · <span class="nest">둥지 ${zs.nest}</span>` : ''}${zs.closed ? ' · 무너짐' : ''}</small></h2>`;
+    const bud = G.budget, tr = G.trust;
+    if (G.phase === 'plan') {
+      h += `<div class="info">${s ? `<b>${STRUCT[s.k].name}</b>${s.k === 'wall' ? ` ${Math.ceil(s.hp)}/${STRUCT.wall.hp}` : s.k === 'trap' ? ` 남은 ${s.uses}번` : ''}` : '빈 칸'}${q ? ` · <b>${SQUAD[q.k].name} ${Math.ceil(q.hp / SQUAD[q.k].hp)}/${q.n0}</b> ${STANCE[q.stance]}` : ''}</div>`;
+      if (moving) h += `<div class="box alert"><div class="t">옮길 칸을 누르세요</div><button data-a="cancelMove">그만두기</button></div>`;
+      h += `<div class="sec">시설</div><div class="btns">`;
+      if (!s) h += Object.entries(STRUCT).map(([k, d]) => `<button data-a="build" data-k="${k}" ${bud < d.cost || zs.closed ? 'disabled' : ''}>${d.name}<small>${d.cost}</small></button>`).join('');
+      else h += `<button data-a="sell">걷기<small>+${Math.floor(STRUCT[s.k].cost * B.SELL)}</small></button>` + (s.k === 'wall' ? `<button data-a="repair" ${s.hp >= STRUCT.wall.hp || bud < B.REPAIR ? 'disabled' : ''}>고치기<small>${B.REPAIR}</small></button>` : '');
+      h += `</div><div class="sec">부대</div><div class="btns">`;
+      if (!q) h += Object.entries(SQUAD).map(([k, d]) => `<button data-a="hire" data-k="${k}" ${bud < d.cost || zs.closed ? 'disabled' : ''}>${d.name}<small>${d.n}명 · ${d.cost}</small></button>`).join('');
+      else {
+        const miss = q.n0 - Math.ceil(q.hp / SQUAD[q.k].hp), cost = Math.ceil((q.n0 * SQUAD[q.k].hp - q.hp) / SQUAD[q.k].hp) * B.REFILL;
+        h += `<button data-a="stance">${q.stance === 'hold' ? '사수' : '후퇴'}<small>${q.stance === 'hold' ? '끝까지 버팀' : '꺾이면 물러남'}</small></button>`
+          + `<button data-a="move">옮기기<small>공짜</small></button>`
+          + `<button data-a="refill" ${q.hp >= q.n0 * SQUAD[q.k].hp || bud < cost ? 'disabled' : ''}>채우기<small>${miss ? cost : '가득'}</small></button>`;
+      }
+      h += `</div>`;
+      if (Z.deep) h += routeBtns(sel.z, false);
+      h += `<div class="fill">${reportHtml()}${forecastHtml()}</div>`;
+    } else {
+      if (G.pause) h += `<div class="box alert"><div class="t">${G.pause.text}</div>개입할 판을 고르고 신임을 쓰거나, 그대로 둡니다.<div style="margin-top:3px"><button class="main" data-a="resume">계속</button></div></div>`;
+      h += `<div class="info">${s ? `<b>${STRUCT[s.k].name}</b>${s.k === 'wall' ? ` ${Math.ceil(s.hp)}` : ''} · ` : ''}${q ? `<b>${SQUAD[q.k].name} ${Math.ceil(q.hp / SQUAD[q.k].hp)}/${q.n0}</b> · ` : ''}마물 <b>${G.mons.filter(m => m.zone === sel.z).length}</b></div>`;
+      h += `<div class="sec">긴급 개입 · 신임</div><div class="btns two">`
+        + `<button class="danger" data-a="collapse" ${tr < LEVER.collapse.cost || zs.closed ? 'disabled' : ''}>붕락<small>판을 묻음 · ${LEVER.collapse.cost}</small></button>`
+        + `<button data-a="rush" ${tr < LEVER.rush.cost || zs.closed ? 'disabled' : ''}>급파<small>창병 셋 · ${LEVER.rush.cost}</small></button></div>`;
+      if (Z.deep) h += routeBtns(sel.z, true);
+      h += `<div class="fill"><div class="log">${G.log.filter(l => l.w === G.wave).slice(0, 8).map(l => `<div class="warn">${l.text}</div>`).join('') || '<div>짜 놓은 판이 돈다.</div>'}</div></div>`;
+    }
+    if (msg) h += `<div class="info warn">${msg}</div>`;
+    return h;
+  }
+  function routeBtns(z, lever) {
+    return `<div class="sec">갈림길${lever ? ' · 신임 1' : ''}</div><div class="btns">` + ZONES[z].exits.map(e => `<button data-a="route" data-e="${e}" aria-pressed="${G.zones[z].route === e}" ${lever && (G.trust < 1 || G.zones[z].route === e) ? 'disabled' : ''}>${ZONES[e].name.split(' ')[0]}<small>로 보냄</small></button>`).join('') + `</div>`;
+  }
+  function forecastHtml() {
+    const N = G.next, gs = N.groups;
+    const lines = gs.map(g => g.nest ? `<div class="nest">${ZONES[g.src].name} 둥지 · ${MON[g.type].name} ×${g.n}</div>` : `<div>${ZONES[g.src].name} · <b>${MON[g.type].name} ×${g.n}</b></div>`).join('');
+    return `<div class="box"><div class="t">다음 파도 ${G.wave + 1}/${B.WAVES}</div>${lines}${G.wave >= 2 ? '<div style="color:var(--mute)">깊은 곳 기척이 고르지 않다</div>' : ''}</div>`;
+  }
+  function reportHtml() {
+    const r = G.report; if (!r) return '';
+    return `<div class="box"><div class="t">파도 ${r.wave + 1} 지나감</div>쓰러뜨림 <b>${r.kills}</b> · 예산 <b class="good">+${r.income}</b>${r.town ? ` · <span class="bad">마을 −${r.town}</span>` : ''}${r.lost ? ` · 잃은 병사 ${r.lost}` : ''}${r.nests.length ? `<div class="nest">새 둥지: ${r.nests.map(z => ZONES[z].name).join(' · ')}</div>` : ''}</div>`;
+  }
+  function ctlHtml() {
+    if (G.phase === 'plan') return `<button class="main" data-a="go">파도 맞기</button>`;
+    return `<button data-a="auto" aria-pressed="${G.autoPause}" class="hide-s">큰 일에 멈춤</button>`
+      + `<button data-a="pause" aria-pressed="${!running}">❚❚</button>`
+      + SPEEDS.map(s => `<button data-a="speed" data-s="${s}" aria-pressed="${running && speed === s}">${s}×</button>`).join('');
+  }
+
+  function render(force) {
+    $('sWave').textContent = `${Math.min(G.wave + 1, B.WAVES)}/${B.WAVES}`;
+    $('sTown').style.width = Math.max(0, G.town / B.TOWN * 100) + '%';
+    $('sTown').style.background = G.town > 10 ? 'var(--good)' : 'var(--bad)';
+    $('sBud').textContent = Math.floor(G.budget);
+    once($('sTrust'), Array.from({ length: B.TRUST_MAX }, (_, i) => `<i class="${i < G.trust ? 'on' : ''}"></i>`).join(''));
+    once($('ctl'), ctlHtml());
+    once($('side'), sideHtml());
+  }
+
+  // ── 손
+  function act(a, el) {
+    msg = '';
+    let err = null;
+    const z = sel.z, c = sel.c, q = LINE.squadAt(G, z, c);
+    if (a === 'go') { err = LINE.startBattle(G); running = true; acc = 0; G.report = null; sel = { z: sel.z, c: sel.c }; moving = null; }
+    else if (a === 'build') err = LINE.build(G, z, c, el.dataset.k);
+    else if (a === 'sell') err = LINE.sell(G, z, c);
+    else if (a === 'repair') err = LINE.repair(G, z, c);
+    else if (a === 'hire') err = LINE.hire(G, el.dataset.k, z, c);
+    else if (a === 'stance' && q) err = LINE.stance(G, q.id);
+    else if (a === 'refill' && q) err = LINE.refill(G, q.id);
+    else if (a === 'move' && q) moving = q.id;
+    else if (a === 'cancelMove') moving = null;
+    else if (a === 'route') err = LINE.setRoute(G, z, +el.dataset.e, G.phase === 'battle');
+    else if (a === 'collapse') err = LINE.lever(G, 'collapse', z);
+    else if (a === 'rush') err = LINE.lever(G, 'rush', z, c);
+    else if (a === 'resume') { G.pause = null; running = true; }
+    else if (a === 'pause') running = !running;
+    else if (a === 'speed') { speed = +el.dataset.s; running = true; }
+    else if (a === 'auto') G.autoPause = !G.autoPause;
+    if (err) msg = err;
+    render(true);
+  }
+  // 칸마다 다시 그려지므로 누르는 순간(pointerdown)에 받는다
+  document.addEventListener('pointerdown', e => {
+    const b = e.target.closest('button[data-a]'); if (!b || b.disabled) return;
+    e.preventDefault(); act(b.dataset.a, b);
+  });
+  cv.addEventListener('pointerdown', e => {
+    if (!L) return;
+    const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+    for (const Z of ZONES) {
+      const R = L.rects[Z.id];
+      if (x < R.x || x > R.x + R.w || y < R.y || y > R.y + R.h) continue;
+      const c = Math.max(0, Math.min(CELLS - 1, CELLS - 1 - Math.floor((y - R.y - L.hdr) / L.cellH)));
+      if (moving != null) { const err = LINE.move(G, moving, Z.id, c); moving = null; msg = err || ''; }
+      else msg = '';
+      sel = { z: Z.id, c }; render(true); return;
+    }
+  });
+  document.addEventListener('keydown', e => {
+    if (!G || G.over) return;
+    if (e.code === 'Space') { e.preventDefault(); if (G.phase === 'plan') act('go'); else if (G.pause) act('resume'); else act('pause'); }
+  });
+  document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+  document.addEventListener('dblclick', e => e.preventDefault());
+
+  function end() {
+    running = false;
+    const ok = G.over === 'hold';
+    $('ovCard').innerHTML = `<h2>${ok ? '열 파도를 넘김' : '마을이 무너짐'}</h2>
+      <p class="lede">${ok ? `마지막 파도가 가라앉았다. 마을은 ${Math.ceil(G.town)}만큼 남았고, 짜 놓은 판의 흔적이 굴마다 남았다.` : `${G.wave + 1}번째 파도에서 마을의 문이 열렸다. 판은 짜여 있었으나, 파도가 판보다 컸다.`}</p>
+      <ul><li>쓰러뜨린 마물 <b>${G.stats.killed}</b> · 잃은 병사 <b>${G.stats.lost}</b> · 긴급 개입 <b>${G.stats.levers}</b></li>
+      <li>남은 둥지 <b>${G.zones.reduce((s, z) => s + z.nest, 0)}</b> · 남은 예산 <b>${Math.floor(G.budget)}</b></li></ul>
+      <div class="row"><button class="main" id="again">다시 짜기</button></div>`;
+    $('ov').classList.remove('hidden');
+    $('again').onclick = () => { $('ov').classList.add('hidden'); start(); };
+  }
+
+  function loop(now) {
+    const dt = Math.min(0.1, (now - last) / 1000 || 0); last = now;
+    if (G) {
+      if (G.phase === 'battle' && running && !G.pause) {
+        acc += dt * speed;
+        const before = G.wave;
+        while (acc >= DT && G.phase === 'battle' && !G.pause) { LINE.tick(G); acc -= DT; }
+        if (G.pause) { const p = G.pause; sel = { z: p.z, c: sel.z === p.z ? sel.c : CELLS - 1 }; }
+        if (G.wave !== before && !G.over) { running = false; }
+      }
+      draw(now / 1000);
+      render();
+      if (G.over && $('ov').classList.contains('hidden')) end();
+    }
+    requestAnimationFrame(loop);
+  }
+  $('ovGo').onclick = () => { $('ov').classList.add('hidden'); };
+  window.__line = () => G;
+  start();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
