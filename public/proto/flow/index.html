@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>구역 흐름 관제</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* 관리국 상황판: 왼쪽은 미궁 단면(층 × 구역), 오른쪽은 길드 · 고른 구역과 서류 · 표식석 기록 */
+:root {
+  color-scheme: dark;
+  --desk: #10160f; --board: #1b2a22; --board-2: #15211b; --line: #34503f;
+  --ink: #e3eadf; --soft: #9fb3a5; --mute: #6f8576; --brass: #d9b45a; --bad: #f0806f; --warn: #f2c46b; --good: #86cf9f;
+  --f-display: "Gowun Batang", "Nanum Myeongjo", serif;
+  --f-body: "IBM Plex Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+  --f-num: "IBM Plex Mono", ui-monospace, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--desk); color: var(--ink); font: 13px/1.45 var(--f-body); -webkit-text-size-adjust: 100%; }
+button { font: 600 12px var(--f-body); color: var(--ink); background: var(--board); border: 1px solid var(--line); border-radius: 3px; padding: 5px 9px; cursor: pointer; touch-action: manipulation; }
+button:hover:not(:disabled) { border-color: var(--brass); }
+button:focus-visible { outline: 2px solid var(--brass); outline-offset: 1px; }
+button:disabled { opacity: .4; cursor: default; }
+button[aria-pressed="true"] { background: #3a3220; border-color: var(--brass); color: var(--brass); }
+#app { height: 100dvh; display: grid; grid-template-rows: auto minmax(0, 1fr); padding: 6px max(8px, env(safe-area-inset-right)) 6px max(8px, env(safe-area-inset-left)); gap: 6px; }
+header { display: flex; align-items: center; gap: 6px 14px; flex-wrap: wrap; min-width: 0; }
+h1 { font: 700 16px var(--f-display); margin: 0; white-space: nowrap; }
+.stat { font: 500 12px var(--f-num); color: var(--soft); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.stat b { color: var(--ink); font-weight: 500; }
+.townbar { display: inline-block; width: 64px; height: 7px; background: #2a1c18; border-radius: 4px; vertical-align: middle; overflow: hidden; margin-left: 4px; }
+.townbar i { display: block; height: 100%; background: var(--good); }
+.sp { flex: 1; }
+.speed { display: flex; gap: 3px; }
+main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(250px, 300px); gap: 8px; min-height: 0; }
+#boardWrap { position: relative; min-height: 0; min-width: 0; background: var(--board-2); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: manipulation; }
+aside { display: grid; grid-template-rows: auto auto minmax(60px, 1fr); gap: 6px; min-height: 0; }
+.panel { background: var(--board); border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; min-width: 0; }
+.panel h2 { font: 700 13px var(--f-display); margin: 0 0 4px; display: flex; align-items: baseline; gap: 6px; }
+.panel h2 small { font: 400 11px var(--f-body); color: var(--mute); }
+.g { display: grid; grid-template-columns: 8px 1fr 70px; align-items: center; gap: 6px; font-size: 12px; }
+.g .dot { width: 8px; height: 8px; border-radius: 50%; }
+.g .bar { height: 6px; background: #0e1612; border-radius: 3px; overflow: hidden; }
+.g .bar i { display: block; height: 100%; }
+.g .w { color: var(--soft); font-size: 11px; }
+.zinfo { font-size: 12px; color: var(--soft); display: grid; gap: 1px; margin-bottom: 5px; }
+.zinfo b { color: var(--ink); font-weight: 500; }
+.docs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.docs button { display: grid; text-align: left; gap: 0; padding: 4px 7px; }
+.docs button small { font: 400 10.5px var(--f-num); color: var(--soft); }
+.hint { font-size: 11px; color: var(--mute); margin-top: 4px; min-height: 1.3em; }
+.hint.err { color: var(--bad); }
+#log { overflow-y: auto; font-size: 12px; display: flex; flex-direction: column; gap: 2px; min-height: 0; }
+#log div { padding: 1px 0; border-bottom: 1px solid #22362b; color: var(--soft); }
+#log div span { font: 500 10.5px var(--f-num); color: var(--mute); margin-right: 5px; }
+#log .bad { color: var(--bad); } #log .warn { color: var(--warn); } #log .dead { color: #ff9c8a; font-weight: 600; } #log .doc { color: var(--brass); } #log .name { color: var(--ink); }
+.overlay { position: fixed; inset: 0; background: rgba(6,10,8,.82); display: grid; place-items: center; padding: 16px; z-index: 5; overflow-y: auto; }
+.overlay.hidden { display: none; }
+.card { max-width: 560px; background: var(--board); border: 1px solid var(--line); border-radius: 6px; padding: 16px 18px; display: grid; gap: 10px; }
+.card h2 { font: 700 20px var(--f-display); margin: 0; }
+.card p { margin: 0; color: var(--soft); }
+.card .lede { font: 400 15px/1.6 var(--f-display); color: var(--ink); }
+.card ul { margin: 0; padding-left: 18px; color: var(--soft); display: grid; gap: 3px; }
+.card .row { display: flex; gap: 8px; justify-content: flex-end; }
+.card button.main { background: var(--brass); color: #221e18; border-color: var(--brass); padding: 7px 16px; font-size: 13px; }
+.res { display: grid; grid-template-columns: auto 1fr; gap: 2px 14px; font-size: 13px; }
+.res dt { color: var(--soft); } .res dd { margin: 0; font-family: var(--f-num); }
+/* 좁은 가로(휴대폰): 오른쪽 칸을 좁히고 글씨를 줄인다 */
+@media (max-height: 460px) {
+  #app { padding-top: 4px; padding-bottom: 4px; gap: 4px; }
+  h1 { font-size: 14px; }
+  main { grid-template-columns: minmax(0, 1fr) 236px; gap: 5px; }
+  .panel { padding: 4px 6px; }
+  .panel h2 { font-size: 12px; margin-bottom: 2px; }
+  .g { font-size: 11px; grid-template-columns: 8px 1fr 52px; }
+  .zinfo { font-size: 11px; margin-bottom: 3px; }
+  .docs button { padding: 2px 5px; font-size: 11px; }
+  .docs button small { font-size: 9.5px; }
+  .docs .sub { display: none; }
+  .hint { font-size: 10px; margin-top: 2px; }
+  #log { font-size: 11px; }
+  button { padding: 3px 7px; }
+}
+/* 세로 화면: 위아래로 쌓는다 */
+@media (orientation: portrait) and (max-width: 700px) {
+  main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1.2fr) minmax(0, 1fr); }
+  aside { grid-template-rows: auto auto minmax(40px, 1fr); overflow: hidden; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>제3미궁 상황판</h1>
+    <span class="stat">날 <b id="sDay">1</b>/60</span>
+    <span class="stat">예산 <b id="sBudget">0</b></span>
+    <span class="stat">마을 <span class="townbar"><i id="sTown"></i></span></span>
+    <span class="stat">잃은 사람 <b id="sDead">0</b></span>
+    <span class="sp"></span>
+    <button id="bObs" title="표식석 중계소를 늘리면 깊은 층의 마물이 보이고 보고가 빨라진다">관측 <span id="sObs">1</span>단계 ↑</button>
+    <span class="speed" role="group" aria-label="빠르기">
+      <button data-sp="0" aria-label="멈춤">❚❚</button>
+      <button data-sp="1">1×</button>
+      <button data-sp="2">2×</button>
+      <button data-sp="4">4×</button>
+    </span>
+  </header>
+  <main>
+    <section id="boardWrap"><canvas id="board"></canvas></section>
+    <aside>
+      <div class="panel">
+        <h2>길드 <small>국장을 보는 눈</small></h2>
+        <div id="guilds" style="display:grid;gap:2px"></div>
+      </div>
+      <div class="panel">
+        <h2 id="zTitle">구역을 고르세요</h2>
+        <div class="zinfo" id="zInfo"></div>
+        <div class="docs" id="docs"></div>
+        <div class="hint" id="hint"></div>
+      </div>
+      <div class="panel" style="display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0">
+        <h2>표식석 기록 <small>깊을수록 늦게 닿음</small></h2>
+        <div id="log"></div>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<div class="overlay" id="intro">
+  <div class="card">
+    <h2>제3미궁 상황판</h2>
+    <p class="lede">국장은 미궁에 내려가지 않는다. 조마다 들려 보낸 표식석이 이 판 위에서 깜박일 뿐이고, 그 빛마저 깊은 층에서는 한참 늦게 올라온다.</p>
+    <ul>
+      <li>구역마다 <b style="color:var(--ink)">왼쪽은 사람(길드 빛깔), 오른쪽은 마물</b>입니다. 둘이 맞닿은 금이 전선이에요. 금이 빨갛게 떨리면 그 구역이 무너지는 중입니다.</li>
+      <li>사람은 부릴 수 없어요. 구역을 골라 서류를 겁니다. <b style="color:var(--ink)">현상금</b>은 흐름을 끌어오고, <b style="color:var(--ink)">보급소</b>는 오래 버티게 하고, <b style="color:var(--ink)">봉쇄</b>는 사람과 마물을 함께 막고, <b style="color:var(--ink)">후퇴령</b>은 한 층 위로 물립니다.</li>
+      <li>서류는 깊을수록 늦게 닿고, 흐름은 소문을 따라 며칠에 걸쳐 꺾입니다. 미리 읽어야 해요.</li>
+      <li>길드마다 원하는 구역이 다릅니다. 닫으면 서운해하고, 구해 주면 기억합니다.</li>
+      <li>60일을 버티면 한 철이 끝납니다. 입구로 마물이 넘으면 마을이 깎여요.</li>
+    </ul>
+    <div class="row"><button class="main" id="bStart">상황판 켜기</button></div>
+  </div>
+</div>
+<div class="overlay hidden" id="end"><div class="card" id="endCard"></div></div>
+
+<script src="engine.js"></script>
+<script>
+(() => {
+  const F = window.FLOW;
+  const { NZ, FLOORS, COLS, GUILDS, DOCS, OBS, zf, zc, zoneName, ENTR } = F;
+  const $ = id => document.getElementById(id);
+  const seed = (Date.now() % 100000) + 1;
+  let W = F.newWorld(seed);
+  let speed = 0, acc = 0, sel = 7, hintTimer = 0;
+  const DAY_MS = 5000; // 1×에서 하루 = 5초
+
+  // ---- 화면 칸 ----
+  const cv = $('board'), ctx = cv.getContext('2d');
+  let Wd = 0, Ht = 0, dpr = 1, L = null;
+  function layout() {
+    const r = cv.getBoundingClientRect();
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    Wd = r.width; Ht = r.height;
+    cv.width = Math.round(Wd * dpr); cv.height = Math.round(Ht * dpr);
+    const gut = Wd < 520 ? 26 : 38, top = Math.max(28, Ht * 0.11), pad = 6, gap = Math.max(8, Wd * 0.018), vgap = Math.max(8, Ht * 0.03);
+    const cw = (Wd - gut - pad - gap * (COLS - 1)) / COLS, ch = (Ht - top - pad - vgap * (FLOORS - 1)) / FLOORS;
+    const cells = [];
+    for (let z = 0; z < NZ; z++) cells.push({ x: gut + zc(z) * (cw + gap), y: top + zf(z) * (ch + vgap), w: cw, h: ch });
+    L = { gut, top, pad, gap, vgap, cw, ch, cells };
+  }
+  new ResizeObserver(layout).observe(cv);
+
+  // 점마다 고정된 자리(화면용 난수, 판에는 쓰지 않음)
+  const DOTS = Array.from({ length: NZ }, () => Array.from({ length: 90 }, () => ({ u: Math.random(), v: Math.random(), p: Math.random() * 6.28, s: 0.6 + Math.random() * 0.8 })));
+  const MDOTS = Array.from({ length: NZ }, () => Array.from({ length: 90 }, () => ({ u: Math.random(), v: Math.random(), p: Math.random() * 6.28, s: 0.6 + Math.random() * 0.8 })));
+  const shown = { H: new Float64Array(NZ), M: new Float64Array(NZ), split: new Float64Array(NZ).fill(0.5) };
+
+  function rr(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); }
+
+  function draw(now) {
+    if (!L) return;
+    const T = now / 1000;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, Wd, Ht);
+    const small = Wd < 560;
+    // 지상
+    const tx = L.cells[ENTR].x + L.cw / 2;
+    ctx.fillStyle = '#22301f'; ctx.fillRect(0, 0, Wd, L.top - L.vgap * 0.6);
+    ctx.fillStyle = '#9fb3a5'; ctx.font = `600 ${small ? 10 : 11}px "IBM Plex Sans KR", sans-serif`; ctx.textBaseline = 'middle';
+    const sy = (L.top - L.vgap * 0.6) / 2;
+    ctx.fillText('지상 · 마을', L.gut, sy);
+    // 마을 지붕
+    for (let i = 0; i < 9; i++) {
+      const hx = L.gut + (small ? 62 : 76) + i * (small ? 11 : 14), hurt = W.town < 100 - i * 11;
+      ctx.fillStyle = hurt ? '#4a2a22' : '#6d6a4c';
+      ctx.beginPath(); ctx.moveTo(hx, sy + 5); ctx.lineTo(hx + 4.5, sy - 3); ctx.lineTo(hx + 9, sy + 5); ctx.fill();
+    }
+    // 입구 수직 갱도
+    ctx.fillStyle = '#3b3326'; ctx.fillRect(tx - 7, sy, 14, L.top - sy);
+    ctx.fillStyle = '#d9b45a'; ctx.textAlign = 'center'; ctx.fillText('입구', tx, sy); ctx.textAlign = 'left';
+    // 층 이름 · 통로
+    for (let f = 0; f < FLOORS; f++) {
+      const y = L.top + f * (L.ch + L.vgap) + L.ch / 2;
+      ctx.save(); ctx.translate(L.gut / 2, y); ctx.rotate(-Math.PI / 2);
+      ctx.fillStyle = f < OBS[W.obs].see ? '#9fb3a5' : '#5b6d60'; ctx.textAlign = 'center';
+      ctx.font = `600 ${small ? 10 : 12}px "Gowun Batang", serif`; ctx.fillText(F.FLOOR_NAME[f], 0, 0); ctx.restore();
+    }
+    ctx.fillStyle = '#3b3326';
+    for (let z = 0; z < NZ; z++) {
+      const c = L.cells[z];
+      if (zf(z) < FLOORS - 1) ctx.fillRect(c.x + c.w / 2 - 5, c.y + c.h, 10, L.vgap);
+      if (zc(z) < COLS - 1) ctx.fillRect(c.x + c.w, c.y + c.h / 2 - 4, L.gap, 8);
+    }
+    // 구역
+    for (let z = 0; z < NZ; z++) drawCell(z, T, small);
+    // 가는 서류
+    for (const d of W.docs) {
+      const k = Math.min(1, (W.t + acc / DAY_MS - d.from) / (d.at - d.from));
+      const p = docPath(d.z, k);
+      ctx.fillStyle = '#efe4c4'; ctx.strokeStyle = '#7b6a40'; ctx.lineWidth = 1;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(Math.sin(T * 3) * 0.2);
+      ctx.fillRect(-5, -6, 10, 12); ctx.strokeRect(-5, -6, 10, 12);
+      ctx.restore();
+    }
+  }
+
+  function docPath(z, k) {
+    const c = L.cells[z], e = L.cells[ENTR];
+    const pts = [{ x: e.x + e.w / 2, y: L.top * 0.45 }];
+    const colX = L.cells[zc(z) === 1 ? ENTR : zc(z)].x + L.cw / 2;
+    // 입구에서 1층으로, 1층에서 옆 굴로, 그 굴의 갱도를 따라 아래로
+    pts.push({ x: e.x + e.w / 2, y: e.y + 10 });
+    pts.push({ x: colX, y: e.y + 10 });
+    pts.push({ x: c.x + c.w / 2, y: c.y + c.h / 2 });
+    let len = 0; const seg = [];
+    for (let i = 1; i < pts.length; i++) { const l = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y); seg.push(l); len += l; }
+    let d = k * len;
+    for (let i = 0; i < seg.length; i++) {
+      if (d <= seg[i] || i === seg.length - 1) { const q = seg[i] ? Math.min(1, d / seg[i]) : 1; return { x: pts[i].x + (pts[i + 1].x - pts[i].x) * q, y: pts[i].y + (pts[i + 1].y - pts[i].y) * q }; }
+      d -= seg[i];
+    }
+    return pts[pts.length - 1];
+  }
+
+  function drawCell(z, T, small) {
+    const c = L.cells[z], f = zf(z), v = F.view(W, f), see = F.seesMonsters(W, f);
+    let h = 0; const hg = GUILDS.map((_, g) => { h += v.H[g][z]; return v.H[g][z]; });
+    const m = v.M[z], pd = v.pd[z];
+    // 부드럽게
+    shown.H[z] += (h - shown.H[z]) * 0.12; shown.M[z] += (m - shown.M[z]) * 0.12;
+    const tgt = see ? (h + 2) / (h + m + 4) : 0.98;
+    shown.split[z] += (Math.min(0.92, Math.max(0.08, tgt)) - shown.split[z]) * 0.08;
+    const sx = c.x + c.w * shown.split[z];
+    // 바탕
+    const depth = f / (FLOORS - 1);
+    rr(c.x, c.y, c.w, c.h, 5);
+    ctx.fillStyle = `rgb(${34 - depth * 12},${44 - depth * 16},${38 - depth * 14})`; ctx.fill();
+    ctx.save(); rr(c.x, c.y, c.w, c.h, 5); ctx.clip();
+    // 마물 쪽
+    if (see) {
+      const a = Math.min(0.55, m / 160);
+      ctx.fillStyle = `rgba(120,20,24,${a})`; ctx.fillRect(sx, c.y, c.x + c.w - sx, c.h);
+      const nM = Math.min(90, Math.round(m / 1.6));
+      ctx.fillStyle = '#c23a36';
+      for (let i = 0; i < nM; i++) {
+        const d = MDOTS[z][i], x = sx + 4 + d.u * (c.x + c.w - sx - 8) + Math.sin(T * 1.3 + d.p) * 2.5, y = c.y + 6 + d.v * (c.h - 12) + Math.cos(T * 1.1 + d.p) * 2;
+        ctx.fillRect(x - 1.3 * d.s, y - 1.3 * d.s, 2.6 * d.s, 2.6 * d.s);
+      }
+    } else {
+      // 보이지 않는 층: 표식석의 점멸만
+      ctx.fillStyle = 'rgba(8,12,10,.55)'; ctx.fillRect(c.x, c.y, c.w, c.h);
+      const flick = m > 45 ? (0.5 + 0.5 * Math.sin(T * (2 + m / 40) + z)) * Math.min(0.5, m / 200) : 0;
+      if (flick > 0) { ctx.fillStyle = `rgba(190,40,40,${flick})`; ctx.fillRect(c.x, c.y, c.w, c.h); }
+    }
+    // 사람 쪽
+    const nH = Math.min(90, Math.round(shown.H[z] / 1.2));
+    const cum = []; let s = 0; for (const x of hg) { s += x; cum.push(s); }
+    const left = c.x + 4, right = (see ? sx : c.x + c.w) - 4;
+    for (let i = 0; i < nH; i++) {
+      const d = DOTS[z][i], frac = (i + 0.5) / nH * (s || 1);
+      let g = 0; while (g < 2 && frac > cum[g]) g++;
+      ctx.fillStyle = see ? GUILDS[g].color : 'rgba(230,230,210,.7)';
+      const x = left + d.u * Math.max(4, right - left) + Math.sin(T * 1.6 + d.p) * 2, y = c.y + 6 + d.v * (c.h - 12) + Math.cos(T * 1.4 + d.p) * 2;
+      ctx.beginPath(); ctx.arc(x, y, 1.6 * d.s + 0.4, 0, 6.29); ctx.fill();
+    }
+    // 전선
+    if (see && h > 3 && m > 8) {
+      const hot = Math.min(1, pd / 0.06), pulse = 0.6 + 0.4 * Math.sin(T * (3 + hot * 6));
+      ctx.strokeStyle = hot > 0.55 ? `rgba(255,90,70,${pulse})` : `rgba(242,196,107,${0.5 + hot * 0.4})`;
+      ctx.lineWidth = 2 + hot * 2;
+      ctx.beginPath();
+      for (let y = 0; y <= c.h; y += 6) { const x = sx + Math.sin(y * 0.15 + T * 2) * (1 + hot * 3); y ? ctx.lineTo(x, c.y + y) : ctx.moveTo(x, c.y + y); }
+      ctx.stroke();
+    }
+    // 봉쇄 목책
+    if (W.seal[z]) {
+      ctx.strokeStyle = 'rgba(160,120,70,.75)'; ctx.lineWidth = 3;
+      for (let x = -c.h; x < c.w; x += 14) { ctx.beginPath(); ctx.moveTo(c.x + x, c.y + c.h); ctx.lineTo(c.x + x + c.h, c.y); ctx.stroke(); }
+    }
+    ctx.restore();
+    // 테두리
+    const cap = F.capOf(W, z);
+    rr(c.x, c.y, c.w, c.h, 5);
+    ctx.setLineDash([]);
+    if (see && pd > 0.035) { ctx.strokeStyle = `rgba(255,90,70,${0.6 + 0.4 * Math.sin(T * 8)})`; ctx.lineWidth = 2.5; }
+    else if (h > cap * 1.3) { ctx.strokeStyle = '#f2f0e0'; ctx.lineWidth = 2; ctx.setLineDash([5, 4]); }
+    else { ctx.strokeStyle = '#3e5a48'; ctx.lineWidth = 1; }
+    ctx.stroke(); ctx.setLineDash([]);
+    if (z === sel) { rr(c.x - 2, c.y - 2, c.w + 4, c.h + 4, 7); ctx.strokeStyle = '#d9b45a'; ctx.lineWidth = 2; ctx.stroke(); }
+    // 글
+    const fs = small ? 9.5 : 11;
+    ctx.font = `600 ${fs}px "IBM Plex Sans KR", sans-serif`; ctx.textBaseline = 'top';
+    ctx.fillStyle = 'rgba(227,234,223,.85)';
+    ctx.fillText(F.COL_NAME[zc(z)], c.x + 5, c.y + 4);
+    const lag = F.lagOf(W, f);
+    ctx.font = `500 ${fs - 1}px "IBM Plex Mono", monospace`; ctx.fillStyle = 'rgba(159,179,165,.8)'; ctx.textAlign = 'right';
+    ctx.fillText(lag < 0.4 ? '' : `${lag.toFixed(1)}일 전`, c.x + c.w - 5, c.y + 4);
+    ctx.textBaseline = 'bottom';
+    ctx.fillStyle = 'rgba(227,234,223,.9)';
+    ctx.fillText(`마물 ${see ? Math.round(m) : '?'}`, c.x + c.w - 5, c.y + c.h - 3);
+    ctx.textAlign = 'left';
+    ctx.fillText(`사람 ${Math.round(h)}`, c.x + 5, c.y + c.h - 3);
+    // 꼬리표
+    const tags = [];
+    if (W.bounty[z] > 0) tags.push(['현상 ' + Math.ceil(W.bounty[z]) + '일', '#d9b45a']);
+    if (W.supply[z] === 2) tags.push(['보급소', '#86cf9f']); else if (W.supply[z] === 1) tags.push(['보급소 짓는 중', '#6f8576']);
+    if (W.seal[z]) tags.push(['봉쇄', '#d79a6a']);
+    if (W.block[z] > W.t) tags.push(['후퇴', '#d79a6a']);
+    if (h > cap * 1.3) tags.push(['과밀', '#f2f0e0']);
+    let ty = c.y + 4 + fs + 3;
+    ctx.font = `600 ${fs - 1}px "IBM Plex Sans KR", sans-serif`; ctx.textBaseline = 'top';
+    for (const [t, col] of tags) {
+      const w = ctx.measureText(t).width + 8;
+      ctx.fillStyle = 'rgba(10,14,12,.75)'; ctx.fillRect(c.x + 4, ty, w, fs + 2);
+      ctx.fillStyle = col; ctx.fillText(t, c.x + 8, ty + 1); ty += fs + 4;
+    }
+    // 이름 있는 이
+    let ny = c.y + 4 + fs + 3;
+    ctx.textAlign = 'right';
+    W.named.forEach((p, i) => {
+      if (v.named[i] !== z) return;
+      const t = p.name, w = ctx.measureText(t).width + 12;
+      ctx.fillStyle = 'rgba(10,14,12,.8)'; ctx.fillRect(c.x + c.w - 4 - w, ny, w, fs + 3);
+      ctx.fillStyle = GUILDS[p.g].color; ctx.beginPath(); ctx.arc(c.x + c.w - w + 1, ny + (fs + 3) / 2, 2.5, 0, 6.29); ctx.fill();
+      ctx.fillText(t, c.x + c.w - 7, ny + 1.5); ny += fs + 5;
+    });
+    ctx.textAlign = 'left';
+  }
+
+  // ---- 옆 칸 ----
+  const gwWord = x => x >= 70 ? '두터움' : x >= 55 ? '좋음' : x >= 40 ? '덤덤함' : x >= 25 ? '서운함' : '등 돌림';
+  function renderSide() {
+    $('sDay').textContent = Math.min(F.SEASON, Math.floor(W.t) + 1);
+    $('sBudget').textContent = Math.floor(W.budget);
+    $('sTown').style.width = W.town + '%';
+    $('sTown').style.background = W.town > 60 ? 'var(--good)' : W.town > 30 ? 'var(--warn)' : 'var(--bad)';
+    $('sDead').textContent = Math.round(W.deaths);
+    $('sObs').textContent = W.obs + 1;
+    const nx = OBS[W.obs + 1];
+    $('bObs').disabled = !nx || !!W.obsAt || W.budget < (nx ? nx.cost : 0);
+    $('bObs').title = nx ? `표식석 중계소 ${nx.cost}: ${nx.see === 4 ? '심층까지' : nx.see + '층까지'} 마물이 보이고 보고가 빨라짐` : '';
+    $('guilds').innerHTML = GUILDS.map((G, g) => {
+      const named = W.named.filter(p => p.g === g).map(p => p.alive ? '' : ` · ${p.name} 잃음`).join('');
+      return `<div class="g"><span class="dot" style="background:${G.color}"></span><span>${G.name}<span class="w">${named}</span></span><span class="w">${gwWord(W.gw[g])}</span></div>`;
+    }).join('');
+    // 고른 구역
+    const z = sel, f = zf(z), v = F.view(W, f), see = F.seesMonsters(W, f);
+    $('zTitle').innerHTML = `${zoneName(z)} <small>${F.lagOf(W, f).toFixed(1)}일 전 보고</small>`;
+    const hs = GUILDS.map((G, g) => `<span style="color:${G.color}">${G.short} ${Math.round(v.H[g][z])}</span>`).join(' · ');
+    const favs = GUILDS.filter(G => G.fav === zc(z)).map(G => G.short);
+    const rich = W.R[z] / F.rmax(z);
+    $('zInfo').innerHTML = `<div>사람 ${hs} <span style="color:var(--mute)">/ 버틸 수 ${F.capOf(W, z)}</span></div>`
+      + `<div>마물 <b>${see ? Math.round(v.M[z]) : '보이지 않음'}</b> · 캘 것 <b>${rich > 0.66 ? '많음' : rich > 0.33 ? '보통' : '바닥'}</b>${favs.length ? ` · <span style="color:var(--mute)">${favs.join('·')}가 노리는 굴</span>` : ''}</div>`;
+    const list = W.seal[z] ? ['bounty', 'supply', 'unseal', 'retreat'] : ['bounty', 'supply', 'seal', 'retreat'];
+    const sub = { bounty: '흐름을 끌어옴', supply: '버팀 · 자리 늘림', seal: '사람 · 마물 막음', unseal: '목책을 걷음', retreat: '한 층 위로 물림' };
+    const cur = list.map(k => {
+      const D = DOCS[k], going = W.docs.some(d => d.z === z && d.type === k);
+      const dis = going || W.budget < D.cost || (k === 'supply' && W.supply[z]) || (k === 'bounty' && W.bounty[z] > 2) || W.over;
+      return `<button data-doc="${k}" ${dis ? 'disabled' : ''}><span>${D.name} <small>${D.cost ? D.cost : '무료'}</small></span><small>${going ? '가는 중' : `<span class="sub">${sub[k]} · </span>${F.travel(z).toFixed(1)}일 걸림`}</small></button>`;
+    }).join('');
+    if ($('docs').dataset.k !== cur) { $('docs').innerHTML = cur; $('docs').dataset.k = cur; }
+    // 기록
+    const lk = W.log.length + ':' + (W.log.length ? W.log[W.log.length - 1].day : 0);
+    if ($('log').dataset.k !== lk) {
+      $('log').dataset.k = lk;
+      $('log').innerHTML = W.log.slice().reverse().map(e => `<div class="${e.kind}"><span>${Math.floor(e.day) + 1}일</span>${e.text}</div>`).join('');
+    }
+  }
+
+  function hint(text, err) { const h = $('hint'); h.textContent = text; h.className = 'hint' + (err ? ' err' : ''); clearTimeout(hintTimer); hintTimer = setTimeout(() => { h.textContent = ''; }, 3000); }
+
+  $('docs').addEventListener('click', e => {
+    const b = e.target.closest('button[data-doc]'); if (!b) return;
+    const k = b.dataset.doc, err = F.issue(W, k, sel);
+    if (err) hint(err, true);
+    else hint(`${DOCS[k].name} → ${zoneName(sel)}. ${F.travel(sel).toFixed(1)}일 뒤 닿음`);
+    renderSide();
+  });
+  $('bObs').addEventListener('click', () => { const err = F.upgradeObs(W); hint(err || '표식석 중계소를 놓는 중. 하루 뒤 이어짐', !!err); renderSide(); });
+  cv.addEventListener('pointerdown', e => {
+    const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+    for (let z = 0; z < NZ; z++) { const c = L.cells[z]; if (x >= c.x - L.gap / 2 && x <= c.x + c.w + L.gap / 2 && y >= c.y - L.vgap / 2 && y <= c.y + c.h + L.vgap / 2) { sel = z; renderSide(); return; } }
+  });
+  function setSpeed(s) { speed = s; document.querySelectorAll('[data-sp]').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.sp === s))); }
+  document.querySelectorAll('[data-sp]').forEach(b => b.addEventListener('click', () => setSpeed(+b.dataset.sp)));
+  document.addEventListener('keydown', e => { if (e.code === 'Space' && !e.target.closest('input')) { e.preventDefault(); setSpeed(speed ? 0 : 1); } });
+  $('bStart').addEventListener('click', () => { $('intro').classList.add('hidden'); setSpeed(1); });
+
+  function endScreen() {
+    setSpeed(0);
+    const alive = W.named.filter(p => p.alive).map(p => p.name), lost = W.named.filter(p => !p.alive).map(p => p.name);
+    const fell = W.over === 'fall';
+    $('endCard').innerHTML = `<h2>${fell ? '범람' : '한 철이 끝남'}</h2>
+      <p class="lede">${fell
+        ? `${Math.floor(W.t) + 1}일째, 입구의 목책이 안쪽에서부터 꺾여 나갔다. 마을 지붕 아홉 채 가운데 남은 것은 없었고, 상황판의 표식석은 하나씩 꺼져 갔다.`
+        : W.town > 80 ? '입구는 한 철 내내 닫히지 않았다. 마을 사람들은 그것이 누구의 수고였는지 끝내 알지 못할 것이다.'
+        : `입구 너머로 넘어온 것들이 마을의 담 몇 군데를 무너뜨렸다. 장부에는 남은 일로, 마을에는 지나간 일로 적혔다.`}</p>
+      <dl class="res">
+        <dt>마을</dt><dd>${Math.round(W.town)} / 100</dd>
+        <dt>거둔 세</dt><dd>${Math.round(W.taxSum)}</dd>
+        <dt>잃은 사람</dt><dd>${Math.round(W.deaths)} (${GUILDS.map((G, g) => G.short + ' ' + Math.round(W.deathsG[g])).join(' · ')})</dd>
+        <dt>이름 있는 이</dt><dd>${alive.length ? '살아남음: ' + alive.join(', ') : ''}${alive.length && lost.length ? ' / ' : ''}${lost.length ? '잃음: ' + lost.join(', ') : ''}</dd>
+        <dt>길드</dt><dd>${GUILDS.map((G, g) => G.short + ' ' + gwWord(W.gw[g])).join(' · ')}</dd>
+      </dl>
+      <div class="row"><button class="main" id="bAgain">다시</button></div>`;
+    $('end').classList.remove('hidden');
+    $('bAgain').onclick = () => { W = F.newWorld((Date.now() % 100000) + 1); $('end').classList.add('hidden'); shown.H.fill(0); shown.M.fill(0); setSpeed(1); };
+  }
+
+  let last = performance.now(), sideT = 0;
+  function frame(now) {
+    const dt = Math.min(250, now - last); last = now;
+    if (speed && !W.over) {
+      acc += dt * speed;
+      const tickMs = DAY_MS / F.DAY_TICKS;
+      while (acc >= tickMs && !W.over) { acc -= tickMs; F.tick(W); }
+      if (W.over) endScreen();
+    }
+    draw(now);
+    if (now - sideT > 150) { sideT = now; renderSide(); }
+    requestAnimationFrame(frame);
+  }
+  window.__flow = () => W; // 확인용
+  layout(); setSpeed(0); renderSide();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
