@@ -7,7 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* 관리국 상황판: 왼쪽은 미궁 단면(층 × 구역), 오른쪽은 길드 · 고른 구역과 서류 · 표식석 기록 */
+/* 관리국 상황판: 왼쪽은 미궁 단면(층 × 구역)과 흐름 화살표, 오른쪽은 탭(제도 · 구역 · 길드 · 기록).
+   화면은 끌거나 넘기지 않는다: 모든 칸이 한 화면에 들어가고, 넘치는 것은 탭으로 나눈다 */
 :root {
   color-scheme: dark;
   --desk: #10160f; --board: #1b2a22; --board-2: #15211b; --line: #34503f;
@@ -17,75 +18,109 @@
   --f-num: "IBM Plex Mono", ui-monospace, monospace;
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; overflow: hidden; background: var(--desk); color: var(--ink); font: 13px/1.45 var(--f-body); -webkit-text-size-adjust: 100%; }
+html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; background: var(--desk); color: var(--ink); font: 13px/1.45 var(--f-body); -webkit-text-size-adjust: 100%; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
 button { font: 600 12px var(--f-body); color: var(--ink); background: var(--board); border: 1px solid var(--line); border-radius: 3px; padding: 5px 9px; cursor: pointer; touch-action: manipulation; }
 button:hover:not(:disabled) { border-color: var(--brass); }
 button:focus-visible { outline: 2px solid var(--brass); outline-offset: 1px; }
 button:disabled { opacity: .4; cursor: default; }
 button[aria-pressed="true"] { background: #3a3220; border-color: var(--brass); color: var(--brass); }
 #app { height: 100dvh; display: grid; grid-template-rows: auto minmax(0, 1fr); padding: 6px max(8px, env(safe-area-inset-right)) 6px max(8px, env(safe-area-inset-left)); gap: 6px; }
-header { display: flex; align-items: center; gap: 6px 14px; flex-wrap: wrap; min-width: 0; }
+header { display: flex; align-items: center; gap: 4px 12px; min-width: 0; }
 h1 { font: 700 16px var(--f-display); margin: 0; white-space: nowrap; }
 .stat { font: 500 12px var(--f-num); color: var(--soft); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .stat b { color: var(--ink); font-weight: 500; }
-.townbar { display: inline-block; width: 64px; height: 7px; background: #2a1c18; border-radius: 4px; vertical-align: middle; overflow: hidden; margin-left: 4px; }
+.stat .up { color: var(--good); } .stat .dn { color: var(--bad); }
+.townbar { display: inline-block; width: 56px; height: 7px; background: #2a1c18; border-radius: 4px; vertical-align: middle; overflow: hidden; margin-left: 4px; }
 .townbar i { display: block; height: 100%; background: var(--good); }
 .sp { flex: 1; }
 .speed { display: flex; gap: 3px; }
-main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(250px, 300px); gap: 8px; min-height: 0; }
+main { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 8px; min-height: 0; }
 #boardWrap { position: relative; min-height: 0; min-width: 0; background: var(--board-2); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
-canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: manipulation; }
-aside { display: grid; grid-template-rows: auto auto minmax(60px, 1fr); gap: 6px; min-height: 0; }
-.panel { background: var(--board); border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; min-width: 0; }
-.panel h2 { font: 700 13px var(--f-display); margin: 0 0 4px; display: flex; align-items: baseline; gap: 6px; }
-.panel h2 small { font: 400 11px var(--f-body); color: var(--mute); }
-.g { display: grid; grid-template-columns: 8px 1fr 70px; align-items: center; gap: 6px; font-size: 12px; }
-.g .dot { width: 8px; height: 8px; border-radius: 50%; }
-.g .bar { height: 6px; background: #0e1612; border-radius: 3px; overflow: hidden; }
-.g .bar i { display: block; height: 100%; }
-.g .w { color: var(--soft); font-size: 11px; }
-.zinfo { font-size: 12px; color: var(--soft); display: grid; gap: 1px; margin-bottom: 5px; }
+canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+aside { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; background: var(--board); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.tabs { display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid var(--line); }
+.tabs button { border: 0; border-radius: 0; background: transparent; color: var(--soft); padding: 7px 0; position: relative; }
+.tabs button[aria-selected="true"] { color: var(--brass); background: #22352a; box-shadow: inset 0 -2px 0 var(--brass); }
+.tabs button .dot { position: absolute; top: 5px; right: 18%; width: 6px; height: 6px; border-radius: 50%; background: var(--bad); display: none; }
+.tabs button.new .dot { display: block; }
+.pane { padding: 8px 10px; min-height: 0; overflow: hidden; display: none; }
+.pane.on { display: flex; flex-direction: column; gap: 6px; }
+.pane h2 { font: 700 13px var(--f-display); margin: 0; display: flex; align-items: baseline; gap: 6px; }
+.pane h2 small { font: 400 11px var(--f-body); color: var(--mute); }
+.note { font-size: 11px; color: var(--mute); }
+/* 제도 표 */
+.pol { display: grid; grid-template-columns: 30px 1fr 74px 74px 50px; align-items: center; gap: 4px 4px; font-size: 12px; }
+.pol .hd { font-size: 10.5px; color: var(--mute); }
+.pol .fl { font: 700 12px var(--f-display); }
+.step { display: grid; grid-template-columns: 20px 1fr 20px; align-items: center; text-align: center; font: 500 11.5px var(--f-num); }
+.step button { padding: 0; height: 22px; font-size: 13px; line-height: 1; }
+.pol .tog { padding: 3px 0; font-size: 11px; }
+.price { font: 500 11.5px var(--f-num); }
+.price.lo { color: var(--bad); } .price.hi { color: var(--good); }
+.money { font: 500 12px var(--f-num); color: var(--soft); display: flex; gap: 10px; flex-wrap: wrap; }
+.money b { font-weight: 500; }
+/* 구역 */
+.zinfo { font-size: 12px; color: var(--soft); display: grid; gap: 1px; }
 .zinfo b { color: var(--ink); font-weight: 500; }
-.docs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
-.docs button { display: grid; text-align: left; gap: 0; padding: 4px 7px; }
-.docs button small { font: 400 10.5px var(--f-num); color: var(--soft); }
-.hint { font-size: 11px; color: var(--mute); margin-top: 4px; min-height: 1.3em; }
+.docs { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; }
+.docs button { display: grid; text-align: left; gap: 0; padding: 4px 6px; }
+.docs button small { font: 400 10.5px var(--f-body); color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hint { font-size: 11px; color: var(--mute); min-height: 1.3em; }
 .hint.err { color: var(--bad); }
-#log { overflow-y: auto; font-size: 12px; display: flex; flex-direction: column; gap: 2px; min-height: 0; }
-#log div { padding: 1px 0; border-bottom: 1px solid #22362b; color: var(--soft); }
+/* 길드 */
+.gcard { display: grid; grid-template-columns: 8px 1fr auto; gap: 1px 6px; align-items: center; font-size: 12px; padding-bottom: 5px; border-bottom: 1px solid #22362b; }
+.gcard .dot { width: 8px; height: 8px; border-radius: 50%; }
+.gcard .sub { grid-column: 2 / 4; color: var(--soft); font-size: 11px; display: flex; gap: 8px; flex-wrap: wrap; }
+.gcard .bar { display: inline-block; width: 44px; height: 5px; background: #0e1612; border-radius: 3px; overflow: hidden; vertical-align: middle; }
+.gcard .bar i { display: block; height: 100%; background: var(--brass); }
+/* 기록 */
+#log { display: flex; flex-direction: column; gap: 2px; font-size: 12px; overflow: hidden; min-height: 0; }
+#log div { padding: 1px 0; border-bottom: 1px solid #22362b; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: none; }
 #log div span { font: 500 10.5px var(--f-num); color: var(--mute); margin-right: 5px; }
 #log .bad { color: var(--bad); } #log .warn { color: var(--warn); } #log .dead { color: #ff9c8a; font-weight: 600; } #log .doc { color: var(--brass); } #log .name { color: var(--ink); }
-.overlay { position: fixed; inset: 0; background: rgba(6,10,8,.82); display: grid; place-items: center; padding: 16px; z-index: 5; overflow-y: auto; }
+/* 겹 창 */
+.overlay { position: fixed; inset: 0; background: rgba(6,10,8,.84); display: grid; place-items: center; padding: 12px; z-index: 5; }
 .overlay.hidden { display: none; }
-.card { max-width: 560px; background: var(--board); border: 1px solid var(--line); border-radius: 6px; padding: 16px 18px; display: grid; gap: 10px; }
-.card h2 { font: 700 20px var(--f-display); margin: 0; }
+.card { max-width: 640px; max-height: calc(100dvh - 24px); background: var(--board); border: 1px solid var(--line); border-radius: 6px; padding: 14px 18px; display: grid; gap: 8px; overflow: hidden; }
+.card h2 { font: 700 19px var(--f-display); margin: 0; }
 .card p { margin: 0; color: var(--soft); }
-.card .lede { font: 400 15px/1.6 var(--f-display); color: var(--ink); }
-.card ul { margin: 0; padding-left: 18px; color: var(--soft); display: grid; gap: 3px; }
+.card .lede { font: 400 14px/1.6 var(--f-display); color: var(--ink); }
+.card ul { margin: 0; padding-left: 18px; color: var(--soft); display: grid; gap: 2px; font-size: 12.5px; }
+.card ul b { color: var(--ink); font-weight: 600; }
 .card .row { display: flex; gap: 8px; justify-content: flex-end; }
 .card button.main { background: var(--brass); color: #221e18; border-color: var(--brass); padding: 7px 16px; font-size: 13px; }
-.res { display: grid; grid-template-columns: auto 1fr; gap: 2px 14px; font-size: 13px; }
+.res { display: grid; grid-template-columns: auto 1fr; gap: 2px 14px; font-size: 13px; margin: 0; }
 .res dt { color: var(--soft); } .res dd { margin: 0; font-family: var(--f-num); }
-/* 좁은 가로(휴대폰): 오른쪽 칸을 좁히고 글씨를 줄인다 */
-@media (max-height: 460px) {
+/* 좁은 가로(휴대폰) */
+@media (max-height: 480px) {
   #app { padding-top: 4px; padding-bottom: 4px; gap: 4px; }
-  h1 { font-size: 14px; }
-  main { grid-template-columns: minmax(0, 1fr) 236px; gap: 5px; }
-  .panel { padding: 4px 6px; }
-  .panel h2 { font-size: 12px; margin-bottom: 2px; }
-  .g { font-size: 11px; grid-template-columns: 8px 1fr 52px; }
-  .zinfo { font-size: 11px; margin-bottom: 3px; }
+  h1 { font-size: 13px; }
+  .stat { font-size: 11px; }
+  header { gap: 4px 8px; }
+  .hide-s { display: none; }
+  main { grid-template-columns: minmax(0, 1fr) 256px; gap: 5px; }
+  .tabs button { padding: 4px 0; font-size: 11.5px; }
+  .pane { padding: 5px 7px; }
+  .pane.on { gap: 4px; }
+  .pol { grid-template-columns: 26px 1fr 64px 64px 44px; gap: 3px; font-size: 11px; }
+  .step button { height: 20px; }
+  .step { font-size: 10.5px; }
+  .zinfo, .gcard { font-size: 11px; }
+  .gcard .sub { font-size: 10.5px; }
   .docs button { padding: 2px 5px; font-size: 11px; }
   .docs button small { font-size: 9.5px; }
-  .docs .sub { display: none; }
-  .hint { font-size: 10px; margin-top: 2px; }
+  .note, .hint { font-size: 10px; }
   #log { font-size: 11px; }
   button { padding: 3px 7px; }
+  .card { padding: 10px 14px; gap: 5px; }
+  .card h2 { font-size: 16px; }
+  .card .lede { font-size: 12.5px; line-height: 1.5; }
+  .card ul { font-size: 11px; gap: 1px; }
 }
-/* 세로 화면: 위아래로 쌓는다 */
+/* 세로 화면: 위아래로 */
 @media (orientation: portrait) and (max-width: 700px) {
-  main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1.2fr) minmax(0, 1fr); }
-  aside { grid-template-rows: auto auto minmax(40px, 1fr); overflow: hidden; }
+  header { flex-wrap: wrap; }
+  main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1.15fr) minmax(0, 1fr); }
 }
 </style>
 </head>
@@ -94,11 +129,11 @@ aside { display: grid; grid-template-rows: auto auto minmax(60px, 1fr); gap: 6px
   <header>
     <h1>제3미궁 상황판</h1>
     <span class="stat">날 <b id="sDay">1</b>/60</span>
-    <span class="stat">예산 <b id="sBudget">0</b></span>
-    <span class="stat">마을 <span class="townbar"><i id="sTown"></i></span></span>
-    <span class="stat">잃은 사람 <b id="sDead">0</b></span>
+    <span class="stat">예산 <b id="sBudget">0</b> <span id="sDelta"></span></span>
+    <span class="stat">마을<span class="townbar"><i id="sTown"></i></span></span>
+    <span class="stat hide-s">잃은 사람 <b id="sDead">0</b></span>
     <span class="sp"></span>
-    <button id="bObs" title="표식석 중계소를 늘리면 깊은 층의 마물이 보이고 보고가 빨라진다">관측 <span id="sObs">1</span>단계 ↑</button>
+    <button id="bObs">관측 <span id="sObs">1</span>↑</button>
     <span class="speed" role="group" aria-label="빠르기">
       <button data-sp="0" aria-label="멈춤">❚❚</button>
       <button data-sp="1">1×</button>
@@ -109,20 +144,26 @@ aside { display: grid; grid-template-rows: auto auto minmax(60px, 1fr); gap: 6px
   <main>
     <section id="boardWrap"><canvas id="board"></canvas></section>
     <aside>
-      <div class="panel">
-        <h2>길드 <small>국장을 보는 눈</small></h2>
-        <div id="guilds" style="display:grid;gap:2px"></div>
+      <div class="tabs" role="tablist">
+        <button role="tab" data-tab="pol">제도<i class="dot"></i></button>
+        <button role="tab" data-tab="zone">구역<i class="dot"></i></button>
+        <button role="tab" data-tab="guild">길드<i class="dot"></i></button>
+        <button role="tab" data-tab="log">기록<i class="dot"></i></button>
       </div>
-      <div class="panel">
-        <h2 id="zTitle">구역을 고르세요</h2>
+      <div class="pane" id="p-pol">
+        <h2>층별 제도 <small>공고는 소문으로 번진다</small></h2>
+        <div class="pol" id="pol"></div>
+        <div class="money" id="money"></div>
+        <div class="note" id="polNote">세율을 낮추고 수매가를 받치면 그 층으로 사람이 기운다. 받칠수록 금고가 샌다.</div>
+      </div>
+      <div class="pane" id="p-zone">
+        <h2 id="zTitle"></h2>
         <div class="zinfo" id="zInfo"></div>
         <div class="docs" id="docs"></div>
         <div class="hint" id="hint"></div>
       </div>
-      <div class="panel" style="display:grid;grid-template-rows:auto minmax(0,1fr);min-height:0">
-        <h2>표식석 기록 <small>깊을수록 늦게 닿음</small></h2>
-        <div id="log"></div>
-      </div>
+      <div class="pane" id="p-guild"><div id="guilds" style="display:grid;gap:5px"></div></div>
+      <div class="pane" id="p-log"><div id="log"></div></div>
     </aside>
   </main>
 </div>
@@ -130,13 +171,12 @@ aside { display: grid; grid-template-rows: auto auto minmax(60px, 1fr); gap: 6px
 <div class="overlay" id="intro">
   <div class="card">
     <h2>제3미궁 상황판</h2>
-    <p class="lede">국장은 미궁에 내려가지 않는다. 조마다 들려 보낸 표식석이 이 판 위에서 깜박일 뿐이고, 그 빛마저 깊은 층에서는 한참 늦게 올라온다.</p>
+    <p class="lede">국장은 미궁에 내려가지 않는다. 조를 부릴 권한도 없다. 손에 쥔 것은 층마다 붙이는 세율과 수매가, 그리고 표식석이 늦게 올려 보내는 빛뿐이다.</p>
     <ul>
-      <li>구역마다 <b style="color:var(--ink)">왼쪽은 사람(길드 빛깔), 오른쪽은 마물</b>입니다. 둘이 맞닿은 금이 전선이에요. 금이 빨갛게 떨리면 그 구역이 무너지는 중입니다.</li>
-      <li>사람은 부릴 수 없어요. 구역을 골라 서류를 겁니다. <b style="color:var(--ink)">현상금</b>은 흐름을 끌어오고, <b style="color:var(--ink)">보급소</b>는 오래 버티게 하고, <b style="color:var(--ink)">봉쇄</b>는 사람과 마물을 함께 막고, <b style="color:var(--ink)">후퇴령</b>은 한 층 위로 물립니다.</li>
-      <li>서류는 깊을수록 늦게 닿고, 흐름은 소문을 따라 며칠에 걸쳐 꺾입니다. 미리 읽어야 해요.</li>
-      <li>길드마다 원하는 구역이 다릅니다. 닫으면 서운해하고, 구해 주면 기억합니다.</li>
-      <li>60일을 버티면 한 철이 끝납니다. 입구로 마물이 넘으면 마을이 깎여요.</li>
+      <li>구역마다 <b>왼쪽은 사람, 오른쪽은 마물</b>. 맞닿은 금이 전선이고, 통로의 <b>화살표</b>가 사람(금빛)과 마물(붉은빛)이 흘러가는 쪽입니다.</li>
+      <li>사람들은 <b>남는 데로 갑니다</b>. 얕은 층은 캘수록 바닥나고, 한 층 물건이 넘치면 값이 떨어집니다. 깊이 다녀온 길드는 숙련이 오르고, 많이 죽은 길드는 신참으로 채워져 얕은 데만 돕니다.</li>
+      <li>국장은 그 계산을 바꿉니다. <b>제도</b> 탭에서 층마다 세율 · 수매가 · 출입 등급을, <b>구역</b> 탭에서 전진 기지를 놓습니다. 봉쇄와 후퇴령은 비상용이에요.</li>
+      <li>심층은 처음엔 보이지 않고, 깊을수록 보고가 늦습니다. 60일을 버티면 한 철이 끝나요.</li>
     </ul>
     <div class="row"><button class="main" id="bStart">상황판 켜기</button></div>
   </div>
@@ -147,14 +187,13 @@ aside { display: grid; grid-template-rows: auto auto minmax(60px, 1fr); gap: 6px
 <script>
 (() => {
   const F = window.FLOW;
-  const { NZ, FLOORS, COLS, GUILDS, DOCS, OBS, zf, zc, zoneName, ENTR } = F;
+  const { NZ, FLOORS, COLS, GUILDS, DOCS, OBS, EDGES, zf, zc, zoneName, ENTR, B } = F;
   const $ = id => document.getElementById(id);
-  const seed = (Date.now() % 100000) + 1;
-  let W = F.newWorld(seed);
-  let speed = 0, acc = 0, sel = 7, hintTimer = 0;
+  let W = F.newWorld((Date.now() % 100000) + 1);
+  let speed = 0, acc = 0, sel = 4, tab = 'pol', hintTimer = 0, seenLog = 0;
   const DAY_MS = 5000; // 1×에서 하루 = 5초
 
-  // ---- 화면 칸 ----
+  // ---- 판 ----
   const cv = $('board'), ctx = cv.getContext('2d');
   let Wd = 0, Ht = 0, dpr = 1, L = null;
   function layout() {
@@ -162,7 +201,7 @@ aside { display: grid; grid-template-rows: auto auto minmax(60px, 1fr); gap: 6px
     dpr = Math.min(2, window.devicePixelRatio || 1);
     Wd = r.width; Ht = r.height;
     cv.width = Math.round(Wd * dpr); cv.height = Math.round(Ht * dpr);
-    const gut = Wd < 520 ? 26 : 38, top = Math.max(28, Ht * 0.11), pad = 6, gap = Math.max(8, Wd * 0.018), vgap = Math.max(8, Ht * 0.03);
+    const gut = Wd < 520 ? 24 : 34, top = Math.max(26, Ht * 0.1), pad = 6, gap = Math.max(14, Wd * 0.03), vgap = Math.max(12, Ht * 0.04);
     const cw = (Wd - gut - pad - gap * (COLS - 1)) / COLS, ch = (Ht - top - pad - vgap * (FLOORS - 1)) / FLOORS;
     const cells = [];
     for (let z = 0; z < NZ; z++) cells.push({ x: gut + zc(z) * (cw + gap), y: top + zf(z) * (ch + vgap), w: cw, h: ch });
@@ -170,68 +209,83 @@ aside { display: grid; grid-template-rows: auto auto minmax(60px, 1fr); gap: 6px
   }
   new ResizeObserver(layout).observe(cv);
 
-  // 점마다 고정된 자리(화면용 난수, 판에는 쓰지 않음)
-  const DOTS = Array.from({ length: NZ }, () => Array.from({ length: 90 }, () => ({ u: Math.random(), v: Math.random(), p: Math.random() * 6.28, s: 0.6 + Math.random() * 0.8 })));
-  const MDOTS = Array.from({ length: NZ }, () => Array.from({ length: 90 }, () => ({ u: Math.random(), v: Math.random(), p: Math.random() * 6.28, s: 0.6 + Math.random() * 0.8 })));
-  const shown = { H: new Float64Array(NZ), M: new Float64Array(NZ), split: new Float64Array(NZ).fill(0.5) };
-
+  const mk = () => Array.from({ length: NZ }, () => Array.from({ length: 90 }, () => ({ u: Math.random(), v: Math.random(), p: Math.random() * 6.28, s: 0.6 + Math.random() * 0.8 })));
+  const DOTS = mk(), MDOTS = mk(); // 화면용 자리 (판의 난수와 따로)
+  const shown = { H: new Float64Array(NZ), split: new Float64Array(NZ).fill(0.5), fP: new Float64Array(EDGES.length), fM: new Float64Array(EDGES.length) };
   function rr(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); }
 
   function draw(now) {
     if (!L) return;
-    const T = now / 1000;
+    const T = now / 1000, small = Wd < 560;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, Wd, Ht);
-    const small = Wd < 560;
-    // 지상
-    const tx = L.cells[ENTR].x + L.cw / 2;
-    ctx.fillStyle = '#22301f'; ctx.fillRect(0, 0, Wd, L.top - L.vgap * 0.6);
+    const ent = L.cells[ENTR], tx = ent.x + L.cw / 2, sh = L.top - L.vgap * 0.7, sy = sh / 2;
+    ctx.fillStyle = '#22301f'; ctx.fillRect(0, 0, Wd, sh);
     ctx.fillStyle = '#9fb3a5'; ctx.font = `600 ${small ? 10 : 11}px "IBM Plex Sans KR", sans-serif`; ctx.textBaseline = 'middle';
-    const sy = (L.top - L.vgap * 0.6) / 2;
     ctx.fillText('지상 · 마을', L.gut, sy);
-    // 마을 지붕
     for (let i = 0; i < 9; i++) {
-      const hx = L.gut + (small ? 62 : 76) + i * (small ? 11 : 14), hurt = W.town < 100 - i * 11;
+      const hx = L.gut + (small ? 60 : 74) + i * (small ? 11 : 14), hurt = W.town < 100 - i * 11;
       ctx.fillStyle = hurt ? '#4a2a22' : '#6d6a4c';
       ctx.beginPath(); ctx.moveTo(hx, sy + 5); ctx.lineTo(hx + 4.5, sy - 3); ctx.lineTo(hx + 9, sy + 5); ctx.fill();
     }
-    // 입구 수직 갱도
     ctx.fillStyle = '#3b3326'; ctx.fillRect(tx - 7, sy, 14, L.top - sy);
     ctx.fillStyle = '#d9b45a'; ctx.textAlign = 'center'; ctx.fillText('입구', tx, sy); ctx.textAlign = 'left';
-    // 층 이름 · 통로
+    // 층 이름
     for (let f = 0; f < FLOORS; f++) {
       const y = L.top + f * (L.ch + L.vgap) + L.ch / 2;
       ctx.save(); ctx.translate(L.gut / 2, y); ctx.rotate(-Math.PI / 2);
       ctx.fillStyle = f < OBS[W.obs].see ? '#9fb3a5' : '#5b6d60'; ctx.textAlign = 'center';
       ctx.font = `600 ${small ? 10 : 12}px "Gowun Batang", serif`; ctx.fillText(F.FLOOR_NAME[f], 0, 0); ctx.restore();
     }
-    ctx.fillStyle = '#3b3326';
-    for (let z = 0; z < NZ; z++) {
-      const c = L.cells[z];
-      if (zf(z) < FLOORS - 1) ctx.fillRect(c.x + c.w / 2 - 5, c.y + c.h, 10, L.vgap);
-      if (zc(z) < COLS - 1) ctx.fillRect(c.x + c.w, c.y + c.h / 2 - 4, L.gap, 8);
+    // 통로
+    ctx.fillStyle = '#2e2a20';
+    for (const [a, b] of EDGES) {
+      const A = L.cells[a];
+      if (zf(b) > zf(a)) ctx.fillRect(A.x + A.w / 2 - 9, A.y + A.h, 18, L.vgap);
+      else ctx.fillRect(A.x + A.w, A.y + A.h / 2 - 8, L.gap, 16);
     }
-    // 구역
     for (let z = 0; z < NZ; z++) drawCell(z, T, small);
-    // 가는 서류
+    drawFlows(T);
     for (const d of W.docs) {
-      const k = Math.min(1, (W.t + acc / DAY_MS - d.from) / (d.at - d.from));
-      const p = docPath(d.z, k);
+      const k = Math.min(1, (W.t + acc / DAY_MS - d.from) / (d.at - d.from)), p = docPath(d.z, k);
       ctx.fillStyle = '#efe4c4'; ctx.strokeStyle = '#7b6a40'; ctx.lineWidth = 1;
       ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(Math.sin(T * 3) * 0.2);
-      ctx.fillRect(-5, -6, 10, 12); ctx.strokeRect(-5, -6, 10, 12);
-      ctx.restore();
+      ctx.fillRect(-5, -6, 10, 12); ctx.strokeRect(-5, -6, 10, 12); ctx.restore();
+    }
+  }
+
+  // 흐름 화살표: 통로마다 사람(금빛) · 마물(붉은빛)이 넘어가는 쪽과 굵기
+  function drawFlows(T) {
+    EDGES.forEach(([a, b], i) => {
+      const deeper = Math.max(zf(a), zf(b)), v = F.view(W, deeper);
+      shown.fP[i] += (v.flowP[i] - shown.fP[i]) * 0.08;
+      const seeM = F.seesMonsters(W, deeper);
+      shown.fM[i] += ((seeM ? v.flowM[i] : 0) - shown.fM[i]) * 0.08;
+      const A = L.cells[a], vert = zf(b) > zf(a);
+      const cx = vert ? A.x + A.w / 2 : A.x + A.w + L.gap / 2, cy = vert ? A.y + A.h + L.vgap / 2 : A.y + A.h / 2;
+      const len = vert ? L.vgap + 14 : L.gap + 14;
+      chevrons(cx, cy, vert, shown.fP[i], len, vert ? -5 : -4, '242,214,140', T, 1.2);
+      chevrons(cx, cy, vert, shown.fM[i], len, vert ? 5 : 4, '230,70,60', T, 2.5);
+    });
+  }
+  function chevrons(cx, cy, vert, f, len, off, rgb, T, k) {
+    const m = Math.abs(f) * k; if (m < 0.15) return;
+    const dir = Math.sign(f), size = Math.min(6, 2.5 + Math.sqrt(m) * 1.2), alpha = Math.min(1, 0.35 + m * 0.12);
+    const n = 2, sp = len / n, ph = (T * (0.6 + Math.min(1.4, m * 0.2))) % 1;
+    ctx.strokeStyle = `rgba(${rgb},${alpha})`; ctx.lineWidth = Math.min(3, 1.2 + m * 0.15); ctx.lineCap = 'round';
+    for (let j = 0; j < n; j++) {
+      const t = ((j + ph) / n) * len - len / 2;
+      const x = vert ? cx + off : cx + t * dir, y = vert ? cy + t * dir : cy + off;
+      ctx.beginPath();
+      if (vert) { ctx.moveTo(x - size, y - size * 0.7 * dir); ctx.lineTo(x, y); ctx.lineTo(x + size, y - size * 0.7 * dir); }
+      else { ctx.moveTo(x - size * 0.7 * dir, y - size); ctx.lineTo(x, y); ctx.lineTo(x - size * 0.7 * dir, y + size); }
+      ctx.stroke();
     }
   }
 
   function docPath(z, k) {
     const c = L.cells[z], e = L.cells[ENTR];
-    const pts = [{ x: e.x + e.w / 2, y: L.top * 0.45 }];
-    const colX = L.cells[zc(z) === 1 ? ENTR : zc(z)].x + L.cw / 2;
-    // 입구에서 1층으로, 1층에서 옆 굴로, 그 굴의 갱도를 따라 아래로
-    pts.push({ x: e.x + e.w / 2, y: e.y + 10 });
-    pts.push({ x: colX, y: e.y + 10 });
-    pts.push({ x: c.x + c.w / 2, y: c.y + c.h / 2 });
+    const pts = [{ x: e.x + e.w / 2, y: L.top * 0.45 }, { x: e.x + e.w / 2, y: e.y + 10 }, { x: L.cells[zc(z)].x + L.cw / 2, y: e.y + 10 }, { x: c.x + c.w / 2, y: c.y + c.h / 2 }];
     let len = 0; const seg = [];
     for (let i = 1; i < pts.length; i++) { const l = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y); seg.push(l); len += l; }
     let d = k * len;
@@ -246,33 +300,29 @@ aside { display: grid; grid-template-rows: auto auto minmax(60px, 1fr); gap: 6px
     const c = L.cells[z], f = zf(z), v = F.view(W, f), see = F.seesMonsters(W, f);
     let h = 0; const hg = GUILDS.map((_, g) => { h += v.H[g][z]; return v.H[g][z]; });
     const m = v.M[z], pd = v.pd[z];
-    // 부드럽게
-    shown.H[z] += (h - shown.H[z]) * 0.12; shown.M[z] += (m - shown.M[z]) * 0.12;
+    shown.H[z] += (h - shown.H[z]) * 0.12;
     const tgt = see ? (h + 2) / (h + m + 4) : 0.98;
     shown.split[z] += (Math.min(0.92, Math.max(0.08, tgt)) - shown.split[z]) * 0.08;
-    const sx = c.x + c.w * shown.split[z];
-    // 바탕
-    const depth = f / (FLOORS - 1);
+    const sx = c.x + c.w * shown.split[z], depth = f / (FLOORS - 1);
     rr(c.x, c.y, c.w, c.h, 5);
     ctx.fillStyle = `rgb(${34 - depth * 12},${44 - depth * 16},${38 - depth * 14})`; ctx.fill();
     ctx.save(); rr(c.x, c.y, c.w, c.h, 5); ctx.clip();
-    // 마물 쪽
+    // 캘 것 (바닥의 광맥 빛)
+    const rich = v.R[z] / F.rmax(z);
+    ctx.fillStyle = `rgba(217,180,90,${0.05 + rich * 0.22})`; ctx.fillRect(c.x, c.y + c.h - 4, c.w * rich, 4);
     if (see) {
-      const a = Math.min(0.55, m / 160);
-      ctx.fillStyle = `rgba(120,20,24,${a})`; ctx.fillRect(sx, c.y, c.x + c.w - sx, c.h);
+      ctx.fillStyle = `rgba(120,20,24,${Math.min(0.55, m / 160)})`; ctx.fillRect(sx, c.y, c.x + c.w - sx, c.h);
       const nM = Math.min(90, Math.round(m / 1.6));
       ctx.fillStyle = '#c23a36';
       for (let i = 0; i < nM; i++) {
-        const d = MDOTS[z][i], x = sx + 4 + d.u * (c.x + c.w - sx - 8) + Math.sin(T * 1.3 + d.p) * 2.5, y = c.y + 6 + d.v * (c.h - 12) + Math.cos(T * 1.1 + d.p) * 2;
+        const d = MDOTS[z][i], x = sx + 4 + d.u * (c.x + c.w - sx - 8) + Math.sin(T * 1.3 + d.p) * 2.5, y = c.y + 6 + d.v * (c.h - 14) + Math.cos(T * 1.1 + d.p) * 2;
         ctx.fillRect(x - 1.3 * d.s, y - 1.3 * d.s, 2.6 * d.s, 2.6 * d.s);
       }
     } else {
-      // 보이지 않는 층: 표식석의 점멸만
       ctx.fillStyle = 'rgba(8,12,10,.55)'; ctx.fillRect(c.x, c.y, c.w, c.h);
       const flick = m > 45 ? (0.5 + 0.5 * Math.sin(T * (2 + m / 40) + z)) * Math.min(0.5, m / 200) : 0;
       if (flick > 0) { ctx.fillStyle = `rgba(190,40,40,${flick})`; ctx.fillRect(c.x, c.y, c.w, c.h); }
     }
-    // 사람 쪽
     const nH = Math.min(90, Math.round(shown.H[z] / 1.2));
     const cum = []; let s = 0; for (const x of hg) { s += x; cum.push(s); }
     const left = c.x + 4, right = (see ? sx : c.x + c.w) - 4;
@@ -280,10 +330,9 @@ aside { display: grid; grid-template-rows: auto auto minmax(60px, 1fr); gap: 6px
       const d = DOTS[z][i], frac = (i + 0.5) / nH * (s || 1);
       let g = 0; while (g < 2 && frac > cum[g]) g++;
       ctx.fillStyle = see ? GUILDS[g].color : 'rgba(230,230,210,.7)';
-      const x = left + d.u * Math.max(4, right - left) + Math.sin(T * 1.6 + d.p) * 2, y = c.y + 6 + d.v * (c.h - 12) + Math.cos(T * 1.4 + d.p) * 2;
+      const x = left + d.u * Math.max(4, right - left) + Math.sin(T * 1.6 + d.p) * 2, y = c.y + 6 + d.v * (c.h - 14) + Math.cos(T * 1.4 + d.p) * 2;
       ctx.beginPath(); ctx.arc(x, y, 1.6 * d.s + 0.4, 0, 6.29); ctx.fill();
     }
-    // 전선
     if (see && h > 3 && m > 8) {
       const hot = Math.min(1, pd / 0.06), pulse = 0.6 + 0.4 * Math.sin(T * (3 + hot * 6));
       ctx.strokeStyle = hot > 0.55 ? `rgba(255,90,70,${pulse})` : `rgba(242,196,107,${0.5 + hot * 0.4})`;
@@ -292,38 +341,31 @@ aside { display: grid; grid-template-rows: auto auto minmax(60px, 1fr); gap: 6px
       for (let y = 0; y <= c.h; y += 6) { const x = sx + Math.sin(y * 0.15 + T * 2) * (1 + hot * 3); y ? ctx.lineTo(x, c.y + y) : ctx.moveTo(x, c.y + y); }
       ctx.stroke();
     }
-    // 봉쇄 목책
     if (W.seal[z]) {
       ctx.strokeStyle = 'rgba(160,120,70,.75)'; ctx.lineWidth = 3;
       for (let x = -c.h; x < c.w; x += 14) { ctx.beginPath(); ctx.moveTo(c.x + x, c.y + c.h); ctx.lineTo(c.x + x + c.h, c.y); ctx.stroke(); }
     }
     ctx.restore();
-    // 테두리
     const cap = F.capOf(W, z);
     rr(c.x, c.y, c.w, c.h, 5);
-    ctx.setLineDash([]);
     if (see && pd > 0.035) { ctx.strokeStyle = `rgba(255,90,70,${0.6 + 0.4 * Math.sin(T * 8)})`; ctx.lineWidth = 2.5; }
     else if (h > cap * 1.3) { ctx.strokeStyle = '#f2f0e0'; ctx.lineWidth = 2; ctx.setLineDash([5, 4]); }
     else { ctx.strokeStyle = '#3e5a48'; ctx.lineWidth = 1; }
     ctx.stroke(); ctx.setLineDash([]);
     if (z === sel) { rr(c.x - 2, c.y - 2, c.w + 4, c.h + 4, 7); ctx.strokeStyle = '#d9b45a'; ctx.lineWidth = 2; ctx.stroke(); }
-    // 글
     const fs = small ? 9.5 : 11;
-    ctx.font = `600 ${fs}px "IBM Plex Sans KR", sans-serif`; ctx.textBaseline = 'top';
+    ctx.font = `600 ${fs}px "IBM Plex Sans KR", sans-serif`; ctx.textBaseline = 'top'; ctx.textAlign = 'left';
     ctx.fillStyle = 'rgba(227,234,223,.85)';
     ctx.fillText(F.COL_NAME[zc(z)], c.x + 5, c.y + 4);
     const lag = F.lagOf(W, f);
     ctx.font = `500 ${fs - 1}px "IBM Plex Mono", monospace`; ctx.fillStyle = 'rgba(159,179,165,.8)'; ctx.textAlign = 'right';
-    ctx.fillText(lag < 0.4 ? '' : `${lag.toFixed(1)}일 전`, c.x + c.w - 5, c.y + 4);
-    ctx.textBaseline = 'bottom';
-    ctx.fillStyle = 'rgba(227,234,223,.9)';
-    ctx.fillText(`마물 ${see ? Math.round(m) : '?'}`, c.x + c.w - 5, c.y + c.h - 3);
+    if (lag >= 0.4 && !small) ctx.fillText(`${lag.toFixed(1)}일 전`, c.x + c.w - 5, c.y + 4);
+    ctx.textBaseline = 'bottom'; ctx.fillStyle = 'rgba(227,234,223,.9)';
+    ctx.fillText(`마물 ${see ? Math.round(m) : '?'}`, c.x + c.w - 5, c.y + c.h - 5);
     ctx.textAlign = 'left';
-    ctx.fillText(`사람 ${Math.round(h)}`, c.x + 5, c.y + c.h - 3);
-    // 꼬리표
+    ctx.fillText(`사람 ${Math.round(h)}`, c.x + 5, c.y + c.h - 5);
     const tags = [];
-    if (W.bounty[z] > 0) tags.push(['현상 ' + Math.ceil(W.bounty[z]) + '일', '#d9b45a']);
-    if (W.supply[z] === 2) tags.push(['보급소', '#86cf9f']); else if (W.supply[z] === 1) tags.push(['보급소 짓는 중', '#6f8576']);
+    if (W.camp[z] === 2) tags.push(['기지', '#86cf9f']); else if (W.camp[z] === 1) tags.push(['기지 짓는 중', '#6f8576']);
     if (W.seal[z]) tags.push(['봉쇄', '#d79a6a']);
     if (W.block[z] > W.t) tags.push(['후퇴', '#d79a6a']);
     if (h > cap * 1.3) tags.push(['과밀', '#f2f0e0']);
@@ -334,8 +376,7 @@ aside { display: grid; grid-template-rows: auto auto minmax(60px, 1fr); gap: 6px
       ctx.fillStyle = 'rgba(10,14,12,.75)'; ctx.fillRect(c.x + 4, ty, w, fs + 2);
       ctx.fillStyle = col; ctx.fillText(t, c.x + 8, ty + 1); ty += fs + 4;
     }
-    // 이름 있는 이
-    let ny = c.y + 4 + fs + 3;
+    let ny = c.y + 4 + (small ? 0 : fs + 3);
     ctx.textAlign = 'right';
     W.named.forEach((p, i) => {
       if (v.named[i] !== z) return;
@@ -349,9 +390,14 @@ aside { display: grid; grid-template-rows: auto auto minmax(60px, 1fr); gap: 6px
 
   // ---- 옆 칸 ----
   const gwWord = x => x >= 70 ? '두터움' : x >= 55 ? '좋음' : x >= 40 ? '덤덤함' : x >= 25 ? '서운함' : '등 돌림';
-  function renderSide() {
+  const skWord = x => x >= 0.6 ? '고참 많음' : x >= 0.42 ? '단단함' : x >= 0.3 ? '반반' : '신참 많음';
+  const once = (el, html) => { if (el.dataset.k !== html) { el.innerHTML = html; el.dataset.k = html; } };
+
+  function renderTop() {
     $('sDay').textContent = Math.min(F.SEASON, Math.floor(W.t) + 1);
     $('sBudget').textContent = Math.floor(W.budget);
+    const dl = Math.round(W.yday.tax - W.yday.buy);
+    $('sDelta').innerHTML = W.t >= 1 ? `<span class="${dl >= 0 ? 'up' : 'dn'}">${dl >= 0 ? '+' : ''}${dl}/일</span>` : '';
     $('sTown').style.width = W.town + '%';
     $('sTown').style.background = W.town > 60 ? 'var(--good)' : W.town > 30 ? 'var(--warn)' : 'var(--bad)';
     $('sDead').textContent = Math.round(W.deaths);
@@ -359,51 +405,98 @@ aside { display: grid; grid-template-rows: auto auto minmax(60px, 1fr); gap: 6px
     const nx = OBS[W.obs + 1];
     $('bObs').disabled = !nx || !!W.obsAt || W.budget < (nx ? nx.cost : 0);
     $('bObs').title = nx ? `표식석 중계소 ${nx.cost}: ${nx.see === 4 ? '심층까지' : nx.see + '층까지'} 마물이 보이고 보고가 빨라짐` : '';
-    $('guilds').innerHTML = GUILDS.map((G, g) => {
-      const named = W.named.filter(p => p.g === g).map(p => p.alive ? '' : ` · ${p.name} 잃음`).join('');
-      return `<div class="g"><span class="dot" style="background:${G.color}"></span><span>${G.name}<span class="w">${named}</span></span><span class="w">${gwWord(W.gw[g])}</span></div>`;
-    }).join('');
-    // 고른 구역
+  }
+
+  function renderPol() {
+    let h = '<span class="hd"></span><span class="hd">시세</span><span class="hd">세율</span><span class="hd">수매가</span><span class="hd">출입</span>';
+    for (let f = 0; f < FLOORS; f++) {
+      const r = W.price[f] / B.VAL[f];
+      const pw = r < 0.75 ? '쌈' : r > 1.3 ? '귀함' : '보통';
+      h += `<span class="fl">${F.FLOOR_NAME[f]}</span>`
+        + `<span class="price ${r < 0.75 ? 'lo' : r > 1.3 ? 'hi' : ''}">${W.price[f].toFixed(1)} ${pw}</span>`
+        + `<span class="step"><button data-pol="tax" data-f="${f}" data-d="-1" aria-label="${f + 1}층 세율 내림">−</button><span>${Math.round(W.tax[f] * 100)}%</span><button data-pol="tax" data-f="${f}" data-d="1" aria-label="${f + 1}층 세율 올림">+</button></span>`
+        + `<span class="step"><button data-pol="buy" data-f="${f}" data-d="-1" aria-label="${f + 1}층 수매가 내림">−</button><span>${W.buy[f] ? W.buy[f].toFixed(1) : '없음'}</span><button data-pol="buy" data-f="${f}" data-d="1" aria-label="${f + 1}층 수매가 올림">+</button></span>`
+        + `<button class="tog" data-pol="grade" data-f="${f}" aria-pressed="${!!W.grade[f]}">${W.grade[f] ? '고참만' : '누구나'}</button>`;
+    }
+    once($('pol'), h);
+    once($('money'), `<span>어제 세 <b style="color:var(--good)">+${Math.round(W.yday.tax)}</b></span><span>수매 <b style="color:var(--bad)">−${Math.round(W.yday.buy)}</b></span>`);
+  }
+
+  function renderZone() {
     const z = sel, f = zf(z), v = F.view(W, f), see = F.seesMonsters(W, f);
-    $('zTitle').innerHTML = `${zoneName(z)} <small>${F.lagOf(W, f).toFixed(1)}일 전 보고</small>`;
+    once($('zTitle'), `${zoneName(z)} <small>${F.lagOf(W, f).toFixed(1)}일 전 보고</small>`);
     const hs = GUILDS.map((G, g) => `<span style="color:${G.color}">${G.short} ${Math.round(v.H[g][z])}</span>`).join(' · ');
     const favs = GUILDS.filter(G => G.fav === zc(z)).map(G => G.short);
-    const rich = W.R[z] / F.rmax(z);
-    $('zInfo').innerHTML = `<div>사람 ${hs} <span style="color:var(--mute)">/ 버틸 수 ${F.capOf(W, z)}</span></div>`
-      + `<div>마물 <b>${see ? Math.round(v.M[z]) : '보이지 않음'}</b> · 캘 것 <b>${rich > 0.66 ? '많음' : rich > 0.33 ? '보통' : '바닥'}</b>${favs.length ? ` · <span style="color:var(--mute)">${favs.join('·')}가 노리는 굴</span>` : ''}</div>`;
-    const list = W.seal[z] ? ['bounty', 'supply', 'unseal', 'retreat'] : ['bounty', 'supply', 'seal', 'retreat'];
-    const sub = { bounty: '흐름을 끌어옴', supply: '버팀 · 자리 늘림', seal: '사람 · 마물 막음', unseal: '목책을 걷음', retreat: '한 층 위로 물림' };
-    const cur = list.map(k => {
+    const rich = v.R[z] / F.rmax(z);
+    once($('zInfo'), `<div>사람 ${hs} <span style="color:var(--mute)">/ 버틸 수 ${F.capOf(W, z)}</span></div>`
+      + `<div>마물 <b>${see ? Math.round(v.M[z]) : '보이지 않음'}</b> · 캘 것 <b>${rich > 0.66 ? '많음' : rich > 0.33 ? '보통' : '바닥'}</b></div>`
+      + `<div style="color:var(--mute)">${favs.length ? favs.join('·') + '가 노리는 굴 · ' : ''}서류는 ${F.travel(z).toFixed(1)}일 걸림</div>`);
+    const list = ['camp', W.seal[z] ? 'unseal' : 'seal', 'retreat'];
+    const sub = { camp: '길 짧게 · 버팀', seal: '둘 다 막음', unseal: '목책 걷음', retreat: '한 층 위로' };
+    once($('docs'), list.map(k => {
       const D = DOCS[k], going = W.docs.some(d => d.z === z && d.type === k);
-      const dis = going || W.budget < D.cost || (k === 'supply' && W.supply[z]) || (k === 'bounty' && W.bounty[z] > 2) || W.over;
-      return `<button data-doc="${k}" ${dis ? 'disabled' : ''}><span>${D.name} <small>${D.cost ? D.cost : '무료'}</small></span><small>${going ? '가는 중' : `<span class="sub">${sub[k]} · </span>${F.travel(z).toFixed(1)}일 걸림`}</small></button>`;
-    }).join('');
-    if ($('docs').dataset.k !== cur) { $('docs').innerHTML = cur; $('docs').dataset.k = cur; }
-    // 기록
+      const dis = going || W.budget < D.cost || (k === 'camp' && W.camp[z]) || W.over;
+      return `<button data-doc="${k}" ${dis ? 'disabled' : ''}><span>${D.name}</span><small>${going ? '가는 중' : (D.cost ? '예산 ' + D.cost : '무료')}</small><small>${sub[k]}</small></button>`;
+    }).join(''));
+  }
+
+  function renderGuild() {
+    once($('guilds'), GUILDS.map((G, g) => {
+      const named = W.named.filter(p => p.g === g)[0];
+      let n = 0; for (let z = 0; z < NZ; z++) n += W.H[g][z];
+      return `<div class="gcard"><span class="dot" style="background:${G.color}"></span><b style="font-weight:600">${G.name}</b><span style="color:var(--soft)">${gwWord(W.gw[g])}</span>`
+        + `<div class="sub"><span>숙련 <span class="bar"><i style="width:${Math.round(W.skill[g] * 100)}%"></i></span> ${skWord(W.skill[g])}</span><span>안에 ${Math.round(n)} · 밖에 ${Math.round(W.pool[g])}</span></div>`
+        + `<div class="sub"><span>${F.COL_NAME[G.fav]}을 노림</span><span>벌이 ${W.inc[g] > 25 ? '넉넉' : W.inc[g] > 10 ? '그럭저럭' : '말라 감'}</span><span>${named.name} ${named.alive ? (named.z < 0 ? '마을에' : '안에') : '잃음'}</span></div></div>`;
+    }).join(''));
+  }
+
+  function renderLog() {
+    const el = $('log');
     const lk = W.log.length + ':' + (W.log.length ? W.log[W.log.length - 1].day : 0);
-    if ($('log').dataset.k !== lk) {
-      $('log').dataset.k = lk;
-      $('log').innerHTML = W.log.slice().reverse().map(e => `<div class="${e.kind}"><span>${Math.floor(e.day) + 1}일</span>${e.text}</div>`).join('');
-    }
+    if (el.dataset.k === lk) return;
+    el.dataset.k = lk;
+    el.innerHTML = W.log.slice(-24).reverse().map(e => `<div class="${e.kind}"><span>${Math.floor(e.day) + 1}일</span>${e.text}</div>`).join('');
+  }
+
+  function renderSide() {
+    renderTop();
+    if (tab === 'pol') renderPol(); else if (tab === 'zone') renderZone(); else if (tab === 'guild') renderGuild(); else renderLog();
+    if (tab === 'log') seenLog = W.log.length;
+    const fresh = W.log.slice(seenLog).some(e => e.kind === 'bad' || e.kind === 'dead' || e.kind === 'warn');
+    document.querySelector('[data-tab="log"]').classList.toggle('new', fresh && tab !== 'log');
+  }
+
+  function setTab(t) {
+    tab = t;
+    document.querySelectorAll('[data-tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === t)));
+    document.querySelectorAll('.pane').forEach(p => p.classList.toggle('on', p.id === 'p-' + t));
+    renderSide();
   }
 
   function hint(text, err) { const h = $('hint'); h.textContent = text; h.className = 'hint' + (err ? ' err' : ''); clearTimeout(hintTimer); hintTimer = setTimeout(() => { h.textContent = ''; }, 3000); }
 
+  document.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
+  $('pol').addEventListener('click', e => {
+    const b = e.target.closest('button[data-pol]'); if (!b) return;
+    F.setPolicy(W, b.dataset.pol, +b.dataset.f, +(b.dataset.d || 0)); renderSide();
+  });
   $('docs').addEventListener('click', e => {
     const b = e.target.closest('button[data-doc]'); if (!b) return;
     const k = b.dataset.doc, err = F.issue(W, k, sel);
-    if (err) hint(err, true);
-    else hint(`${DOCS[k].name} → ${zoneName(sel)}. ${F.travel(sel).toFixed(1)}일 뒤 닿음`);
+    if (err) hint(err, true); else hint(`${DOCS[k].name} → ${zoneName(sel)}. ${F.travel(sel).toFixed(1)}일 뒤 닿음`);
     renderSide();
   });
-  $('bObs').addEventListener('click', () => { const err = F.upgradeObs(W); hint(err || '표식석 중계소를 놓는 중. 하루 뒤 이어짐', !!err); renderSide(); });
+  $('bObs').addEventListener('click', () => { const err = F.upgradeObs(W); if (err) { setTab('zone'); hint(err, true); } renderSide(); });
   cv.addEventListener('pointerdown', e => {
     const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
-    for (let z = 0; z < NZ; z++) { const c = L.cells[z]; if (x >= c.x - L.gap / 2 && x <= c.x + c.w + L.gap / 2 && y >= c.y - L.vgap / 2 && y <= c.y + c.h + L.vgap / 2) { sel = z; renderSide(); return; } }
+    for (let z = 0; z < NZ; z++) { const c = L.cells[z]; if (x >= c.x - L.gap / 2 && x <= c.x + c.w + L.gap / 2 && y >= c.y - L.vgap / 2 && y <= c.y + c.h + L.vgap / 2) { sel = z; setTab('zone'); return; } }
   });
+  // 화면을 끌거나 두 번 눌러 확대하지 않는다
+  document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+  document.addEventListener('dblclick', e => e.preventDefault());
   function setSpeed(s) { speed = s; document.querySelectorAll('[data-sp]').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.sp === s))); }
   document.querySelectorAll('[data-sp]').forEach(b => b.addEventListener('click', () => setSpeed(+b.dataset.sp)));
-  document.addEventListener('keydown', e => { if (e.code === 'Space' && !e.target.closest('input')) { e.preventDefault(); setSpeed(speed ? 0 : 1); } });
+  document.addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); setSpeed(speed ? 0 : 1); } });
   $('bStart').addEventListener('click', () => { $('intro').classList.add('hidden'); setSpeed(1); });
 
   function endScreen() {
@@ -414,17 +507,17 @@ aside { display: grid; grid-template-rows: auto auto minmax(60px, 1fr); gap: 6px
       <p class="lede">${fell
         ? `${Math.floor(W.t) + 1}일째, 입구의 목책이 안쪽에서부터 꺾여 나갔다. 마을 지붕 아홉 채 가운데 남은 것은 없었고, 상황판의 표식석은 하나씩 꺼져 갔다.`
         : W.town > 80 ? '입구는 한 철 내내 닫히지 않았다. 마을 사람들은 그것이 누구의 수고였는지 끝내 알지 못할 것이다.'
-        : `입구 너머로 넘어온 것들이 마을의 담 몇 군데를 무너뜨렸다. 장부에는 남은 일로, 마을에는 지나간 일로 적혔다.`}</p>
+        : '입구 너머로 넘어온 것들이 마을의 담 몇 군데를 무너뜨렸다. 장부에는 남은 일로, 마을에는 지나간 일로 적혔다.'}</p>
       <dl class="res">
         <dt>마을</dt><dd>${Math.round(W.town)} / 100</dd>
-        <dt>거둔 세</dt><dd>${Math.round(W.taxSum)}</dd>
+        <dt>세 · 수매</dt><dd>+${Math.round(W.taxSum)} · −${Math.round(W.buySum)}</dd>
         <dt>잃은 사람</dt><dd>${Math.round(W.deaths)} (${GUILDS.map((G, g) => G.short + ' ' + Math.round(W.deathsG[g])).join(' · ')})</dd>
-        <dt>이름 있는 이</dt><dd>${alive.length ? '살아남음: ' + alive.join(', ') : ''}${alive.length && lost.length ? ' / ' : ''}${lost.length ? '잃음: ' + lost.join(', ') : ''}</dd>
-        <dt>길드</dt><dd>${GUILDS.map((G, g) => G.short + ' ' + gwWord(W.gw[g])).join(' · ')}</dd>
+        <dt>이름 있는 이</dt><dd>${alive.length ? '살아남음 ' + alive.join(', ') : ''}${alive.length && lost.length ? ' / ' : ''}${lost.length ? '잃음 ' + lost.join(', ') : ''}</dd>
+        <dt>길드</dt><dd>${GUILDS.map((G, g) => G.short + ' ' + gwWord(W.gw[g]) + '·' + skWord(W.skill[g])).join(' / ')}</dd>
       </dl>
       <div class="row"><button class="main" id="bAgain">다시</button></div>`;
     $('end').classList.remove('hidden');
-    $('bAgain').onclick = () => { W = F.newWorld((Date.now() % 100000) + 1); $('end').classList.add('hidden'); shown.H.fill(0); shown.M.fill(0); setSpeed(1); };
+    $('bAgain').onclick = () => { W = F.newWorld((Date.now() % 100000) + 1); seenLog = 0; $('end').classList.add('hidden'); shown.H.fill(0); setSpeed(1); };
   }
 
   let last = performance.now(), sideT = 0;
@@ -437,11 +530,11 @@ aside { display: grid; grid-template-rows: auto auto minmax(60px, 1fr); gap: 6px
       if (W.over) endScreen();
     }
     draw(now);
-    if (now - sideT > 150) { sideT = now; renderSide(); }
+    if (now - sideT > 200) { sideT = now; renderSide(); }
     requestAnimationFrame(frame);
   }
   window.__flow = () => W; // 확인용
-  layout(); setSpeed(0); renderSide();
+  layout(); setSpeed(0); setTab('pol');
   requestAnimationFrame(frame);
 })();
 </script>
