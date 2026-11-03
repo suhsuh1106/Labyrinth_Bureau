@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>전선 지휘</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* 전선 지휘: 왼쪽은 전선 여덟(저절로 굴러가는 판), 오른쪽은 고른 판에 박을 칙령. 화면은 끌거나 넘기지 않는다 */
+:root {
+  color-scheme: dark;
+  --desk: #10160f; --board: #1b2a22; --board-2: #15211b; --line: #34503f;
+  --ink: #e3eadf; --soft: #9fb3a5; --mute: #6f8576; --brass: #d9b45a; --bad: #f0806f; --warn: #f2c46b; --good: #86cf9f;
+  --f-display: "Gowun Batang", "Nanum Myeongjo", serif;
+  --f-body: "IBM Plex Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+  --f-num: "IBM Plex Mono", ui-monospace, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; background: var(--desk); color: var(--ink); font: 13px/1.45 var(--f-body); -webkit-text-size-adjust: 100%; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+button { font: 600 12px var(--f-body); color: var(--ink); background: var(--board); border: 1px solid var(--line); border-radius: 3px; padding: 5px 9px; cursor: pointer; touch-action: manipulation; }
+button:hover:not(:disabled) { border-color: var(--brass); }
+button:focus-visible { outline: 2px solid var(--brass); outline-offset: 1px; }
+button:disabled { opacity: .4; cursor: default; }
+button[aria-pressed="true"] { background: #3a3220; border-color: var(--brass); color: var(--brass); }
+button.main { background: var(--brass); color: #221e18; border-color: var(--brass); }
+#app { height: 100dvh; display: grid; grid-template-rows: auto minmax(0, 1fr); padding: 6px max(8px, env(safe-area-inset-right)) 6px max(8px, env(safe-area-inset-left)); gap: 6px; }
+header { display: flex; align-items: center; gap: 4px 12px; min-width: 0; }
+h1 { font: 700 16px var(--f-display); margin: 0; white-space: nowrap; }
+.stat { font: 500 12px var(--f-num); color: var(--soft); white-space: nowrap; }
+.stat b { color: var(--ink); font-weight: 500; }
+.bar { display: inline-block; width: 56px; height: 7px; background: #2a1c18; border-radius: 4px; vertical-align: middle; overflow: hidden; margin-left: 4px; }
+.bar i { display: block; height: 100%; background: var(--good); }
+.cp { display: inline-flex; gap: 3px; vertical-align: middle; margin-left: 4px; }
+.cp i { width: 11px; height: 11px; border-radius: 2px; background: #2b3a31; border: 1px solid #44604f; position: relative; overflow: hidden; }
+.cp i b { position: absolute; left: 0; bottom: 0; width: 100%; background: var(--brass); }
+.sp { flex: 1; }
+.speed { display: flex; gap: 3px; }
+main { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 8px; min-height: 0; }
+#wrap { position: relative; min-height: 0; min-width: 0; background: var(--board-2); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+aside { background: var(--board); border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow: hidden; }
+aside h2 { font: 700 14px var(--f-display); margin: 0; display: flex; align-items: baseline; gap: 6px; }
+aside h2 small { font: 400 11px var(--f-body); color: var(--mute); }
+.sec { font-size: 10.5px; color: var(--mute); margin-top: 2px; }
+.btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.btns button { display: grid; gap: 0; padding: 4px 4px; }
+.btns button small { font: 400 10px var(--f-body); color: var(--soft); white-space: nowrap; }
+.btns button .k { font: 500 9.5px var(--f-num); color: var(--mute); }
+.info { font-size: 12px; color: var(--soft); }
+.info b { color: var(--ink); font-weight: 500; }
+.warnline { color: var(--warn); font-weight: 600; }
+.log { font-size: 11.5px; color: var(--soft); display: flex; flex-direction: column; gap: 1px; overflow: hidden; flex: 1; min-height: 0; }
+.log div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.log .dead { color: #ff9c8a; } .log .good { color: var(--good); } .log .warn { color: var(--warn); }
+.overlay { position: fixed; inset: 0; background: rgba(6,10,8,.84); display: grid; place-items: center; padding: 12px; z-index: 5; }
+.overlay.hidden { display: none; }
+.card { max-width: 660px; max-height: calc(100dvh - 24px); background: var(--board); border: 1px solid var(--line); border-radius: 6px; padding: 14px 18px; display: grid; gap: 8px; overflow: hidden; }
+.card h2 { font: 700 19px var(--f-display); margin: 0; }
+.card .lede { font: 400 14px/1.6 var(--f-display); margin: 0; }
+.card ul { margin: 0; padding-left: 18px; color: var(--soft); display: grid; gap: 2px; font-size: 12.5px; }
+.card ul b { color: var(--ink); font-weight: 600; }
+.card .row { display: flex; justify-content: flex-end; }
+.card button.main { padding: 7px 16px; font-size: 13px; }
+@media (max-height: 480px) {
+  #app { padding-top: 4px; padding-bottom: 4px; gap: 4px; }
+  h1 { font-size: 13px; } .stat { font-size: 10.5px; } header { gap: 4px 8px; }
+  .hide-s { display: none; }
+  main { grid-template-columns: minmax(0, 1fr) 222px; gap: 5px; }
+  aside { padding: 5px 7px; gap: 3px; }
+  aside h2 { font-size: 12.5px; }
+  button { padding: 3px 7px; }
+  .btns button { padding: 2px 3px; font-size: 11px; } .btns button small { font-size: 9px; } .btns button .k { display: none; }
+  .info, .log { font-size: 10.5px; } .sec { font-size: 9.5px; margin-top: 0; }
+  .card { padding: 10px 14px; gap: 5px; } .card h2 { font-size: 16px; } .card .lede { font-size: 12.5px; line-height: 1.5; } .card ul { font-size: 11px; gap: 1px; }
+  .cp i { width: 9px; height: 9px; }
+}
+@media (orientation: portrait) and (max-width: 700px) {
+  header { flex-wrap: wrap; }
+  main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1.2fr) minmax(0, 1fr); }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>전선 지휘</h1>
+    <span class="stat">남은 때 <b id="sTime">6:00</b></span>
+    <span class="stat">마을<span class="bar"><i id="sTown"></i></span></span>
+    <span class="stat">지휘력<span class="cp" id="sCp"></span></span>
+    <span class="stat">예비대 <b id="sRes">0</b></span>
+    <span class="sp"></span>
+    <span class="speed" role="group" aria-label="빠르기">
+      <button data-sp="0" aria-label="멈춤">❚❚</button>
+      <button data-sp="1">1×</button>
+      <button data-sp="2">2×</button>
+    </span>
+  </header>
+  <main>
+    <section id="wrap"><canvas id="cv"></canvas></section>
+    <aside id="side">
+      <h2 id="bTitle"></h2>
+      <div class="info" id="bInfo"></div>
+      <div class="sec">교리 · 1</div>
+      <div class="btns" id="docs"></div>
+      <div class="sec">칙령</div>
+      <div class="btns" id="eds"></div>
+      <div class="sec">전 전선 교리 · 3</div>
+      <div class="btns" id="alls"></div>
+      <div class="log" id="log"></div>
+    </aside>
+  </main>
+</div>
+<div class="overlay" id="ov"><div class="card" id="ovCard">
+  <h2>전선 지휘</h2>
+  <p class="lede">미궁의 여덟 갈래가 동시에 끓기 시작했다. 관리국 상황판 위에서 국장이 할 수 있는 일은, 무너지기 직전의 판을 골라 칙령을 내려보내는 것뿐이다.</p>
+  <ul>
+    <li><b>판 여덟</b>이 저절로 싸웁니다. 왼쪽 초록 원이 아군, 오른쪽 붉은 것이 마물. 판 오른쪽 끝에 <b>다음 파도의 시계와 종류</b>가 보입니다.</li>
+    <li>마물마다 이기는 교리가 있어요. <b>떼 → 사수</b>, <b>갑각 → 돌격</b>, <b>돌진 → 지연</b>. 틀리면 판 위에 ⚠가 뜹니다.</li>
+    <li><b>칙령</b>: 교리 변경(1) · 증원(2, 예비대에서 넷) · 붕락(3, 판의 마물을 한꺼번에 침, 아군도 다침) · 봉쇄(2, 다음 파도를 같은 층 다른 판으로 돌림). 지휘력은 천천히 찹니다.</li>
+    <li>판을 뚫은 마물은 <b>입구 쪽 판으로 넘어가</b> 다음 파도를 키웁니다. 1층이 뚫리면 마을이 깎여요. 6분을 버티면 끝.</li>
+    <li>판을 누르거나 1–8 키로 고르고, Q W E로 교리, A S D로 증원 · 붕락 · 봉쇄. 스페이스로 멈춤.</li>
+  </ul>
+  <div class="row"><button class="main" id="ovGo">상황판 켜기</button></div>
+</div></div>
+
+<script src="engine.js"></script>
+<script>
+(() => {
+  const F = window.FRONT;
+  const { NB, COLS, ROWS, LANE, DOCTRINES, TYPES, EDICTS, B, bName, bCol, bRow } = F;
+  const $ = id => document.getElementById(id);
+  const COUNTER = { swarm: 'hold', armor: 'charge', charger: 'delay' };
+  const DKEYS = ['hold', 'charge', 'delay'];
+  let G = F.newGame((Date.now() % 100000) + 1);
+  let sel = 3, speed = 0, acc = 0;
+
+  const cv = $('cv'), ctx = cv.getContext('2d');
+  let W = 0, H = 0, dpr = 1, L = null;
+  function layout() {
+    const r = cv.getBoundingClientRect();
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    W = r.width; H = r.height;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    const town = Math.max(34, W * 0.06), gap = Math.max(10, W * 0.018), vg = Math.max(8, H * 0.03), pad = 6;
+    const bw = (W - town - pad - gap * COLS) / COLS, bh = (H - pad * 2 - vg) / ROWS;
+    const rects = [];
+    for (let b = 0; b < NB; b++) rects.push({ x: town + gap + bCol(b) * (bw + gap), y: pad + bRow(b) * (bh + vg), w: bw, h: bh });
+    L = { town, gap, rects, small: bw < 170 };
+  }
+  new ResizeObserver(layout).observe(cv);
+
+  function rr(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); }
+  function laneOf(b) { const R = L.rects[b], top = L.small ? 18 : 22, bot = L.small ? 14 : 16; return { x: R.x + 4, y: R.y + top, w: R.w - 8 - (L.small ? 30 : 40), h: R.h - top - bot, R }; }
+  const lx = (ln, x) => ln.x + (x / LANE) * ln.w;
+
+  function draw(now) {
+    if (!L) return;
+    const T = now / 1000;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    // 입구 · 마을
+    ctx.fillStyle = '#22301f'; ctx.fillRect(0, 0, L.town, H);
+    ctx.save(); ctx.translate(L.town / 2, H / 2); ctx.rotate(-Math.PI / 2);
+    ctx.fillStyle = G.town > 40 ? '#d9b45a' : '#f0806f'; ctx.font = `700 ${L.small ? 11 : 13}px "Gowun Batang", serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(`입구 · 마을 ${Math.round(G.town)}`, 0, 0); ctx.restore();
+    // 판 사이 길 (심층 → 입구)
+    for (let b = 0; b < NB; b++) {
+      const R = L.rects[b], ty = R.y + R.h / 2;
+      const tx = bCol(b) === 0 ? L.town : L.rects[b - 1].x + L.rects[b - 1].w;
+      ctx.strokeStyle = '#3b3326'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(R.x, ty); ctx.lineTo(tx, ty); ctx.stroke();
+    }
+    // 뚫고 넘어가는 마물 (점이 길을 따라 흐름)
+    for (const lk of G.leaks) {
+      const k = Math.min(1, (G.t - lk.t) / 1.2), A = L.rects[lk.from];
+      let x0 = A.x, y0 = A.y + A.h / 2, x1, y1;
+      if (lk.to < 0) { x1 = L.town * 0.6; y1 = y0; }
+      else { const Bq = L.rects[lk.to]; if (bCol(lk.to) === bCol(lk.from)) { x0 = A.x + A.w / 2; y0 = A.y + (bRow(lk.from) ? 0 : A.h); x1 = Bq.x + Bq.w / 2; y1 = Bq.y + (bRow(lk.to) ? 0 : Bq.h); } else { x1 = Bq.x + Bq.w; y1 = Bq.y + Bq.h / 2; } }
+      ctx.fillStyle = `rgba(240,80,60,${1 - k * 0.5})`; ctx.beginPath(); ctx.arc(x0 + (x1 - x0) * k, y0 + (y1 - y0) * k, 4, 0, 6.29); ctx.fill();
+    }
+    for (let b = 0; b < NB; b++) drawBoard(G.boards[b], T);
+  }
+
+  function drawBoard(bd, T) {
+    const ln = laneOf(bd.id), R = ln.R, small = L.small;
+    const cur = bd.mons.filter(m => m.x < LANE);
+    const curType = cur.length ? cur[0].type : null;
+    const soon = bd.next.at - G.t;
+    const mismatch = (curType && COUNTER[curType] !== bd.doctrine) || (!curType && soon < 6 && COUNTER[bd.next.type] !== bd.doctrine);
+    const danger = cur.filter(m => m.x < 3).length;
+    // 판
+    rr(R.x, R.y, R.w, R.h, 6); ctx.fillStyle = bd.fallen ? '#2a1714' : '#1d2b23'; ctx.fill();
+    ctx.lineWidth = bd.id === sel ? 2.5 : 1;
+    ctx.strokeStyle = bd.id === sel ? '#d9b45a' : danger >= 3 ? `rgba(255,90,70,${0.6 + 0.4 * Math.sin(T * 8)})` : '#3e5a48';
+    ctx.stroke();
+    // 칸
+    for (let i = 0; i < LANE; i++) { ctx.fillStyle = i % 2 ? '#22332a' : '#1f2e26'; ctx.fillRect(lx(ln, i), ln.y, ln.w / LANE - 1, ln.h); }
+    ctx.fillStyle = 'rgba(217,180,90,.12)'; ctx.fillRect(ln.x, ln.y, ln.w / LANE * 0.8, ln.h); // 판의 왼쪽 끝 = 뚫리는 선
+    if (bd.sealed > 0) { ctx.strokeStyle = 'rgba(160,120,70,.6)'; ctx.lineWidth = 3; for (let x = -ln.h; x < ln.w + 40; x += 12) { ctx.beginPath(); ctx.moveTo(ln.x + x, ln.y + ln.h); ctx.lineTo(ln.x + x + ln.h, ln.y); ctx.stroke(); } }
+    // 머리줄: 이름 · 교리 · 뚫림
+    const fs = small ? 10 : 11.5;
+    ctx.font = `700 ${fs}px "Gowun Batang", serif`; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+    ctx.fillStyle = '#e3eadf'; ctx.fillText(bName(bd.id), R.x + 6, R.y + (small ? 9 : 11));
+    const D = DOCTRINES[bd.doctrine], nw = ctx.measureText(bName(bd.id)).width;
+    ctx.font = `700 ${fs - 0.5}px "IBM Plex Sans KR", sans-serif`;
+    const bx = R.x + 10 + nw, bwid = ctx.measureText(D.name).width + 8;
+    ctx.fillStyle = mismatch ? '#5a3a14' : '#2f4637'; rr(bx, R.y + 3, bwid, fs + 4, 3); ctx.fill();
+    ctx.fillStyle = mismatch ? '#f2c46b' : '#bfe0c8'; ctx.fillText(D.name, bx + 4, R.y + (small ? 9 : 11));
+    if (mismatch) { ctx.fillStyle = `rgba(242,196,107,${0.6 + 0.4 * Math.sin(T * 6)})`; ctx.fillText('⚠', bx + bwid + 3, R.y + (small ? 9 : 11)); }
+    // 뚫림 눈금
+    for (let i = 0; i < B.BREACH_MAX; i++) { ctx.fillStyle = i < bd.breach ? '#e0503c' : '#34463b'; ctx.fillRect(R.x + R.w - 6 - (B.BREACH_MAX - i) * (small ? 4 : 5), R.y + R.h - (small ? 9 : 10), small ? 3 : 4, small ? 5 : 6); }
+    // 아군 · 마물 (세로 자리는 id로 흩음)
+    const lanes = 4, yOf = (id, k) => ln.y + ln.h * (0.15 + 0.7 * (((id * 7) % lanes) / (lanes - 1))) + Math.sin(T * 2 + id) * k;
+    for (const a of bd.allies) {
+      const x = lx(ln, a.x), y = yOf(a.id, 1);
+      ctx.fillStyle = '#7fd0a6'; ctx.beginPath(); ctx.arc(x, y, small ? 3.6 : 4.6, 0, 6.29); ctx.fill();
+      ctx.strokeStyle = a.hp / a.max < 0.4 ? '#f0806f' : '#123b28'; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+    for (const m of cur) {
+      const x = lx(ln, m.x), y = yOf(m.id, 1.5), s = small ? 0.85 : 1;
+      if (m.type === 'swarm') { ctx.fillStyle = '#d0453a'; ctx.beginPath(); ctx.arc(x, y, 2.6 * s, 0, 6.29); ctx.fill(); }
+      else if (m.type === 'armor') { ctx.fillStyle = '#8a2c26'; ctx.fillRect(x - 5 * s, y - 5 * s, 10 * s, 10 * s); ctx.strokeStyle = '#e07a5a'; ctx.lineWidth = 1; ctx.strokeRect(x - 5 * s, y - 5 * s, 10 * s, 10 * s); }
+      else { ctx.fillStyle = '#f08a3c'; ctx.beginPath(); ctx.moveTo(x - 5 * s, y); ctx.lineTo(x + 4 * s, y - 4.5 * s); ctx.lineTo(x + 4 * s, y + 4.5 * s); ctx.closePath(); ctx.fill(); }
+    }
+    // 다음 파도: 오른쪽 기둥
+    const px = R.x + R.w - (small ? 30 : 40), pw = small ? 26 : 36, py = ln.y, ph = ln.h;
+    ctx.fillStyle = '#15211b'; ctx.fillRect(px, py, pw, ph);
+    const gapT = Math.max(1, bd.next.at - (bd._lastAt || 0)), k = Math.max(0, Math.min(1, 1 - soon / Math.max(1, gapT)));
+    ctx.fillStyle = soon < 5 ? `rgba(240,80,60,${0.5 + 0.4 * Math.sin(T * 8)})` : 'rgba(217,180,90,.35)';
+    ctx.fillRect(px, py + ph * (1 - k), pw, ph * k);
+    ctx.textAlign = 'center'; ctx.fillStyle = '#e3eadf';
+    ctx.font = `700 ${small ? 10 : 12}px "IBM Plex Sans KR", sans-serif`; ctx.fillText(TYPES[bd.next.type].name, px + pw / 2, py + ph * 0.3);
+    ctx.font = `500 ${small ? 9.5 : 11}px "IBM Plex Mono", monospace`; ctx.fillText('×' + bd.next.size, px + pw / 2, py + ph * 0.55);
+    ctx.fillStyle = soon < 5 ? '#ffb4a6' : '#9fb3a5'; ctx.fillText(Math.ceil(Math.max(0, soon)) + 's', px + pw / 2, py + ph * 0.8);
+    ctx.textAlign = 'left';
+    // 아래줄: 아군 수
+    ctx.font = `500 ${small ? 9.5 : 10.5}px "IBM Plex Mono", monospace`; ctx.fillStyle = '#9fb3a5'; ctx.textBaseline = 'middle';
+    ctx.fillText(small ? `${bd.allies.length} 대 ${cur.length}` : `아군 ${bd.allies.length}${cur.length ? ' · 마물 ' + cur.length : ''}`, R.x + 6, R.y + R.h - (small ? 7 : 8));
+    if (bd.fallen) { ctx.fillStyle = 'rgba(40,10,8,.55)'; ctx.fillRect(ln.x, ln.y, ln.w, ln.h); ctx.fillStyle = '#ff9c8a'; ctx.font = `700 ${small ? 11 : 13}px "Gowun Batang", serif`; ctx.textAlign = 'center'; ctx.fillText('무너짐 · 증원으로 되찾기', ln.x + ln.w / 2, ln.y + ln.h / 2); ctx.textAlign = 'left'; }
+    // 칙령이 박힌 자리
+    if (bd.flash && G.t - bd.flash.t < 1.2) {
+      const a = 1 - (G.t - bd.flash.t) / 1.2, col = bd.flash.kind === 'bad' ? '240,100,60' : bd.flash.kind === 'good' ? '134,207,159' : bd.flash.kind === 'warn' ? '217,180,90' : '230,230,210';
+      ctx.fillStyle = `rgba(${col},${a * 0.28})`; ctx.fillRect(R.x, R.y, R.w, R.h);
+      ctx.fillStyle = `rgba(${col},${a})`; ctx.font = `700 ${(small ? 18 : 24) * (1 + (1 - a) * 0.3)}px "Gowun Batang", serif`; ctx.textAlign = 'center';
+      ctx.fillText(bd.flash.text, R.x + R.w / 2, R.y + R.h / 2); ctx.textAlign = 'left';
+    }
+  }
+
+  // ---- 옆 칸 ----
+  const once = (el, html) => { if (el.dataset.k !== html) { el.innerHTML = html; el.dataset.k = html; } };
+  function side() {
+    const left = Math.max(0, B.TIME - G.t);
+    $('sTime').textContent = `${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}`;
+    $('sTown').style.width = G.town + '%';
+    $('sTown').style.background = G.town > 60 ? 'var(--good)' : G.town > 30 ? 'var(--warn)' : 'var(--bad)';
+    $('sCp').innerHTML = Array.from({ length: B.CP_MAX }, (_, i) => `<i><b style="height:${Math.max(0, Math.min(1, G.cp - i)) * 100}%"></b></i>`).join('');
+    $('sRes').textContent = Math.floor(G.reserve);
+    const bd = G.boards[sel], cur = bd.mons.filter(m => m.x < LANE);
+    const curType = cur.length ? cur[0].type : null;
+    once($('bTitle'), `${bName(sel)} <small>${bd.fallen ? '무너짐' : bd.sealed > 0 ? `봉쇄 ${Math.ceil(bd.sealed)}s` : '교전 중' + (cur.length ? '' : ' 아님')}</small>`);
+    const need = COUNTER[curType || bd.next.type];
+    once($('bInfo'), `<div>아군 <b>${bd.allies.length}</b> · 뚫림 <b>${bd.breach}/${B.BREACH_MAX}</b>${curType ? ` · 싸우는 중 <b>${TYPES[curType].name} ${cur.length}</b>` : ''}</div>`
+      + `<div>다음 <b>${TYPES[bd.next.type].name} ×${bd.next.size}</b> · ${Math.ceil(Math.max(0, bd.next.at - G.t))}초 뒤</div>`
+      + (need !== bd.doctrine ? `<div class="warnline">⚠ ${TYPES[curType || bd.next.type].name}에는 ${DOCTRINES[need].name}</div>` : '<div style="color:var(--good)">교리가 맞음</div>'));
+    const keyD = { hold: 'Q', charge: 'W', delay: 'E' }, sub = { hold: '떼에 강함', charge: '갑각에 강함', delay: '돌진에 강함' };
+    once($('docs'), DKEYS.map(d => `<button data-d="${d}" aria-pressed="${bd.doctrine === d}" ${G.cp < 1 || bd.doctrine === d || G.over ? 'disabled' : ''}><span>${DOCTRINES[d].name} <span class="k">${keyD[d]}</span></span><small>${sub[d]}</small></button>`).join(''));
+    const eds = [['reinforce', 'A', `예비대 ${Math.floor(G.reserve)}`], ['collapse', 'S', '마물 일소 · 아군 다침'], ['seal', 'D', '다음 파도 돌림']];
+    once($('eds'), eds.map(([k, key, s]) => `<button data-e="${k}" ${G.cp < EDICTS[k].cost || G.over || (k === 'seal' && bd.sealed > 0) || (k === 'reinforce' && G.reserve < 1) ? 'disabled' : ''}><span>${EDICTS[k].name} ${EDICTS[k].cost} <span class="k">${key}</span></span><small>${s}</small></button>`).join(''));
+    once($('alls'), DKEYS.map(d => `<button data-a="${d}" ${G.cp < 3 || G.over ? 'disabled' : ''}><span>모두 ${DOCTRINES[d].name}</span></button>`).join(''));
+    const lk = G.log.length + ':' + (G.log.length ? G.log[G.log.length - 1].t : 0);
+    if ($('log').dataset.k !== lk) { $('log').dataset.k = lk; $('log').innerHTML = G.log.slice(-10).reverse().map(l => `<div class="${l.kind}">${l.text}</div>`).join(''); }
+  }
+
+  function act(kind, arg) {
+    let err = null;
+    if (kind === 'doctrine') err = F.edict(G, 'doctrine', sel, arg);
+    else if (kind === 'all') err = F.edict(G, 'all', sel, arg);
+    else err = F.edict(G, kind, sel);
+    side();
+    return err;
+  }
+  $('side').addEventListener('pointerdown', e => {
+    const b = e.target.closest('button:not(:disabled)'); if (!b) return;
+    if (b.dataset.d) act('doctrine', b.dataset.d);
+    else if (b.dataset.e) act(b.dataset.e);
+    else if (b.dataset.a) act('all', b.dataset.a);
+  });
+  cv.addEventListener('pointerdown', e => {
+    const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+    for (let b = 0; b < NB; b++) { const R = L.rects[b]; if (x >= R.x - 4 && x <= R.x + R.w + 4 && y >= R.y - 4 && y <= R.y + R.h + 4) { sel = b; side(); return; } }
+  });
+  document.addEventListener('keydown', e => {
+    if (e.code === 'Space') { e.preventDefault(); setSpeed(speed ? 0 : 1); return; }
+    const n = +e.key; if (n >= 1 && n <= 8) { const order = [3, 2, 1, 0, 7, 6, 5, 4]; sel = order[n - 1]; side(); return; }
+    const k = e.key.toLowerCase();
+    if (k === 'q') act('doctrine', 'hold'); else if (k === 'w') act('doctrine', 'charge'); else if (k === 'e') act('doctrine', 'delay');
+    else if (k === 'a') act('reinforce'); else if (k === 's') act('collapse'); else if (k === 'd') act('seal');
+  });
+  function setSpeed(s) { speed = s; document.querySelectorAll('[data-sp]').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.sp === s))); }
+  document.querySelectorAll('[data-sp]').forEach(b => b.addEventListener('click', () => setSpeed(+b.dataset.sp)));
+  document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+  document.addEventListener('dblclick', e => e.preventDefault());
+  $('ovGo').onclick = () => { $('ov').classList.add('hidden'); setSpeed(1); };
+
+  function end() {
+    setSpeed(0);
+    const held = G.over === 'hold';
+    $('ovCard').innerHTML = `<h2>${held ? '버팀' : '입구가 무너짐'}</h2>
+      <p class="lede">${held ? (G.town > 70 ? '여덟 갈래의 울음이 하나씩 잦아들었다. 상황판의 불빛은 새벽이 되어서야 꺼졌다.' : '입구는 끝내 버텼다. 다만 마을의 담 몇 군데는 다음 철까지 무너진 채로 남을 것이다.') : `${Math.floor(G.t / 60)}분 ${Math.floor(G.t % 60)}초, 마지막 목책이 안쪽에서부터 꺾여 나갔다. 상황판 위의 판들은 하나씩 붉게 꺼져 갔다.`}</p>
+      <ul><li>마을 <b>${Math.round(G.town)}</b> · 무너진 전선 <b>${G.stats.fell}</b>번 · 막아 낸 파도 <b>${G.stats.cleared}</b></li>
+      <li>쓰러뜨린 마물 <b>${G.stats.killed}</b> · 잃은 아군 <b>${G.stats.lost}</b> · 내린 칙령 <b>${G.stats.edicts}</b></li></ul>
+      <div class="row"><button class="main" id="ovGo">다시</button></div>`;
+    $('ov').classList.remove('hidden');
+    $('ovGo').onclick = () => { G = F.newGame((Date.now() % 100000) + 1); $('ov').classList.add('hidden'); setSpeed(1); };
+  }
+
+  let last = performance.now(), sideT = 0;
+  function frame(now) {
+    const dt = Math.min(250, now - last); last = now;
+    if (speed && !G.over) {
+      acc += dt * speed;
+      while (acc >= F.DT * 1000 && !G.over) {
+        acc -= F.DT * 1000;
+        for (const bd of G.boards) if (G.t + F.DT >= bd.next.at) bd._lastAt = bd.next.at; // 시계 막대의 시작점
+        F.tick(G);
+      }
+      if (G.over) end();
+    }
+    draw(now);
+    if (now - sideT > 120) { sideT = now; side(); }
+    requestAnimationFrame(frame);
+  }
+  window.__front = () => G; // 확인용
+  layout(); setSpeed(0); side();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
