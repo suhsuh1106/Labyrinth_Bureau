@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>대물 토벌</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* 대물 토벌: 왼쪽은 영입 카드 · 격자 전장 · 정산 보고, 오른쪽은 그 단계의 손. 화면은 끌거나 넘기지 않는다 */
+:root {
+  color-scheme: dark;
+  --desk: #10160f; --board: #1b2a22; --board-2: #15211b; --line: #34503f; --cell: #1d2b23; --cell-2: #223328;
+  --ink: #e3eadf; --soft: #9fb3a5; --mute: #6f8576; --brass: #d9b45a; --bad: #f0806f; --warn: #f2c46b; --good: #86cf9f;
+  --mon: #5a2a26; --mon-2: #7a3530;
+  --f-display: "Gowun Batang", "Nanum Myeongjo", serif;
+  --f-body: "IBM Plex Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+  --f-num: "IBM Plex Mono", ui-monospace, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; background: var(--desk); color: var(--ink); font: 13px/1.45 var(--f-body); -webkit-text-size-adjust: 100%; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+button { font: 600 12px var(--f-body); color: var(--ink); background: var(--board); border: 1px solid var(--line); border-radius: 3px; padding: 5px 9px; cursor: pointer; touch-action: manipulation; }
+button:hover:not(:disabled) { border-color: var(--brass); }
+button:focus-visible { outline: 2px solid var(--brass); outline-offset: 1px; }
+button:disabled { opacity: .4; cursor: default; }
+button[aria-pressed="true"] { background: #3a3220; border-color: var(--brass); color: var(--brass); }
+button.main { background: var(--brass); color: #221e18; border-color: var(--brass); }
+#app { height: 100dvh; display: grid; grid-template-rows: auto minmax(0, 1fr); padding: 6px max(8px, env(safe-area-inset-right)) 6px max(8px, env(safe-area-inset-left)); gap: 6px; }
+header { display: flex; align-items: center; gap: 4px 12px; min-width: 0; }
+h1 { font: 700 16px var(--f-display); margin: 0; white-space: nowrap; }
+.stat { font: 500 12px var(--f-num); color: var(--soft); white-space: nowrap; }
+.stat b { color: var(--ink); font-weight: 500; }
+.townbar { display: inline-block; width: 52px; height: 7px; background: #2a1c18; border-radius: 4px; vertical-align: middle; overflow: hidden; margin-left: 4px; }
+.townbar i { display: block; height: 100%; background: var(--good); }
+.steps { display: flex; gap: 2px; font-size: 11.5px; color: var(--mute); white-space: nowrap; }
+.steps span.on { color: var(--brass); font-weight: 600; }
+.sp { flex: 1; }
+.speed { display: flex; gap: 3px; }
+main { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 8px; min-height: 0; }
+#stage { position: relative; min-height: 0; min-width: 0; background: var(--board-2); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+aside { background: var(--board); border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow: hidden; }
+aside h2 { font: 700 13px var(--f-display); margin: 0; display: flex; align-items: baseline; gap: 6px; }
+aside h2 small { font: 400 11px var(--f-body); color: var(--mute); }
+.note { font-size: 11px; color: var(--mute); }
+.grow { flex: 1; min-height: 0; }
+.row-end { display: flex; gap: 6px; justify-content: flex-end; align-items: center; }
+
+/* 영입 */
+.offers { position: absolute; inset: 0; padding: 8px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.gcol { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.ghead { display: grid; gap: 0; padding-bottom: 4px; border-bottom: 2px solid; }
+.ghead b { font: 700 13px var(--f-display); }
+.ghead span { font-size: 11px; color: var(--soft); }
+.offer { display: grid; grid-template-columns: 1fr auto; gap: 1px 6px; text-align: left; padding: 5px 7px; background: var(--cell); }
+.offer .nm { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.offer .fee { font: 500 12px var(--f-num); color: var(--brass); }
+.offer .st { grid-column: 1 / 3; font: 400 10.5px var(--f-num); color: var(--soft); display: flex; gap: 8px; }
+.offer.ace { border-color: #8a7440; }
+.offer[aria-pressed="true"] { background: #3a3220; }
+.offer[aria-pressed="true"] .nm::before { content: "✓ "; color: var(--brass); }
+
+/* 전장 */
+.field { position: absolute; }
+.cellg { position: absolute; border: 1px solid #2c4335; background: var(--cell); }
+.cellg.alt { background: var(--cell-2); }
+.cellg.zone { box-shadow: inset 0 0 0 999px rgba(217,180,90,.07); }
+.cellg.zone.can:hover { box-shadow: inset 0 0 0 999px rgba(217,180,90,.18); }
+.cellg.stair { background: repeating-linear-gradient(90deg, #2a2a20 0 6px, #232318 6px 12px); }
+.warn { position: absolute; pointer-events: none; border-radius: 3px; display: grid; place-items: center; font: 700 10px var(--f-body); color: #fff; animation: pulse .6s infinite alternate; }
+.warn.arm { background: rgba(240,80,60,.38); } .warn.roar { background: rgba(240,170,60,.28); } .warn.stomp { background: rgba(200,90,200,.3); } .warn.tail { background: rgba(240,120,90,.25); }
+@keyframes pulse { from { opacity: .55; } to { opacity: 1; } }
+.flash { position: absolute; pointer-events: none; border-radius: 3px; animation: fl .45s ease-out forwards; }
+.flash.mon { background: rgba(255,80,60,.5); } .flash.atk { background: rgba(255,230,150,.35); }
+@keyframes fl { to { opacity: 0; } }
+.pop { position: absolute; pointer-events: none; font: 700 12px var(--f-num); color: #ff9c8a; text-shadow: 0 1px 2px #000; animation: up .8s ease-out forwards; }
+@keyframes up { to { transform: translateY(-18px); opacity: 0; } }
+.mon { position: absolute; background: radial-gradient(ellipse at 60% 50%, var(--mon-2), var(--mon) 70%); border: 2px solid #9b4a3e; border-radius: 10px; transition: left .35s ease; display: grid; grid-template-rows: auto 1fr auto; grid-template-columns: auto 1fr auto; }
+.mon .nmn { grid-row: 2; grid-column: 2; display: grid; place-items: center; font: 700 12px var(--f-display); color: #f1d3c8; text-align: center; padding: 2px; }
+.part { font: 600 10px var(--f-body); color: #f6e6dc; display: flex; align-items: center; gap: 3px; padding: 2px 4px; }
+.part .hb { width: 34px; height: 5px; background: #2a1310; border-radius: 3px; overflow: hidden; }
+.part .hb i { display: block; height: 100%; background: #f2c46b; }
+.part.broken { color: #8d6a60; text-decoration: line-through; }
+.part.broken .hb { opacity: .3; }
+.part.p-horn { grid-row: 1; grid-column: 1 / 4; justify-self: center; }
+.part.p-leg { grid-row: 3; grid-column: 1 / 4; justify-self: center; }
+.part.p-arm { grid-row: 2; grid-column: 1; writing-mode: vertical-rl; }
+.part.p-core { grid-row: 2; grid-column: 3; writing-mode: vertical-rl; }
+.part.p-arm .hb, .part.p-core .hb { width: 5px; height: 30px; display: flex; align-items: flex-end; }
+.part.p-arm .hb i, .part.p-core .hb i { width: 100%; }
+.tok { position: absolute; transition: transform .28s ease; display: grid; place-items: center; pointer-events: auto; cursor: pointer; }
+.tok .disc { width: 74%; height: 74%; border-radius: 50%; border: 2px solid rgba(0,0,0,.4); display: grid; place-items: center; font: 700 12px var(--f-display); color: #1b1b14; position: relative; }
+.tok.ace .disc { box-shadow: 0 0 0 2px var(--brass); }
+.tok.sel .disc { outline: 2px dashed #fff; outline-offset: 2px; }
+.tok .hp { position: absolute; left: 13%; right: 13%; bottom: 4%; height: 4px; background: #000a; border-radius: 2px; overflow: hidden; }
+.tok .hp i { display: block; height: 100%; background: var(--good); }
+.tok .tg { position: absolute; top: 2%; right: 4%; font: 700 9px var(--f-body); background: #000b; color: var(--brass); padding: 0 3px; border-radius: 2px; }
+.tok.dead { opacity: .25; filter: grayscale(1); }
+.tok.gone { opacity: 0; pointer-events: none; }
+.tok.leaving .disc { border-style: dashed; }
+.lbl { position: absolute; font: 600 10px var(--f-body); color: var(--mute); pointer-events: none; }
+
+/* 조 목록 (배치 · 전투) */
+.squad { display: flex; flex-direction: column; gap: 4px; min-height: 0; }
+.prow { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; align-items: center; gap: 2px 6px; padding: 3px 5px; border: 1px solid transparent; border-radius: 3px; cursor: pointer; }
+.prow.sel { border-color: var(--brass); background: #22352a; }
+.prow .dot { width: 10px; height: 10px; border-radius: 50%; }
+.prow .nm { font-weight: 600; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prow .nm small { font-weight: 400; color: var(--mute); }
+.prow .tgs { display: flex; gap: 2px; }
+.prow .tgs button { padding: 1px 5px; font-size: 11px; }
+.prow .hpb { grid-column: 2 / 4; height: 4px; background: #0e1612; border-radius: 2px; overflow: hidden; }
+.prow .hpb i { display: block; height: 100%; background: var(--good); }
+.prow.dead { opacity: .45; }
+.log { font-size: 11.5px; color: var(--soft); display: flex; flex-direction: column; gap: 1px; overflow: hidden; }
+.log div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.log .dead { color: #ff9c8a; } .log .good { color: var(--good); } .log .doc { color: var(--brass); }
+.money { font: 500 12px var(--f-num); color: var(--soft); }
+.money b { color: var(--ink); font-weight: 500; }
+
+/* 정산 · 겹 창 */
+.report { position: absolute; inset: 0; padding: 12px 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px 18px; align-content: start; overflow: hidden; }
+.report h2 { grid-column: 1 / 3; font: 700 17px var(--f-display); margin: 0; }
+.report .lede { grid-column: 1 / 3; font: 400 13.5px/1.6 var(--f-display); margin: 0 0 4px; }
+.report dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 12px; align-content: start; }
+.report dt { color: var(--soft); } .report dd { margin: 0; }
+.letters { display: grid; gap: 6px; align-content: start; }
+.letter { font: 400 12.5px/1.5 var(--f-display); padding: 5px 8px; border-left: 3px solid; background: #ffffff08; }
+.letter small { display: block; font: 500 10.5px var(--f-body); color: var(--mute); }
+.overlay { position: fixed; inset: 0; background: rgba(6,10,8,.84); display: grid; place-items: center; padding: 12px; z-index: 5; }
+.overlay.hidden { display: none; }
+.card { max-width: 660px; max-height: calc(100dvh - 24px); background: var(--board); border: 1px solid var(--line); border-radius: 6px; padding: 14px 18px; display: grid; gap: 8px; overflow: hidden; }
+.card h2 { font: 700 19px var(--f-display); margin: 0; }
+.card .lede { font: 400 14px/1.6 var(--f-display); margin: 0; }
+.card ul { margin: 0; padding-left: 18px; color: var(--soft); display: grid; gap: 2px; font-size: 12.5px; }
+.card ul b { color: var(--ink); font-weight: 600; }
+.card .row { display: flex; justify-content: flex-end; }
+.card button.main { padding: 7px 16px; font-size: 13px; }
+
+@media (max-height: 480px) {
+  #app { padding-top: 4px; padding-bottom: 4px; gap: 4px; }
+  h1 { font-size: 13px; } .stat, .steps { font-size: 10.5px; } header { gap: 4px 8px; }
+  .hide-s { display: none; }
+  main { grid-template-columns: minmax(0, 1fr) 248px; gap: 5px; }
+  aside { padding: 5px 7px; gap: 4px; }
+  button { padding: 3px 7px; }
+  .offers { padding: 5px; gap: 5px; }
+  .ghead b { font-size: 12px; } .ghead span { font-size: 10px; }
+  .offer { padding: 3px 5px; } .offer .nm { font-size: 11.5px; } .offer .st { font-size: 9.5px; gap: 5px; }
+  .prow { padding: 2px 4px; } .prow .nm { font-size: 11px; } .prow .tgs button { padding: 1px 4px; font-size: 10.5px; }
+  .note, .log { font-size: 10.5px; }
+  .report { padding: 8px 10px; gap: 4px 12px; } .report h2 { font-size: 14px; } .report .lede { font-size: 12px; line-height: 1.5; }
+  .report dl { font-size: 11px; } .letter { font-size: 11px; padding: 3px 6px; }
+  .card { padding: 10px 14px; gap: 5px; } .card h2 { font-size: 16px; } .card .lede { font-size: 12.5px; line-height: 1.5; } .card ul { font-size: 11px; gap: 1px; }
+  .part { font-size: 9px; } .part .hb { width: 24px; }
+}
+@media (orientation: portrait) and (max-width: 700px) {
+  header { flex-wrap: wrap; }
+  main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); }
+  .offers { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>대물 토벌</h1>
+    <span class="stat">작전 <b id="sOp">1</b>/3 · <b id="sMon"></b></span>
+    <span class="stat">예산 <b id="sBudget">0</b></span>
+    <span class="stat">마을<span class="townbar"><i id="sTown"></i></span></span>
+    <span class="steps hide-s" id="steps"></span>
+    <span class="sp"></span>
+    <span class="speed" id="speed" role="group" aria-label="빠르기">
+      <button data-sp="0" aria-label="멈춤">❚❚</button>
+      <button data-sp="1">1×</button>
+      <button data-sp="2">2×</button>
+    </span>
+  </header>
+  <main>
+    <section id="stage"></section>
+    <aside id="side"></aside>
+  </main>
+</div>
+<div class="overlay" id="ov"><div class="card" id="ovCard"></div></div>
+
+<script src="engine.js"></script>
+<script>
+(() => {
+  const R = window.RAID;
+  const { COLS, ROWS, GUILDS, PARTS, PART_IDS, MONSTERS, KINDS } = R;
+  const $ = id => document.getElementById(id);
+  const stage = $('stage'), side = $('side');
+  let C = R.newCampaign((Date.now() % 100000) + 1);
+  let phase = 'brief', picked = new Set(), squad = [], selId = null, Bt = null, speed = 1, timer = 0, hintText = '';
+  const TICK_MS = 600;
+  const GLYPH = { shield: '방', red: '돌', wolf: '척' };
+  const gwWord = x => x >= 70 ? '두터움' : x >= 55 ? '좋음' : x >= 40 ? '덤덤함' : x >= 25 ? '서운함' : '등 돌림';
+  const WANT = { horn: '뿔의 공을 원함', arm: '앞줄(팔)의 공을 원함', core: '핵의 값을 원함' };
+
+  function top() {
+    $('sOp').textContent = Math.min(R.OPS, C.op + 1);
+    $('sMon').textContent = MONSTERS[Math.min(C.op, R.OPS - 1)].name;
+    $('sBudget').textContent = Math.round(C.budget - (phase === 'recruit' ? fees() : 0));
+    $('sTown').style.width = C.town + '%';
+    $('sTown').style.background = C.town > 60 ? 'var(--good)' : C.town > 30 ? 'var(--warn)' : 'var(--bad)';
+    const names = { recruit: '영입', deploy: '배치', battle: '전투', settle: '정산' };
+    $('steps').innerHTML = Object.entries(names).map(([k, v]) => `<span class="${phase === k ? 'on' : ''}">${v}</span>`).join('<span>›</span>');
+    $('speed').style.visibility = phase === 'battle' ? 'visible' : 'hidden';
+  }
+  const fees = () => C.offers.filter(o => picked.has(o.id)).reduce((a, o) => a + o.fee, 0);
+
+  // ---- 단계: 작전 소개 ----
+  function brief() {
+    phase = 'brief';
+    const M = MONSTERS[C.op];
+    $('ovCard').innerHTML = `<h2>작전 ${C.op + 1} · ${M.name}</h2><p class="lede">${M.intro}</p>
+      <ul>${C.op === 0 ? `<li><b>영입</b>: 길드와 계약해 조를 다섯까지 고릅니다. 방패조는 버티고, 돌격조는 세게 치고, 척후조는 빨리 돌아 들어갑니다.</li>
+      <li><b>배치</b>: 전장 왼쪽 다섯 줄에 조를 세우고, 조마다 노릴 부위를 정합니다. 뿔은 위, 팔은 앞, 다리는 아래, 핵은 뒤에서만 칠 수 있어요.</li>
+      <li><b>전투</b>는 저절로 흘러갑니다. 붉게 깜박이는 칸이 다음 공격 자리예요. 손에 쥔 서류는 두 장(후퇴 · 표적 바꾸기)이고, 닿기까지 시간이 걸립니다.</li>
+      <li>앞을 막아선 조가 많을수록 대물이 더디게 옵니다. 계단(왼쪽 끝)을 넘기면 마을이 깎여요.</li>
+      <li><b>정산</b>: 부순 부위가 예산이 되고, 그 공이 누구에게 갔는지에 따라 길드의 마음과 다음 영입 조건이 바뀝니다.</li>` : ''}
+      ${PART_IDS.map(k => `<li><b>${PARTS[k].name}</b>(${{ top: '위', front: '앞', bottom: '아래', back: '뒤' }[PARTS[k].side]}) 부수면 ${PARTS[k].off}</li>`).join('')}</ul>
+      <div class="row"><button class="main" id="ovGo">영입으로</button></div>`;
+    $('ov').classList.remove('hidden');
+    $('ovGo').onclick = () => { $('ov').classList.add('hidden'); recruit(); };
+    top();
+  }
+
+  // ---- 영입 ----
+  function recruit() {
+    phase = 'recruit'; picked = new Set(); hintText = '';
+    renderRecruit();
+  }
+  function renderRecruit() {
+    top();
+    stage.innerHTML = `<div class="offers">${GUILDS.map((G, g) => `<div class="gcol">
+      <div class="ghead" style="border-color:${G.color}"><b style="color:${G.color}">${G.name}</b><span>${gwWord(C.gw[g])} · ${WANT[G.want]}</span></div>
+      ${C.offers.filter(o => o.g === g).map(o => `<button class="offer ${o.ace ? 'ace' : ''}" data-id="${o.id}" aria-pressed="${picked.has(o.id)}">
+        <span class="nm">${o.ace ? '★ ' : ''}${o.name}</span><span class="fee">${o.fee}</span>
+        <span class="st"><span>${KINDS[o.kind].name}</span><span>체력 ${o.maxhp}</span><span>힘 ${o.pow}</span></span></button>`).join('')}
+      </div>`).join('')}</div>`;
+    const sel = C.offers.filter(o => picked.has(o.id));
+    side.innerHTML = `<h2>계약할 조 <small>${sel.length}/${R.B.MAX_SQUAD}</small></h2>
+      <div class="squad grow">${sel.map(o => `<div class="prow"><span class="dot" style="background:${GUILDS[o.g].color}"></span><span class="nm">${o.name} <small>${KINDS[o.kind].name}</small></span><span class="money">${o.fee}</span></div>`).join('') || '<div class="note">왼쪽에서 조를 고르세요.</div>'}</div>
+      <div class="money">계약금 <b>${fees()}</b> / 예산 <b>${Math.round(C.budget)}</b></div>
+      <div class="note">${hintText || '길드의 마음이 좋을수록 더 많은 조를, 더 싸게 내주고, 이름난 조장(★)까지 보냅니다.'}</div>
+      <div class="row-end"><button class="main" id="goDeploy" ${sel.length ? '' : 'disabled'}>배치로</button></div>`;
+    $('goDeploy').onclick = () => {
+      C.budget -= fees();
+      squad = C.offers.filter(o => picked.has(o.id)).map((o, i) => ({ ...o, x: 1, y: [2, 1, 3, 0, 4][i], target: GUILDS[o.g].want }));
+      selId = squad[0].id; deploy();
+    };
+  }
+  stage.addEventListener('pointerdown', e => {
+    if (phase === 'recruit') {
+      const b = e.target.closest('.offer'); if (!b) return;
+      const id = +b.dataset.id, o = C.offers.find(o => o.id === id);
+      if (picked.has(id)) picked.delete(id);
+      else if (picked.size >= R.B.MAX_SQUAD) hintText = '한 작전에 다섯 조까지.';
+      else if (fees() + o.fee > C.budget) hintText = '예산이 모자랍니다.';
+      else { picked.add(id); hintText = ''; }
+      renderRecruit();
+    } else if (phase === 'deploy') {
+      const t = e.target.closest('.tok');
+      if (t) { selId = +t.dataset.id; renderDeploy(); return; }
+      const c = e.target.closest('.cellg'); if (!c || selId == null) return;
+      const x = +c.dataset.x, y = +c.dataset.y;
+      if (x > R.B.DEPLOY_MAX_X) return;
+      const p = squad.find(p => p.id === selId), other = squad.find(q => q !== p && q.x === x && q.y === y);
+      if (other) { other.x = p.x; other.y = p.y; }
+      p.x = x; p.y = y; renderDeploy();
+    } else if (phase === 'battle') {
+      const t = e.target.closest('.tok'); if (t) { selId = +t.dataset.id; renderBattleSide(); drawField(); }
+    }
+  });
+
+  // ---- 전장 그리기 ----
+  let geo = null;
+  function fieldGeo() {
+    const r = stage.getBoundingClientRect();
+    const padL = 22, pad = 6;
+    const cs = Math.floor(Math.min((r.width - padL - pad) / COLS, (r.height - pad * 2 - 14) / ROWS));
+    const W = cs * COLS, H = cs * ROWS;
+    return { cs, ox: Math.round(padL + (r.width - padL - pad - W) / 2), oy: Math.round((r.height - H) / 2 + 6), W, H };
+  }
+  function buildField() {
+    geo = fieldGeo();
+    const { cs, ox, oy } = geo;
+    let h = '';
+    for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) {
+      const cls = ['cellg', (x + y) % 2 ? 'alt' : '', x === 0 ? 'stair' : '', phase === 'deploy' && x <= R.B.DEPLOY_MAX_X ? 'zone can' : ''].join(' ');
+      h += `<div class="${cls}" data-x="${x}" data-y="${y}" style="left:${ox + x * cs}px;top:${oy + y * cs}px;width:${cs}px;height:${cs}px"></div>`;
+    }
+    h += `<div class="lbl" style="left:${ox}px;top:${oy - 15}px">← 계단 · 위층</div><div class="lbl" style="left:${ox + geo.W - 60}px;top:${oy - 15}px">심층 쪽 →</div>`;
+    h += `<div id="warns"></div><div id="fx"></div><div class="mon" id="mon"></div><div id="toks"></div>`;
+    stage.innerHTML = h;
+  }
+  function drawField() {
+    if (!geo) return;
+    const { cs, ox, oy } = geo;
+    const mx = Bt ? Bt.mon.x : R.B.START_X, parts = Bt ? Bt.parts : null, M = MONSTERS[C.op];
+    const mon = $('mon');
+    mon.style.cssText = `left:${ox + mx * cs + 3}px;top:${oy + cs + 3}px;width:${cs * 2 - 6}px;height:${cs * 3 - 6}px`;
+    mon.innerHTML = PART_IDS.map(k => {
+      const p = parts ? parts[k] : { hp: 1, max: 1, broken: false };
+      const f = Math.max(0, p.hp / p.max) * 100, vert = k === 'arm' || k === 'core';
+      return `<span class="part p-${k} ${p.broken ? 'broken' : ''}">${PARTS[k].name}<span class="hb"><i style="${vert ? 'height' : 'width'}:${f}%"></i></span></span>`;
+    }).join('') + `<span class="nmn">${M.name}</span>`;
+    const list = Bt ? Bt.parties : squad, box = $('toks');
+    const have = new Map([...box.children].map(el => [+el.dataset.id, el]));
+    for (const p of list) {
+      const G = GUILDS[p.g], hp = Bt ? Math.max(0, p.hp / p.maxhp) * 100 : 100;
+      let el = have.get(p.id);
+      if (!el) { el = document.createElement('div'); el.dataset.id = p.id; box.appendChild(el); }
+      have.delete(p.id);
+      el.className = ['tok', p.ace ? 'ace' : '', p.id === selId ? 'sel' : '', Bt && !p.alive ? 'dead' : '', Bt && p.gone ? 'gone' : '', p.leaving ? 'leaving' : ''].join(' ');
+      el.style.width = el.style.height = cs + 'px';
+      el.style.transform = `translate(${ox + p.x * cs}px,${oy + p.y * cs}px)`;
+      const inner = `<div class="disc" style="background:${G.color}">${GLYPH[p.kind]}<span class="hp"><i style="width:${hp}%"></i></span></div><span class="tg">${PARTS[p.target].name}</span>`;
+      if (el.dataset.k !== inner) { el.innerHTML = inner; el.dataset.k = inner; }
+    }
+    for (const el of have.values()) el.remove();
+    // 예고
+    $('warns').innerHTML = Bt && !Bt.over ? Bt.warn.flatMap(a => a.cells.map(([x, y]) => `<div class="warn ${a.kind}" style="left:${ox + x * cs + 2}px;top:${oy + y * cs + 2}px;width:${cs - 4}px;height:${cs - 4}px">${a.label}</div>`)).join('') : '';
+  }
+  function drawFx() {
+    if (!Bt) return;
+    const { cs, ox, oy } = geo;
+    $('fx').innerHTML = Bt.fx.map(f => f.kind === 'hurt'
+      ? `<div class="pop" style="left:${ox + f.x * cs + cs * 0.3}px;top:${oy + f.y * cs}px">${f.text}</div>`
+      : `<div class="flash ${f.kind}" style="left:${ox + f.x * cs + 2}px;top:${oy + f.y * cs + 2}px;width:${cs - 4}px;height:${cs - 4}px"></div>`).join('');
+  }
+  new ResizeObserver(() => { if (phase === 'deploy' || phase === 'battle') { buildField(); drawField(); } }).observe(stage);
+
+  // ---- 배치 ----
+  function deploy() { phase = 'deploy'; Bt = null; buildField(); renderDeploy(); }
+  function squadRows(battle) {
+    const list = battle ? Bt.parties : squad;
+    return list.map(p => {
+      const G = GUILDS[p.g], hp = battle ? Math.max(0, p.hp / p.maxhp) * 100 : 100;
+      const st = battle ? (!p.alive ? ' · 쓰러짐' : p.gone ? ' · 빠짐' : p.leaving ? ' · 후퇴 중' : '') : '';
+      const going = battle && Bt.docs.find(d => d.pid === p.id);
+      return `<div class="prow ${p.id === selId ? 'sel' : ''} ${battle && (!p.alive || p.gone) ? 'dead' : ''}" data-id="${p.id}">
+        <span class="dot" style="background:${G.color}"></span><span class="nm">${p.ace ? '★ ' : ''}${p.name} <small>${KINDS[p.kind].name}${st}${going ? ' · 서류 가는 중' : ''}</small></span>
+        <span class="tgs">${PART_IDS.map(k => `<button data-tg="${k}" aria-pressed="${p.target === k}" ${battle && (!p.alive || p.gone || going || Bt.docsLeft <= 0 || Bt.parts[k].broken) && p.target !== k ? 'disabled' : ''}>${PARTS[k].name}</button>`).join('')}</span>
+        ${battle ? `<span class="hpb"><i style="width:${hp}%"></i></span>` : ''}</div>`;
+    }).join('');
+  }
+  function renderDeploy() {
+    top(); drawField();
+    const err = R.validDeploy(squad);
+    side.innerHTML = `<h2>배치 <small>조를 누르고 칸을 누름</small></h2>
+      <div class="squad">${squadRows(false)}</div>
+      <div class="note grow">앞(팔)에 선 조가 많을수록 대물이 더디게 옵니다. 방패조가 가장 잘 버텨요. 핵은 뒤에서만, 뿔은 위, 다리는 아래에서만 칠 수 있습니다.</div>
+      <div class="row-end"><button class="main" id="goBattle" ${err ? 'disabled' : ''}>작전 개시</button></div>`;
+    $('goBattle').onclick = battle;
+  }
+  side.addEventListener('pointerdown', e => {
+    if (phase === 'battle' && e.target.closest('#bRet')) { if (e.target.closest('#bRet').disabled) return; const err = R.issueDoc(Bt, selId, 'retreat'); hintText = err || '후퇴령을 보냄'; renderBattleSide(); return; }
+    const row = e.target.closest('.prow'); if (!row || !row.dataset.id) return;
+    const id = +row.dataset.id; selId = id;
+    const tb = e.target.closest('button[data-tg]:not(:disabled)');
+    if (phase === 'deploy') {
+      if (tb) squad.find(p => p.id === id).target = tb.dataset.tg;
+      renderDeploy();
+    } else if (phase === 'battle') {
+      if (tb) {
+        const p = Bt.parties.find(p => p.id === id);
+        if (p.target !== tb.dataset.tg) { const err = R.issueDoc(Bt, id, 'target', tb.dataset.tg); hintText = err || `${p.name}에게 표적 서류를 보냄`; }
+      }
+      renderBattleSide(); drawField();
+    }
+  });
+
+  // ---- 전투 ----
+  function battle() {
+    phase = 'battle'; hintText = '';
+    Bt = R.newBattle(C, squad);
+    buildField(); drawField(); renderBattleSide(); top();
+    setSpeed(1);
+  }
+  function renderBattleSide() {
+    const p = Bt.parties.find(p => p.id === selId);
+    side.innerHTML = `<h2>전투 <small>서류 ${Bt.docsLeft}장 · 닿기까지 ${R.B.DOC_DELAY}틱</small></h2>
+      <div class="squad">${squadRows(true)}</div>
+      <div class="row-end"><span class="note" style="flex:1">${hintText || '조를 고르고 부위를 누르면 표적 서류가 갑니다.'}</span><button id="bRet" ${!p || !p.alive || p.gone || p.leaving || Bt.docsLeft <= 0 || Bt.docs.some(d => d.pid === p.id) ? 'disabled' : ''}>후퇴령</button></div>
+      <div class="log grow">${Bt.log.slice(-8).reverse().map(l => `<div class="${l.kind}">${l.text}</div>`).join('')}</div>`;
+  }
+  function setSpeed(s) {
+    speed = s; clearInterval(timer);
+    document.querySelectorAll('[data-sp]').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.sp === s)));
+    if (s && phase === 'battle') timer = setInterval(step, TICK_MS / s);
+  }
+  document.querySelectorAll('[data-sp]').forEach(b => b.addEventListener('click', () => setSpeed(+b.dataset.sp)));
+  document.addEventListener('keydown', e => { if (e.code === 'Space' && phase === 'battle') { e.preventDefault(); setSpeed(speed ? 0 : 1); } });
+  function step() {
+    R.tick(Bt);
+    drawField(); drawFx(); renderBattleSide();
+    if (Bt.over) { clearInterval(timer); setTimeout(settle, 900); }
+  }
+
+  // ---- 정산 ----
+  const LINES = {
+    got: { horn: '뿔을 저희 손에 맡겨 주신 일, 깃발단은 오래 기억하겠습니다.', arm: '앞줄을 내어 주셨으니, 방패단의 이름값은 한 셈입니다.', core: '핵을 땄으니 값은 치른 셈이지요. 다음에도 불러 주십시오.' },
+    taken: { horn: '뿔이 남의 자루로 들어갔다지요. 다음 계약서는 조금 천천히 읽겠습니다.', arm: '앞줄의 공이 다른 이름으로 적혔더군요. 기록은 오래 남는 법입니다.', core: '핵 값은 다른 데로 갔군요. 우리 애들도 먹고는 살아야 합니다.' },
+    dead: n => `${n}의 표식석은 돌아오지 않았습니다. 관리국 서류에 그 이름이 바르게 적히기를 바랍니다.`,
+    skipped: '이번 작전에는 부르지 않으셨더군요. 저희도 달리 쓸 데를 알아보겠습니다.',
+  };
+  function settle() {
+    phase = 'settle'; setSpeed(0);
+    const r = Bt.result, M = MONSTERS[r.op], kill = r.outcome === 'kill';
+    const lede = kill ? `${M.name}의 핵이 갈라지자, 회랑을 메웠던 울음이 한꺼번에 꺼졌다. 부서진 조각들은 해가 지기 전에 관리국 창고로 옮겨졌다.`
+      : `${R.iga(M.name)} 계단 위로 올라섰다. 그날 밤 위층 마을의 불빛 몇 개가 다시 켜지지 않았다.`;
+    const seen = new Set();
+    const letters = r.lines.filter(l => { const k = l.g + l.key; if (seen.has(k)) return false; seen.add(k); return true; }).map(l => {
+      const G = GUILDS[l.g];
+      const text = l.key === 'dead' ? LINES.dead(l.name) : l.key === 'skipped' ? LINES.skipped : LINES[l.key][l.part];
+      return `<div class="letter" style="border-color:${G.color}"><small>${G.name}</small>${text}</div>`;
+    }).join('');
+    stage.innerHTML = `<div class="report"><h2>${kill ? '토벌' : '놓침'} · ${M.name}</h2><p class="lede">${lede}</p>
+      <dl><dt>부순 부위</dt><dd>${r.credit.map(c => `${PARTS[c.part].name}(${c.name})`).join(', ') || '없음'}</dd>
+        <dt>전리품</dt><dd>+${r.loot}${r.grant ? ` · 중앙 치하금 +${r.grant}` : ''}</dd>
+        ${r.town ? `<dt>마을</dt><dd style="color:var(--bad)">−${r.town}</dd>` : ''}
+        <dt>잃은 조</dt><dd>${r.lost.map(l => (l.ace ? '★ ' : '') + l.name).join(', ') || '없음'}</dd>
+        ${GUILDS.map((G, g) => `<dt style="color:${G.color}">${G.short}</dt><dd>${gwWord(r.gwAfter[g])} ${r.dg[g] > 0 ? '<span style="color:var(--good)">▲ 가까워짐</span>' : r.dg[g] < 0 ? '<span style="color:var(--bad)">▼ 멀어짐</span>' : ''}</dd>`).join('')}</dl>
+      <div class="letters">${letters}</div></div>`;
+    const last = C.op >= R.OPS - 1 || C.town <= 0;
+    side.innerHTML = `<h2>정산</h2><div class="money">예산 <b>${Math.round(C.budget)}</b>${last ? '' : ` · 다음 작전 배정 +${R.B.GRANT}`}</div>
+      <div class="note grow">공은 그 부위에 가장 많이 친 조에게 적힙니다. 원하던 공을 얻은 길드는 다음에 더 많이, 더 싸게 내주고, 조를 잃은 길드는 문을 좁힙니다.</div>
+      <div class="row-end"><button class="main" id="goNext">${last ? '한 철 마감' : '다음 작전'}</button></div>`;
+    top();
+    $('goNext').onclick = () => { R.nextOp(C); Bt = null; if (C.over) end(); else brief(); };
+  }
+
+  function end() {
+    phase = 'end';
+    const kills = C.history.filter(h => h.outcome === 'kill').length;
+    $('ovCard').innerHTML = `<h2>한 철 마감</h2>
+      <p class="lede">${kills === R.OPS ? '세 번의 작전이 모두 계단 아래에서 끝났다. 관리국 장부에는 부서진 부위의 값과 함께, 돌아오지 못한 조의 이름이 나란히 적혔다.' : C.town > 0 ? '계단을 넘은 것들이 있었다. 마을은 버텼으나, 버틴 값은 다음 철의 예산서에 고스란히 남았다.' : '마지막 작전이 끝났을 때 위층 마을에는 불 켜진 창이 남아 있지 않았다.'}</p>
+      <ul><li>잡은 대물 <b>${kills}/${R.OPS}</b> · 마을 <b>${Math.round(C.town)}</b> · 남은 예산 <b>${Math.round(C.budget)}</b> · 잃은 조 <b>${C.dead}</b></li>
+      <li>${GUILDS.map((G, g) => `${G.short} ${gwWord(C.gw[g])}${C.aceAlive[g] ? '' : ` (${G.ace} 잃음)`}`).join(' · ')}</li></ul>
+      <div class="row"><button class="main" id="ovGo">다시</button></div>`;
+    $('ov').classList.remove('hidden');
+    $('ovGo').onclick = () => { $('ov').classList.add('hidden'); C = R.newCampaign((Date.now() % 100000) + 1); brief(); };
+  }
+
+  document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+  document.addEventListener('dblclick', e => e.preventDefault());
+  window.__raid = () => ({ C, Bt }); // 확인용
+  brief();
+})();
+</script>
+</body>
+</html>
