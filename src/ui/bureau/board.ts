@@ -75,7 +75,7 @@ function questHtml(W: World) {
   const fx = [...W.notices.map(x => `<button type="button" class="q-fx" data-act="tab:asks"><span>공고문 · ${W.dungeons[x.dg].name}</span><small class="num">${(Object.keys(x.cl) as ClauseId[]).map(k => CLAUSE[k].name).join(' · ')} · ${x.until - W.day}일 남음</small></button>`),
     ...W.letters.filter(l => l.until != null).map(l => `<button type="button" class="q-fx" data-act="tab:asks"><span>요청서 · ${nameOf(W, l.to)}</span><small class="num">${W.dungeons[l.dg].name} · ${l.until! - W.day}일 남음</small></button>`)];
   if (!q.length && !fx.length) return '';
-  return `<section class="quest">${q.length ? `<h4>할 일</h4>${q.join('')}` : ''}${fx.length ? `<h4>효력 중</h4>${fx.join('')}` : ''}</section>`;
+  return `<section class="quest">${q.length ? `<div class="q-col"><h4>할 일</h4>${q.join('')}</div>` : ''}${fx.length ? `<div class="q-col"><h4>효력 중</h4>${fx.join('')}</div>` : ''}</section>`;
 }
 // 받은 청 · 독촉: 지도 오른쪽 위에 쪽지로 늘 떠 있다. 누르면 편지가 펼쳐지고 거기서 답한다
 export function asksFloatHtml(W: World, ui: BuUi) {
