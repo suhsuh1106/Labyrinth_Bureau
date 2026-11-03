@@ -2,16 +2,16 @@
 // 판을 이 브라우저에 저장한다(`lb-bureau`). 엔진은 src/bureau/engine.ts
 import './ui/bureau/bureau.css';
 import { getSeed, setSeed } from './core/rng';
-import { B, type FacId, type World, answer, crewFree, dispatch, upgrade, type DeptId, meet, newWorld, over, post, recall, run, send, step, withdraw } from './bureau/engine';
+import { B, type FacId, type World, answer, crewFree, dispatch, upgrade, type DeptId, meet, newWorld, over, post, propose, recall, unpropose, run, send, step, withdraw } from './bureau/engine';
 import { BOT } from './bureau/bots';
 import { CLAUSE, type ClauseId, type Tag, FORM_OF, type To, addClause, canAdd, dropClause } from './bureau/clauses';
-import { type BuUi, type DocKind, DISP0, DRAFT0, dispHtml, svOf, type Shelf, type Tab, SPEED, asksFloatHtml, deskHtml, docModalHtml, setHtml, fsOn, reportDocHtml, endHtml, introHtml, paneHtml, topHtml, tutHtml, writeHtml } from './ui/bureau/board';
+import { type BuUi, type DocKind, DESK_STANDS, DISP0, DRAFT0, dispHtml, svOf, type Shelf, type Tab, SPEED, asksFloatHtml, deskHtml, docModalHtml, setHtml, fsOn, reportDocHtml, endHtml, introHtml, paneHtml, topHtml, tutHtml, writeHtml } from './ui/bureau/board';
 import { mapHtml, minisOf, paintWash, terrainSvg } from './ui/bureau/map';
 import { type Desk, makeDesk } from './ui/bureau/desk';
 import { playOpening } from './ui/bureau/opening';
 
 const $ = (id: string) => document.getElementById(id)!;
-const KEY = 'lb-bureau', VERSION = 18;
+const KEY = 'lb-bureau', VERSION = 19;
 let W: World, ui: BuUi, seed = 0, desk: Desk | null = null, cutOn = false;
 // 설정 창의 새 임기 확인 단계(저장하지 않는다)
 let resetAsk = false;
@@ -56,7 +56,7 @@ function draw() {
   }
   put('marks', mapHtml(W, ui));
   put('props', deskHtml(W, ui));
-  desk.minis(minisOf(W, flow()));
+  desk.minis([...minisOf(W, flow()), ...DESK_STANDS]);
   desk.stand();
   if (ui.open && ui.tab === 'office') ui.seenNews = W.reports.length;
   const sheet = $('sheet');
@@ -107,7 +107,7 @@ function tick() {
   }
   const bar = document.getElementById('dayBar');
   if (bar) bar.style.width = `${Math.min(100, held / dayMs() * 100)}%`;
-  desk.minis(minisOf(W, flow()));
+  desk.minis([...minisOf(W, flow()), ...DESK_STANDS]);
 }
 setInterval(tick, 250);
 
@@ -173,7 +173,8 @@ function act(a: string, d = 0) {
   }
   else if (k === 'post') {
     const f = draft();
-    const done = FORM_OF(f.to) === 'notice' ? post(W, f.dg, f.days, f.cl) : f.to !== 'all' && f.to !== 'trade' ? send(W, f.to, f.dg, f.days, f.cl) : null;
+    const form = FORM_OF(f.to);
+    const done = form === 'notice' ? post(W, f.dg, f.days, f.cl) : form === 'offer' ? propose(W, f.dg, f.days, f.cl) : f.to !== 'all' && f.to !== 'trade' ? send(W, f.to, f.dg, f.days, f.cl) : null;
     if (done) ui.modal = undefined;
   }
   // 파견서: 보낼 곳 · 인원 · 머물 날을 고르고 보낸다
@@ -183,6 +184,7 @@ function act(a: string, d = 0) {
   else if (k === 'ddays') { const f = ui.disp ?? DISP0; ui.disp = { ...f, days: clamp(f.days + d, B.SVY.days[0], B.SVY.days[1]) }; }
   else if (k === 'dsend') { const f = ui.disp ?? DISP0; if (dispatch(W, svOf(f.to), Math.min(f.n, crewFree(W)), f.days)) ui.modal = undefined; }
   else if (k === 'recall') recall(W, +arg);
+  else if (k === 'unprop') unpropose(W, +arg);
   else if (k === 'dept') upgrade(W, arg as DeptId);
   else if (k === 'withdraw') withdraw(W, +arg);
   else if (k === 'give') { const ask = W.asks.find(x => x.id === +arg); if (ask) ui.give[ask.id] = clamp((ui.give[ask.id] ?? ask.want) + d * 10, 0, ask.want); }

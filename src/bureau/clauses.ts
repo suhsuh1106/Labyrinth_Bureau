@@ -7,16 +7,16 @@ import { B, type GuildId, type World } from './engine';
 export type Tag = '돈' | '정보' | '권리' | '안전';
 export type Form = 'notice' | 'letter' | 'offer';
 export type To = 'all' | GuildId | 'trade';
-export type ClauseId = 'sub' | 'rec' | 'comfort' | 'ration' | 'first' | 'excl' | 'goods' | 'ledger';
+export type ClauseId = 'sub' | 'rec' | 'comfort' | 'ration' | 'first' | 'excl' | 'goods' | 'ledger' | 'buy';
 export type Clauses = Partial<Record<ClauseId, number>>;
 
 export const FORM_OF = (to: To): Form => to === 'all' ? 'notice' : to === 'trade' ? 'offer' : 'letter';
 export const FORM_NAME: Record<Form, string> = { notice: '공고문', letter: '요청서', offer: '제안서' };
 export const toName = (to: To) => to === 'all' ? '길드 전체' : to === 'trade' ? '상단' : B.GUILD[to].name;
 // 받는 쪽이 잠긴 까닭 (비우면 열림)
-// 길드 하나에 보내는 요청서는 입지 단계가 B.LETTER_LV에 닿으면 열린다. 화면은 잠긴 받는 쪽을 보이지 않는다
+// 길드 하나에 보내는 요청서는 입지 단계가 B.LETTER_LV에 닿으면 열린다. 상단 제안서는 사신이 상단 창고 장부를 한 번 읽으면 열린다. 화면은 잠긴 받는 쪽을 보이지 않는다
 export const toLock = (W: World, to: To) =>
-  to === 'trade' ? '상단과 거래가 아직 열리지 않음' : to !== 'all' && W.rank < B.LETTER_LV ? `입지 ${B.LETTER_LV}단계에 열림` : '';
+  to === 'trade' ? (W.mkt.read < 0 ? '상단 창고 장부를 아직 읽지 못함' : '') : to !== 'all' && W.rank < B.LETTER_LV ? `입지 ${B.LETTER_LV}단계에 열림` : '';
 
 export interface Field { unit: string; min: number; max: number; step: number; def: number }
 export interface Clause {
@@ -56,6 +56,11 @@ export const CLAUSES: Clause[] = [
     field: { unit: '짐', min: 1, max: 10, step: 1, def: 3 },
     line: v => `미궁 입구 보급소에 물품 ${v}짐을 더 들인다.`,
     fx: '보급이 늘어 깊이 들어간다. 상단이 값을 받는다.' },
+  // 시세 사슬의 국장 손: 창고의 짐을 덜어 시세를 받친다(engine.ts mktDay). 장부를 읽어야 제안서가 열린다
+  { id: 'buy', name: '비축 매입', give: ['돈'], take: [], forms: ['offer'],
+    field: { unit: '짐', min: 2, max: 20, step: 2, def: 6 },
+    line: v => `상단 창고의 소재를 하루 ${v}짐씩 관리국 비축으로 사 들인다. 값은 그날 시세로 셈한다.`,
+    fx: '창고의 짐을 덜어 소재 값을 받친다. 값은 시세만큼 예산에서 나간다.' },
   { id: 'ledger', name: '수령 기록 공유', give: ['정보'], take: ['정보'], forms: ['offer'], needs: 'rec', lock: '상단과 거래가 열려야',
     line: () => '검문소 출입 기록과 상단 수령 기록을 서로 맞춰 본다.',
     fx: '수확량이 보인다. 상단도 그 기록을 쥔다.' },

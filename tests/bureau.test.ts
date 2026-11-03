@@ -1,6 +1,6 @@
 // 미궁관리국 배경 엔진 0단계: 인과 루프 두 쌍이 폭주하거나 멈추지 않는지, 국장의 손이 판을 바꾸는지
 import { describe, expect, it } from 'vitest';
-import { B, FACS, pairOf, BUREAU_AT, HAVEL_AT, LOYD_AT, ROADS, devRoadOf, GUILDS, answer, clauseOn, upgrade, payOf, lagOf, crewMax, subAt, letterScore, meet, newWorld, over, pactK, pnlGuild, pnlSum, devStage, post, recall, relOf, run, send, step, dispatch, crewFree, knowLv, willOf, svWay, teamsIn, withdraw, worstPair, wayOf, hqOf } from '../src/bureau/engine';
+import { B, FACS, pairOf, BUREAU_AT, HAVEL_AT, LOYD_AT, ROADS, devRoadOf, GUILDS, answer, clauseOn, upgrade, payOf, lagOf, crewMax, subAt, letterScore, meet, newWorld, over, pactK, pnlGuild, pnlSum, devStage, post, recall, relOf, run, send, step, dispatch, crewFree, knowLv, willOf, svWay, teamsIn, withdraw, worstPair, wayOf, hqOf, type World, demOf, lure, propose, unpropose } from '../src/bureau/engine';
 import { BOT, playGame } from '../sim/bureau';
 import { EDGES, LINKS, LOOPS, NODES, checkLoops } from '../src/bureau/loops';
 import { SHOT_N, openingHtml } from '../src/ui/bureau/opening';
@@ -685,7 +685,11 @@ describe('인과 루프 그림 (loops.ts)', () => {
       expect(W.stats.litHist.length).toBe(B.DAYS);
       for (const l of LOOPS) on[l.id] = (on[l.id] ?? 0) + W.stats.loops[l.id];
     }
-    for (const l of LOOPS) expect(on[l.id], l.id).toBeGreaterThan(0);
+    // B5(빚 독촉)는 봇 판에서 드물다(판당 0 ~ 0.3번, 시세 사슬 뒤로 더 드묾): 회의를 거듭 열어 빚을 지는 판으로 따로 본다
+    for (const l of LOOPS) if (l.id !== 'B5') expect(on[l.id], l.id).toBeGreaterThan(0);
+    const W = newWorld(1000);
+    while (W.day < 120) { BOT.normal(W); meet(W, ['red', 'shield', 'wolf']); step(W); }
+    expect(W.stats.loops.B5).toBeGreaterThan(0);
   });
 });
 
@@ -718,5 +722,93 @@ describe('미궁관리국 게임판 (ui/bureau)', () => {
     expect(b.day).toBe(a.day);
     expect(b.standing).toBeCloseTo(a.standing, 9);
     expect(b.dungeons.map((d: any) => d.level)).toEqual(a.dungeons.map(d => d.level));
+  });
+});
+
+// 시세 사슬(반출 과잉, docs/systems.md §0.17): 반출 → 상단 재고 → 시세 → 벌이 → 조
+describe('시세 사슬', () => {
+  const tick = (W: World, n: number) => { for (let t = 0; t < n; t++) step(W); };
+
+  it('창고가 무거우면 시세가 닷새마다 조금씩 내려가고, 벌이와 판매가 함께 준다', () => {
+    const a = newWorld(41), b = newWorld(41);
+    a.mkt.stock = B.MKT.hold * demOf() * 3;
+    tick(a, 4); tick(b, 4);
+    expect(a.mkt.price).toBe(1);                       // 닷새 전에는 그대로(느린 값)
+    tick(a, 1); tick(b, 1);
+    expect(a.mkt.price).toBeLessThan(1);
+    tick(a, 20); tick(b, 20);
+    expect(a.mkt.price).toBeLessThan(b.mkt.price);
+    expect(lure(a, a.dungeons[1])).toBeLessThan(lure(b, b.dungeons[1]));
+    expect(a.stats.litHist.flat()).toContain('B6');
+  });
+
+  it('반출 짐은 며칠 걸려 창고에 닿는다(징후가 먼저, 값은 나중)', () => {
+    const W = newWorld(42), s0 = W.mkt.stock;
+    W.mkt.road = Array(B.MKT.lag).fill(0);           // 길 위에 짐이 없다: lag일 동안 창고는 줄기만 한다
+    tick(W, B.MKT.lag);
+    expect(W.mkt.stock).toBeLessThan(s0);
+    const before = W.mkt.stock; tick(W, 1);
+    expect(W.mkt.outHist.length).toBe(B.MKT.lag + 1);
+    expect(W.mkt.stock).toBeGreaterThan(before - demOf()); // 그날 처음으로 짐이 닿는다
+  });
+
+  it('신문은 문턱을 넘을 때만 쓴다: 내림세 한 번, 돌아올 때 한 번', () => {
+    const W = newWorld(43);
+    W.mkt.stock = B.MKT.hold * demOf() * 6;
+    tick(W, 60);
+    const low = W.reports.filter(r => r.title.startsWith('소재 값 내림세'));
+    expect(low.length).toBe(1);
+    W.mkt.stock = 0;
+    tick(W, 60);
+    expect(W.reports.filter(r => r.title.startsWith('소재 값 내림세')).length).toBe(1);
+    expect(W.reports.filter(r => r.title.startsWith('소재 값 제자리로')).length).toBe(1);
+    // 기사에는 수치가 없다
+    const k = W.reports.findIndex(r => r.title.startsWith('소재 값 내림세'));
+    expect(reportDocHtml(W, k, true)).not.toMatch(/\d+\.\d|%/);
+  });
+
+  it('국장은 시세를 모른다: 사신이 창고 장부를 읽어 와야 상단 제안서가 열린다', () => {
+    const W = newWorld(44);
+    expect(toLock(W, 'trade')).not.toBe('');
+    expect(propose(W, 0, 20, { buy: 6 })).toBeNull();
+    expect(writeHtml(W, { tab: 'asks', open: true, invite: [], give: {}, draft: { to: 'trade', dg: 0, days: 20, cl: {} } } as unknown as BuUi)).not.toContain('비축 매입');
+    const t = dispatch(W, 'mkt', 2, 4)!;
+    expect(t).not.toBeNull();
+    while (W.trips.length) step(W);
+    expect(W.mkt.read).toBeGreaterThan(0);
+    expect(toLock(W, 'trade')).toBe('');
+    const r = [...W.reports].reverse().find(x => x.trip?.to === 'mkt')!;
+    expect(r.trip!.mkt).toBeDefined();
+    const k = W.reports.indexOf(r);
+    const doc = reportDocHtml(W, k, true);
+    expect(doc).toContain('상단 창고');
+    expect(doc).not.toMatch(/시세 \d|\d+\.\d/);          // 장부도 말로만
+    expect(writeHtml(W, { tab: 'asks', open: true, invite: [], give: {}, draft: { to: 'trade', dg: 0, days: 20, cl: {} } } as unknown as BuUi)).toContain('비축 매입');
+  });
+
+  it('비축 매입은 창고를 덜어 시세를 받치고, 값은 예산에서 나간다', () => {
+    const make = () => { const W = newWorld(45); W.mkt.read = 0; W.mkt.stock = B.MKT.hold * demOf() * 2; return W; };
+    const a = make(), b = make();
+    const o = propose(a, 0, 40, { buy: 20 })!;
+    expect(o).not.toBeNull();
+    expect(propose(a, 0, 40, { buy: 20 })).toBeNull();       // 서기 한 명뿐
+    const b0 = a.budget, c0 = b.budget;
+    tick(a, 30); tick(b, 30);
+    expect(a.mkt.bought).toBeGreaterThan(0);
+    expect(a.mkt.price).toBeGreaterThan(b.mkt.price);
+    expect(b0 - a.budget).toBeGreaterThan(c0 - b.budget);
+    expect(unpropose(a, o.id)).toBe(true);
+    expect(a.offers.length).toBe(0);
+  });
+
+  it('보조금을 늘 세게 거는 국장은 시세가 꺾여 범람을 맞는다(보조금이 많을수록 좋다는 답이 깨진다)', () => {
+    const heavy = (W: World) => { W.dungeons.forEach(d => { d.sub = W.budget > 0 ? 30 : 0; }); };
+    const seeds = SEEDS.slice(0, 10);
+    const floods = () => seeds.reduce((s, seed) => s + run(newWorld(seed), heavy).stats.floods, 0) / seeds.length;
+    const withMkt = floods();
+    const k = B.MKT.k; B.MKT.k = 0;                          // 시세를 묶은 판
+    const fixed = floods();
+    B.MKT.k = k;
+    expect(withMkt).toBeGreaterThan(fixed);
   });
 });
