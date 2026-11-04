@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body { height: 100%; background: #14110d; }
+body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+.num { font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
+.stamp { transform: rotate(-6deg); border: 2px solid currentColor; letter-spacing: .2em; }
+.scroll-thin::-webkit-scrollbar { width: 6px; }
+.scroll-thin::-webkit-scrollbar-thumb { background: #3a3226; border-radius: 3px; }
+.pulse-red { animation: pr 1.2s ease-in-out infinite; }
+@keyframes pr { 50% { box-shadow: 0 0 0 3px rgba(194, 72, 61, .45); } }
+.ledger-paper { background: repeating-linear-gradient(#efe3c7 0 27px, #d8c8a6 27px 28px); color: #2a2218; }
+.tab[aria-selected=true] { color: #e9dcc0; border-color: #d9b45a; }

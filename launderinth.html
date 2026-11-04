@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="data:,">
+<title>Launderinth</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+</head>
+<body class="font-sans text-paper overflow-hidden">
+<div id="app" class="h-[100dvh] flex flex-col">
+  <header id="bar" class="shrink-0 border-b border-line bg-desk"></header>
+  <main class="flex-1 min-h-0 flex flex-col lg:flex-row">
+    <section class="relative flex-1 min-h-[40%] lg:min-h-0 bg-ink" id="mapWrap">
+      <canvas id="map" class="absolute inset-0 w-full h-full touch-none"></canvas>
+      <div id="tool" class="absolute left-2 top-2 text-xs"></div>
+      <div id="tip" class="absolute pointer-events-none hidden max-w-[220px] rounded border border-line bg-desk/95 px-2 py-1.5 text-xs shadow-lg"></div>
+      <div id="ticker" class="absolute left-2 right-2 bottom-2 pointer-events-none"></div>
+    </section>
+    <aside class="shrink-0 h-[52%] lg:h-auto lg:w-[420px] flex flex-col border-t lg:border-t-0 lg:border-l border-line bg-desk">
+      <nav class="flex shrink-0 border-b border-line text-sm" role="tablist">
+        <button class="tab flex-1 py-2.5 border-b-2 border-transparent text-dim" data-tab="ledger" role="tab">장부 조작소</button>
+        <button class="tab flex-1 py-2.5 border-b-2 border-transparent text-dim" data-tab="build" role="tab">건축 및 세탁소</button>
+        <button class="tab flex-1 py-2.5 border-b-2 border-transparent text-dim" data-tab="news" role="tab">소식</button>
+      </nav>
+      <div id="panel" class="flex-1 min-h-0 overflow-y-auto scroll-thin p-3" role="tabpanel"></div>
+    </aside>
+  </main>
+  <div id="over" class="hidden fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4"></div>
+</div>
+<script type="module" src="/src/launderinth/main.ts"></script>
+</body>
+</html>

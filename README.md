@@ -4,10 +4,14 @@
 
 미궁관리국 경영 · 정치 시뮬레이션입니다. 국장에게는 병사도 명령권도 없습니다. 예산과 서류로 길드 일곱을 움직여 미궁의 범람을 막습니다.
 
-- 게임 시스템: `docs/systems.md` (통합 기획서)
-- 엔진 기록: `docs/bureau.md`
-- 세계관: `docs/world.md`
-- 옛 용병단 게임(`company.html`)의 자료: `docs/legacy/` (지금 게임의 기준이 아닙니다)
+> **새 방향: Launderinth(론더린스).** 변방 미궁 영지의 영주가 겉으로는 건실한 타이쿤을, 속으로는 장부 조작과 돈세탁으로 비자금을 굴려 대공까지 오르는 정치 · 부패 경영 시뮬입니다. 프로토타입 `launderinth.html`, 기획 `docs/launderinth.md`.
+>
+> 아래 미궁관리국과 그 문서는 지난 기획입니다(`old/`).
+
+- 게임 시스템: `old/docs/systems.md` (통합 기획서)
+- 엔진 기록: `old/docs/bureau.md`
+- 세계관: `old/docs/world.md`
+- 옛 용병단 게임(`company.html`)의 자료: `old/docs/legacy/`
 
 ## 해 보기
 
