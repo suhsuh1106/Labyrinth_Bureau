@@ -1,41 +1,43 @@
 // 작전 지도 시제품(public/proto/opmap)의 봇: node sim/opmap.mjs [판 수]
-// auto = 명령 없이 자동 방침만, volley = 자동 + 보이는 무리의 두 수 뒤 칸에 일제사격,
-// commander = 일제사격 + 습격대가 오면 창병을 본부 앞 병목에 세우고 돌격대를 둥지 쪽으로 돌려 줄을 끊음
+// idle = 보고를 받아도 명령을 내리지 않음(조는 첫 조우에서 멈춘 채로)
+// resume = 보고마다 다시 탐사만 시킴, 계단을 본 조는 귀환
+// careful = resume + 다친 조는 귀환, 지도를 많이 쌓은 조는 매핑 아이템을 씀, 전사는 적이 붙으면 지키기
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 new Function(readFileSync(fileURLToPath(new URL('../public/proto/opmap/engine.js', import.meta.url)), 'utf8'))();
 const O = globalThis.OPMAP;
 for (const [k, v] of Object.entries(process.env)) if (k.startsWith('O_')) O.B[k.slice(2)] = +v;
 
-function volley(G) {
-  const b = G.units.find(u => u.k === 'bow'); if (!b || b.cd > 0 || b.pending) return;
-  const vis = G.mons.filter(m => G.vis[m.at] && m.plan.length);
-  let best = null, bc = 0;
-  for (const m of vis) { const t = m.plan[m.plan.length - 1]; const c = vis.filter(o => O.dist(o.plan[o.plan.length - 1] ?? o.at, t) <= 1).length; if (c > bc && !G.units.some(u => O.dist(u.at, t) <= 1)) { bc = c; best = t; } }
-  if (best != null && bc >= 2) O.command(G, b.id, 'volley', best);
-}
-// 정찰이 밝히고, 창병 · 돌격 · 궁수는 한 덩어리로 찾은 둥지를 치며 일제사격을 맞춘다
-function commander(G) {
-  volley(G);
-  if (G.turn % 3) return;
-  const sp = G.units.find(u => u.k === 'spear'), rd = G.units.find(u => u.k === 'raid'), bw = G.units.find(u => u.k === 'bow');
-  const lead = sp || rd; if (!lead) return;
-  const N = G.nests.filter(n => n.alive && n.seen).sort((a, b) => O.dist(a.at, lead.at) - O.dist(b.at, lead.at))[0];
-  const goal = N ? N.at : null;
-  for (const u of [sp, rd]) if (u && !u.pending) {
-    if (goal == null) { if (u.order.kind !== 'auto') O.command(G, u.id, 'auto'); }
-    else if (u.order.target !== goal || u.order.kind !== 'move') O.command(G, u.id, 'move', goal);
+function resume(G) {
+  for (const u of G.units) if (u.order.kind === 'wait' && !u.guard) {
+    if (G.stairsSeen && !G.stairsKnown && O.dist(u.at, G.stairs) < 8) O.command(G, u.id, 'home');
+    else O.command(G, u.id, 'explore');
   }
-  if (bw && !bw.pending && lead && goal != null && O.dist(bw.at, lead.at) > 2) O.command(G, bw.id, 'move', lead.at);
+}
+function careful(G) {
+  for (const u of G.units) {
+    const max = u.n0 * O.UNIT[u.k].hp, near = G.mons.some(m => O.cheb(m.at, u.at) <= 2);
+    if (u.k === 'warrior' && near && u.guard === 0) { O.command(G, u.id, 'guard'); continue; }
+    if (u.k === 'warrior' && !near && u.guard === 2) { O.command(G, u.id, 'guard'); continue; }
+    if (u.guard) continue;
+    if (u.hp < max * 0.5 && u.order.kind !== 'home') { O.command(G, u.id, 'home'); continue; }
+    if (u.mem.size > 70 && u.maps > 0) O.command(G, u.id, 'map');
+    if (u.k === 'archer' && u.uses > 0) {
+      const d = O.DIRS.findIndex(([dx, dy]) => { let c = 0; for (let k = 1; k <= 3; k++) { const x = O.X(u.at) + dx * k, y = O.Y(u.at) + dy * k; if (O.WALL[O.idx(x, y)]) break; c += G.mons.filter(m => m.at === O.idx(x, y)).length; } return c >= 2; });
+      if (d >= 0) O.command(G, u.id, 'shot', d);
+    }
+    if (u.k === 'rogue' && near && u.uses > 0) O.command(G, u.id, 'trap');
+  }
+  resume(G);
 }
 const games = +(process.argv[2] || 30);
-for (const [name, bot] of [['auto', null], ['volley', volley], ['commander', commander]]) {
-  const r = { win: 0, fall: 0, lost: 0, time: 0 }; let turn = 0, nests = 0, kills = 0, vol = 0, cut = 0;
+for (const [name, bot] of [['idle', null], ['resume', resume], ['careful', careful]]) {
+  const r = { win: 0, fall: 0, lost: 0, time: 0 }; let turn = 0, kills = 0, lost = 0, maps = 0, homes = 0, alarms = 0;
   for (let s = 1; s <= games; s++) {
-    const G = O.newGame(s * 7919); G.autoPause = false;
-    while (!G.over) { if (bot) bot(G); O.tick(G); }
-    r[G.over]++; turn += G.turn; nests += G.nests.filter(N => !N.alive).length; kills += G.stats.kills; vol += G.stats.volleys; cut += G.stats.cutKills;
+    const G = O.newGame(s * 7919); G.autoPause = true;
+    while (!G.over) { if (G.alarm) { alarms++; G.alarm = null; if (bot) bot(G); } else if (bot && G.turn % 2 === 0) bot(G); O.tick(G); }
+    r[G.over]++; turn += G.turn; kills += G.stats.kills; lost += G.stats.lost; maps += G.stats.maps; homes += G.stats.homes;
   }
   const f = x => (x / games).toFixed(1);
-  console.log(`${name.padEnd(9)}: 이김 ${r.win} · 본부 무너짐 ${r.fall} · 전멸 ${r.lost} · 시간 끝 ${r.time} / ${games} · 턴 ${f(turn)} · 무너뜨린 둥지 ${f(nests)} · 쓰러뜨림 ${f(kills)} (줄 끊겨 ${f(cut)}) · 일제사격 ${f(vol)}`);
+  console.log(`${name.padEnd(8)}: 층 돌파 ${r.win} · 본부 무너짐 ${r.fall} · 전멸 ${r.lost} · 시간 끝 ${r.time} / ${games} · 턴 ${f(turn)} · 쓰러뜨림 ${f(kills)} · 잃은 조 ${f(lost)} · 매핑 ${f(maps)} · 귀환 ${f(homes)} · 경보 ${f(alarms)}`);
 }
