@@ -84,6 +84,11 @@ aside h2 small { font: 400 11px var(--f-body); color: var(--mute); }
   header { flex-wrap: wrap; }
   main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 0.9fr) minmax(0, 1fr); }
 }
+.pad { display: grid; grid-template-columns: repeat(3, 34px); gap: 3px; justify-content: center; }
+.pad button { padding: 3px 0; font-size: 14px; }
+.pad i { display: block; }
+.row2 { display: flex; gap: 6px; align-items: center; justify-content: space-between; }
+@media (max-height: 480px) { .pad { grid-template-columns: repeat(3, 28px); gap: 2px; } .pad button { padding: 1px 0; font-size: 12px; } }
 </style>
 </head>
 <body>
@@ -92,7 +97,8 @@ aside h2 small { font: 400 11px var(--f-body); color: var(--mute); }
     <h1>작전 지도</h1>
     <span class="stat">턴 <b id="sTurn">0</b></span>
     <span class="stat">본부<span class="bar"><i id="sHq"></i></span></span>
-    <span class="stat">둥지 <b id="sNest">?</b></span>
+    <span class="stat">지도 <b id="sMap">0%</b></span>
+    <span class="stat hide-s">계단 <b id="sStairs">?</b></span>
     <span class="sp"></span>
     <span class="ctl" id="ctl"></span>
   </header>
@@ -108,13 +114,13 @@ aside h2 small { font: 400 11px var(--f-body); color: var(--mute); }
 <div class="overlay" id="ov">
   <div class="card" id="ovCard">
     <h2>작전 지도</h2>
-    <p class="lede">작전 캠프의 탁자 위에는 반쯤 하얀 지도 한 장이 놓여 있다. 네 조는 그 하얀 곳을 밝히러 나갔고, 무슨 일이 왜 일어나는지는 이 탁자 앞에서만 보인다.</p>
+    <p class="lede">탁자 위의 지도는 하얗다. 네 조가 어디쯤 있는지는 말로 전해 오지만, 그들이 지나온 길은 그들이 돌아와야 비로소 종이 위에 그려진다.</p>
     <ul>
-      <li>조 넷은 <b>저절로 탐사</b>합니다. 마물을 보면 조마다 정해 둔 방침(<b>교전</b> 또는 <b>후퇴</b>)대로 움직이고 경보를 올려요. 경보가 울리면 판이 멈춥니다.</li>
-      <li><b>세부 명령</b>: 이동 · 지키기 · 유인(마물을 달고 정한 곳까지 물러남) · 탐사로 돌리기 · 일제사격(궁수, <b>두 턴 뒤</b> 3×3에 떨어짐). 명령은 <b>본부에서 먼 조일수록 늦게</b> 닿아요(✉).</li>
-      <li>마물은 <b>눈에 보이는 조만</b> 쫓습니다. 붉은 화살표가 다음 두 수. 벽 너머는 못 봐요.</li>
-      <li>조는 본부와 길이 이어져야 <b>보급</b>을 받고(초록 점선), 마물은 둥지와 길이 이어져야 힘을 씁니다(보라 점선). 병목에 조를 세우면 그 너머 마물의 줄이 끊겨 약해져요.</li>
-      <li>둥지 셋을 무너뜨리면 이깁니다. 본부가 무너지거나 조가 모두 쓰러지면 끝.</li>
+      <li>보이는 것은 <b>조의 자리와 둘레 한 칸</b>뿐입니다. 조가 지나며 본 길은 <b>본부로 돌아오거나 매핑</b>(조마다 3번)을 써야 지도에 그려져요.</li>
+      <li>조는 스스로 맞서지 않습니다. <b>적이나 계단을 보면 보고하고 명령을 기다려요</b>(곁에 붙은 적은 막아 싸움). 그때 판이 멈춥니다.</li>
+      <li>명령: 탐사 · 이동 · 귀환 · 대기 · 매핑. 특수: <b>전사</b> 지키기(세우고 거두는 데 1턴씩, 못 움직임, 세짐) · <b>궁수</b> 3칸 직사(8방, 5번) · <b>마법사</b> 포격(8방 3칸 앞, 2턴 뒤 떨어짐, 5턴 쉼) · <b>도적</b> 함정(제자리, 3번).</li>
+      <li>본부에 닿으면 체력과 소모품이 모두 찹니다. 마물은 눈에 보이는 조만 쫓아요.</li>
+      <li><b>본부 지도 위에 계단까지 이어진 길이 그려지면</b> 층을 넘습니다. 본부가 무너지거나 조가 모두 쓰러지면 끝.</li>
     </ul>
     <div class="row"><button class="main" id="ovGo">지도 펼치기</button></div>
   </div>
@@ -122,12 +128,14 @@ aside h2 small { font: 400 11px var(--f-body); color: var(--mute); }
 <script src="engine.js"></script>
 <script>
 (() => {
-  const O = OPMAP, { W, H, X, Y, idx, WALL, HQ, UNIT, MON, B } = O;
+  const O = OPMAP, { W, H, X, Y, idx, WALL, HQ, UNIT, SKILL, MON, B, DIRS } = O;
   const $ = id => document.getElementById(id);
   const cv = $('cv'), ctx = cv.getContext('2d');
   let G, selId = null, aim = null, speed = 1, running = false, acc = 0, last = 0, L = null, prev = new Map(), tween = 1, msg = '';
-  const TURN_MS = 750;
-  const COL = { spear: '#86cf9f', bow: '#7fc4d6', raid: '#e8c27a', scout: '#c9b6f0' };
+  const TURN_MS = 700;
+  const COL = { warrior: '#86cf9f', archer: '#7fc4d6', mage: '#c9b6f0', rogue: '#e8c27a' };
+  const ARROW = ['↖', '↑', '↗', '←', '→', '↙', '↓', '↘'];
+  const FLOOR = (() => { let n = 0; for (let i = 0; i < W * H; i++) if (!WALL[i]) n++; return n; })();
 
   function start(seed) {
     G = O.newGame(seed || ((Date.now() % 100000) + 1));
@@ -145,153 +153,149 @@ aside h2 small { font: 400 11px var(--f-body); color: var(--mute); }
   }
   const px = i => L.ox + (X(i) + 0.5) * L.s, py = i => L.oy + (Y(i) + 0.5) * L.s;
   const pos = (id, at) => { const p = prev.get(id); if (p == null || p === at || tween >= 1) return [px(at), py(at)]; const e = tween < 0.5 ? 2 * tween * tween : 1 - Math.pow(-2 * tween + 2, 2) / 2; return [px(p) + (px(at) - px(p)) * e, py(p) + (py(at) - py(p)) * e]; };
+  function tile(i, bright) {
+    const s = L.s, X0 = L.ox + X(i) * s, Y0 = L.oy + Y(i) * s;
+    if (WALL[i]) { ctx.fillStyle = bright ? '#4a4536' : '#3a362b'; ctx.fillRect(X0, Y0, s, s); ctx.fillStyle = bright ? '#5d5644' : '#4d473a'; ctx.fillRect(X0, Y0, s, s * 0.3); }
+    else { ctx.fillStyle = bright ? ((X(i) + Y(i)) % 2 ? '#3a5644' : '#36513f') : ((X(i) + Y(i)) % 2 ? '#2a4033' : '#263b2f'); ctx.fillRect(X0, Y0, s, s); }
+  }
 
-  function draw(T) {
+  function draw() {
     layout();
-    const s = L.s;
-    ctx.clearRect(0, 0, L.w, L.h);
-    // 바닥 · 벽 · 안개
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      const i = idx(x, y), ex = G.explored[i], vs = G.vis[i];
-      const X0 = L.ox + x * s, Y0 = L.oy + y * s;
-      if (!ex) { ctx.fillStyle = '#070907'; ctx.fillRect(X0, Y0, s, s); continue; }
-      ctx.fillStyle = WALL[i] ? '#3a362b' : ((x + y) % 2 ? '#2a4033' : '#263b2f'); ctx.fillRect(X0, Y0, s, s);
-      if (WALL[i]) { ctx.fillStyle = '#4d473a'; ctx.fillRect(X0, Y0, s, s * 0.3); ctx.fillStyle = '#2a271f'; ctx.fillRect(X0, Y0 + s - 2, s, 2); }
-      if (!vs) { ctx.fillStyle = 'rgba(6,8,6,.6)'; ctx.fillRect(X0, Y0, s, s); }
-    }
-    // 마물의 줄 (둥지를 찾은 경우만, 보이는 마물에서)
-    ctx.setLineDash([2, 4]); ctx.lineWidth = Math.max(1.5, s * 0.08); ctx.strokeStyle = 'rgba(180,139,224,.75)';
-    const drawn = new Set();
-    for (const m of G.mons) {
-      if (!G.vis[m.at] || !G.nests[m.nest].seen) continue;
-      const p = O.nestPath(G, m); if (p.length < 2) continue;
-      ctx.beginPath(); ctx.moveTo(px(p[0]), py(p[0]));
-      for (let k = 1; k < p.length; k++) { const key = p[k - 1] * 1000 + p[k]; if (drawn.has(key)) { ctx.moveTo(px(p[k]), py(p[k])); continue; } drawn.add(key); ctx.lineTo(px(p[k]), py(p[k])); }
-      ctx.stroke();
-    }
-    // 보급선
-    ctx.setLineDash([5, 4]); ctx.strokeStyle = 'rgba(111,191,138,.75)'; ctx.lineWidth = Math.max(1.5, s * 0.09);
-    for (const u of G.units) {
-      const p = O.supplyPath(G, u.at); if (p.length < 2) continue;
-      ctx.beginPath(); ctx.moveTo(px(p[0]), py(p[0])); for (const c of p.slice(1)) ctx.lineTo(px(c), py(c)); ctx.stroke();
-    }
-    ctx.setLineDash([]);
-    // 본부 · 둥지
+    const s = L.s, live = O.liveSet(G);
+    ctx.fillStyle = '#e9e2cf'; ctx.fillRect(L.ox, L.oy, s * W, s * H); // 하얀 종이
+    ctx.fillStyle = 'rgba(0,0,0,.08)'; for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if ((x + y) % 2) ctx.fillRect(L.ox + x * s, L.oy + y * s, s, s);
+    // 그려진 지도
+    for (let i = 0; i < W * H; i++) if (G.known[i]) tile(i, false);
+    // 지금 보이는 둘레 한 칸
+    for (const i of live) { tile(i, true); }
+    ctx.strokeStyle = 'rgba(217,180,90,.35)'; ctx.lineWidth = 1;
+    for (const i of live) ctx.strokeRect(L.ox + X(i) * s + .5, L.oy + Y(i) * s + .5, s - 1, s - 1);
+    // 본부 · 계단 · 둥지
     rrect(px(HQ) - s * 0.42, py(HQ) - s * 0.42, s * 0.84, s * 0.84, 3, '#d9b45a');
     label('본부', px(HQ), py(HQ), '#221e18', s * 0.32);
-    for (const N of G.nests) {
-      if (!G.explored[N.at]) continue;
-      if (!N.alive) { label('✕', px(N.at), py(N.at), '#6f5a80', s * 0.6); continue; }
-      rrect(px(N.at) - s * 0.45, py(N.at) - s * 0.45, s * 0.9, s * 0.9, s * 0.3, '#4a2f60', '#b48be0');
-      label('둥지', px(N.at), py(N.at) - s * 0.05, '#e6d4ff', s * 0.3);
-      ctx.fillStyle = '#b48be0'; ctx.fillRect(px(N.at) - s * 0.4, py(N.at) + s * 0.3, s * 0.8 * N.hp / B.NEST_HP, 2);
+    if (G.stairsSeen || G.known[G.stairs]) {
+      rrect(px(G.stairs) - s * 0.45, py(G.stairs) - s * 0.45, s * 0.9, s * 0.9, 2, G.known[G.stairs] ? '#f5e6b8' : 'rgba(245,230,184,.55)', '#d9b45a');
+      label('계단', px(G.stairs), py(G.stairs), '#3a2f18', s * 0.32, true);
     }
-    // 일제사격 떨어질 곳
-    for (const v of G.volleys) {
-      const left = v.land - G.turn;
+    for (const N of G.nests) if (N.seen || G.known[N.at]) { rrect(px(N.at) - s * 0.45, py(N.at) - s * 0.45, s * 0.9, s * 0.9, s * 0.3, G.known[N.at] ? '#4a2f60' : 'rgba(74,47,96,.6)', '#b48be0'); label('굴', px(N.at), py(N.at), '#e6d4ff', s * 0.36); }
+    // 우리 함정
+    for (const t of G.traps) label('✕', px(t.at), py(t.at), '#c9983a', s * 0.5, true);
+    // 포격 떨어질 곳
+    for (const b of G.blasts) {
       ctx.strokeStyle = '#f2c46b'; ctx.lineWidth = 2; ctx.setLineDash([4, 3]);
-      ctx.strokeRect(px(v.at) - s * 1.5, py(v.at) - s * 1.5, s * 3, s * 3); ctx.setLineDash([]);
-      label(String(left), px(v.at) + s * 1.25, py(v.at) - s * 1.25, '#f2c46b', s * 0.55, true);
+      ctx.strokeRect(px(b.at) - s * 1.5, py(b.at) - s * 1.5, s * 3, s * 3); ctx.setLineDash([]);
+      label(String(b.land - G.turn), px(b.at) + s * 1.25, py(b.at) - s * 1.25, '#f2c46b', s * 0.55, true);
     }
-    for (const f of G.fx) if (f.kind === 'volley') {
-      const a = Math.max(0, 1 - (G.turn - f.turn + tween) / 1.6);
-      ctx.fillStyle = `rgba(255,190,80,${0.45 * a})`; ctx.fillRect(px(f.at) - s * 1.5, py(f.at) - s * 1.5, s * 3, s * 3);
-      ctx.strokeStyle = `rgba(255,220,140,${a})`; ctx.lineWidth = 1;
-      for (let k = 0; k < 9; k++) { const xx = px(f.at) + (((k * 37) % 30) / 10 - 1.5) * s, yy = py(f.at) + (((k * 53) % 30) / 10 - 1.5) * s; ctx.beginPath(); ctx.moveTo(xx - 3, yy - 6); ctx.lineTo(xx, yy); ctx.stroke(); }
+    for (const f of G.fx) {
+      const a = Math.max(0, 1 - (G.turn - f.turn + tween) / 1.5);
+      if (f.kind === 'blast') { ctx.fillStyle = `rgba(255,150,60,${0.5 * a})`; ctx.fillRect(px(f.at) - s * 1.5, py(f.at) - s * 1.5, s * 3, s * 3); }
+      if (f.kind === 'shot' && f.line.length) { ctx.strokeStyle = `rgba(200,240,255,${a})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(px(f.from), py(f.from)); ctx.lineTo(px(f.line[f.line.length - 1]), py(f.line[f.line.length - 1])); ctx.stroke(); }
+      if (f.kind === 'trap') { ctx.fillStyle = `rgba(232,194,122,${0.6 * a})`; ctx.beginPath(); ctx.arc(px(f.at), py(f.at), s * 0.6, 0, 7); ctx.fill(); }
     }
-    // 명령 선 (고른 조)
-    const su = sel();
-    for (const u of G.units) {
-      const t = u.pending && u.pending.target != null ? u.pending.target : (u.order.kind === 'move' || u.order.kind === 'lure') ? u.order.target : null;
-      if (t == null) continue;
-      ctx.strokeStyle = u === su ? 'rgba(255,255,255,.7)' : 'rgba(255,255,255,.25)'; ctx.lineWidth = 1.2; ctx.setLineDash([3, 3]);
-      const [ux, uy] = pos(u.id, u.at); ctx.beginPath(); ctx.moveTo(ux, uy); ctx.lineTo(px(t), py(t)); ctx.stroke(); ctx.setLineDash([]);
-      ctx.strokeStyle = ctx.strokeStyle; ctx.beginPath(); ctx.arc(px(t), py(t), s * 0.25, 0, 7); ctx.stroke();
+    // 보고된 마물의 옛 자리
+    for (const p of G.pings) {
+      if (live.has(p.at)) continue;
+      const age = G.turn - p.turn; ctx.globalAlpha = Math.max(0.25, 0.8 - age * 0.06);
+      ctx.strokeStyle = '#c0392b'; ctx.lineWidth = 1.5; ctx.setLineDash([2, 2]); ctx.beginPath(); ctx.arc(px(p.at), py(p.at), p.type === 'brute' ? s * 0.38 : s * 0.26, 0, 7); ctx.stroke(); ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
     }
-    // 마물 (보이는 것만)
+    // 지금 보이는 마물
     for (const m of G.mons) {
-      if (!G.vis[m.at]) continue;
-      const [x, y] = pos(m.id, m.at);
-      if (m.plan.length && tween >= 1) {
-        ctx.strokeStyle = 'rgba(240,128,111,.85)'; ctx.lineWidth = Math.max(1.5, s * 0.1);
-        ctx.beginPath(); ctx.moveTo(x, y); for (const c of m.plan) ctx.lineTo(px(c), py(c)); ctx.stroke();
-        const a = m.plan[m.plan.length - 1], b = m.plan.length > 1 ? m.plan[m.plan.length - 2] : m.at, ang = Math.atan2(py(a) - py(b), px(a) - px(b));
-        ctx.fillStyle = 'rgba(240,128,111,.9)'; ctx.beginPath(); ctx.moveTo(px(a), py(a)); ctx.lineTo(px(a) - 6 * Math.cos(ang - .5), py(a) - 6 * Math.sin(ang - .5)); ctx.lineTo(px(a) - 6 * Math.cos(ang + .5), py(a) - 6 * Math.sin(ang + .5)); ctx.fill();
-      }
-      const r = m.type === 'brute' ? s * 0.4 : s * 0.27;
-      ctx.fillStyle = m.cut ? '#7a4a42' : m.type === 'brute' ? '#b0432f' : '#f0806f';
+      if (!live.has(m.at)) continue;
+      const [x, y] = pos(m.id, m.at), r = m.type === 'brute' ? s * 0.4 : s * 0.27;
+      ctx.fillStyle = m.type === 'brute' ? '#b0432f' : '#f0806f';
       if (m.type === 'brute') { ctx.beginPath(); for (let k = 0; k < 6; k++) { const a = k * Math.PI / 3; ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r); } ctx.fill(); }
       else { ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); }
-      if (m.cut) label('✕', x, y, '#e6d4ff', s * 0.4);
-      if (m.hp < m.max) { ctx.fillStyle = '#2a0f0a'; ctx.fillRect(x - s * 0.35, y + r + 1, s * 0.7, 2); ctx.fillStyle = '#ffb4a6'; ctx.fillRect(x - s * 0.35, y + r + 1, s * 0.7 * Math.max(0, m.hp / m.max), 2); }
+      if (m.root > 0) label('…', x, y - r, '#e8c27a', s * 0.4, true);
     }
-    // 조
+    // 겨눔 미리보기
+    const su = sel();
+    if (aim && su && aim.dir != null) {
+      const D = DIRS[aim.dir];
+      if (aim.kind === 'shot') { ctx.strokeStyle = 'rgba(127,196,214,.9)'; ctx.lineWidth = 2; ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.moveTo(px(su.at), py(su.at)); ctx.lineTo(px(su.at) + D[0] * s * 3, py(su.at) + D[1] * s * 3); ctx.stroke(); ctx.setLineDash([]); }
+      if (aim.kind === 'blast') { const cx = px(su.at) + D[0] * s * 3, cy = py(su.at) + D[1] * s * 3; ctx.strokeStyle = 'rgba(242,196,107,.9)'; ctx.lineWidth = 2; ctx.setLineDash([4, 3]); ctx.strokeRect(cx - s * 1.5, cy - s * 1.5, s * 3, s * 3); ctx.setLineDash([]); }
+    }
+    for (const u of G.units) if (u.order.kind === 'move' && u.order.target != null) {
+      ctx.strokeStyle = u === su ? 'rgba(255,255,255,.75)' : 'rgba(255,255,255,.3)'; ctx.lineWidth = 1.2; ctx.setLineDash([3, 3]);
+      const [ux, uy] = pos(u.id, u.at); ctx.beginPath(); ctx.moveTo(ux, uy); ctx.lineTo(px(u.order.target), py(u.order.target)); ctx.stroke(); ctx.setLineDash([]);
+    }
+    // 조 (자리는 늘 보인다)
+    const stack = new Map();
     for (const u of G.units) {
-      const [x, y] = pos(u.id, u.at), r = s * 0.4, hurt = u.hit === G.turn && tween < 0.6;
+      const k = stack.get(u.at) || 0; stack.set(u.at, k + 1);
+      let [x, y] = pos(u.id, u.at); x += k * s * 0.2; y -= k * s * 0.2;
+      const r = s * 0.4, hurt = u.hit === G.turn && tween < 0.6;
       if (u === su) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, r + 3, 0, 7); ctx.stroke(); }
-      ctx.fillStyle = hurt ? '#ffdede' : u.sup > 0 ? COL[u.k] : '#8a8a7a'; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+      ctx.fillStyle = hurt ? '#ffdede' : COL[u.k]; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+      if (u.guard) { ctx.strokeStyle = u.guard === 2 ? '#2a5a3a' : '#5a7a5a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, y, r - 1.5, 0, 7); ctx.stroke(); }
       label(u.tag, x, y + 0.5, '#14201a', s * 0.42, true);
-      const n = O.soldiers(u); ctx.fillStyle = '#e3eadf';
-      for (let k = 0; k < u.n0; k++) { ctx.globalAlpha = k < n ? 1 : 0.2; ctx.fillRect(x - r + k * (2 * r / u.n0) + 0.5, y + r + 2, 2 * r / u.n0 - 1, 2); }
+      const n = O.soldiers(u); ctx.fillStyle = '#14201a';
+      for (let q = 0; q < u.n0; q++) { ctx.globalAlpha = q < n ? 1 : 0.25; ctx.fillRect(x - r + q * (2 * r / u.n0) + 0.5, y + r + 2, 2 * r / u.n0 - 1, 2.5); }
       ctx.globalAlpha = 1;
-      if (u.pending) label(`✉${Math.max(0, u.pending.arrive - G.turn)}`, x + r * 0.9, y - r * 1.1, '#f2c46b', s * 0.36, true);
-      else if (u.sup <= 0) label('✕', x + r * 0.9, y - r * 1.1, '#f0806f', s * 0.4, true);
+      if (u.order.kind === 'wait') label('?', x + r * 0.95, y - r * 1.05, '#f2c46b', s * 0.45, true);
     }
-    // 겨누는 칸
-    if (aim && aim.hover != null) { ctx.strokeStyle = '#d9b45a'; ctx.lineWidth = 2; ctx.strokeRect(L.ox + X(aim.hover) * s + 1, L.oy + Y(aim.hover) * s + 1, s - 2, s - 2); if (aim.kind === 'volley') { ctx.setLineDash([3, 3]); ctx.strokeRect(px(aim.hover) - s * 1.5, py(aim.hover) - s * 1.5, s * 3, s * 3); ctx.setLineDash([]); } }
   }
   function rrect(x, y, w, h, r, fill, stroke) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); ctx.fillStyle = fill; ctx.fill(); if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.stroke(); } }
   function label(t, x, y, col, size, bold) { ctx.fillStyle = col; ctx.font = `${bold ? 700 : 600} ${Math.max(8, size)}px "IBM Plex Sans KR", sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(t, x, y); }
 
-  // ── 오른쪽
   function once(el, html) { if (el.dataset.k !== html) { el.dataset.k = html; el.innerHTML = html; } }
+  const ORD = { explore: '탐사 중', move: '이동 중', home: '귀환 중', wait: '명령 대기' };
   function render() {
     $('sTurn').textContent = G.turn;
     $('sHq').style.width = Math.max(0, G.hq / B.HQ_HP * 100) + '%';
     $('sHq').style.background = G.hq > 8 ? 'var(--good)' : 'var(--bad)';
-    $('sNest').textContent = `${G.nests.filter(N => !N.alive).length}/${G.nests.length}`;
-    once($('ctl'), `<button data-a="auto" class="hide-s" aria-pressed="${G.autoPause}">경보에 멈춤</button><button data-a="pause" aria-pressed="${!running}">❚❚</button>` + [1, 2, 4].map(v => `<button data-a="speed" data-s="${v}" aria-pressed="${running && speed === v}">${v}×</button>`).join(''));
-    once($('chips'), [['spear', 'A'], ['bow', 'B'], ['raid', 'C'], ['scout', 'D']].map(([k, tag]) => { const u = G.units.find(q => q.tag === tag); return `<button data-a="sel" data-t="${tag}" class="${u ? '' : 'dead'}" aria-pressed="${!!u && u.id === selId}" ${u ? '' : 'disabled'}>${tag}조<small>${UNIT[k].name}${u ? ` ${O.soldiers(u)}/${u.n0}` : ' 끊김'}</small></button>`; }).join(''));
+    let kn = 0; for (let i = 0; i < W * H; i++) if (G.known[i] && !WALL[i]) kn++;
+    $('sMap').textContent = Math.round(kn / FLOOR * 100) + '%';
+    $('sStairs').textContent = G.stairsKnown ? '지도에 그려짐' : G.stairsSeen ? '보고됨' : '못 찾음';
+    once($('ctl'), `<button data-a="pause" aria-pressed="${!running}">❚❚</button>` + [1, 2, 4].map(v => `<button data-a="speed" data-s="${v}" aria-pressed="${running && speed === v}">${v}×</button>`).join(''));
+    once($('chips'), ['warrior', 'archer', 'mage', 'rogue'].map(k => { const u = G.units.find(q => q.k === k); return `<button data-a="sel" data-k="${k}" class="${u ? '' : 'dead'}" aria-pressed="${!!u && u.id === selId}" ${u ? '' : 'disabled'}>${UNIT[k].name}${u && u.order.kind === 'wait' ? ' ?' : ''}<small>${u ? `${O.soldiers(u)}/${u.n0} ${ORD[u.order.kind].split(' ')[0].replace('명령', '대기')}` : '끊김'}</small></button>`; }).join(''));
     const u = sel();
     let h = '';
     if (u) {
-      const d = O.orderDelay(G, u);
-      h += `<h2>${u.tag}조 · ${UNIT[u.k].name} <small>${O.ORDER[u.order.kind]}${u.order.kind === 'auto' ? '' : ' 중'}</small></h2>`;
-      h += `<div class="info">병사 <b>${O.soldiers(u)}/${u.n0}</b> · 보급 <span class="sup"><i style="width:${u.sup / B.SUP_MAX * 100}%;background:${u.sup > 3 ? 'var(--good)' : 'var(--bad)'}"></i></span>${G.supplyD[u.at] < 0 ? ' <span class="bad">끊김</span>' : ''}</div>`;
-      h += `<div class="info">${u.pending ? `<span class="warn">✉ ${O.ORDER[u.pending.kind]} · ${Math.max(0, u.pending.arrive - G.turn)}턴 뒤 닿음</span>` : `명령이 닿기까지 <b>${d}턴</b>`}</div>`;
-      h += `<div class="sec">마주치면 (자동 방침)</div><div class="btns" style="grid-template-columns:1fr 1fr"><button data-a="contact" aria-pressed="${u.contact === 'engage'}">교전</button><button data-a="contact" aria-pressed="${u.contact === 'retreat'}">후퇴</button></div>`;
-      h += `<div class="sec">세부 명령</div><div class="btns">`
-        + `<button data-a="order" data-k="move" aria-pressed="${aim && aim.kind === 'move'}">이동</button>`
-        + `<button data-a="order" data-k="hold">지키기</button>`
-        + `<button data-a="order" data-k="lure" aria-pressed="${aim && aim.kind === 'lure'}">유인</button>`
-        + `<button data-a="order" data-k="auto">탐사</button>`
-        + (u.k === 'bow' ? `<button data-a="order" data-k="volley" aria-pressed="${aim && aim.kind === 'volley'}" ${u.cd > 0 ? 'disabled' : ''} style="grid-column:span 2">일제사격${u.cd > 0 ? ` · ${u.cd}턴 뒤` : ' · 2턴 뒤 떨어짐'}</button>` : '')
-        + `</div>`;
+      const S = SKILL[u.k];
+      const st = u.guard === 1 ? '방패 세우는 중' : u.guard === 2 ? '지키는 중' : u.guard === 3 ? '방패 거두는 중' : ORD[u.order.kind];
+      h += `<h2>${UNIT[u.k].name}조 <small>${st}</small></h2>`;
+      h += `<div class="info">병사 <b>${O.soldiers(u)}/${u.n0}</b> · 매핑 <b>${u.maps}</b>${S.uses != null ? ` · ${S.name} <b>${u.uses}/${S.uses}</b>` : ''}${u.k === 'mage' ? ` · 포격 ${u.cd ? `<b>${u.cd}턴</b> 쉼` : '<b>준비</b>'}` : ''} · 아직 안 넘긴 지도 <b>${u.mem.size}</b>칸</div>`;
+      h += `<div class="sec">명령</div><div class="btns">`
+        + `<button data-a="cmd" data-k="explore" aria-pressed="${u.order.kind === 'explore'}">탐사</button>`
+        + `<button data-a="aim" data-k="move" aria-pressed="${!!aim && aim.kind === 'move'}">이동</button>`
+        + `<button data-a="cmd" data-k="home" aria-pressed="${u.order.kind === 'home'}">귀환</button>`
+        + `<button data-a="cmd" data-k="wait" aria-pressed="${u.order.kind === 'wait'}">대기</button>`
+        + `<button data-a="cmd" data-k="map" ${u.maps ? '' : 'disabled'} style="grid-column:span 2">매핑 · 둘레 지도 보내기</button></div>`;
+      h += `<div class="sec">특수</div>`;
+      if (u.k === 'warrior') h += `<div class="btns" style="grid-template-columns:1fr"><button data-a="cmd" data-k="guard" ${u.guard === 1 || u.guard === 3 ? 'disabled' : ''} aria-pressed="${u.guard === 2}">${u.guard === 2 ? '지키기 풀기 (1턴)' : '지키기 (1턴 준비 · 못 움직임)'}</button></div>`;
+      else if (u.k === 'rogue') h += `<div class="btns" style="grid-template-columns:1fr"><button data-a="cmd" data-k="trap" ${u.uses ? '' : 'disabled'}>발밑에 함정 (${u.uses}/3)</button></div>`;
+      else {
+        const kind = u.k === 'archer' ? 'shot' : 'blast', can = u.k === 'archer' ? u.uses > 0 : u.cd === 0;
+        h += `<div class="row2"><div class="info">${u.k === 'archer' ? '3칸 직사 · 방향' : '3칸 앞 포격 · 2턴 뒤 · 방향'}</div><div class="pad">`
+          + DIRS.map((d, k) => (k === 4 ? '<span></span>' : '') + `<button data-a="dir" data-k="${kind}" data-d="${k}" ${can ? '' : 'disabled'} aria-pressed="${!!aim && aim.kind === kind && aim.dir === k}">${ARROW[k]}</button>`).join('') + `</div></div>`;
+      }
       if (msg) h += `<div class="info warn">${msg}</div>`;
     } else h = '<div class="info">조를 고르세요.</div>';
     once($('unit'), h);
-    once($('log'), G.reports.slice(0, 14).map(r => `<div class="${r.kind}"><span class="t">${r.turn}</span>${r.who ? `<b>${r.who}</b>` : ''}${r.text}</div>`).join(''));
-    if (G.alarm) { once($('alarm'), `경보 · ${G.alarm.text} <button class="main" data-a="resume">계속</button>`); $('alarm').classList.remove('hidden'); }
+    once($('log'), G.reports.slice(0, 16).map(r => `<div class="${r.kind}"><span class="t">${r.turn}</span>${r.who ? `<b>${r.who}</b>` : ''}${r.text}</div>`).join(''));
+    if (G.alarm) { once($('alarm'), `${G.alarm.text} <button class="main" data-a="resume">계속</button>`); $('alarm').classList.remove('hidden'); }
     else $('alarm').classList.add('hidden');
-    if (aim) { once($('aim'), `${aim.kind === 'volley' ? '화살을 떨어뜨릴 칸' : aim.kind === 'lure' ? '마물을 끌고 갈 칸' : '갈 칸'}을 누르세요 <button data-a="cancel">그만</button>`); $('aim').classList.remove('hidden'); }
+    if (aim && aim.kind === 'move') { once($('aim'), `갈 칸을 누르세요 <button data-a="cancel">그만</button>`); $('aim').classList.remove('hidden'); }
+    else if (aim && aim.dir != null) { once($('aim'), `${ARROW[aim.dir]} 쪽으로 · 한 번 더 누르면 실행 <button data-a="cancel">그만</button>`); $('aim').classList.remove('hidden'); }
     else $('aim').classList.add('hidden');
   }
 
   function act(a, el) {
     msg = '';
     const u = sel();
-    if (a === 'sel') { const q = G.units.find(x => x.tag === el.dataset.t); if (q) selId = q.id; aim = null; }
-    else if (a === 'contact' && u) { if ((el.textContent === '교전') !== (u.contact === 'engage')) O.setContact(G, u.id); }
-    else if (a === 'order' && u) {
-      const k = el.dataset.k;
-      if (k === 'move' || k === 'lure' || k === 'volley') aim = aim && aim.kind === k ? null : { kind: k, hover: null };
-      else { msg = O.command(G, u.id, k) || ''; aim = null; }
+    if (a === 'sel') { const q = G.units.find(x => x.k === el.dataset.k); if (q) selId = q.id; aim = null; }
+    else if (a === 'cmd' && u) { msg = O.command(G, u.id, el.dataset.k) || ''; aim = null; }
+    else if (a === 'aim') aim = aim && aim.kind === 'move' ? null : { kind: 'move' };
+    else if (a === 'dir' && u) {
+      const k = el.dataset.k, d = +el.dataset.d;
+      if (aim && aim.kind === k && aim.dir === d) { msg = O.command(G, u.id, k, d) || ''; aim = null; }
+      else aim = { kind: k, dir: d };
     }
     else if (a === 'cancel') aim = null;
     else if (a === 'resume') { G.alarm = null; running = true; }
     else if (a === 'pause') running = !running;
     else if (a === 'speed') { speed = +el.dataset.s; running = true; G.alarm = null; }
-    else if (a === 'auto') G.autoPause = !G.autoPause;
     render();
   }
   document.addEventListener('pointerdown', e => {
@@ -299,23 +303,19 @@ aside h2 small { font: 400 11px var(--f-body); color: var(--mute); }
     e.preventDefault(); act(b.dataset.a, b);
   });
   const cellAt = e => { const r = cv.getBoundingClientRect(), x = Math.floor((e.clientX - r.left - L.ox) / L.s), y = Math.floor((e.clientY - r.top - L.oy) / L.s); return x < 0 || y < 0 || x >= W || y >= H ? null : idx(x, y); };
-  cv.addEventListener('pointermove', e => { if (aim && L) aim.hover = cellAt(e); });
   cv.addEventListener('pointerdown', e => {
     if (!L || !G || G.over) return;
     const c = cellAt(e); if (c == null) return;
-    if (aim) {
-      const u = sel();
-      if (u) { msg = O.command(G, u.id, aim.kind, c) || ''; if (!msg) aim = null; else aim.hover = c; }
-      render(); return;
-    }
+    const u = sel();
+    if (aim && aim.kind === 'move' && u) { msg = O.command(G, u.id, 'move', c) || ''; if (!msg) aim = null; render(); return; }
     const near = G.units.slice().sort((a, b) => O.dist(a.at, c) - O.dist(b.at, c))[0];
-    if (near && O.dist(near.at, c) <= 1) { selId = near.id; render(); }
+    if (near && O.cheb(near.at, c) <= 1) { selId = near.id; aim = null; render(); }
   });
   document.addEventListener('keydown', e => {
     if (!G || G.over) return;
     const k = e.key.toLowerCase();
     if (e.code === 'Space') { e.preventDefault(); if (G.alarm) act('resume'); else act('pause'); }
-    else if ('1234'.includes(k)) { const q = G.units.find(x => x.tag === 'ABCD'[+k - 1]); if (q) { selId = q.id; aim = null; render(); } }
+    else if ('1234'.includes(k)) { const q = G.units.find(x => x.k === ['warrior', 'archer', 'mage', 'rogue'][+k - 1]); if (q) { selId = q.id; aim = null; render(); } }
     else if (k === 'escape') { aim = null; render(); }
   });
   document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
@@ -323,14 +323,14 @@ aside h2 small { font: 400 11px var(--f-body); color: var(--mute); }
 
   function end() {
     running = false;
-    const t = { win: '둥지 셋이 무너졌다', fall: '본부가 무너졌다', lost: '네 조와 연락이 끊겼다', time: '지도는 끝내 다 밝혀지지 않았다' }[G.over];
-    const lede = { win: '현장의 조들은 오늘 무엇이 판을 뒤집었는지 끝내 다 알지 못할 것이다. 그것은 이 탁자 위에서만 보였다.', fall: '본부 문이 열렸다. 탁자 위의 말들이 하나씩 쓰러진다.', lost: '마지막 전령이 돌아오지 않았다. 지도 위의 표시만 남았다.', time: '시간이 다했다. 둥지는 아직 숨을 쉰다.' }[G.over];
+    const t = { win: '계단까지 길이 그려졌다', fall: '본부가 무너졌다', lost: '네 조와 연락이 끊겼다', time: '지도는 끝내 다 그려지지 않았다' }[G.over];
+    const lede = { win: '현장의 조들은 오늘 무엇이 자신들을 살렸는지 다 알지 못할 것이다. 그 까닭은 이 탁자 위에만 그려져 있다.', fall: '본부 문이 열렸다. 탁자 위의 말들이 하나씩 쓰러진다.', lost: '마지막 보고가 끊긴 뒤로 지도는 더 자라지 않았다.', time: '시간이 다했다. 계단은 아직 종이 밖에 있다.' }[G.over];
     $('ovCard').innerHTML = `<h2>${t}</h2><p class="lede">${lede}</p>
-      <ul><li>턴 <b>${G.turn}</b> · 무너뜨린 둥지 <b>${G.nests.filter(N => !N.alive).length}/${G.nests.length}</b> · 쓰러뜨린 마물 <b>${G.stats.kills}</b> (줄이 끊겨 쓰러진 것 <b>${G.stats.cutKills}</b>)</li>
-      <li>내린 명령 <b>${G.stats.orders}</b> · 일제사격 <b>${G.stats.volleys}</b> · 잃은 조 <b>${G.stats.lost}</b></li></ul>
-      <div class="row"><button class="main" id="again">새 지도</button></div>`;
+      <ul><li>턴 <b>${G.turn}</b> · 쓰러뜨린 마물 <b>${G.stats.kills}</b> · 잃은 조 <b>${G.stats.lost}</b></li>
+      <li>내린 명령 <b>${G.stats.orders}</b> · 특수 <b>${G.stats.skills}</b> · 매핑 <b>${G.stats.maps}</b> · 귀환 <b>${G.stats.homes}</b></li></ul>
+      <div class="row"><button class="main" id="again">새 층</button></div>`;
     $('ov').classList.remove('hidden');
-    $('again').onclick = () => { $('ov').classList.add('hidden'); start(); };
+    $('again').onclick = () => { $('ov').classList.add('hidden'); start(); running = true; };
   }
 
   function loop(now) {
@@ -347,7 +347,7 @@ aside h2 small { font: 400 11px var(--f-body); color: var(--mute); }
           if (!sel() && G.units.length) selId = G.units[0].id;
         }
       }
-      draw(now / 1000);
+      draw();
       render();
       if (G.over && $('ov').classList.contains('hidden')) end();
     }
