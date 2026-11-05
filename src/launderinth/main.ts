@@ -3,7 +3,7 @@ import {
   World, Kind, newWorld, step, build, canBuild, demolish, BDEF, BUILD_ORDER, RANKS, L, MW, MH, idx, xy, nbrs, wantOf,
   roadNet, live, preview, needsOf, Day, delveUp, delveCost, lootMean, setBudget, BUDGET_KEYS, BUDGET_NAME, effOf, Book, upgrade, upCost, setPrice, PRICED, capOf, clampLed, washCap, count, deathRate, LOOK, monthDay,
 } from './engine';
-import { getSeed, setSeed } from '../../../src/core/rng';
+import { getSeed, setSeed } from '../core/rng';
 import './style.css';
 
 const KEY = 'lb-launder', VERSION = 5;
