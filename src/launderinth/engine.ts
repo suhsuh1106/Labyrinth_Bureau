@@ -18,7 +18,7 @@ export const L = {
   SUB: 5,                   // 등록 탐사대원 한 명당 제국 보조금(달)
   EXPECT: 9,                 // 제국이 대원 한 명에게서 기대하는 달 수익(대조 기준)
   TAX: [0.7, 0.65, 0.6],     // 계급별 신고 수익 세율
-  PROMOTE: [10000, 45000],    // 누적 상납: 자작 · 대공
+  PROMOTE: [10000, 60000],    // 누적 상납: 자작 · 대공
   RISK_DECAY: 0.08,          // 하루 저절로 식는 의심
   SMELL_AT: 800,             // 이만큼 넘는 비자금은 냄새가 난다
   SMELL: 1 / 25000,          // (비자금 − SMELL_AT) × SMELL 만큼 하루 의심
@@ -32,6 +32,13 @@ export const L = {
   BUD_PROMO: 600, BUD_PULL: 0.35,       // 홍보: 달 600이면 효과의 63%, 발길 최대 +35%
   BUD_SAFE: 500, BUD_DEATH: 0.04,       // 안전: 사망률 최대 −4%p
   BUD_CARE: 400, BUD_SAT: 10,           // 정비: 손님 만족 최대 +10
+  DELVE_COST: [0, 800, 1800, 3200, 5000], // 미궁 개척 단계(2~5)로 올리는 값
+  DELVE_MAX: 5,
+  LOOT: 10, LOOT_STEP: 6,    // 생환자 한 명의 전리품 평균(1단계) · 단계마다 늘어나는 몫
+  DEATH_STEP: 0.025,          // 단계마다 늘어나는 사망률
+  DELVE_PULL: 0.9,            // 단계마다 늘어나는 발길(소문)
+  RETURN: 0.3,               // 살아 돌아온 손님이 다음 날 다시 오는 몫
+  NEW_MIN: 4, NEW_VAR: 18,    // 새로 온 손님의 지갑
   UP_MAX: 3,
   UP_CAP: 0.5, UP_PULL: 0.3, UP_UPKEEP: 0.5, // 단계마다 늘어나는 몫
   GOLD_MIN: 8, GOLD_VAR: 42, // 손님이 가져오는 돈
@@ -77,12 +84,12 @@ export interface Ledger {
 }
 
 // 영지 현황: 입장객 · 건물별 매상 · 돌려보낸 손님. 읽어 보여 주는 용도이고 규칙에는 쓰지 않는다
-export interface Day { v: number; r: number; d: number; s: number; n: Partial<Record<Kind, number>>; x: Partial<Record<Kind, number>> }
+export interface Day { v: number; r: number; d: number; s: number; l: number; b: number; n: Partial<Record<Kind, number>>; x: Partial<Record<Kind, number>> }
 export interface Stat {
   hist: Day[];                                   // 최근 60일
   tile: Record<number, { rev: number; served: number }>;
   kind: Partial<Record<Kind, { rev: number; served: number; turned: number }>>;
-  guests: number; sat: number; gold: number;        // 손님 수 · 만족 합 · 가져온 돈 합
+  guests: number; sat: number; gold: number; loot: number;        // 손님 수 · 만족 합 · 가져온 돈 합
   fee: number; visits: number; deaths: number; spent: number; upkeep: number;
 }
 // 월 결산: 금고(합법 자금)가 한 달 동안 어디서 들어와 어디로 나갔나
@@ -112,6 +119,7 @@ export interface World {
   audit: Audit | null;
   notes: Note[];
   over: null | 'arrest' | 'bankrupt' | 'duke' | 'term';
+  delve: number; back: { n: number; gold: number }; // 미궁 개척 단계 · 어제 살아 돌아온 손님(수 · 가진 돈)
   budget: Budget; mb: Flow; books: Book[];
   price: Record<'inn' | 'tavern' | 'rental' | 'casino', number>; // 요금(%)
   stat: Stat;
@@ -168,9 +176,10 @@ export function newWorld(seed: number): World {
     mo: { take: 0, visits: 0, deaths: 0, gear: 0, washed: { casino: 0, cathedral: 0 } },
     last: null, audit: null, over: null,
     notes: [{ day: 0, kind: 'news', text: '변방 영지의 인장이 새 주인의 손에 들어왔다. 미궁 어귀로 이어진 길은 하나, 그마저 진흙이다.' }],
+    delve: 1, back: { n: 0, gold: 0 },
     budget: { promo: 0, safety: 0, upkeep: 0 }, mb: emptyFlow(), books: [],
     price: { inn: 100, tavern: 100, rental: 100, casino: 100 },
-    stat: { hist: [], tile: {}, kind: {}, guests: 0, sat: 0, gold: 0, fee: 0, visits: 0, deaths: 0, spent: 0, upkeep: 0 },
+    stat: { hist: [], tile: {}, kind: {}, guests: 0, sat: 0, gold: 0, loot: 0, fee: 0, visits: 0, deaths: 0, spent: 0, upkeep: 0 },
     today: { visits: 0, deaths: 0, rev: 0, byTile: {} },
     flags: {},
   };
@@ -228,6 +237,15 @@ export const PRICED = ['inn', 'tavern', 'rental', 'casino'] as const;
 export function setPrice(w: World, k: typeof PRICED[number], pct: number) { w.price[k] = Math.max(50, Math.min(200, Math.round(pct / 10) * 10)); }
 // 요금이 오르면 안 오는 손님이 는다
 export const wantOf = (pct: number) => Math.max(0.1, Math.min(1.3, 1.6 - 0.6 * pct / 100));
+export const delveCost = (w: World) => w.delve < L.DELVE_MAX ? L.DELVE_COST[w.delve] : 0;
+export function delveUp(w: World): string | null {
+  const c = delveCost(w);
+  if (w.over) return '임기 끝';
+  if (!c) return '최고 단계';
+  if (w.clean < c) return '자금 부족';
+  w.clean -= c; w.mb.capex += c; w.delve++; return null;
+}
+export const lootMean = (w: World) => L.LOOT + L.LOOT_STEP * (w.delve - 1);
 export function build(w: World, i: number, k: Kind): boolean {
   if (canBuild(w, i, k)) return false;
   const t = w.tiles[i];
@@ -245,6 +263,7 @@ export function demolish(w: World, i: number): boolean {
 export function deathRate(w: World): number {
   let r = L.DEATH_BASE;
   for (const i of live(w)) r -= BDEF[w.tiles[i].b!].safe * lvMul(w, i, L.UP_CAP);
+  r += L.DEATH_STEP * (w.delve - 1);
   r -= L.BUD_DEATH * effOf(w.budget.safety, L.BUD_SAFE);
   return Math.max(L.DEATH_MIN, r);
 }
@@ -356,8 +375,12 @@ export function step(w: World) {
   let pull = L.BASE_VISIT;
   for (const i of lv) pull += BDEF[w.tiles[i].b!].pull * lvMul(w, i, L.UP_PULL);
   const dr = deathRate(w);
+  pull += L.DELVE_PULL * (w.delve - 1);
   pull *= 1 + L.BUD_PULL * effOf(w.budget.promo, L.BUD_PROMO);
-  const visits = Math.max(0, Math.floor(pull * w.rep * (0.75 + rnd() * 0.5)));
+  const arrivals = Math.max(0, Math.floor(pull * w.rep * (0.75 + rnd() * 0.5)));
+  const ret = Math.floor(w.back.n * L.RETURN), retAvg = w.back.n ? w.back.gold / w.back.n : 0;
+  const visits = arrivals + ret;
+  const back = { n: 0, gold: 0 }; let lootSum = 0;
   // 손님 한 명씩: 돈을 들고 와서, 시설을 차례로 들르고, 못 받으면 불만이 쌓인다
   let rev = visits * L.FEE;
   const byTile: Record<number, number> = {};
@@ -367,7 +390,8 @@ export function step(w: World) {
   const careSat = L.BUD_SAT * effOf(w.budget.upkeep, L.BUD_CARE);
   let deaths = 0, satSum = 0;
   for (let n = 0; n < visits; n++) {
-    let gold = L.GOLD_MIN + rnd() * L.GOLD_VAR, sat = L.SAT_BASE + careSat; st.gold += gold;
+    const old = n < ret; // 앞의 손님은 어제 미궁에서 돌아온 사람들
+    let gold = old ? retAvg * (0.6 + 0.8 * rnd()) : L.NEW_MIN + rnd() * L.NEW_VAR, sat = L.SAT_BASE + careSat + (old ? 6 : 0); st.gold += gold; let kit = false;
     for (const k of PRICED) {
       const own = byKind[k];
       if (!own) { if (k !== 'casino') { turnedK[k] = (turnedK[k] ?? 0) + 1; sat += L.SAT_NONE; } continue; }
@@ -379,14 +403,19 @@ export function step(w: World) {
       const price = Math.max(1, Math.round(BDEF[k].rev * pct / 100));
       if (gold < price) { pricey[k] = (pricey[k] ?? 0) + 1; sat += L.SAT_PRICEY; continue; }
       gold -= price; room[spot]--; rev += price; byTile[spot] = (byTile[spot] ?? 0) + price;
-      sat += L.SAT_OK + L.SAT_UP * (w.tiles[spot].lv - 1);
+      sat += L.SAT_OK + L.SAT_UP * (w.tiles[spot].lv - 1); if (k === 'rental') kit = true;
       const ts = st.tile[spot] ?? (st.tile[spot] = { rev: 0, served: 0 }); ts.rev += price; ts.served++;
       const ks = st.kind[k] ?? (st.kind[k] = { rev: 0, served: 0, turned: 0 }); ks.rev += price; ks.served++;
       w.mb.sales[k] = (w.mb.sales[k] ?? 0) + price;
     }
     sat = Math.max(0, Math.min(100, sat)); satSum += sat;
     if (rnd() < dr) deaths++;
+    else { // 살아 돌아온 손님: 전리품을 지갑에 담아 간다
+      const loot = lootMean(w) * (0.4 + 1.2 * rnd()) * (kit ? 1.15 : 1);
+      lootSum += loot; back.n++; back.gold += gold + loot;
+    }
   }
+  w.back = back; st.loot += lootSum;
   for (const k of PRICED) if (turnedK[k]) (st.kind[k] ?? (st.kind[k] = { rev: 0, served: 0, turned: 0 })).turned += turnedK[k]!;
   st.guests += visits; st.sat += satSum;
   w.mb.fee += visits * L.FEE; w.mb.visits += visits; w.mb.deaths += deaths; w.mb.sat += satSum; w.mb.guests += visits;
@@ -412,7 +441,7 @@ export function step(w: World) {
   w.risk = Math.max(0, Math.min(100, w.risk));
   w.today = { visits, deaths, rev, byTile };
   st.fee += visits * L.FEE; st.visits += visits; st.deaths += deaths; st.spent += rev; st.upkeep += up;
-  st.hist.push({ v: visits, r: rev, d: deaths, s: Math.round(avgSat), n: turnedK, x: pricey }); if (st.hist.length > 60) st.hist.shift();
+  st.hist.push({ v: visits, r: rev, d: deaths, s: Math.round(avgSat), l: Math.round(lootSum), b: ret, n: turnedK, x: pricey }); if (st.hist.length > 60) st.hist.shift();
   // 조건 사건
   if (deaths >= 3 && !w.flags.bigloss) { w.flags.bigloss = 1; note(w, 'bad', `하루에 ${deaths}명이 돌아오지 않았다. 대여소 반납대에는 주인 없는 방패만 쌓였다.`); }
   if (w.rep < 0.7 && (w.flags.rep ?? -99) < w.day - 40) { w.flags.rep = w.day; note(w, 'bad', '"그 영지 미궁은 무덤이다." 이웃 영지 선술집에서 그런 노래가 불린다고 한다.'); }

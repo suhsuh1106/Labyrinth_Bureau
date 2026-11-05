@@ -1,12 +1,12 @@
 // Launderinth 화면: 상단바 · 탑뷰 타일맵(캔버스) · 장부 조작소 · 건축 및 세탁소
 import {
   World, Kind, newWorld, step, build, canBuild, demolish, BDEF, BUILD_ORDER, RANKS, L, MW, MH, idx, xy, nbrs, wantOf,
-  roadNet, live, preview, needsOf, Day, setBudget, BUDGET_KEYS, BUDGET_NAME, effOf, Book, upgrade, upCost, setPrice, PRICED, capOf, clampLed, washCap, count, deathRate, LOOK, monthDay,
+  roadNet, live, preview, needsOf, Day, delveUp, delveCost, lootMean, setBudget, BUDGET_KEYS, BUDGET_NAME, effOf, Book, upgrade, upCost, setPrice, PRICED, capOf, clampLed, washCap, count, deathRate, LOOK, monthDay,
 } from './engine';
 import { getSeed, setSeed } from '../core/rng';
 import './style.css';
 
-const KEY = 'lb-launder', VERSION = 4;
+const KEY = 'lb-launder', VERSION = 5;
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector(s) as T;
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
 
@@ -30,7 +30,7 @@ let speed = 1, acc = 0;
 let ui = { tab: 'park' as 'park' | 'ledger' | 'build', tool: null as Kind | 'demolish' | null, hover: -1, pending: -1, tipAt: -1, sel: -1 };
 
 // ── 연출 상태 ────────────────────────────────────────
-interface Agent { path: number[]; seg: number; t: number; wait: number; hue: number; stopAt: number; doom: boolean }
+interface Agent { back?: boolean; path: number[]; seg: number; t: number; wait: number; hue: number; stopAt: number; doom: boolean }
 interface Float { x: number; y: number; text: string; color: string; t: number }
 interface Dust { x: number; y: number; vx: number; vy: number; t: number }
 let agents: Agent[] = [], floats: Float[] = [], dust: Dust[] = [], shake = 0;
@@ -53,6 +53,11 @@ function bfs(from: number, to: number, net: Set<number>): number[] {
   if (!prev.has(to)) return [];
   const out: number[] = []; for (let c = to; c !== -1; c = prev.get(c)!) out.push(c);
   return out.reverse();
+}
+function spawnReturn() {
+  const net = netOf(); const p = bfs(W.spawn, gateRoad(), net); if (p.length < 2) return;
+  const path = [W.gate, ...p.slice().reverse()];
+  agents.push({ path, seg: 0, t: 0, wait: 0, hue: 45, stopAt: -1, doom: false, back: true });
 }
 function spawnAgent(doom: boolean) {
   const net = netOf(); const lv = live(W).filter(i => BDEF[W.tiles[i].b!].cap > 0 || W.tiles[i].b === 'hospital' || W.tiles[i].b === 'cathedral');
@@ -136,7 +141,7 @@ let liveSet = new Set<number>();
 
 function drawGate(now: number) {
   const x = cx(W.gate), y = cy(W.gate), r = TS * 0.48;
-  const glow = 0.35 + 0.25 * Math.sin(now / 500);
+  const glow = 0.3 + 0.07 * W.delve + 0.2 * Math.sin(now / 500);
   g.fillStyle = `rgba(194,72,61,${glow})`; g.beginPath(); g.arc(x, y + 2, r * 1.25, 0, 7); g.fill();
   g.fillStyle = '#0b0807'; g.beginPath(); g.moveTo(x - r, y + r); g.lineTo(x - r, y - r * 0.1); g.arc(x, y - r * 0.1, r, Math.PI, 0); g.lineTo(x + r, y + r); g.fill();
   g.strokeStyle = '#6a5f52'; g.lineWidth = 2; g.stroke(); g.lineWidth = 1;
@@ -161,6 +166,7 @@ function drawAgents(dt: number) {
     const r = Math.max(2, TS * 0.14);
     g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.ellipse(x, y + r, r, r * 0.45, 0, 0, 7); g.fill();
     g.fillStyle = `hsl(${a.hue} 55% 62%)`; g.beginPath(); g.arc(x, y - bob, r, 0, 7); g.fill();
+    if (a.back) { g.strokeStyle = '#d9b45a'; g.lineWidth = 1.5; g.stroke(); g.lineWidth = 1; }
     g.fillStyle = '#e9dcc0'; g.fillRect(x - 1, y - bob - r - 2, 2, 2);
   }
   // 어귀에 닿으면 사라진다. 못 돌아올 이에게는 표시를 남긴다
@@ -248,6 +254,8 @@ function dayTick() {
   const n = Math.min(t.visits, 24);
   for (let k = 0; k < n; k++) queue.push({ at: k / Math.max(1, n), doom: k < Math.min(t.deaths, n) && fx() < 0.9 });
   queue.sort((a, b) => a.at - b.at);
+  const alive = Math.min(W.back.n, 10);
+  for (let k = 0; k < alive; k++) setTimeout(spawnReturn, 150 + k * 260);
   for (const [i, v] of Object.entries(t.byTile)) if (fx() < 0.55) floats.push({ x: cx(+i), y: cy(+i) - TS * 0.3, text: `+${v}`, color: '#d9b45a', t: fx() * 0.3 });
   if (W.black - before.black > 0) floats.push({ x: OX + TS * 2.5, y: cy(W.spawn) - TS, text: `+${fmt(W.black - before.black)}`, color: '#b4609a', t: 0 });
   if (W.notes[0] !== before.top) flashNote();
@@ -269,7 +277,7 @@ cv.addEventListener('pointerdown', e => {
   const i = tileAt(e); if (i < 0) return;
   if (!ui.tool) {
     const t = W.tiles[i]; ui.sel = t.b && t.b !== 'road' ? i : -1;
-    if (ui.sel >= 0) ui.tab = 'park';
+    if (ui.sel >= 0 || i === W.gate) ui.tab = 'park';
     renderPanel(); if (ui.sel < 0) showTip(i, e, true); else hideTip(); return;
   }
   // 손가락은 한 번 눌러 자리를 보고, 같은 칸을 한 번 더 눌러 짓는다
@@ -440,6 +448,17 @@ function selHtml() {
     ${c ? `<button data-act="up" class="mt-2 w-full rounded border ${W.clean >= c ? 'border-clean text-clean hover:bg-clean/10' : 'border-line text-dim'} py-1.5 text-sm">업그레이드 <span class="num">${fmt(c)}</span></button>` : `<div class="mt-2 text-[11px] text-dim">${t.lv >= L.UP_MAX ? '최고 단계' : ''}</div>`}
   </div>`;
 }
+function delveHtml() {
+  const h = W.stat.hist.slice(-10), n = h.reduce((a, d) => a + d.v, 0), d = h.reduce((a, x) => a + x.d, 0), l = h.reduce((a, x) => a + x.l, 0);
+  const surv = n ? Math.round((1 - d / n) * 100) : 100, avg = n - d > 0 ? Math.round(l / (n - d)) : Math.round(lootMean(W));
+  const c = delveCost(W), back = h.length ? Math.round(h.reduce((a, x) => a + x.b, 0) / h.length * 10) / 10 : 0;
+  const cell = (t: string, v: string, col = 'text-paper') => `<div class="rounded border border-line py-1.5 text-center"><div class="text-[11px] text-dim">${t}</div><div class="num text-sm ${col}">${v}</div></div>`;
+  return `<div class="rounded border ${ui.sel === W.gate ? 'border-clean/60' : 'border-line'} bg-felt/60 p-2.5">
+    <div class="flex items-baseline justify-between"><span class="font-serif text-sm">🕳 미궁 <span class="num text-clean text-xs">${W.delve}층</span></span><span class="text-[11px] text-dim">재방문 <span class="num text-paper">${back}</span>명/일</span></div>
+    <div class="mt-2 grid grid-cols-3 gap-2">${cell('생환율', surv + '%', surv < 85 ? 'text-blood' : 'text-paper')}${cell('전리품', avg + '/명', 'text-clean')}${cell('최근 열흘', fmt(l), 'text-clean')}</div>
+    ${c ? `<button data-act="delve" class="mt-2 w-full rounded border ${W.clean >= c ? 'border-clean text-clean hover:bg-clean/10' : 'border-line text-dim'} py-1.5 text-sm">${W.delve + 1}층 개척 <span class="num">${fmt(c)}</span></button>` : '<div class="mt-2 text-[11px] text-dim">가장 깊은 층까지 열렸다</div>'}
+  </div>`;
+}
 function parkHtml() {
   const st = W.stat, h = st.hist, last30 = h.slice(-30);
   const sum = (a: Day[], f: (d: Day) => number) => a.reduce((x, d) => x + f(d), 0);
@@ -462,8 +481,8 @@ function parkHtml() {
     return `<div class="flex items-center gap-2 rounded border ${c} px-2 py-1.5"><span class="num text-[11px]">${'●'.repeat(n.sev)}</span><div class="flex-1"><div class="text-[13px] text-paper">${n.what}</div>${n.hint ? `<div class="text-[11px] text-dim">${n.hint}</div>` : ''}</div>${n.kind ? `<button data-pick="${n.kind}" class="rounded border border-line px-2 py-0.5 text-[11px] text-paper hover:bg-felt">${BDEF[n.kind].name} 짓기</button>` : ''}</div>`;
   }).join('');
   const best = Object.entries(st.tile).sort((a, b) => b[1].rev - a[1].rev).slice(0, 3).filter(e => e[1].rev > 0);
-  return `${selHtml()}
-  <div class="grid grid-cols-3 gap-2 ${ui.sel >= 0 ? 'mt-3' : ''}">
+  return `${selHtml()}${selHtml() ? '<div class="h-3"></div>' : ''}${delveHtml()}
+  <div class="grid grid-cols-3 gap-2 mt-3">
     ${kpi('오늘 입장객', W.today.visits + '명')}${kpi('최근 30일', fmt(mV) + '명')}${kpi('누적', fmt(st.visits) + '명')}
     ${kpi('평판', '★'.repeat(stars) + '☆'.repeat(5 - stars), 'text-clean')}${kpi('사망률', Math.round(deathRate(W) * 100) + '%', deathRate(W) > 0.09 ? 'text-blood' : 'text-paper')}${kpi('손님 만족', sat + '점', sat < 55 ? 'text-blood' : 'text-paper')}
   </div>
@@ -592,6 +611,12 @@ document.addEventListener('click', e => {
     const why = upgrade(W, ui.sel);
     if (why) floats.push({ x: cx(ui.sel), y: cy(ui.sel), text: why, color: '#c2483d', t: 0 });
     else { slam(ui.sel); floats.push({ x: cx(ui.sel), y: cy(ui.sel), text: '▲', color: '#d9b45a', t: 0 }); save(); }
+    renderBar(); renderPanel(); return;
+  }
+  if (act === 'delve') {
+    const why = delveUp(W);
+    if (why) floats.push({ x: cx(W.gate), y: cy(W.gate), text: why, color: '#c2483d', t: 0 });
+    else { shake = 0.5; for (let n = 0; n < 24; n++) dust.push({ x: cx(W.gate), y: cy(W.gate), vx: (fx() - 0.5) * 220, vy: -fx() * 120, t: 0 }); floats.push({ x: cx(W.gate), y: cy(W.gate), text: `${W.delve}층`, color: '#d9b45a', t: 0 }); save(); }
     renderBar(); renderPanel(); return;
   }
   if (act === 'del' && ui.sel >= 0) { demolish(W, ui.sel); ui.sel = -1; shake = 0.15; save(); renderBar(); renderPanel(); return; }

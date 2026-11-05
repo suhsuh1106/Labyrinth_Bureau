@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { deathRate, setBudget, needsOf, upgrade, upCost, setPrice, capOf, newWorld, build, canBuild, idx, L, preview, step, World } from '../src/launderinth/engine';
+import { delveUp, delveCost, lootMean, deathRate, setBudget, needsOf, upgrade, upCost, setPrice, capOf, newWorld, build, canBuild, idx, L, preview, step, World } from '../src/launderinth/engine';
 import { botDay, Style } from '../src/launderinth/bots';
 
 function play(seed: number, s: Style, months = 36): World {
@@ -107,5 +107,21 @@ describe('launderinth', () => {
     const safe = run(w => setBudget(w, 'safety', 1500)); expect(deathRate(safe)).toBeLessThan(deathRate(none));
     const care = run(w => setBudget(w, 'upkeep', 1500));
     expect(care.stat.sat / care.stat.guests).toBeGreaterThan(none.stat.sat / none.stat.guests);
+  });
+
+  it('미궁: 살아 돌아온 손님이 전리품을 지갑에 담아 다음 날 다시 와서 쓴다', () => {
+    const w = run(() => {});
+    expect(w.stat.loot).toBeGreaterThan(0);
+    expect(w.stat.hist.some(d => d.b > 0)).toBe(true);
+    const day = w.stat.hist.filter(d => d.b > 0).length; expect(day).toBeGreaterThan(20);
+  });
+
+  it('미궁 개척: 돈이 들고, 전리품 · 발길 · 사망률이 함께 오른다', () => {
+    const w = newWorld(3); w.clean = 9000; const dr = deathRate(w), loot = lootMean(w), c = delveCost(w), before = w.clean;
+    expect(delveUp(w)).toBeNull();
+    expect(before - w.clean).toBe(c); expect(lootMean(w)).toBeGreaterThan(loot); expect(deathRate(w)).toBeGreaterThan(dr);
+    const a = run(() => {}), b = run(w => { w.delve = 3; });
+    expect(b.stat.visits).toBeGreaterThan(a.stat.visits); expect(b.stat.loot / b.stat.visits).toBeGreaterThan(a.stat.loot / a.stat.visits);
+    const z = newWorld(3); z.clean = 0; expect(delveUp(z)).toBe('자금 부족');
   });
 });
