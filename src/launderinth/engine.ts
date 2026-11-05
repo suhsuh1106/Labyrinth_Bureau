@@ -1,10 +1,10 @@
 // Launderinth(론더린스) 프로토타입 엔진. DOM을 쓰지 않는다. 하루가 한 턴(step), 한 달 L.MONTH일.
-// 루프: 건설 · 집객 → 표면 수익 → 장부 조작(신고율 · 유령 대원 · 장비 밀수) → 비자금 → 세탁 → 상납 → 승진.
+// 루프: 시설 카드 놓기 · 집객 → 표면 수익 → 장부 조작(신고율 · 유령 대원 · 장비 밀수) → 비자금 → 세탁 → 상납 → 승진.
+// 영지는 지도가 아니라 판 위의 카드 칸이다: 자리(칸)는 계급이 오를수록 늘고, 시설 종류마다 상한이 있다.
 // 사건은 날짜가 아니라 상태 조건으로 터진다(감사 · 유족 항의 · 발길 끊김 · 승진).
 import { rnd, setSeed } from '../core/rng';
 
-export const MW = 24, MH = 16;
-export const RANKS = ['남작', '자작', '대공'] as const;
+export const RANKS = ['남작', '자작', '백작', '후작', '공작'] as const;
 
 // 숫자는 모두 여기
 export const L = {
@@ -18,15 +18,17 @@ export const L = {
   SUB: 5,                   // 등록 탐사대원 한 명당 제국 보조금(달)
   EXPECT: 9,                 // 제국이 대원 한 명에게서 기대하는 달 수익(대조 기준)
   TOWN_TAX: 0.02,            // 주민 한 명당 하루 마을세
-  TAX: [0.7, 0.65, 0.6],     // 계급별 신고 수익 세율
-  PROMOTE: [10000, 60000],    // 누적 상납: 자작 · 대공
+  TAX: [0.7, 0.67, 0.64, 0.61, 0.58], // 계급별 신고 수익 세율
+  PROMOTE: [4000, 11000, 22000, 38000], // 누적 상납: 자작 · 백작 · 후작 · 공작
+  SLOTS: [6, 8, 10, 12, 14], // 계급별 영지 판의 칸 수
+  SLOT_MAX: 14,
   RISK_DECAY: 0.08,          // 하루 저절로 식는 의심
   SMELL_AT: 800,             // 이만큼 넘는 비자금은 냄새가 난다
   SMELL: 1 / 25000,          // (비자금 − SMELL_AT) × SMELL 만큼 하루 의심
   AUDIT_AT: 45,              // 이 위로는 감사관이 올 수 있다
   AUDIT_LEAD: 5,             // 예고에서 도착까지 날
   ARREST: 100,
-  TERM: 18,                  // 임기(달). 그때까지 대공이 못 되면 다음 사람에게 인장이 간다
+  TERM: 18,                  // 임기(달). 그때까지 공작이 못 되면 다음 사람에게 인장이 간다
   BANKRUPT: -400,
   UP_COST: 0.7,              // 업그레이드 값 = 건축비 × 이 값 × 지금 단계
   BUD_STEP: 100, BUD_MAX: 2000,
@@ -46,7 +48,7 @@ export const L = {
   SAT_BASE: 50, SAT_OK: 8, SAT_FULL: -12, SAT_NONE: -4, SAT_PRICEY: -10, SAT_UP: 3,
 };
 
-export type Kind = 'road' | 'inn' | 'tavern' | 'rental' | 'hospital' | 'casino' | 'cathedral';
+export type Kind = 'inn' | 'tavern' | 'rental' | 'chapel' | 'lodge' | 'hospital' | 'casino' | 'cathedral' | 'guild' | 'theater' | 'auction';
 export interface BDef {
   name: string; icon: string; cost: number; upkeep: number;
   cap: number;      // 하루에 받는 손님
@@ -58,22 +60,29 @@ export interface BDef {
   cut: number;      // 세탁 수수료
   washRisk: number; // 세탁한 한 닢의 의심
   rank: number;     // 필요한 계급
-  tag: '길' | '영업' | '체면' | '세탁';
+  max: number;      // 한 영지에 놓을 수 있는 장 수
+  tag: '영업' | '체면' | '세탁';
+  fx: string;       // 카드에 적힌 효과
   note: string;
 }
+const Z = { safe: 0, calm: 0, wash: 0, cut: 0, washRisk: 0 };
 export const BDEF: Record<Kind, BDef> = {
-  road:      { name: '도로',       icon: '',   cost: 15,   upkeep: 0,  cap: 0,  rev: 0, pull: 0,   safe: 0,     calm: 0,    wash: 0,    cut: 0,    washRisk: 0,      rank: 0, tag: '길',   note: '흙을 다진 길' },
-  inn:       { name: '여관',       icon: '🏨', cost: 280,  upkeep: 3,  cap: 4,  rev: 5, pull: 1.0, safe: 0,     calm: 0,    wash: 0,    cut: 0,    washRisk: 0,      rank: 0, tag: '영업', note: '젖은 이불, 비싼 숙박비' },
-  tavern:    { name: '선술집',     icon: '🍺', cost: 180,  upkeep: 2,  cap: 6,  rev: 3, pull: 0.8, safe: 0,     calm: 0,    wash: 0,    cut: 0,    washRisk: 0,      rank: 0, tag: '영업', note: '묽은 맥주, 진한 소문' },
-  rental:    { name: '장비 대여소', icon: '⚒️', cost: 240,  upkeep: 2,  cap: 4,  rev: 4, pull: 0.4, safe: 0.015, calm: 0,    wash: 0,    cut: 0,    washRisk: 0,      rank: 0, tag: '영업', note: '반납되지 않는 검이 더 많다' },
-  hospital:  { name: '자선 병원',   icon: '🏥', cost: 420,  upkeep: 8,  cap: 0,  rev: 0, pull: 0.3, safe: 0.03,  calm: 0.12, wash: 0,    cut: 0,    washRisk: 0,      rank: 0, tag: '체면', note: '현판이 병상보다 크다' },
-  casino:    { name: '카지노',     icon: '🎰', cost: 900,  upkeep: 10, cap: 6,  rev: 6, pull: 1.5, safe: 0,     calm: 0,    wash: 1500, cut: 0.25, washRisk: 0.0022, rank: 0, tag: '세탁', note: '잃은 돈은 기록에 남지 않는다' },
-  cathedral: { name: '대성당',     icon: '⛪', cost: 1800, upkeep: 6,  cap: 0,  rev: 0, pull: 0.5, safe: 0,     calm: 0.2,  wash: 3200, cut: 0.12, washRisk: 0.0009, rank: 1, tag: '세탁', note: '헌금함에는 바닥이 없다' },
+  inn:       { name: '여관',       icon: '🏨', cost: 280,  upkeep: 3,  cap: 4,  rev: 5, pull: 1.0, ...Z, rank: 0, max: 2, tag: '영업', fx: '잠자리 · 발길 +', note: '젖은 이불, 비싼 숙박비' },
+  tavern:    { name: '선술집',     icon: '🍺', cost: 180,  upkeep: 2,  cap: 6,  rev: 3, pull: 0.8, ...Z, rank: 0, max: 2, tag: '영업', fx: '먹고 마실 곳 · 소문 +', note: '묽은 맥주, 진한 소문' },
+  rental:    { name: '무기 상점',   icon: '⚒️', cost: 240,  upkeep: 2,  cap: 4,  rev: 4, pull: 0.4, ...Z, safe: 0.015, rank: 0, max: 2, tag: '영업', fx: '장비 · 전리품 +15% · 사망 −', note: '반납되지 않는 검이 더 많다' },
+  chapel:    { name: '작은 교회',   icon: '⛪', cost: 200,  upkeep: 2,  cap: 0,  rev: 0, pull: 0.2, ...Z, safe: 0.01, calm: 0.05, rank: 0, max: 1, tag: '체면', fx: '체면 · 사망 −', note: '종탑이 예배당보다 높다' },
+  lodge:     { name: '숙소',       icon: '🛏', cost: 420,  upkeep: 4,  cap: 6,  rev: 4, pull: 0.7, ...Z, rank: 1, max: 2, tag: '영업', fx: '수용 · 만족 +', note: '벽이 얇아서 소문이 빠르다' },
+  hospital:  { name: '자선 병원',   icon: '🏥', cost: 420,  upkeep: 8,  cap: 0,  rev: 0, pull: 0.3, ...Z, safe: 0.03, calm: 0.12, rank: 1, max: 1, tag: '체면', fx: '사망 − · 체면 +', note: '현판이 병상보다 크다' },
+  casino:    { name: '카지노',     icon: '🎰', cost: 900,  upkeep: 10, cap: 6,  rev: 6, pull: 1.5, ...Z, wash: 1500, cut: 0.25, washRisk: 0.0022, rank: 1, max: 2, tag: '세탁', fx: '지출 크게 · 세탁', note: '잃은 돈은 기록에 남지 않는다' },
+  cathedral: { name: '대성당',     icon: '⛪', cost: 1800, upkeep: 6,  cap: 0,  rev: 0, pull: 0.5, ...Z, calm: 0.2, wash: 3200, cut: 0.12, washRisk: 0.0009, rank: 2, max: 1, tag: '세탁', fx: '체면 크게 · 세탁', note: '헌금함에는 바닥이 없다' },
+  guild:     { name: '상단 지부',   icon: '📦', cost: 1400, upkeep: 7,  cap: 6,  rev: 7, pull: 0.8, ...Z, rank: 2, max: 1, tag: '영업', fx: '큰손 손님 · 지출 +', note: '송장이 곧 소문이다' },
+  theater:   { name: '극장',       icon: '🎭', cost: 2200, upkeep: 9,  cap: 8,  rev: 7, pull: 1.4, ...Z, rank: 3, max: 1, tag: '영업', fx: '발길 크게 · 지출 +', note: '미궁 영웅담이 한 번에 세 편' },
+  auction:   { name: '경매장',     icon: '🔨', cost: 3000, upkeep: 12, cap: 5,  rev: 11, pull: 1.0, ...Z, rank: 3, max: 1, tag: '영업', fx: '전리품 매입 · 큰 지출', note: '망치 소리 한 번에 장부 한 줄' },
 };
-export const BUILD_ORDER: Kind[] = ['road', 'inn', 'tavern', 'rental', 'hospital', 'casino', 'cathedral'];
+export const BUILD_ORDER: Kind[] = ['inn', 'tavern', 'rental', 'chapel', 'lodge', 'hospital', 'casino', 'cathedral', 'guild', 'theater', 'auction'];
+export const BASIC: Kind[] = ['inn', 'tavern', 'rental'];
 
-export type Terrain = 'grass' | 'forest' | 'rock' | 'water' | 'castle' | 'plot';
-export interface Tile { t: Terrain; b: Kind | null; born: number; lv: number }
+export interface Tile { b: Kind | null; born: number; lv: number } // 판 위의 한 칸
 
 // 장부: 국장이 숫자로 정하는 것들. 달이 닫힐 때 그대로 제국에 올라간다
 export interface Ledger {
@@ -112,8 +121,7 @@ export interface World {
   seed: number; day: number; rank: number;
   clean: number; black: number; risk: number; favor: number;
   rep: number;               // 모험가들 사이 평판(발길)
-  tiles: Tile[];
-  spawn: number; gate: number; // 타일 번호
+  tiles: Tile[];             // 영지 판의 칸(SLOT_MAX개, 열린 칸은 계급에 따라)
   led: Ledger;
   mo: { take: number; visits: number; deaths: number; gear: number; washed: { casino: number; cathedral: number } };
   last: null | MonthReport;
@@ -122,7 +130,7 @@ export interface World {
   over: null | 'arrest' | 'bankrupt' | 'duke' | 'term';
   delve: number; back: { n: number; gold: number }; // 미궁 개척 단계 · 어제 살아 돌아온 손님(수 · 가진 돈)
   budget: Budget; mb: Flow; books: Book[];
-  price: Record<'inn' | 'tavern' | 'rental' | 'casino', number>; // 요금(%)
+  price: Record<typeof PRICED[number], number>; // 요금(%)
   stat: Stat;
   today: { visits: number; deaths: number; rev: number; byTile: Record<number, number> };
   flags: Record<string, number>;
@@ -136,102 +144,49 @@ export interface MonthReport {
   dRisk: number;
 }
 
-export const idx = (x: number, y: number) => y * MW + x;
-export const xy = (i: number) => [i % MW, Math.floor(i / MW)] as const;
-
-export const CASTLE: [number, number][] = [[2, 5], [3, 5], [2, 6], [3, 6]];
-export const VILLAGE = { x0: 1, y0: 9, x1: 7, y1: 12 };
-function makeMap(): { tiles: Tile[]; spawn: number; gate: number } {
-  const tiles: Tile[] = [];
-  for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) {
-    const r = rnd();
-    let t: Terrain = 'grass';
-    if (r < 0.1) t = 'forest';
-    else if (r < 0.14) t = 'rock';
-    // 오른쪽 위 바위 언덕, 아래쪽 개울
-    if (x > 18 && y < 5 && rnd() < 0.7) t = 'rock';
-    if (y === 13 && x > 2 && x < 15) t = 'water';
-    if ((x < 3 || y < 2) && rnd() < 0.35) t = 'forest';
-    tiles.push({ t, b: null, born: -99, lv: 1 });
-  }
-  // 영주성: 길 위쪽, 작게. 마을 터: 길 아래쪽 개울 위
-  for (const [x, y] of CASTLE) { const t = tiles[idx(x, y)]; t.t = 'castle'; }
-  for (let y = VILLAGE.y0; y <= VILLAGE.y1; y++) for (let x = VILLAGE.x0; x <= VILLAGE.x1; x++) tiles[idx(x, y)].t = 'plot';
-  const sy = 8, gx = 20, gy = 6;
-  const spawn = idx(0, sy), gate = idx(gx, gy);
-  // 처음 흙길: 서쪽 끝에서 미궁 어귀까지
-  const path: number[] = [];
-  for (let x = 0; x <= gx; x++) path.push(idx(x, sy));
-  for (let y = sy - 1; y > gy; y--) path.push(idx(gx, y));
-  path.push(idx(3, 7)); // 성문에서 큰길로 나오는 길
-  for (const i of path) { tiles[i].t = 'grass'; tiles[i].b = 'road'; tiles[i].born = -99; }
-  tiles[gate].t = 'rock'; tiles[gate].b = null;
-  // 어귀 둘레는 바위
-  for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [-1, -1], [1, -1]]) {
-    const i = idx(gx + dx, gy + dy); if (tiles[i].b !== 'road') tiles[i].t = 'rock';
-  }
-  return { tiles, spawn, gate };
-}
+export const slotsOf = (w: World) => L.SLOTS[w.rank];
 
 export function newWorld(seed: number): World {
   setSeed(seed);
-  const m = makeMap();
   return {
     seed, day: 0, rank: 0, clean: L.START_CLEAN, black: 0, risk: 4, favor: 0, rep: 1,
-    tiles: m.tiles, spawn: m.spawn, gate: m.gate,
+    tiles: Array.from({ length: L.SLOT_MAX }, () => ({ b: null, born: -99, lv: 1 })),
     led: { report: 100, ghosts: 0, smuggle: 0, bribe: 0, wash: { casino: 0, cathedral: 0 } },
     mo: { take: 0, visits: 0, deaths: 0, gear: 0, washed: { casino: 0, cathedral: 0 } },
     last: null, audit: null, over: null,
-    notes: [{ day: 0, kind: 'news', text: '변방 영지의 인장이 새 주인의 손에 들어왔다. 미궁 어귀로 이어진 길은 하나, 그마저 진흙이다.' }],
+    notes: [{ day: 0, kind: 'news', text: '변방 영지의 인장이 새 주인의 손에 들어왔다. 미궁 어귀로 이어진 길은 하나, 그마저 진흙이다. 판 위에는 빈 자리 여섯이 전부다.' }],
     delve: 1, back: { n: 0, gold: 0 },
     budget: { promo: 0, safety: 0, upkeep: 0 }, mb: emptyFlow(), books: [],
-    price: { inn: 100, tavern: 100, rental: 100, casino: 100 },
+    price: { inn: 100, tavern: 100, rental: 100, lodge: 100, casino: 100, guild: 100, theater: 100, auction: 100 },
     stat: { hist: [], tile: {}, kind: {}, guests: 0, sat: 0, gold: 0, loot: 0, fee: 0, visits: 0, deaths: 0, spent: 0, upkeep: 0 },
     today: { visits: 0, deaths: 0, rev: 0, byTile: {} },
     flags: {},
   };
 }
 
-const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-export function nbrs(i: number): number[] {
-  const [x, y] = xy(i); const out: number[] = [];
-  for (const [dx, dy] of N4) { const nx = x + dx, ny = y + dy; if (nx >= 0 && ny >= 0 && nx < MW && ny < MH) out.push(idx(nx, ny)); }
-  return out;
-}
-
-// 서쪽 끝 길에서 이어진 도로 칸
-export function roadNet(w: World): Set<number> {
-  const seen = new Set<number>([w.spawn]); const q = [w.spawn];
-  while (q.length) { const c = q.shift()!; for (const n of nbrs(c)) if (!seen.has(n) && w.tiles[n].b === 'road') { seen.add(n); q.push(n); } }
-  return seen;
-}
-// 이어진 길 옆에 선 건물(영업 중)
+// 영업 중인 칸(열린 칸 안에서 카드가 놓인 것)
 export function live(w: World): number[] {
-  const net = roadNet(w); const out: number[] = [];
-  w.tiles.forEach((t, i) => { if (t.b && t.b !== 'road' && nbrs(i).some(n => net.has(n))) out.push(i); });
+  const out: number[] = [];
+  for (let i = 0; i < slotsOf(w); i++) if (w.tiles[i].b) out.push(i);
   return out;
 }
-export function count(w: World, k: Kind, onlyLive = true): number {
-  if (!onlyLive) return w.tiles.filter(t => t.b === k).length;
-  return live(w).filter(i => w.tiles[i].b === k).length;
-}
+export function count(w: World, k: Kind): number { return live(w).filter(i => w.tiles[i].b === k).length; }
+export const firstFree = (w: World): number => { for (let i = 0; i < slotsOf(w); i++) if (!w.tiles[i].b) return i; return -1; };
 
 export function canBuild(w: World, i: number, k: Kind): string | null {
-  const d = BDEF[k], t = w.tiles[i];
+  const d = BDEF[k];
   if (w.over) return '임기 끝';
   if (d.rank > w.rank) return `${RANKS[d.rank]} 이상`;
+  if (i < 0 || i >= slotsOf(w)) return '닫힌 자리';
+  if (w.tiles[i].b) return '이미 있음';
+  if (count(w, k) >= d.max) return `${d.max}장까지`;
   if (w.clean < d.cost) return '자금 부족';
-  if (i === w.gate) return '미궁 어귀';
-  if (t.b) return '이미 있음';
-  if (t.t === 'water' || t.t === 'rock' || t.t === 'castle' || t.t === 'plot') return t.t === 'plot' ? '마을 터' : t.t === 'castle' ? '영주성' : '지을 수 없는 땅';
-  if (k === 'road') { if (!nbrs(i).some(n => w.tiles[n].b === 'road')) return '길과 떨어짐'; }
-  else if (!nbrs(i).some(n => w.tiles[n].b === 'road')) return '길 옆에만';
   return null;
 }
 // 마을: 처음엔 농사짓는 사람들, 미궁이 돈이 되면서 관광 도시가 된다. 읽어 보여 주는 값이고 난수는 쓰지 않는다
 export const TOWN = ['농촌', '장터 마을', '관광 마을', '관광 도시'] as const;
 export const TOWN_AT = [0, 6, 22, 60]; // 점수 문턱
-export const builtCount = (w: World) => w.tiles.filter(t => t.b && t.b !== 'road').length;
+export const builtCount = (w: World) => live(w).length;
 export const townScore = (w: World) => w.stat.visits / 40 + builtCount(w) * 1.6 + (w.delve - 1) * 3;
 export const townStage = (w: World) => { const sc = townScore(w); let n = 0; for (let k = 1; k < TOWN_AT.length; k++) if (sc >= TOWN_AT[k]) n = k; return n; };
 export const popOf = (w: World) => Math.min(520, 40 + Math.floor(w.stat.visits / 18) + builtCount(w) * 5 + (w.delve - 1) * 12);
@@ -244,17 +199,17 @@ export function jobsOf(w: World) {
 }
 export const lvMul = (w: World, i: number, per: number) => 1 + per * (w.tiles[i].lv - 1);
 export const capOf = (w: World, i: number) => Math.round(BDEF[w.tiles[i].b!].cap * lvMul(w, i, L.UP_CAP));
-export function upCost(w: World, i: number): number { const t = w.tiles[i]; return t.b && t.b !== 'road' && t.lv < L.UP_MAX ? Math.round(BDEF[t.b].cost * L.UP_COST * t.lv / 10) * 10 : 0; }
+export function upCost(w: World, i: number): number { const t = w.tiles[i]; return t.b && t.lv < L.UP_MAX ? Math.round(BDEF[t.b].cost * L.UP_COST * t.lv / 10) * 10 : 0; }
 export function upgrade(w: World, i: number): string | null {
   const t = w.tiles[i], c = upCost(w, i);
   if (w.over) return '임기 끝';
-  if (!t.b || t.b === 'road') return '건물 아님';
+  if (!t.b) return '빈 자리';
   if (t.lv >= L.UP_MAX) return '최고 단계';
   if (w.clean < c) return '자금 부족';
   w.clean -= c; w.mb.capex += c; t.lv++; return null;
 }
 export function setBudget(w: World, k: keyof Budget, v: number) { w.budget[k] = Math.max(0, Math.min(L.BUD_MAX, Math.round(v / L.BUD_STEP) * L.BUD_STEP)); }
-export const PRICED = ['inn', 'tavern', 'rental', 'casino'] as const;
+export const PRICED = ['inn', 'tavern', 'rental', 'lodge', 'casino', 'guild', 'theater', 'auction'] as const;
 export function setPrice(w: World, k: typeof PRICED[number], pct: number) { w.price[k] = Math.max(50, Math.min(200, Math.round(pct / 10) * 10)); }
 // 요금이 오르면 안 오는 손님이 는다
 export const wantOf = (pct: number) => Math.max(0.1, Math.min(1.3, 1.6 - 0.6 * pct / 100));
@@ -272,12 +227,11 @@ export function build(w: World, i: number, k: Kind): boolean {
   const t = w.tiles[i];
   w.clean -= BDEF[k].cost; w.mb.capex += BDEF[k].cost;
   t.b = k; t.born = w.day; t.lv = 1;
-  if (t.t === 'forest') t.t = 'grass';
   return true;
 }
 export function demolish(w: World, i: number): boolean {
   const t = w.tiles[i];
-  if (!t.b || i === w.spawn) return false;
+  if (!t.b) return false;
   t.b = null; return true;
 }
 
@@ -364,10 +318,15 @@ function closeMonth(w: World) {
   note(w, 'news', T[p.look]);
   if (p.dRisk > 8) note(w, 'warn', '제국 회계청 서기 하나가 우리 영지의 장부를 따로 서랍에 넣었다고 한다.');
   // 승진(조건: 누적 상납)
-  while (w.rank < 2 && w.favor >= L.PROMOTE[w.rank]) {
+  while (w.rank < RANKS.length - 1 && w.favor >= L.PROMOTE[w.rank]) {
     w.rank++;
-    if (w.rank === 1) note(w, 'good', '제국의 문장이 찍힌 서한. 이제부터 이 땅의 주인은 자작이라 불린다. 청렴의 공을 기린다고 적혀 있었다.');
-    if (w.rank === 2) { note(w, 'good', '대공의 관이 수도에서 내려왔다. 관에 박힌 보석 하나하나가, 누군가의 장부에서는 사라진 숫자였다.'); w.over = 'duke'; }
+    const R = [
+      '', '제국의 문장이 찍힌 서한. 이제부터 이 땅의 주인은 자작이라 불린다. 청렴의 공을 기린다고 적혀 있었다. 판에 두 칸이 열렸다.',
+      '백작의 인장이 도착했다. 상자 바닥에는 영지 지도가 한 장 더 깔려 있었고, 새 성벽의 값은 이미 치러져 있었다.',
+      '후작의 문장이 마차에서 내렸다. 아무도 어느 달의 장부가 이 값을 치렀는지 묻지 않았다.',
+      '공작의 관이 수도에서 내려왔다. 관에 박힌 보석 하나하나가, 누군가의 장부에서는 사라진 숫자였다.'];
+    note(w, 'good', R[w.rank]);
+    if (w.rank === RANKS.length - 1) w.over = 'duke';
   }
   // 유족 항의(조건: 한 달 사망)
   if (w.mo.deaths >= 12 && w.mo.deaths / Math.max(1, w.mo.visits) >= 0.09) { w.rep = Math.max(0.5, w.rep - 0.12); note(w, 'bad', `미궁 어귀에 검은 천이 걸렸다. 돌아오지 못한 이름이 이번 달만 ${w.mo.deaths}개, 유족들의 행렬이 관청 앞을 막았다.`); }
@@ -421,7 +380,7 @@ export function step(w: World) {
     let gold = old ? retAvg * (0.6 + 0.8 * rnd()) : L.NEW_MIN + rnd() * L.NEW_VAR, sat = L.SAT_BASE + careSat + (old ? 6 : 0); st.gold += gold; let kit = false;
     for (const k of PRICED) {
       const own = byKind[k];
-      if (!own) { if (k !== 'casino') { turnedK[k] = (turnedK[k] ?? 0) + 1; sat += L.SAT_NONE; } continue; }
+      if (!own) { if (BASIC.includes(k)) { turnedK[k] = (turnedK[k] ?? 0) + 1; sat += L.SAT_NONE; } continue; }
       const pct = w.price[k];
       const want = wantOf(pct);
       if (want < 1 && rnd() >= want) continue; // 마음이 안 가서 지나감
@@ -499,7 +458,7 @@ export function needsOf(w: World): Need[] {
   if (h.length < 3) return [{ sev: 1, what: '통계 모으는 중', hint: '며칠 지켜볼 것' }];
   const avg = (f: (d: Day) => number) => h.reduce((a, d) => a + f(d), 0) / h.length;
   const v = avg(d => d.v);
-  const names: Partial<Record<Kind, [string, string]>> = { inn: ['잠잘 곳', '여관'], tavern: ['마실 곳', '선술집'], rental: ['빌릴 장비', '장비 대여소'] };
+  const names: Partial<Record<Kind, [string, string]>> = { inn: ['잠잘 곳', '여관'], tavern: ['마실 곳', '선술집'], rental: ['빌릴 장비', '무기 상점'] };
   for (const k of ['inn', 'tavern', 'rental'] as Kind[]) {
     const t = avg(d => d.n[k] ?? 0); const own = count(w, k);
     if (v >= 3 && t / Math.max(1, v) > 0.15) out.push({ sev: t / v > 0.5 ? 3 : 2, what: `${names[k]![0]} ${own ? '모자람' : '없음'}`, hint: `하루 ${t.toFixed(1)}명 그냥 돌아감`, kind: k });
@@ -512,8 +471,7 @@ export function needsOf(w: World): Need[] {
   if (v >= 3 && sat < 55) out.push({ sev: sat < 40 ? 3 : 2, what: '손님 만족 낮음', hint: `평균 ${Math.round(sat)}점` });
   const dr = deathRate(w);
   if (dr > 0.09) out.push({ sev: dr > 0.11 ? 3 : 2, what: '미궁 사망률 높음', hint: `${Math.round(dr * 100)}% · 병원 · 장비 대여소`, kind: 'hospital' });
-  const dead = w.tiles.filter(t => t.b && t.b !== 'road').length - live(w).length;
-  if (dead > 0) out.push({ sev: 3, what: '길 끊긴 건물', hint: `${dead}채 영업 못 함`, kind: 'road' });
+  if (firstFree(w) >= 0 && w.clean > 600) out.push({ sev: 1, what: '빈 자리 있음', hint: `${slotsOf(w) - live(w).length}칸 비어 있음` });
   if (w.black > 600 && !count(w, 'casino') && !count(w, 'cathedral')) out.push({ sev: 2, what: '세탁 거점 없음', hint: `비자금 ${Math.round(w.black)} 쌓이는 중`, kind: 'casino' });
   if (w.rep < 0.8) out.push({ sev: 2, what: '모험가 평판 하락', hint: '발길이 줄어드는 중' });
   

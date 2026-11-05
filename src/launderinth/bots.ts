@@ -1,32 +1,28 @@
 // 시험용 봇: honest(장부 그대로) · greedy(마구 빼돌림) · smart(냄새가 나기 전에 씻고 바친다)
-import { World, Kind, BDEF, canBuild, build, step, L, washCap, clampLed, roadNet, nbrs, MW, MH, idx } from './engine';
+import { World, Kind, BDEF, canBuild, build, step, L, washCap, clampLed, firstFree } from './engine';
 
 export type Style = 'honest' | 'greedy' | 'smart';
 
-function spotFor(w: World, k: Kind): number | null {
-  const net = roadNet(w);
-  for (const i of net) for (const n of nbrs(i)) if (!canBuild(w, n, k)) return n;
-  return null;
-}
-function extendRoad(w: World): boolean {
-  // 처음 길 위아래로 한 칸씩 가지를 낸다
-  for (let x = 2; x < MW - 4; x += 3) for (const y of [7, 9, 6, 10, 5, 11]) {
-    const i = idx(x, y); if (y >= 0 && y < MH && !canBuild(w, i, 'road')) return build(w, i, 'road');
-  }
-  return false;
-}
-const PLAN_HONEST: Kind[] = ['tavern', 'inn', 'rental', 'tavern', 'inn', 'casino', 'hospital', 'rental', 'inn', 'casino', 'cathedral', 'tavern', 'inn', 'hospital', 'cathedral', 'casino'];
-const PLAN: Kind[] = ['tavern', 'inn', 'casino', 'rental', 'tavern', 'inn', 'hospital', 'rental', 'inn', 'casino', 'cathedral', 'tavern', 'inn', 'hospital', 'cathedral', 'casino'];
+// 짓는 순서(앞에서부터 카드를 하나씩 놓는다). 놓을 수 없으면 다음 카드로
+const PLAN_HONEST: Kind[] = ['tavern', 'inn', 'rental', 'chapel', 'tavern', 'inn', 'lodge', 'hospital', 'casino', 'lodge', 'cathedral', 'guild', 'casino', 'theater', 'auction'];
+const PLAN: Kind[] = ['tavern', 'inn', 'rental', 'chapel', 'casino', 'tavern', 'inn', 'lodge', 'hospital', 'casino', 'cathedral', 'guild', 'lodge', 'theater', 'auction'];
 
 export function botDay(w: World, s: Style) {
   // 짓기: 계획 순서대로, 여유 자금이 있을 때
-  const built = w.tiles.filter(t => t.b && t.b !== 'road').length;
   const plan = s === 'honest' ? PLAN_HONEST : PLAN;
-  const next = plan[Math.min(built, plan.length - 1)];
   const keep = 150 + w.mo.take * 0.5;
-  if (built < 24 && BDEF[next].rank <= w.rank && w.clean - BDEF[next].cost > keep) {
-    const at = spotFor(w, next);
-    if (at != null) build(w, at, next); else extendRoad(w);
+  const at = firstFree(w);
+  if (at >= 0) {
+    const have: Record<string, number> = {}, want: Record<string, number> = {};
+    for (const t of w.tiles) if (t.b) have[t.b] = (have[t.b] ?? 0) + 1;
+    for (const k of plan) {
+      want[k] = (want[k] ?? 0) + 1;
+      if ((have[k] ?? 0) >= want[k]) continue;
+      const why = canBuild(w, at, k);
+      if (why && why !== '자금 부족') continue; // 계급 · 상한에 막힌 카드는 건너뛴다
+      if (!why && w.clean - BDEF[k].cost > keep) build(w, at, k);
+      break; // 돈을 모아서 놓는다
+    }
   }
   const l = w.led;
   if (s === 'honest') { l.report = 100; l.ghosts = 0; l.smuggle = 0; }

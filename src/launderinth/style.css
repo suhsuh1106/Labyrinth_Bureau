@@ -12,3 +12,28 @@ body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
 @keyframes pr { 50% { box-shadow: 0 0 0 3px rgba(194, 72, 61, .45); } }
 .ledger-paper { background: repeating-linear-gradient(#efe3c7 0 27px, #d8c8a6 27px 28px); color: #2a2218; }
 .tab[aria-selected=true] { color: #e9dcc0; border-color: #d9b45a; }
+
+/* 영지 판: 카드 */
+.board { display: grid; grid-template-columns: repeat(auto-fill, minmax(138px, 1fr)); gap: 18px 12px; align-content: start; padding: 12px; border: 2px solid #3a3226; border-radius: 14px; background: radial-gradient(#34402e, #27301f); }
+.card, .slot { position: relative; text-align: left; min-height: 148px; border-radius: 10px; }
+.card { background: #26211a; border: 2px solid #3a3226; padding: 8px; box-shadow: 0 4px 0 #0008; transition: transform .12s; }
+.card:hover { transform: translateY(-2px); }
+.card.fixed { border-style: dashed; background: #211d16; }
+.card.lv2 { border-color: #8b7b55; }
+.card.lv3 { border-color: #d9b45a; box-shadow: 0 4px 0 #0008, 0 0 12px #d9b45a55; }
+.card.on { outline: 2px solid #d9b45a; outline-offset: 2px; }
+.card .art { height: 56px; border-radius: 6px; margin-bottom: 6px; display: flex; align-items: center; justify-content: center; font-size: 28px; }
+.card .ttl { display: flex; justify-content: space-between; align-items: baseline; font-size: 14px; }
+.card .ttl i { font-style: normal; font-size: 11px; color: #d9b45a; }
+.card .fx { margin-top: 2px; font-size: 12px; color: #a79878; }
+.card .st { margin-top: 4px; padding-top: 4px; border-top: 1px dashed #3a3226; font-size: 11px; color: #a79878; }
+.card .gear { position: absolute; left: 8px; right: 8px; bottom: -12px; display: flex; justify-content: center; gap: 3px; }
+.card .gear b { font-size: 9px; font-weight: 500; line-height: 14px; padding: 0 6px; color: #e9dcc0; background: #4a3f2b; border: 1px solid #3a3226; border-radius: 0 0 6px 6px; }
+.card .fl { position: absolute; right: 8px; top: -6px; font: 600 12px 'IBM Plex Mono', monospace; color: #d9b45a; text-shadow: 0 1px 2px #000; animation: fl 1.6s ease-out forwards; pointer-events: none; }
+@keyframes fl { from { transform: translateY(8px); opacity: 0; } 25% { opacity: 1; } to { transform: translateY(-16px); opacity: 0; } }
+.card.slam { animation: slam .45s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes slam { from { transform: translateY(-40px) scale(1.12); opacity: 0; } to { transform: none; opacity: 1; } }
+.slot { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border: 2px dashed #5a6a48; color: #9fb08a; font-size: 13px; text-align: center; }
+.slot small { color: #7f8f6c; font-size: 11px; }
+.slot.on { border-color: #d9b45a; color: #d9b45a; }
+.slot.lock { opacity: .4; }
