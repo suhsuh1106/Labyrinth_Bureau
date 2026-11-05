@@ -1,12 +1,12 @@
 // Launderinth 화면: 상단바 · 탑뷰 타일맵(캔버스) · 장부 조작소 · 건축 및 세탁소
 import {
-  World, Kind, newWorld, step, build, canBuild, demolish, BDEF, BUILD_ORDER, RANKS, L, MW, MH, idx, xy, nbrs,
-  roadNet, live, preview, needsOf, Day, clampLed, washCap, count, deathRate, LOOK, monthDay,
+  World, Kind, newWorld, step, build, canBuild, demolish, BDEF, BUILD_ORDER, RANKS, L, MW, MH, idx, xy, nbrs, wantOf,
+  roadNet, live, preview, needsOf, Day, upgrade, upCost, setPrice, PRICED, capOf, clampLed, washCap, count, deathRate, LOOK, monthDay,
 } from './engine';
 import { getSeed, setSeed } from '../core/rng';
 import './style.css';
 
-const KEY = 'lb-launder', VERSION = 2;
+const KEY = 'lb-launder', VERSION = 3;
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector(s) as T;
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
 
@@ -27,7 +27,7 @@ const fx = () => { fxs = (fxs * 1664525 + 1013904223) >>> 0; return fxs / 429496
 // ── 시간 ────────────────────────────────────────────
 const SPEEDS = [0, 2.2, 0.8, 0.25]; // 하루가 걸리는 초
 let speed = 1, acc = 0;
-let ui = { tab: 'park' as 'park' | 'ledger' | 'build', tool: null as Kind | 'demolish' | null, hover: -1, pending: -1, tipAt: -1 };
+let ui = { tab: 'park' as 'park' | 'ledger' | 'build', tool: null as Kind | 'demolish' | null, hover: -1, pending: -1, tipAt: -1, sel: -1 };
 
 // ── 연출 상태 ────────────────────────────────────────
 interface Agent { path: number[]; seg: number; t: number; wait: number; hue: number; stopAt: number; doom: boolean }
@@ -128,6 +128,8 @@ function drawBuilding(i: number, now: number) {
   g.fillStyle = '#f3e6c8'; // 색 이모지 글꼴이 없는 기기에서도 보이게
   g.fillText(BDEF[t.b].icon, x, y + 1);
   g.globalAlpha = 1;
+  for (let n = 1; n < t.lv; n++) { g.fillStyle = '#d9b45a'; g.fillRect(x - w / 2 + 2 + (n - 1) * 5, y - w / 2 + 2, 3, 3); }
+  if (i === ui.sel) { g.strokeStyle = '#d9b45a'; g.lineWidth = 2; g.strokeRect(x - w / 2 - 2, cy(i) - w / 2 - 2, w + 4, w + 4); g.lineWidth = 1; }
 }
 const bornAt = new Map<number, number>();
 let liveSet = new Set<number>();
@@ -263,7 +265,11 @@ cv.addEventListener('pointermove', e => { if (e.pointerType === 'mouse') { ui.ho
 cv.addEventListener('pointerleave', () => { ui.hover = -1; hideTip(); });
 cv.addEventListener('pointerdown', e => {
   const i = tileAt(e); if (i < 0) return;
-  if (!ui.tool) { showTip(i, e, true); return; }
+  if (!ui.tool) {
+    const t = W.tiles[i]; ui.sel = t.b && t.b !== 'road' ? i : -1;
+    if (ui.sel >= 0) ui.tab = 'park';
+    renderPanel(); if (ui.sel < 0) showTip(i, e, true); else hideTip(); return;
+  }
   // 손가락은 한 번 눌러 자리를 보고, 같은 칸을 한 번 더 눌러 짓는다
   if (e.pointerType !== 'mouse' && ui.pending !== i) { ui.pending = i; renderTool(); return; }
   act(i);
@@ -421,31 +427,43 @@ function spark(vals: number[], color: string, h = 44) {
     <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.8" vector-effect="non-scaling-stroke"/>
   </svg>`;
 }
+function selHtml() {
+  const i = ui.sel; if (i < 0 || !W.tiles[i].b || W.tiles[i].b === 'road') return '';
+  const t = W.tiles[i], d = BDEF[t.b!], ts = W.stat.tile[i], on = live(W).includes(i), c = upCost(W, i);
+  const eff = d.cap ? `수용 <span class="num text-paper">${capOf(W, i)}</span>/일` : d.wash ? `세탁 한도 <span class="num text-paper">${fmt(Math.round(d.wash * (1 + L.UP_CAP * (t.lv - 1))))}</span>/달` : '';
+  return `<div class="rounded border border-clean/60 bg-felt p-2.5">
+    <div class="flex items-center justify-between"><span class="font-serif text-sm">${d.icon} ${d.name} <span class="num text-clean text-xs">${'▲'.repeat(t.lv - 1) || '1단계'}</span>${on ? '' : ' <span class="text-blood text-xs">길 끊김</span>'}</span>
+      <button data-act="del" class="text-[11px] text-dim hover:text-blood">철거</button></div>
+    <div class="mt-1 flex flex-wrap gap-x-4 text-[11px] text-dim">${eff}${ts ? `<span>손님 <span class="num text-paper">${fmt(ts.served)}</span></span><span>누계 <span class="num text-clean">${fmt(ts.rev)}</span></span>` : ''}</div>
+    ${c ? `<button data-act="up" class="mt-2 w-full rounded border ${W.clean >= c ? 'border-clean text-clean hover:bg-clean/10' : 'border-line text-dim'} py-1.5 text-sm">업그레이드 <span class="num">${fmt(c)}</span></button>` : `<div class="mt-2 text-[11px] text-dim">${t.lv >= L.UP_MAX ? '최고 단계' : ''}</div>`}
+  </div>`;
+}
 function parkHtml() {
   const st = W.stat, h = st.hist, last30 = h.slice(-30);
   const sum = (a: Day[], f: (d: Day) => number) => a.reduce((x, d) => x + f(d), 0);
   const mV = sum(last30, d => d.v), mR = sum(last30, d => d.r), mD = sum(last30, d => d.d);
   const stars = Math.max(0, Math.min(5, Math.round((W.rep - 0.5) / 0.9 * 5)));
+  const sat = h.slice(-10).length ? Math.round(sum(h.slice(-10), d => d.s) / h.slice(-10).length) : 0;
   const kpi = (l: string, v: string, c = 'text-paper') => `<div class="rounded border border-line py-1.5 text-center"><div class="text-[11px] text-dim">${l}</div><div class="num text-sm ${c}">${v}</div></div>`;
   const KN: Partial<Record<Kind, string>> = { inn: '여관', tavern: '선술집', rental: '장비 대여소', casino: '카지노' };
   const rows: string[] = [];
-  rows.push(`<tr class="border-b border-line/60"><td class="py-1">🎫 입장료</td><td class="num text-right">${fmt(st.visits)}</td><td class="num text-right text-clean">${fmt(st.fee)}</td><td></td></tr>`);
-  for (const k of ['inn', 'tavern', 'rental', 'casino'] as Kind[]) {
+  rows.push(`<tr class="border-b border-line/60"><td class="py-1.5">🎫 입장료</td><td class="num text-right">${fmt(st.visits)}</td><td class="num text-right text-clean">${fmt(st.fee)}</td><td></td></tr>`);
+  for (const k of PRICED) {
     const ks = st.kind[k], own = count(W, k, false), lv = count(W, k);
     if (!ks && !own) continue;
-    const cap = lv * BDEF[k].cap;
-    const use = cap && W.today.visits ? Math.min(100, Math.round(Math.min(cap, W.today.visits) / cap * 100)) : 0;
-    rows.push(`<tr class="border-b border-line/60"><td class="py-1">${BDEF[k].icon} ${KN[k]} <span class="text-dim text-[11px]">×${own}</span></td><td class="num text-right">${fmt(ks?.served ?? 0)}</td><td class="num text-right text-clean">${fmt(ks?.rev ?? 0)}</td><td class="num text-right text-dim">${use}%</td></tr>`);
+    const cap = live(W).filter(i => W.tiles[i].b === k).reduce((a, i) => a + capOf(W, i), 0);
+    const use = cap && W.today.visits ? Math.min(100, Math.round(Math.min(cap, W.today.visits * (wantOf(W.price[k]))) / cap * 100)) : 0;
+    rows.push(`<tr class="border-b border-line/60"><td class="py-1.5">${BDEF[k].icon} ${BDEF[k].name} <span class="text-dim text-[11px]">×${own}${lv ? ' · 가동 ' + use + '%' : ''}</span></td><td class="num text-right">${fmt(ks?.served ?? 0)}</td><td class="num text-right text-clean">${fmt(ks?.rev ?? 0)}</td><td class="py-1">${stepper('price.' + k, W.price[k] + '%')}</td></tr>`);
   }
   const needs = needsOf(W).map(n => {
     const c = n.sev === 3 ? 'border-blood text-blood' : n.sev === 2 ? 'border-[#e08a3c] text-[#e08a3c]' : 'border-line text-dim';
     return `<div class="flex items-center gap-2 rounded border ${c} px-2 py-1.5"><span class="num text-[11px]">${'●'.repeat(n.sev)}</span><div class="flex-1"><div class="text-[13px] text-paper">${n.what}</div>${n.hint ? `<div class="text-[11px] text-dim">${n.hint}</div>` : ''}</div>${n.kind ? `<button data-pick="${n.kind}" class="rounded border border-line px-2 py-0.5 text-[11px] text-paper hover:bg-felt">${BDEF[n.kind].name} 짓기</button>` : ''}</div>`;
   }).join('');
   const best = Object.entries(st.tile).sort((a, b) => b[1].rev - a[1].rev).slice(0, 3).filter(e => e[1].rev > 0);
-  return `
-  <div class="grid grid-cols-3 gap-2">
+  return `${selHtml()}
+  <div class="grid grid-cols-3 gap-2 ${ui.sel >= 0 ? 'mt-3' : ''}">
     ${kpi('오늘 입장객', W.today.visits + '명')}${kpi('최근 30일', fmt(mV) + '명')}${kpi('누적', fmt(st.visits) + '명')}
-    ${kpi('평판', '★'.repeat(stars) + '☆'.repeat(5 - stars), 'text-clean')}${kpi('사망률', Math.round(deathRate(W) * 100) + '%', deathRate(W) > 0.09 ? 'text-blood' : 'text-paper')}${kpi('귀환 못 함', fmt(st.deaths) + '명')}
+    ${kpi('평판', '★'.repeat(stars) + '☆'.repeat(5 - stars), 'text-clean')}${kpi('사망률', Math.round(deathRate(W) * 100) + '%', deathRate(W) > 0.09 ? 'text-blood' : 'text-paper')}${kpi('손님 만족', sat + '점', sat < 55 ? 'text-blood' : 'text-paper')}
   </div>
   <h2 class="font-serif text-base mt-4 mb-1">입장객 · 매상 <span class="text-[11px] text-dim">최근 30일</span></h2>
   <div class="rounded border border-line p-2">
@@ -453,7 +471,7 @@ function parkHtml() {
     <div class="mt-1 flex items-baseline justify-between text-[11px] text-dim"><span>매상</span><span class="num text-clean">${fmt(mR)}</span></div>${spark(last30.map(d => d.r), '#d9b45a')}
   </div>
   <h2 class="font-serif text-base mt-4 mb-1">수입원</h2>
-  <table class="w-full text-[13px]"><thead><tr class="text-[11px] text-dim"><th class="text-left font-normal"></th><th class="text-right font-normal">손님</th><th class="text-right font-normal">매상</th><th class="text-right font-normal">가동</th></tr></thead><tbody>${rows.join('')}</tbody>
+  <table class="w-full text-[13px]"><thead><tr class="text-[11px] text-dim"><th class="text-left font-normal"></th><th class="text-right font-normal">손님</th><th class="text-right font-normal">매상</th><th class="text-right font-normal">요금</th></tr></thead><tbody>${rows.join('')}</tbody>
   <tfoot><tr><td class="pt-1.5 text-dim">유지비 누계</td><td></td><td class="num text-right text-blood pt-1.5">−${fmt(st.upkeep)}</td><td></td></tr></tfoot></table>
   ${best.length ? `<div class="mt-1.5 text-[11px] text-dim">잘 버는 곳 ${best.map(([i, t]) => `${BDEF[W.tiles[+i].b!].icon}<span class="num"> ${fmt(t.rev)}</span>`).join(' · ')}</div>` : ''}
   <h2 class="font-serif text-base mt-4 mb-1">필요한 것</h2>
@@ -507,6 +525,7 @@ function renderOver() {
 const STEP: Record<string, number> = { report: 5, ghosts: 5, smuggle: 10, bribe: 250, 'wash.casino': 250, 'wash.cathedral': 250 };
 function bump(key: string, dir: number, big: boolean) {
   const s = STEP[key] * (big ? 4 : 1) * dir; const l = W.led;
+  if (key.startsWith('price.')) { const k = key.slice(6) as typeof PRICED[number]; setPrice(W, k, W.price[k] + dir * 10 * (big ? 3 : 1)); save(); renderPanel(); return; }
   if (key.startsWith('wash.')) { const k = key.slice(5) as 'casino' | 'cathedral'; l.wash[k] += s; }
   else (l as any)[key] += s;
   if (key === 'bribe') l.bribe = Math.min(l.bribe, Math.max(0, Math.floor(W.clean / 50) * 50));
@@ -525,6 +544,14 @@ document.addEventListener('click', e => {
   const el = e.target as HTMLElement;
   const tab = el.closest<HTMLElement>('[data-tab]'); if (tab) { ui.tab = tab.dataset.tab as any; renderPanel(); return; }
   const sp = el.closest<HTMLElement>('[data-speed]'); if (sp) { speed = +sp.dataset.speed!; renderBar(); return; }
+  const act = el.closest<HTMLElement>('[data-act]')?.dataset.act;
+  if (act === 'up' && ui.sel >= 0) {
+    const why = upgrade(W, ui.sel);
+    if (why) floats.push({ x: cx(ui.sel), y: cy(ui.sel), text: why, color: '#c2483d', t: 0 });
+    else { slam(ui.sel); floats.push({ x: cx(ui.sel), y: cy(ui.sel), text: '▲', color: '#d9b45a', t: 0 }); save(); }
+    renderBar(); renderPanel(); return;
+  }
+  if (act === 'del' && ui.sel >= 0) { demolish(W, ui.sel); ui.sel = -1; shake = 0.15; save(); renderBar(); renderPanel(); return; }
   const pick = el.closest<HTMLElement>('[data-pick]');
   if (pick) { ui.tool = pick.dataset.pick as Kind; ui.pending = -1; ui.tab = 'build'; renderTool(); renderPanel(); return; }
   const tool = el.closest<HTMLElement>('[data-tool]');

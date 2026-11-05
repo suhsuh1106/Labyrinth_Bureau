@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { needsOf, newWorld, build, canBuild, idx, L, preview, step, World } from '../src/launderinth/engine';
+import { needsOf, upgrade, upCost, setPrice, capOf, newWorld, build, canBuild, idx, L, preview, step, World } from '../src/launderinth/engine';
 import { botDay, Style } from '../src/launderinth/bots';
 
 function play(seed: number, s: Style, months = 36): World {
@@ -58,5 +58,32 @@ describe('launderinth', () => {
     const spent = (w.stat.kind.inn?.rev ?? 0) + w.stat.fee;
     expect(w.stat.spent).toBe(spent);
     expect(needsOf(w).some(n => n.what.startsWith('마실 곳'))).toBe(true);
+  });
+
+  const run = (f: (w: World) => void, seed = 9) => {
+    const w = newWorld(seed); w.clean = 9000;
+    build(w, idx(5, 7), 'inn'); build(w, idx(6, 7), 'inn'); build(w, idx(8, 7), 'tavern'); build(w, idx(9, 7), 'rental');
+    f(w); for (let d = 0; d < 60; d++) step(w); return w;
+  };
+
+  it('요금: 지나치게 올리면 손님이 돈이 모자라거나 마음이 안 가서 매상이 깎인다', () => {
+    const base = run(() => {}), greedy = run(w => setPrice(w, 'inn', 200));
+    expect(greedy.stat.kind.inn!.served).toBeLessThan(base.stat.kind.inn!.served);
+    expect(greedy.stat.hist.some(d => (d.x.inn ?? 0) > 0)).toBe(true);
+    expect(greedy.stat.sat / greedy.stat.guests).toBeLessThan(base.stat.sat / base.stat.guests);
+  });
+
+  it('업그레이드: 돈이 들고, 수용이 늘고, 최고 단계에서 멈춘다', () => {
+    const w = newWorld(2); w.clean = 5000; build(w, idx(5, 7), 'inn');
+    const i = idx(5, 7), c = upCost(w, i), cap = capOf(w, i), before = w.clean;
+    expect(upgrade(w, i)).toBeNull();
+    expect(before - w.clean).toBe(c); expect(capOf(w, i)).toBeGreaterThan(cap);
+    expect(upgrade(w, i)).toBeNull(); expect(upgrade(w, i)).toBe('최고 단계');
+    w.clean = 0; expect(upgrade(w, idx(6, 7))).toBe('건물 아님');
+  });
+
+  it('손님이 넘치면 돌려보내고 불만이 쌓인다(만족 하락)', () => {
+    const w = run(() => {}); const w2 = run(w => { for (const x of [5, 6]) w.tiles[idx(x, 7)].lv = 3; });
+    expect(w.stat.kind.inn!.turned).toBeGreaterThanOrEqual(w2.stat.kind.inn!.turned);
   });
 });

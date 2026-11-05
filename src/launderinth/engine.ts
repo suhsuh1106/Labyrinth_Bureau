@@ -27,6 +27,11 @@ export const L = {
   ARREST: 100,
   TERM: 18,                  // 임기(달). 그때까지 대공이 못 되면 다음 사람에게 인장이 간다
   BANKRUPT: -400,
+  UP_COST: 0.7,              // 업그레이드 값 = 건축비 × 이 값 × 지금 단계
+  UP_MAX: 3,
+  UP_CAP: 0.5, UP_PULL: 0.3, UP_UPKEEP: 0.5, // 단계마다 늘어나는 몫
+  GOLD_MIN: 8, GOLD_VAR: 42, // 손님이 가져오는 돈
+  SAT_BASE: 50, SAT_OK: 8, SAT_FULL: -12, SAT_NONE: -4, SAT_PRICEY: -10, SAT_UP: 3,
 };
 
 export type Kind = 'road' | 'inn' | 'tavern' | 'rental' | 'hospital' | 'casino' | 'cathedral';
@@ -56,7 +61,7 @@ export const BDEF: Record<Kind, BDef> = {
 export const BUILD_ORDER: Kind[] = ['road', 'inn', 'tavern', 'rental', 'hospital', 'casino', 'cathedral'];
 
 export type Terrain = 'grass' | 'forest' | 'rock' | 'water';
-export interface Tile { t: Terrain; b: Kind | null; born: number }
+export interface Tile { t: Terrain; b: Kind | null; born: number; lv: number }
 
 // 장부: 국장이 숫자로 정하는 것들. 달이 닫힐 때 그대로 제국에 올라간다
 export interface Ledger {
@@ -68,11 +73,12 @@ export interface Ledger {
 }
 
 // 영지 현황: 입장객 · 건물별 매상 · 돌려보낸 손님. 읽어 보여 주는 용도이고 규칙에는 쓰지 않는다
-export interface Day { v: number; r: number; d: number; n: Partial<Record<Kind, number>> }
+export interface Day { v: number; r: number; d: number; s: number; n: Partial<Record<Kind, number>>; x: Partial<Record<Kind, number>> }
 export interface Stat {
   hist: Day[];                                   // 최근 60일
   tile: Record<number, { rev: number; served: number }>;
   kind: Partial<Record<Kind, { rev: number; served: number; turned: number }>>;
+  guests: number; sat: number; gold: number;        // 손님 수 · 만족 합 · 가져온 돈 합
   fee: number; visits: number; deaths: number; spent: number; upkeep: number;
 }
 export interface Note { day: number; text: string; kind: 'news' | 'warn' | 'good' | 'bad' }
@@ -90,6 +96,7 @@ export interface World {
   audit: Audit | null;
   notes: Note[];
   over: null | 'arrest' | 'bankrupt' | 'duke' | 'term';
+  price: Record<'inn' | 'tavern' | 'rental' | 'casino', number>; // 요금(%)
   stat: Stat;
   today: { visits: number; deaths: number; rev: number; byTile: Record<number, number> };
   flags: Record<string, number>;
@@ -117,7 +124,7 @@ function makeMap(): { tiles: Tile[]; spawn: number; gate: number } {
     if (x > 18 && y < 5 && rnd() < 0.7) t = 'rock';
     if (y === 13 && x > 2 && x < 15) t = 'water';
     if ((x < 3 || y < 2) && rnd() < 0.35) t = 'forest';
-    tiles.push({ t, b: null, born: -99 });
+    tiles.push({ t, b: null, born: -99, lv: 1 });
   }
   const sy = 8, gx = 20, gy = 6;
   const spawn = idx(0, sy), gate = idx(gx, gy);
@@ -144,7 +151,8 @@ export function newWorld(seed: number): World {
     mo: { take: 0, visits: 0, deaths: 0, gear: 0, washed: { casino: 0, cathedral: 0 } },
     last: null, audit: null, over: null,
     notes: [{ day: 0, kind: 'news', text: '변방 영지의 인장이 새 주인의 손에 들어왔다. 미궁 어귀로 이어진 길은 하나, 그마저 진흙이다.' }],
-    stat: { hist: [], tile: {}, kind: {}, fee: 0, visits: 0, deaths: 0, spent: 0, upkeep: 0 },
+    price: { inn: 100, tavern: 100, rental: 100, casino: 100 },
+    stat: { hist: [], tile: {}, kind: {}, guests: 0, sat: 0, gold: 0, fee: 0, visits: 0, deaths: 0, spent: 0, upkeep: 0 },
     today: { visits: 0, deaths: 0, rev: 0, byTile: {} },
     flags: {},
   };
@@ -186,11 +194,26 @@ export function canBuild(w: World, i: number, k: Kind): string | null {
   else if (!nbrs(i).some(n => w.tiles[n].b === 'road')) return '길 옆에만';
   return null;
 }
+export const lvMul = (w: World, i: number, per: number) => 1 + per * (w.tiles[i].lv - 1);
+export const capOf = (w: World, i: number) => Math.round(BDEF[w.tiles[i].b!].cap * lvMul(w, i, L.UP_CAP));
+export function upCost(w: World, i: number): number { const t = w.tiles[i]; return t.b && t.b !== 'road' && t.lv < L.UP_MAX ? Math.round(BDEF[t.b].cost * L.UP_COST * t.lv / 10) * 10 : 0; }
+export function upgrade(w: World, i: number): string | null {
+  const t = w.tiles[i], c = upCost(w, i);
+  if (w.over) return '임기 끝';
+  if (!t.b || t.b === 'road') return '건물 아님';
+  if (t.lv >= L.UP_MAX) return '최고 단계';
+  if (w.clean < c) return '자금 부족';
+  w.clean -= c; t.lv++; return null;
+}
+export const PRICED = ['inn', 'tavern', 'rental', 'casino'] as const;
+export function setPrice(w: World, k: typeof PRICED[number], pct: number) { w.price[k] = Math.max(50, Math.min(200, Math.round(pct / 10) * 10)); }
+// 요금이 오르면 안 오는 손님이 는다
+export const wantOf = (pct: number) => Math.max(0.1, Math.min(1.3, 1.6 - 0.6 * pct / 100));
 export function build(w: World, i: number, k: Kind): boolean {
   if (canBuild(w, i, k)) return false;
   const t = w.tiles[i];
   w.clean -= BDEF[k].cost;
-  t.b = k; t.born = w.day;
+  t.b = k; t.born = w.day; t.lv = 1;
   if (t.t === 'forest') t.t = 'grass';
   return true;
 }
@@ -202,10 +225,10 @@ export function demolish(w: World, i: number): boolean {
 
 export function deathRate(w: World): number {
   let r = L.DEATH_BASE;
-  for (const i of live(w)) r -= BDEF[w.tiles[i].b!].safe;
+  for (const i of live(w)) r -= BDEF[w.tiles[i].b!].safe * lvMul(w, i, L.UP_CAP);
   return Math.max(L.DEATH_MIN, r);
 }
-export function washCap(w: World, k: 'casino' | 'cathedral'): number { return count(w, k) * BDEF[k].wash; }
+export function washCap(w: World, k: 'casino' | 'cathedral'): number { return Math.round(live(w).filter(i => w.tiles[i].b === k).reduce((a, i) => a + BDEF[k].wash * lvMul(w, i, L.UP_CAP), 0)); }
 
 export const clampLed = (w: World) => {
   const l = w.led;
@@ -307,35 +330,43 @@ export function step(w: World) {
   const kinds = lv.map(i => w.tiles[i].b!);
   // 발길
   let pull = L.BASE_VISIT;
-  for (const k of kinds) pull += BDEF[k].pull;
+  for (const i of lv) pull += BDEF[w.tiles[i].b!].pull * lvMul(w, i, L.UP_PULL);
   const dr = deathRate(w);
-  const target = Math.max(0.5, Math.min(1.4, 1.15 - dr * 2.5 + count(w, 'hospital') * 0.04));
-  w.rep += (target - w.rep) * 0.05;
   const visits = Math.max(0, Math.floor(pull * w.rep * (0.75 + rnd() * 0.5)));
-  // 매상: 종류마다 손님 수용
+  // 손님 한 명씩: 돈을 들고 와서, 시설을 차례로 들르고, 못 받으면 불만이 쌓인다
   let rev = visits * L.FEE;
   const byTile: Record<number, number> = {};
-  const left: Record<string, number> = {};
-  const st = w.stat, turnedK: Partial<Record<Kind, number>> = {};
-  for (const i of lv) {
-    const k = w.tiles[i].b!, d = BDEF[k];
-    if (!d.cap) continue;
-    const used = left[k] ?? 0;
-    const serve = Math.max(0, Math.min(d.cap, visits - used));
-    left[k] = used + serve;
-    const g = serve * d.rev; rev += g; if (g) byTile[i] = g;
-    const ts = st.tile[i] ?? (st.tile[i] = { rev: 0, served: 0 }); ts.rev += g; ts.served += serve;
-    const ks = st.kind[k] ?? (st.kind[k] = { rev: 0, served: 0, turned: 0 }); ks.rev += g; ks.served += serve;
+  const st = w.stat, turnedK: Partial<Record<Kind, number>> = {}, pricey: Partial<Record<Kind, number>> = {};
+  const room: Record<number, number> = {}; for (const i of lv) room[i] = capOf(w, i);
+  const byKind: Record<string, number[]> = {}; for (const i of lv) (byKind[w.tiles[i].b!] ??= []).push(i);
+  let deaths = 0, satSum = 0;
+  for (let n = 0; n < visits; n++) {
+    let gold = L.GOLD_MIN + rnd() * L.GOLD_VAR, sat = L.SAT_BASE; st.gold += gold;
+    for (const k of PRICED) {
+      const own = byKind[k];
+      if (!own) { if (k !== 'casino') { turnedK[k] = (turnedK[k] ?? 0) + 1; sat += L.SAT_NONE; } continue; }
+      const pct = w.price[k];
+      const want = wantOf(pct);
+      if (want < 1 && rnd() >= want) continue; // 마음이 안 가서 지나감
+      const spot = own.find(i => room[i] > 0);
+      if (spot == null) { turnedK[k] = (turnedK[k] ?? 0) + 1; sat += L.SAT_FULL; continue; }
+      const price = Math.max(1, Math.round(BDEF[k].rev * pct / 100));
+      if (gold < price) { pricey[k] = (pricey[k] ?? 0) + 1; sat += L.SAT_PRICEY; continue; }
+      gold -= price; room[spot]--; rev += price; byTile[spot] = (byTile[spot] ?? 0) + price;
+      sat += L.SAT_OK + L.SAT_UP * (w.tiles[spot].lv - 1);
+      const ts = st.tile[spot] ?? (st.tile[spot] = { rev: 0, served: 0 }); ts.rev += price; ts.served++;
+      const ks = st.kind[k] ?? (st.kind[k] = { rev: 0, served: 0, turned: 0 }); ks.rev += price; ks.served++;
+    }
+    sat = Math.max(0, Math.min(100, sat)); satSum += sat;
+    if (rnd() < dr) deaths++;
   }
-  // 돌려보낸 손님: 시설 종류마다, 손님 수에서 받은 수를 뺀 만큼(시설이 아예 없어도 센다)
-  for (const k of ['inn', 'tavern', 'rental'] as Kind[]) {
-    const n = Math.max(0, visits - (left[k] ?? 0)); turnedK[k] = n;
-    (st.kind[k] ?? (st.kind[k] = { rev: 0, served: 0, turned: 0 })).turned += n;
-  }
-  let deaths = 0; for (let n = 0; n < visits; n++) if (rnd() < dr) deaths++;
+  for (const k of PRICED) if (turnedK[k]) (st.kind[k] ?? (st.kind[k] = { rev: 0, served: 0, turned: 0 })).turned += turnedK[k]!;
+  st.guests += visits; st.sat += satSum;
+  const avgSat = visits ? satSum / visits : L.SAT_BASE + 20;
+  w.rep += ((Math.max(0.5, Math.min(1.4, 1.15 - dr * 2.5 + count(w, 'hospital') * 0.04 + (avgSat - 70) / 200)) - w.rep) * 0.05);
   w.mo.take += rev; w.clean += rev; w.mo.visits += visits; w.mo.deaths += deaths; w.mo.gear += deaths * L.GEAR;
   // 유지비
-  let up = 0; for (const k of kinds) up += BDEF[k].upkeep;
+  let up = 0; for (const i of lv) up += BDEF[w.tiles[i].b!].upkeep * lvMul(w, i, L.UP_UPKEEP);
   w.clean -= up;
   // 세탁: 목표의 30분의 1씩
   for (const k of ['casino', 'cathedral'] as const) {
@@ -347,12 +378,12 @@ export function step(w: World) {
     w.risk += amt * BDEF[k].washRisk;
   }
   // 의심: 쌓인 비자금의 냄새, 체면 시설, 저절로 식음
-  let calm = L.RISK_DECAY; for (const k of kinds) calm += BDEF[k].calm;
+  let calm = L.RISK_DECAY; for (const i of lv) calm += BDEF[w.tiles[i].b!].calm * lvMul(w, i, L.UP_CAP);
   w.risk += Math.max(0, w.black - L.SMELL_AT) * L.SMELL - calm;
   w.risk = Math.max(0, Math.min(100, w.risk));
   w.today = { visits, deaths, rev, byTile };
   st.fee += visits * L.FEE; st.visits += visits; st.deaths += deaths; st.spent += rev; st.upkeep += up;
-  st.hist.push({ v: visits, r: rev, d: deaths, n: turnedK }); if (st.hist.length > 60) st.hist.shift();
+  st.hist.push({ v: visits, r: rev, d: deaths, s: Math.round(avgSat), n: turnedK, x: pricey }); if (st.hist.length > 60) st.hist.shift();
   // 조건 사건
   if (deaths >= 3 && !w.flags.bigloss) { w.flags.bigloss = 1; note(w, 'bad', `하루에 ${deaths}명이 돌아오지 않았다. 대여소 반납대에는 주인 없는 방패만 쌓였다.`); }
   if (w.rep < 0.7 && (w.flags.rep ?? -99) < w.day - 40) { w.flags.rep = w.day; note(w, 'bad', '"그 영지 미궁은 무덤이다." 이웃 영지 선술집에서 그런 노래가 불린다고 한다.'); }
@@ -379,6 +410,12 @@ export function needsOf(w: World): Need[] {
     const t = avg(d => d.n[k] ?? 0); const own = count(w, k);
     if (v >= 3 && t / Math.max(1, v) > 0.15) out.push({ sev: t / v > 0.5 ? 3 : 2, what: `${names[k]![0]} ${own ? '모자람' : '없음'}`, hint: `하루 ${t.toFixed(1)}명 그냥 돌아감`, kind: k });
   }
+  for (const k of PRICED) {
+    const x = avg(d => d.x[k] ?? 0);
+    if (v >= 3 && x / Math.max(1, v) > 0.15) out.push({ sev: x / v > 0.4 ? 3 : 2, what: `${BDEF[k].name} 요금 비쌈`, hint: `하루 ${x.toFixed(1)}명 돈이 모자라 돌아감` });
+  }
+  const sat = avg(d => d.s);
+  if (v >= 3 && sat < 55) out.push({ sev: sat < 40 ? 3 : 2, what: '손님 만족 낮음', hint: `평균 ${Math.round(sat)}점` });
   const dr = deathRate(w);
   if (dr > 0.09) out.push({ sev: dr > 0.11 ? 3 : 2, what: '미궁 사망률 높음', hint: `${Math.round(dr * 100)}% · 병원 · 장비 대여소`, kind: 'hospital' });
   const dead = w.tiles.filter(t => t.b && t.b !== 'road').length - live(w).length;
