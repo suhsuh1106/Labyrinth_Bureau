@@ -1,12 +1,12 @@
-// Launderinth 화면: 상단바 · 탑뷰 타일맵(캔버스) · 장부 조작소 · 건축 및 세탁소
+// Launderinth 화면: 상단바 · 영지 판(시설 카드) · 장부 조작소 · 건축 및 세탁소
 import {
-  World, Kind, newWorld, step, build, canBuild, demolish, BDEF, BUILD_ORDER, RANKS, L, MW, MH, idx, xy, nbrs, wantOf,
-  roadNet, live, preview, needsOf, Day, delveUp, delveCost, lootMean, setBudget, BUDGET_KEYS, BUDGET_NAME, effOf, Book, upgrade, upCost, setPrice, PRICED, capOf, clampLed, washCap, count, deathRate, LOOK, monthDay,
+  World, Kind, newWorld, step, build, demolish, canBuild, BDEF, BUILD_ORDER, RANKS, L, TOWN, TOWN_AT, townStage, townScore, popOf, jobsOf,
+  live, preview, needsOf, Day, delveUp, delveCost, lootMean, setBudget, BUDGET_KEYS, BUDGET_NAME, effOf, Book, upgrade, upCost, setPrice, PRICED, capOf, clampLed, washCap, count, deathRate, LOOK, monthDay, wantOf, slotsOf, firstFree,
 } from './engine';
 import { getSeed, setSeed } from '../core/rng';
 import './style.css';
 
-const KEY = 'lb-launder', VERSION = 5;
+const KEY = 'lb-launder', VERSION = 8;
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector(s) as T;
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
 
@@ -17,299 +17,59 @@ function load(): World | null {
   try { const d = JSON.parse(localStorage.getItem(KEY) || 'null'); if (d && d.v === VERSION) { setSeed(d.rng); return d.W; } } catch { /* 새 판 */ }
   return null;
 }
-function fresh() { W = newWorld((Date.now() ^ 0x5eed) >>> 0); resetFx(); save(); }
+function fresh() { W = newWorld((Date.now() ^ 0x5eed) >>> 0); ui.sel = -1; ui.slot = -1; ui.slam = -1; save(); }
 W = load() ?? newWorld((Date.now() ^ 0x5eed) >>> 0);
-
-// 화면 연출용 난수: 판의 난수(rnd)를 건드리지 않는다
-let fxs = 12345;
-const fx = () => { fxs = (fxs * 1664525 + 1013904223) >>> 0; return fxs / 4294967296; };
 
 // ── 시간 ────────────────────────────────────────────
 const SPEEDS = [0, 2.2, 0.8, 0.25]; // 하루가 걸리는 초
-let speed = 1, acc = 0;
-let ui = { tab: 'park' as 'park' | 'ledger' | 'build', tool: null as Kind | 'demolish' | null, hover: -1, pending: -1, tipAt: -1, sel: -1 };
-
-// ── 연출 상태 ────────────────────────────────────────
-interface Agent { back?: boolean; path: number[]; seg: number; t: number; wait: number; hue: number; stopAt: number; doom: boolean }
-interface Float { x: number; y: number; text: string; color: string; t: number }
-interface Dust { x: number; y: number; vx: number; vy: number; t: number }
-let agents: Agent[] = [], floats: Float[] = [], dust: Dust[] = [], shake = 0;
-let queue: { at: number; doom: boolean }[] = [];
-let netCache: { key: string; net: Set<number> } = { key: '', net: new Set() };
-function resetFx() { agents = []; floats = []; dust = []; queue = []; }
-
-const gateRoad = () => { const [gx, gy] = xy(W.gate); return idx(gx, gy + 1); };
-function netOf(): Set<number> {
-  const key = W.tiles.map(t => t.b === 'road' ? 1 : 0).join('');
-  if (key !== netCache.key) netCache = { key, net: roadNet(W) };
-  return netCache.net;
-}
-function bfs(from: number, to: number, net: Set<number>): number[] {
-  const prev = new Map<number, number>([[from, -1]]); const q = [from];
-  while (q.length) {
-    const c = q.shift()!; if (c === to) break;
-    for (const n of nbrs(c)) if (net.has(n) && !prev.has(n)) { prev.set(n, c); q.push(n); }
-  }
-  if (!prev.has(to)) return [];
-  const out: number[] = []; for (let c = to; c !== -1; c = prev.get(c)!) out.push(c);
-  return out.reverse();
-}
-function spawnReturn() {
-  const net = netOf(); const p = bfs(W.spawn, gateRoad(), net); if (p.length < 2) return;
-  const path = [W.gate, ...p.slice().reverse()];
-  agents.push({ path, seg: 0, t: 0, wait: 0, hue: 45, stopAt: -1, doom: false, back: true });
-}
-function spawnAgent(doom: boolean) {
-  const net = netOf(); const lv = live(W).filter(i => BDEF[W.tiles[i].b!].cap > 0 || W.tiles[i].b === 'hospital' || W.tiles[i].b === 'cathedral');
-  let path: number[]; let stopAt = -1;
-  if (lv.length && fx() < 0.8) {
-    const b = lv[Math.floor(fx() * lv.length)];
-    const door = nbrs(b).find(n => net.has(n));
-    const a = door != null ? bfs(W.spawn, door, net) : [];
-    const c = door != null ? bfs(door, gateRoad(), net) : [];
-    path = a.length && c.length ? [...a, ...c.slice(1)] : bfs(W.spawn, gateRoad(), net);
-    if (a.length && c.length) stopAt = a.length - 1;
-  } else path = bfs(W.spawn, gateRoad(), net);
-  if (path.length < 2) return;
-  path.push(W.gate);
-  agents.push({ path, seg: 0, t: 0, wait: 0, hue: Math.floor(fx() * 360), stopAt, doom });
-  if (agents.length > 90) agents.shift();
-}
-
-// ── 캔버스 ──────────────────────────────────────────
-const cv = $<HTMLCanvasElement>('#map'); const g = cv.getContext('2d')!;
-let TS = 24, OX = 0, OY = 0, DPR = 1;
-function fit() {
-  const r = cv.getBoundingClientRect(); DPR = Math.min(2, window.devicePixelRatio || 1);
-  cv.width = Math.round(r.width * DPR); cv.height = Math.round(r.height * DPR);
-  TS = Math.max(8, Math.floor(Math.min(r.width / MW, r.height / MH)));
-  OX = Math.floor((r.width - TS * MW) / 2); OY = Math.floor((r.height - TS * MH) / 2);
-}
-new ResizeObserver(fit).observe(cv);
-const hash = (i: number) => { let h = i * 2654435761 >>> 0; h ^= h >>> 13; return (h % 1000) / 1000; };
-const cx = (i: number) => OX + (i % MW) * TS + TS / 2;
-const cy = (i: number) => OY + Math.floor(i / MW) * TS + TS / 2;
-
-const BCOL: Record<Kind, string> = {
-  road: '#8b7350', inn: '#7a5236', tavern: '#6d4a2a', rental: '#56606a', hospital: '#d8d2c2', casino: '#5b2346', cathedral: '#8e8a7c',
-};
-
-function drawTile(i: number, now: number) {
-  const t = W.tiles[i], x = OX + (i % MW) * TS, y = OY + Math.floor(i / MW) * TS, h = hash(i);
-  const base = t.t === 'grass' ? (h < 0.5 ? '#3d4a2c' : '#425030') : t.t === 'forest' ? '#2c3a22' : t.t === 'rock' ? '#4a4640' : '#26404a';
-  g.fillStyle = base; g.fillRect(x, y, TS, TS);
-  if (t.t === 'grass' && h > 0.82) { g.fillStyle = '#56653a'; g.fillRect(x + TS * h * 0.6, y + TS * 0.6, 2, 2); }
-  if (t.t === 'forest') {
-    g.fillStyle = '#1e2a17'; g.beginPath(); g.arc(x + TS * 0.35, y + TS * 0.45, TS * 0.28, 0, 7); g.arc(x + TS * 0.68, y + TS * 0.62, TS * 0.24, 0, 7); g.fill();
-  }
-  if (t.t === 'rock') { g.fillStyle = '#5c5750'; g.fillRect(x + TS * 0.2, y + TS * 0.3, TS * 0.35, TS * 0.25); g.fillStyle = '#3a3732'; g.fillRect(x + TS * 0.5, y + TS * 0.55, TS * 0.3, TS * 0.2); }
-  if (t.t === 'water') { g.strokeStyle = 'rgba(160,200,210,.25)'; g.beginPath(); const o = ((now / 900 + h) % 1) * TS; g.moveTo(x + o * 0.5, y + TS * 0.4); g.lineTo(x + o * 0.5 + TS * 0.3, y + TS * 0.4); g.stroke(); }
-  if (t.b === 'road') {
-    g.fillStyle = '#7d6748'; g.fillRect(x, y, TS, TS);
-    g.fillStyle = '#6c583b';
-    for (const n of nbrs(i)) if (W.tiles[n].b !== 'road' && n !== W.gate) {
-      const [ax, ay] = xy(i), [bx, by] = xy(n);
-      if (bx > ax) g.fillRect(x + TS - 2, y, 2, TS); if (bx < ax) g.fillRect(x, y, 2, TS);
-      if (by > ay) g.fillRect(x, y + TS - 2, TS, 2); if (by < ay) g.fillRect(x, y, TS, 2);
-    }
-    if (h > 0.7) { g.fillStyle = '#8f7853'; g.fillRect(x + TS * 0.3, y + TS * 0.4, 2, 2); }
-  }
-}
-
-function drawBuilding(i: number, now: number) {
-  const t = W.tiles[i]; if (!t.b || t.b === 'road') return;
-  const b0 = bornAt.get(i);
-  const pop = b0 != null ? Math.min(1, (now - b0) / 380) : 1;
-  const s = pop < 1 ? 1 + (1 - pop) * 0.9 : 1;
-  const yOff = pop < 1 ? -(1 - pop) * TS * 1.2 : 0;
-  const x = cx(i), y = cy(i) + yOff, w = TS * 0.86 * s;
-  const lit = liveSet.has(i);
-  g.globalAlpha = lit ? 1 : 0.45;
-  g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(x - w / 2 + 2, cy(i) - w / 2 + 3, w, w);
-  g.fillStyle = BCOL[t.b]; g.fillRect(x - w / 2, y - w / 2, w, w);
-  g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(x - w / 2, y - w / 2, w, w * 0.22);
-  if (t.b === 'casino') { g.fillStyle = (Math.floor(now / 400) % 2) ? '#e8c35a' : '#b4609a'; g.fillRect(x - w / 2, y + w / 2 - 3, w, 3); }
-  g.font = `${Math.floor(TS * 0.58 * s)}px serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillStyle = '#f3e6c8'; // 색 이모지 글꼴이 없는 기기에서도 보이게
-  g.fillText(BDEF[t.b].icon, x, y + 1);
-  g.globalAlpha = 1;
-  for (let n = 1; n < t.lv; n++) { g.fillStyle = '#d9b45a'; g.fillRect(x - w / 2 + 2 + (n - 1) * 5, y - w / 2 + 2, 3, 3); }
-  if (i === ui.sel) { g.strokeStyle = '#d9b45a'; g.lineWidth = 2; g.strokeRect(x - w / 2 - 2, cy(i) - w / 2 - 2, w + 4, w + 4); g.lineWidth = 1; }
-}
-const bornAt = new Map<number, number>();
-let liveSet = new Set<number>();
-
-function drawGate(now: number) {
-  const x = cx(W.gate), y = cy(W.gate), r = TS * 0.48;
-  const glow = 0.3 + 0.07 * W.delve + 0.2 * Math.sin(now / 500);
-  g.fillStyle = `rgba(194,72,61,${glow})`; g.beginPath(); g.arc(x, y + 2, r * 1.25, 0, 7); g.fill();
-  g.fillStyle = '#0b0807'; g.beginPath(); g.moveTo(x - r, y + r); g.lineTo(x - r, y - r * 0.1); g.arc(x, y - r * 0.1, r, Math.PI, 0); g.lineTo(x + r, y + r); g.fill();
-  g.strokeStyle = '#6a5f52'; g.lineWidth = 2; g.stroke(); g.lineWidth = 1;
-}
-
-function drawAgents(dt: number) {
-  const spd = 3.2 / Math.max(0.6, SPEEDS[speed] || 2.2); // 칸/초
-  for (const a of agents) {
-    if (speed === 0) { /* 멈춤 */ }
-    else if (a.wait > 0) a.wait -= dt;
-    else {
-      a.t += dt * spd;
-      while (a.t >= 1 && a.seg < a.path.length - 1) {
-        a.t -= 1; a.seg++;
-        if (a.seg === a.stopAt) { a.wait = 0.5 + fx() * 0.6; a.t = 0; break; }
-      }
-    }
-    const i0 = a.path[Math.min(a.seg, a.path.length - 1)], i1 = a.path[Math.min(a.seg + 1, a.path.length - 1)];
-    const k = Math.min(1, a.t);
-    const x = cx(i0) + (cx(i1) - cx(i0)) * k, y = cy(i0) + (cy(i1) - cy(i0)) * k;
-    const bob = Math.sin((a.seg + a.t) * Math.PI * 2) * TS * 0.04;
-    const r = Math.max(2, TS * 0.14);
-    g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.ellipse(x, y + r, r, r * 0.45, 0, 0, 7); g.fill();
-    g.fillStyle = `hsl(${a.hue} 55% 62%)`; g.beginPath(); g.arc(x, y - bob, r, 0, 7); g.fill();
-    if (a.back) { g.strokeStyle = '#d9b45a'; g.lineWidth = 1.5; g.stroke(); g.lineWidth = 1; }
-    g.fillStyle = '#e9dcc0'; g.fillRect(x - 1, y - bob - r - 2, 2, 2);
-  }
-  // 어귀에 닿으면 사라진다. 못 돌아올 이에게는 표시를 남긴다
-  agents = agents.filter(a => {
-    if (a.seg >= a.path.length - 1) { if (a.doom) floats.push({ x: cx(W.gate), y: cy(W.gate) - TS * 0.4, text: '✝', color: '#c2483d', t: 0 }); return false; }
-    return true;
-  });
-}
-
-function drawInspector() {
-  if (!W.audit) return;
-  const net = netOf(); const path = bfs(W.spawn, gateRoad(), net); if (!path.length) return;
-  const left = W.audit.due - W.day - acc / (SPEEDS[speed] || 1);
-  const p = 1 - Math.max(0, Math.min(1, left / L.AUDIT_LEAD));
-  const f = p * (path.length - 1) * 0.55, i0 = path[Math.floor(f)], i1 = path[Math.min(path.length - 1, Math.floor(f) + 1)], k = f % 1;
-  const x = cx(i0) + (cx(i1) - cx(i0)) * k, y = cy(i0) + (cy(i1) - cy(i0)) * k;
-  g.fillStyle = '#2b2a2e'; g.fillRect(x - TS * 0.45, y - TS * 0.32, TS * 0.9, TS * 0.5);
-  g.fillStyle = '#8a8792'; g.fillRect(x - TS * 0.45, y - TS * 0.32, TS * 0.9, TS * 0.1);
-  g.fillStyle = '#111'; g.beginPath(); g.arc(x - TS * 0.28, y + TS * 0.2, TS * 0.12, 0, 7); g.arc(x + TS * 0.28, y + TS * 0.2, TS * 0.12, 0, 7); g.fill();
-  g.font = `${Math.floor(TS * 0.36)}px "IBM Plex Sans KR"`; g.fillStyle = '#e9dcc0'; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillText('감사', x, y - TS * 0.07);
-}
-
-function drawHover() {
-  const i = ui.pending >= 0 ? ui.pending : ui.hover; if (i < 0 || !ui.tool) return;
-  const x = OX + (i % MW) * TS, y = OY + Math.floor(i / MW) * TS;
-  const bad = ui.tool === 'demolish' ? !(W.tiles[i].b && i !== W.spawn) : !!canBuild(W, i, ui.tool);
-  g.fillStyle = bad ? 'rgba(194,72,61,.35)' : 'rgba(127,163,107,.4)'; g.fillRect(x, y, TS, TS);
-  g.strokeStyle = bad ? '#c2483d' : '#b9e09c'; g.lineWidth = 2; g.strokeRect(x + 1, y + 1, TS - 2, TS - 2); g.lineWidth = 1;
-  if (ui.tool !== 'demolish' && ui.tool !== 'road' && !bad) { g.globalAlpha = 0.7; g.font = `${Math.floor(TS * 0.58)}px serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(BDEF[ui.tool].icon, x + TS / 2, y + TS / 2 + 1); g.globalAlpha = 1; }
-}
-
-function drawFx(dt: number) {
-  for (const d of dust) { d.t += dt; d.x += d.vx * dt; d.y += d.vy * dt; d.vy += 60 * dt; g.fillStyle = `rgba(200,180,140,${Math.max(0, 0.7 - d.t)})`; g.fillRect(d.x, d.y, 3, 3); }
-  dust = dust.filter(d => d.t < 0.7);
-  g.textAlign = 'center'; g.textBaseline = 'middle';
-  for (const f of floats) {
-    f.t += dt; g.globalAlpha = Math.max(0, 1 - f.t / 1.4);
-    g.font = `600 ${Math.max(10, Math.floor(TS * 0.42))}px "IBM Plex Mono"`;
-    g.fillStyle = '#0008'; g.fillText(f.text, f.x + 1, f.y - f.t * TS * 0.8 + 1);
-    g.fillStyle = f.color; g.fillText(f.text, f.x, f.y - f.t * TS * 0.8);
-  }
-  g.globalAlpha = 1; floats = floats.filter(f => f.t < 1.4);
-}
-
-function slam(i: number) {
-  bornAt.set(i, performance.now());
-  setTimeout(() => {
-    shake = 0.25;
-    for (let n = 0; n < 14; n++) dust.push({ x: cx(i), y: cy(i) + TS * 0.35, vx: (fx() - 0.5) * 140, vy: -fx() * 80, t: 0 });
-  }, 360);
-}
+let speed = 0, acc = 0; // 시작은 멈춤: 읽고 놓고 나서 ▶
+// sel: 칸 번호 · -1 없음 · -2 마을 · -5 미궁. slot: 카드를 놓으려고 고른 빈 칸
+const ui = { tab: 'park' as 'park' | 'ledger' | 'build', sel: -1, slot: -1, slam: -1 };
 
 let last = performance.now();
 function frame(now: number) {
   const dt = Math.min(0.1, (now - last) / 1000); last = now;
-  // 날 넘기기
   if (speed && !W.over) {
     acc += dt;
     while (acc >= SPEEDS[speed]) { acc -= SPEEDS[speed]; dayTick(); if (W.over) break; }
-    // 그날 손님을 하루에 흩어 내보낸다
-    const p = acc / SPEEDS[speed];
-    while (queue.length && queue[0].at <= p) spawnAgent(queue.shift()!.doom);
   }
-  g.setTransform(DPR, 0, 0, DPR, 0, 0);
-  g.fillStyle = '#14110d'; g.fillRect(0, 0, cv.width, cv.height);
-  if (shake > 0) { shake -= dt; g.translate((fx() - 0.5) * 6 * shake * 4, (fx() - 0.5) * 6 * shake * 4); }
-  for (let i = 0; i < MW * MH; i++) drawTile(i, now);
-  drawGate(now);
-  drawHover();
-  liveSet = new Set(live(W));
-  for (let i = 0; i < MW * MH; i++) drawBuilding(i, now);
-  drawAgents(speed ? dt : 0);
-  drawInspector();
-  drawFx(dt);
   requestAnimationFrame(frame);
 }
 
 function dayTick() {
   const nBooks = W.books.length;
-  const before = { clean: W.clean, black: W.black, rank: W.rank, notes: W.notes.length, top: W.notes[0] };
+  const before = { notes: W.notes.length, top: W.notes[0] };
   step(W);
-  const t = W.today;
-  queue = [];
-  const n = Math.min(t.visits, 24);
-  for (let k = 0; k < n; k++) queue.push({ at: k / Math.max(1, n), doom: k < Math.min(t.deaths, n) && fx() < 0.9 });
-  queue.sort((a, b) => a.at - b.at);
-  const alive = Math.min(W.back.n, 10);
-  for (let k = 0; k < alive; k++) setTimeout(spawnReturn, 150 + k * 260);
-  for (const [i, v] of Object.entries(t.byTile)) if (fx() < 0.55) floats.push({ x: cx(+i), y: cy(+i) - TS * 0.3, text: `+${v}`, color: '#d9b45a', t: fx() * 0.3 });
-  if (W.black - before.black > 0) floats.push({ x: OX + TS * 2.5, y: cy(W.spawn) - TS, text: `+${fmt(W.black - before.black)}`, color: '#b4609a', t: 0 });
   if (W.notes[0] !== before.top) flashNote();
   if (W.books.length > nBooks && !W.over) openBook(W.books[W.books.length - 1]);
   save();
-  renderBar();
-  if (ui.tab !== 'build' || W.day % 3 === 0) renderPanel();
+  renderBar(); renderBoard();
+  if (W.day % 2 === 0 || ui.tab !== 'build') renderPanel();
   if (W.over) renderOver();
 }
 
-// ── 지도 손 ─────────────────────────────────────────
-function tileAt(e: PointerEvent): number {
-  const r = cv.getBoundingClientRect(); const x = Math.floor((e.clientX - r.left - OX) / TS), y = Math.floor((e.clientY - r.top - OY) / TS);
-  return x >= 0 && y >= 0 && x < MW && y < MH ? idx(x, y) : -1;
-}
-cv.addEventListener('pointermove', e => { if (e.pointerType === 'mouse') { ui.hover = tileAt(e); if (!ui.tool) showTip(ui.hover, e); } });
-cv.addEventListener('pointerleave', () => { ui.hover = -1; hideTip(); });
-cv.addEventListener('pointerdown', e => {
-  const i = tileAt(e); if (i < 0) return;
-  if (!ui.tool) {
-    const t = W.tiles[i]; ui.sel = t.b && t.b !== 'road' ? i : -1;
-    if (ui.sel >= 0 || i === W.gate) ui.tab = 'park';
-    renderPanel(); if (ui.sel < 0) showTip(i, e, true); else hideTip(); return;
+// ── 영지 판 ─────────────────────────────────────────
+const TAGC: Record<string, string> = { 세탁: 'text-black', 체면: 'text-moss', 영업: 'text-clean' };
+const ART: Record<Kind, string> = { inn: '#4a3a28', tavern: '#4a2f2a', rental: '#3a3a3c', chapel: '#2e3a44', lodge: '#33412f', hospital: '#2d3b3a', casino: '#3d2a40', cathedral: '#3d3a2a', guild: '#3a3326', theater: '#44303a', auction: '#3d3322' };
+function boardHtml(): string {
+  const open = slotsOf(W), nextOpen = W.rank < RANKS.length - 1 ? L.SLOTS[W.rank + 1] : open;
+  const cards: string[] = [];
+  const dg = W.stat.hist.slice(-5), vday = dg.length ? Math.round(dg.reduce((a, d) => a + d.v, 0) / dg.length) : 0;
+  cards.push(`<button data-sel="-5" class="card fixed ${ui.sel === -5 ? 'on' : ''}"><div class="art" style="background:#2c3d33">⛰</div><div class="ttl"><b>미궁</b><i>${W.delve}층</i></div><div class="fx">전리품 <span class="text-clean">${Math.round(lootMean(W))}</span> · 사망 <span class="${deathRate(W) > 0.09 ? 'text-blood' : ''}">${Math.round(deathRate(W) * 100)}%</span></div><div class="st">하루 ${vday}명 입장</div></button>`);
+  cards.push(`<button data-sel="-2" class="card fixed ${ui.sel === -2 ? 'on' : ''}"><div class="art" style="background:#3a4a30">🏘</div><div class="ttl"><b>${TOWN[townStage(W)]}</b><i>${RANKS[W.rank]}</i></div><div class="fx">주민 <span class="text-paper">${popOf(W)}</span>명</div><div class="st">칸 ${live(W).length}/${open}</div></button>`);
+  for (let i = 0; i < Math.max(open, nextOpen); i++) {
+    const t = W.tiles[i];
+    if (i >= open) { cards.push(`<div class="slot lock"><b>🔒</b><small>${RANKS[W.rank + 1]} 승급 시</small></div>`); continue; }
+    if (!t.b) { cards.push(`<button data-slot="${i}" class="slot ${ui.slot === i ? 'on' : ''}"><b>＋ 카드 놓기</b><small>빈 칸</small></button>`); continue; }
+    const d = BDEF[t.b], ts = W.stat.tile[i], today = W.today.byTile[i] ?? 0;
+    const eff = d.cap ? `수용 ${capOf(W, i)}/일` : d.wash ? `세탁 한도 ${fmt(Math.round(d.wash * (1 + L.UP_CAP * (t.lv - 1))))}` : d.fx;
+    const gear = t.lv > 1 ? `<div class="gear">${Array.from({ length: t.lv - 1 }, () => '<b>▲</b>').join('')}</div>` : '';
+    cards.push(`<button data-sel="${i}" class="card lv${t.lv} ${ui.sel === i ? 'on' : ''} ${ui.slam === i ? 'slam' : ''}">${today && W.day > 0 ? `<span class="fl">+${today}</span>` : ''}<div class="art" style="background:${ART[t.b]}">${d.icon}</div><div class="ttl"><b>${d.name}</b><i>Lv${t.lv}</i></div><div class="fx">${eff}</div><div class="st">${ts ? `손님 ${fmt(ts.served)} · 누계 ${fmt(ts.rev)}` : '영업 전'}</div>${gear}</button>`);
   }
-  // 손가락은 한 번 눌러 자리를 보고, 같은 칸을 한 번 더 눌러 짓는다
-  if (e.pointerType !== 'mouse' && ui.pending !== i) { ui.pending = i; renderTool(); return; }
-  act(i);
-});
-function act(i: number) {
-  ui.pending = -1;
-  if (ui.tool === 'demolish') { if (demolish(W, i)) { shake = 0.15; save(); } }
-  else if (ui.tool) {
-    const k = ui.tool, why = canBuild(W, i, k);
-    if (why) { floats.push({ x: cx(i), y: cy(i), text: why, color: '#c2483d', t: 0 }); }
-    else { build(W, i, k); if (k !== 'road') slam(i); else shake = 0.05; floats.push({ x: cx(i), y: cy(i), text: `−${BDEF[k].cost}`, color: '#a79878', t: 0.2 }); save(); }
-  }
-  renderBar(); renderPanel(); renderTool();
+  ui.slam = -1;
+  return cards.join('');
 }
-function showTip(i: number, e: PointerEvent, pin = false) {
-  const tip = $('#tip'); if (i < 0) return hideTip();
-  const t = W.tiles[i]; let h = '';
-  if (i === W.gate) h = `<b class="font-serif">미궁 어귀</b><div class="text-dim mt-0.5">사망률 <span class="num">${Math.round(deathRate(W) * 100)}%</span></div>`;
-  else if (t.b && t.b !== 'road') {
-    const d = BDEF[t.b]; const on = live(W).includes(i);
-    h = `<b class="font-serif">${d.icon} ${d.name}</b>${on ? '' : ' <span class="text-blood">길 끊김</span>'}<div class="text-dim mt-0.5">${d.note}</div>` +
-      (W.stat.tile[i] ? `<div class="num text-clean mt-0.5">오늘 +${W.today.byTile[i] ?? 0} · 누계 ${fmt(W.stat.tile[i].rev)}</div><div class="num text-dim">손님 ${fmt(W.stat.tile[i].served)}명</div>` : '');
-  } else if (pin) return hideTip();
-  else return hideTip();
-  tip.innerHTML = h; tip.classList.remove('hidden');
-  const r = cv.getBoundingClientRect();
-  tip.style.left = `${Math.min(r.width - 230, e.clientX - r.left + 12)}px`; tip.style.top = `${Math.max(4, e.clientY - r.top - 50)}px`;
-  if (pin) setTimeout(hideTip, 2200);
-}
-function hideTip() { $('#tip').classList.add('hidden'); }
+function renderBoard() { $('#board').innerHTML = boardHtml(); }
 
 // ── 상단바 ──────────────────────────────────────────
 function renderBar() {
@@ -357,7 +117,7 @@ const LOOK_COL = ['text-moss', 'text-clean', 'text-[#e08a3c]', 'text-blood'];
 function ledgerHtml() {
   const p = preview(W), l = W.led, { d } = monthDay(W);
   const left = L.MONTH - d + 1;
-  const next = W.rank < 2 ? L.PROMOTE[W.rank] : 0;
+  const next = W.rank < RANKS.length - 1 ? L.PROMOTE[W.rank] : 0;
   const prog = next ? Math.min(100, (W.favor + p.bribe) / next * 100) : 100;
   const row = (name: string, real: string, rep: string, ctl = '', cls = '') => `
     <div class="grid grid-cols-[1fr_auto_auto] items-center gap-x-3 border-b border-[#cdbb95] py-1.5 ${cls}">
@@ -389,7 +149,7 @@ function ledgerHtml() {
     </div>
   </div>
   <div class="mt-3 rounded border border-line p-2.5">
-    <div class="flex items-baseline justify-between text-xs"><span class="text-dim">${W.rank < 2 ? RANKS[W.rank + 1] + ' 청원' : '대공'}</span><span class="num text-dim">${fmt(W.favor)}${next ? ' / ' + fmt(next) : ''}</span></div>
+    <div class="flex items-baseline justify-between text-xs"><span class="text-dim">${W.rank < RANKS.length - 1 ? RANKS[W.rank + 1] + ' 청원' : RANKS[W.rank]}</span><span class="num text-dim">${fmt(W.favor)}${next ? ' / ' + fmt(next) : ''}</span></div>
     <div class="mt-1.5 h-1.5 rounded bg-line overflow-hidden"><div class="h-full bg-clean" style="width:${prog}%"></div></div>
   </div>
   <div class="mt-3 grid grid-cols-3 gap-2 text-center text-[11px] text-dim">
@@ -400,14 +160,16 @@ function ledgerHtml() {
 }
 
 function buildHtml() {
+  const free = firstFree(W), target = ui.slot >= 0 && !W.tiles[ui.slot].b ? ui.slot : free;
   const cards = BUILD_ORDER.map(k => {
-    const d = BDEF[k], lock = d.rank > W.rank, poor = W.clean < d.cost, on = ui.tool === k;
-    const tagc = d.tag === '세탁' ? 'text-black border-black/50' : d.tag === '체면' ? 'text-moss border-moss/50' : d.tag === '영업' ? 'text-clean border-clean/50' : 'text-dim border-line';
-    return `<button data-tool="${k}" ${lock ? 'disabled' : ''} class="relative text-left rounded border ${on ? 'border-clean bg-felt ring-1 ring-clean' : 'border-line hover:bg-felt'} p-2 ${lock ? 'opacity-40' : ''}">
-      <div class="flex items-center justify-between"><span class="text-lg leading-none">${d.icon || '▦'}</span><span class="rounded border px-1 text-[10px] ${tagc}">${d.tag}</span></div>
-      <div class="mt-1 font-serif text-sm">${d.name}</div>
-      <div class="num text-xs ${poor ? 'text-blood' : 'text-clean'}">${fmt(d.cost)}</div>
-      <div class="text-[10px] text-dim">${lock ? RANKS[d.rank] + ' 이상' : `${count(W, k, false) ? '보유 ' + count(W, k, false) : '&nbsp;'}`}</div>
+    const d = BDEF[k], why = target < 0 ? '빈 칸 없음' : canBuild(W, target, k), own = count(W, k);
+    const lock = d.rank > W.rank, poor = W.clean < d.cost;
+    const tagc = TAGC[d.tag] ?? 'text-dim';
+    return `<button data-place="${k}" ${why ? 'disabled' : ''} class="text-left rounded border border-line ${why ? 'opacity-45' : 'hover:bg-felt'} p-2">
+      <div class="flex items-center justify-between"><span class="text-lg leading-none">${d.icon}</span><span class="text-[10px] ${tagc}">${d.tag}</span></div>
+      <div class="mt-1 font-serif text-sm">${d.name} <span class="num text-[11px] text-dim">${own}/${d.max}</span></div>
+      <div class="num text-xs ${poor && !lock ? 'text-blood' : 'text-clean'}">${fmt(d.cost)} <span class="text-dim">· 유지 ${d.upkeep}</span></div>
+      <div class="text-[10px] text-dim">${lock ? RANKS[d.rank] + ' 이상' : d.fx}</div>
     </button>`;
   }).join('');
   const wash = (k: 'casino' | 'cathedral') => {
@@ -422,8 +184,8 @@ function buildHtml() {
     </div>`;
   };
   return `
-  <div class="flex items-baseline justify-between mb-2"><h2 class="font-serif text-base">건축</h2>
-    <button data-tool="demolish" class="rounded border px-2 py-0.5 text-xs ${ui.tool === 'demolish' ? 'border-blood text-blood' : 'border-line text-dim'}">철거</button></div>
+  <div class="flex items-baseline justify-between mb-2"><h2 class="font-serif text-base">카드 놓기</h2>
+    <span class="text-[11px] text-dim">${firstFree(W) < 0 ? '빈 칸 없음 · 카드를 내려야 한다' : ui.slot >= 0 ? `${ui.slot + 1}번 칸에 놓는다` : '빈 칸 ' + (slotsOf(W) - live(W).length) + '개'}</span></div>
   <div class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-3 gap-2">${cards}</div>
   <h2 class="font-serif text-base mt-4 mb-2">세탁소</h2>
   <div class="space-y-2">${wash('casino')}${wash('cathedral')}</div>
@@ -437,12 +199,22 @@ function spark(vals: number[], color: string, h = 44) {
     <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.8" vector-effect="non-scaling-stroke"/>
   </svg>`;
 }
+function townHtml() {
+  const st = townStage(W), j = jobsOf(W), sc = townScore(W), next = TOWN_AT[st + 1];
+  const pct = next ? Math.max(0, Math.min(100, (sc - TOWN_AT[st]) / (next - TOWN_AT[st]) * 100)) : 100;
+  const chip = (n: string, v: number, c: string) => `<div class="rounded border border-line py-1 text-center"><div class="text-[11px] text-dim">${n}</div><div class="num text-sm ${c}">${v}</div></div>`;
+  return `<div class="rounded border ${ui.sel === -2 ? 'border-clean/60' : 'border-line'} bg-felt/60 p-2.5">
+    <div class="flex items-baseline justify-between"><span class="font-serif text-sm">🏘 ${TOWN[st]}</span><span class="text-[11px] text-dim">주민 <span class="num text-paper">${j.pop}</span> · 마을세 <span class="num text-clean">+${Math.round(j.pop * L.TOWN_TAX * L.MONTH)}</span>/달</span></div>
+    <div class="mt-2 grid grid-cols-4 gap-1.5">${chip('농부', j.farm, 'text-moss')}${chip('장사', j.trade, 'text-paper')}${chip('숙박', j.inn, 'text-paper')}${chip('안내', j.guide, 'text-clean')}</div>
+    <div class="mt-2 flex items-center gap-2 text-[11px] text-dim"><span>${next ? TOWN[st + 1] : '더 클 곳이 없다'}</span><div class="h-1.5 flex-1 rounded bg-line overflow-hidden"><div class="h-full bg-clean" style="width:${pct}%"></div></div></div>
+  </div>`;
+}
 function selHtml() {
-  const i = ui.sel; if (i < 0 || !W.tiles[i].b || W.tiles[i].b === 'road') return '';
-  const t = W.tiles[i], d = BDEF[t.b!], ts = W.stat.tile[i], on = live(W).includes(i), c = upCost(W, i);
+  const i = ui.sel; if (i < 0 || !W.tiles[i].b) return '';
+  const t = W.tiles[i], d = BDEF[t.b!], ts = W.stat.tile[i], c = upCost(W, i);
   const eff = d.cap ? `수용 <span class="num text-paper">${capOf(W, i)}</span>/일` : d.wash ? `세탁 한도 <span class="num text-paper">${fmt(Math.round(d.wash * (1 + L.UP_CAP * (t.lv - 1))))}</span>/달` : '';
   return `<div class="rounded border border-clean/60 bg-felt p-2.5">
-    <div class="flex items-center justify-between"><span class="font-serif text-sm">${d.icon} ${d.name} <span class="num text-clean text-xs">${'▲'.repeat(t.lv - 1) || '1단계'}</span>${on ? '' : ' <span class="text-blood text-xs">길 끊김</span>'}</span>
+    <div class="flex items-center justify-between"><span class="font-serif text-sm">${d.icon} ${d.name} <span class="num text-clean text-xs">${'▲'.repeat(t.lv - 1) || '1단계'}</span></span>
       <button data-act="del" class="text-[11px] text-dim hover:text-blood">철거</button></div>
     <div class="mt-1 flex flex-wrap gap-x-4 text-[11px] text-dim">${eff}${ts ? `<span>손님 <span class="num text-paper">${fmt(ts.served)}</span></span><span>누계 <span class="num text-clean">${fmt(ts.rev)}</span></span>` : ''}</div>
     ${c ? `<button data-act="up" class="mt-2 w-full rounded border ${W.clean >= c ? 'border-clean text-clean hover:bg-clean/10' : 'border-line text-dim'} py-1.5 text-sm">업그레이드 <span class="num">${fmt(c)}</span></button>` : `<div class="mt-2 text-[11px] text-dim">${t.lv >= L.UP_MAX ? '최고 단계' : ''}</div>`}
@@ -453,10 +225,34 @@ function delveHtml() {
   const surv = n ? Math.round((1 - d / n) * 100) : 100, avg = n - d > 0 ? Math.round(l / (n - d)) : Math.round(lootMean(W));
   const c = delveCost(W), back = h.length ? Math.round(h.reduce((a, x) => a + x.b, 0) / h.length * 10) / 10 : 0;
   const cell = (t: string, v: string, col = 'text-paper') => `<div class="rounded border border-line py-1.5 text-center"><div class="text-[11px] text-dim">${t}</div><div class="num text-sm ${col}">${v}</div></div>`;
-  return `<div class="rounded border ${ui.sel === W.gate ? 'border-clean/60' : 'border-line'} bg-felt/60 p-2.5">
+  return `<div class="rounded border ${ui.sel === -5 ? 'border-clean/60' : 'border-line'} bg-felt/60 p-2.5">
     <div class="flex items-baseline justify-between"><span class="font-serif text-sm">🕳 미궁 <span class="num text-clean text-xs">${W.delve}층</span></span><span class="text-[11px] text-dim">재방문 <span class="num text-paper">${back}</span>명/일</span></div>
     <div class="mt-2 grid grid-cols-3 gap-2">${cell('생환율', surv + '%', surv < 85 ? 'text-blood' : 'text-paper')}${cell('전리품', avg + '/명', 'text-clean')}${cell('최근 열흘', fmt(l), 'text-clean')}</div>
     ${c ? `<button data-act="delve" class="mt-2 w-full rounded border ${W.clean >= c ? 'border-clean text-clean hover:bg-clean/10' : 'border-line text-dim'} py-1.5 text-sm">${W.delve + 1}층 개척 <span class="num">${fmt(c)}</span></button>` : '<div class="mt-2 text-[11px] text-dim">가장 깊은 층까지 열렸다</div>'}
+  </div>`;
+}
+// 월별 손익 막대(위로 +, 아래로 −)와 금고 · 비자금 꺾은선
+function trendHtml() {
+  const bs = W.books;
+  if (!bs.length) return `<div class="rounded border border-dashed border-line p-3 text-center text-xs text-dim">첫 결산이 나오면 월별 추이가 그려진다</div>`;
+  const slots = Math.max(6, L.TERM), w = 300, h = 74, mid = h / 2, bw = w / slots;
+  const mx = Math.max(1, ...bs.map(b => Math.abs(b.net)));
+  const bars = bs.map((b, i) => {
+    const bh = Math.max(1.5, Math.abs(b.net) / mx * (mid - 6)), x = i * bw + bw * 0.18, y = b.net >= 0 ? mid - bh : mid;
+    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${(bw * 0.64).toFixed(1)}" height="${bh.toFixed(1)}" rx="1" fill="${b.net >= 0 ? '#d9b45a' : '#c2483d'}"/>`;
+  }).join('');
+  const ticks = bs.map((b, i) => (b.m % 3 === 0 || i === bs.length - 1) ? `<text x="${(i * bw + bw / 2).toFixed(1)}" y="${h + 10}" text-anchor="middle" font-size="8" fill="#a79878" font-family="IBM Plex Mono">${b.m}</text>` : '').join('');
+  const last = bs[bs.length - 1], sum = bs.reduce((a, b) => a + b.net, 0);
+  const lh = 50, ly = (v: number, top: number) => (lh - 4 - (v / top) * (lh - 10)).toFixed(1);
+  const top = Math.max(1, ...bs.map(b => Math.max(b.to, b.black ?? 0)));
+  const line = (f: (b: Book) => number, col: string) => bs.length < 2 ? '' : `<polyline fill="none" stroke="${col}" stroke-width="1.8" vector-effect="non-scaling-stroke" points="${bs.map((b, i) => `${(i * bw + bw / 2).toFixed(1)},${ly(f(b), top)}`).join(' ')}"/>`;
+  const dot = (f: (b: Book) => number, col: string) => `<circle cx="${((bs.length - 1) * bw + bw / 2).toFixed(1)}" cy="${ly(f(last), top)}" r="2.6" fill="${col}"/>`;
+  return `<div class="rounded border border-line p-2">
+    <div class="flex items-baseline justify-between text-[11px] text-dim"><span>월 손익</span><span class="num ${sum >= 0 ? 'text-clean' : 'text-blood'}">누계 ${sum >= 0 ? '+' : '−'}${fmt(Math.abs(sum))}</span></div>
+    <svg viewBox="0 0 ${w} ${h + 12}" class="w-full" style="height:${h + 12}px" preserveAspectRatio="none" aria-label="월별 손익">
+      <line x1="0" x2="${w}" y1="${mid}" y2="${mid}" stroke="#3a3226" stroke-width="1"/>${bars}${ticks}</svg>
+    <div class="mt-2 flex items-center gap-3 text-[11px] text-dim"><span><i class="inline-block h-0.5 w-3 align-middle bg-clean"></i> 금고 <span class="num text-clean">${fmt(last.to)}</span></span><span><i class="inline-block h-0.5 w-3 align-middle bg-black"></i> 비자금 <span class="num text-black">${fmt(last.black ?? 0)}</span></span></div>
+    <svg viewBox="0 0 ${w} ${lh}" class="w-full" style="height:${lh}px" preserveAspectRatio="none" aria-label="금고와 비자금">${line(b => b.to, '#d9b45a')}${line(b => b.black ?? 0, '#b4609a')}${dot(b => b.to, '#d9b45a')}${dot(b => b.black ?? 0, '#b4609a')}</svg>
   </div>`;
 }
 function parkHtml() {
@@ -466,11 +262,10 @@ function parkHtml() {
   const stars = Math.max(0, Math.min(5, Math.round((W.rep - 0.5) / 0.9 * 5)));
   const sat = h.slice(-10).length ? Math.round(sum(h.slice(-10), d => d.s) / h.slice(-10).length) : 0;
   const kpi = (l: string, v: string, c = 'text-paper') => `<div class="rounded border border-line py-1.5 text-center"><div class="text-[11px] text-dim">${l}</div><div class="num text-sm ${c}">${v}</div></div>`;
-  const KN: Partial<Record<Kind, string>> = { inn: '여관', tavern: '선술집', rental: '장비 대여소', casino: '카지노' };
-  const rows: string[] = [];
+    const rows: string[] = [];
   rows.push(`<tr class="border-b border-line/60"><td class="py-1.5">🎫 입장료</td><td class="num text-right">${fmt(st.visits)}</td><td class="num text-right text-clean">${fmt(st.fee)}</td><td></td></tr>`);
   for (const k of PRICED) {
-    const ks = st.kind[k], own = count(W, k, false), lv = count(W, k);
+    const ks = st.kind[k], own = count(W, k), lv = count(W, k);
     if (!ks && !own) continue;
     const cap = live(W).filter(i => W.tiles[i].b === k).reduce((a, i) => a + capOf(W, i), 0);
     const use = cap && W.today.visits ? Math.min(100, Math.round(Math.min(cap, W.today.visits * (wantOf(W.price[k]))) / cap * 100)) : 0;
@@ -481,16 +276,18 @@ function parkHtml() {
     return `<div class="flex items-center gap-2 rounded border ${c} px-2 py-1.5"><span class="num text-[11px]">${'●'.repeat(n.sev)}</span><div class="flex-1"><div class="text-[13px] text-paper">${n.what}</div>${n.hint ? `<div class="text-[11px] text-dim">${n.hint}</div>` : ''}</div>${n.kind ? `<button data-pick="${n.kind}" class="rounded border border-line px-2 py-0.5 text-[11px] text-paper hover:bg-felt">${BDEF[n.kind].name} 짓기</button>` : ''}</div>`;
   }).join('');
   const best = Object.entries(st.tile).sort((a, b) => b[1].rev - a[1].rev).slice(0, 3).filter(e => e[1].rev > 0);
-  return `${selHtml()}${selHtml() ? '<div class="h-3"></div>' : ''}${delveHtml()}
+  return `${selHtml()}${selHtml() ? '<div class="h-3"></div>' : ''}${townHtml()}<div class="h-3"></div>${delveHtml()}
   <div class="grid grid-cols-3 gap-2 mt-3">
     ${kpi('오늘 입장객', W.today.visits + '명')}${kpi('최근 30일', fmt(mV) + '명')}${kpi('누적', fmt(st.visits) + '명')}
-    ${kpi('평판', '★'.repeat(stars) + '☆'.repeat(5 - stars), 'text-clean')}${kpi('사망률', Math.round(deathRate(W) * 100) + '%', deathRate(W) > 0.09 ? 'text-blood' : 'text-paper')}${kpi('손님 만족', sat + '점', sat < 55 ? 'text-blood' : 'text-paper')}
+    ${kpi('평판', '★'.repeat(stars) + '☆'.repeat(5 - stars), 'text-clean')}${kpi('사망률', Math.round(deathRate(W) * 100) + '%', deathRate(W) > 0.09 ? 'text-blood' : 'text-paper')}${kpi('손님 만족', h.length ? sat + '점' : '–', h.length && sat < 55 ? 'text-blood' : 'text-paper')}
   </div>
   <h2 class="font-serif text-base mt-4 mb-1">입장객 · 매상 <span class="text-[11px] text-dim">최근 30일</span></h2>
   <div class="rounded border border-line p-2">
     <div class="flex items-baseline justify-between text-[11px] text-dim"><span>입장객</span><span class="num text-paper">${fmt(mV)}</span></div>${spark(last30.map(d => d.v), '#7fa36b')}
     <div class="mt-1 flex items-baseline justify-between text-[11px] text-dim"><span>매상</span><span class="num text-clean">${fmt(mR)}</span></div>${spark(last30.map(d => d.r), '#d9b45a')}
   </div>
+  <h2 class="font-serif text-base mt-4 mb-1">월별 추이</h2>
+  ${trendHtml()}
   <h2 class="font-serif text-base mt-4 mb-1">수입원</h2>
   <table class="w-full text-[13px]"><thead><tr class="text-[11px] text-dim"><th class="text-left font-normal"></th><th class="text-right font-normal">손님</th><th class="text-right font-normal">매상</th><th class="text-right font-normal">요금</th></tr></thead><tbody>${rows.join('')}</tbody>
   <tfoot><tr><td class="pt-1.5 text-dim">유지비 누계</td><td></td><td class="num text-right text-blood pt-1.5">−${fmt(st.upkeep)}</td><td></td></tr></tfoot></table>
@@ -511,7 +308,7 @@ function openBook(b: Book) {
   if (speed) resume = speed;
   const prev = W.books.length > 1 ? W.books[W.books.length - 2] : null;
   const rows: [string, number, string?][] = [];
-  const inc: [string, number][] = [['입장료', b.fee], ...(['inn', 'tavern', 'rental', 'casino'] as Kind[]).filter(k => b.sales[k]).map(k => [BDEF[k].icon + ' ' + BDEF[k].name, b.sales[k]!] as [string, number]), ['개척 보조금', b.subsidy], ['세탁 유입', b.wash]];
+  const inc: [string, number][] = [['입장료', b.fee], ...(PRICED as readonly Kind[]).filter(k => b.sales[k]).map(k => [BDEF[k].icon + ' ' + BDEF[k].name, b.sales[k]!] as [string, number]), ['개척 보조금', b.subsidy], ['세탁 유입', b.wash]];
   const out: [string, number][] = [['시설 유지비', b.upkeep], ['월 예산', b.budget], ['건축 · 업그레이드', b.capex], ['제국 세금', b.tax], ['상납', b.bribe], ['비자금으로 빠짐', b.toBlack]];
   void rows;
   const sI = inc.reduce((a, [, v]) => a + v, 0), sO = out.reduce((a, [, v]) => a + v, 0);
@@ -543,13 +340,6 @@ function renderPanel() {
   p.innerHTML = ui.tab === 'park' ? parkHtml() : ui.tab === 'ledger' ? ledgerHtml() : buildHtml();
   p.scrollTop = top;
 }
-function renderTool() {
-  const t = $('#tool');
-  if (!ui.tool) { t.innerHTML = ''; return; }
-  const name = ui.tool === 'demolish' ? '철거' : `${BDEF[ui.tool].icon} ${BDEF[ui.tool].name}`;
-  const hint = ui.pending >= 0 ? (ui.tool === 'demolish' ? '한 번 더 눌러 철거' : (canBuild(W, ui.pending, ui.tool) ?? '한 번 더 눌러 착공')) : (ui.tool === 'road' ? '길에 잇닿은 칸' : ui.tool === 'demolish' ? '건물' : '길 옆 칸');
-  t.innerHTML = `<div class="flex items-center gap-2 rounded border border-clean/60 bg-desk/95 px-2 py-1"><span class="font-serif">${name}</span><span class="text-dim">${hint}</span><button data-tool="off" class="ml-1 text-dim hover:text-paper" aria-label="그만">✕</button></div>`;
-}
 function flashNote() {
   const n = W.notes[0]; const el = $('#ticker');
   const col = n.kind === 'bad' ? 'border-blood/70' : n.kind === 'warn' ? 'border-[#e08a3c]/70' : n.kind === 'good' ? 'border-clean/70' : 'border-line';
@@ -561,7 +351,7 @@ function flashNote() {
 function renderOver() {
   const o = $('#over'); o.classList.remove('hidden');
   const T: Record<string, [string, string]> = {
-    duke: ['대공', '수도의 연회장, 새 대공의 잔이 가장 먼저 채워졌다. 변방의 진흙길은 그 잔 속 어디에도 비치지 않았다.'],
+    duke: ['공작', '수도의 연회장, 새 대공의 잔이 가장 먼저 채워졌다. 변방의 진흙길은 그 잔 속 어디에도 비치지 않았다.'],
     arrest: ['체포', '인장은 회수되었다. 두 권의 장부는 이제 한 권이 되어, 법정의 탁자 위에 놓인다.'],
     bankrupt: ['파산', '빚쟁이들의 장부가 영주의 장부보다 두꺼워졌다. 변방은 다음 이름을 기다린다.'],
     term: [RANKS[W.rank], '임기는 끝났고 관은 끝내 내려오지 않았다. 떠나는 마차의 짐이 무거운 것만은 아무도 묻지 않았다.'],
@@ -609,30 +399,32 @@ document.addEventListener('click', e => {
   if (act === 'book' && W.books.length) { resume = speed || resume; openBook(W.books[W.books.length - 1]); return; }
   if (act === 'up' && ui.sel >= 0) {
     const why = upgrade(W, ui.sel);
-    if (why) floats.push({ x: cx(ui.sel), y: cy(ui.sel), text: why, color: '#c2483d', t: 0 });
-    else { slam(ui.sel); floats.push({ x: cx(ui.sel), y: cy(ui.sel), text: '▲', color: '#d9b45a', t: 0 }); save(); }
-    renderBar(); renderPanel(); return;
+    if (!why) { ui.slam = ui.sel; save(); }
+    renderBar(); renderBoard(); renderPanel(); return;
   }
-  if (act === 'delve') {
-    const why = delveUp(W);
-    if (why) floats.push({ x: cx(W.gate), y: cy(W.gate), text: why, color: '#c2483d', t: 0 });
-    else { shake = 0.5; for (let n = 0; n < 24; n++) dust.push({ x: cx(W.gate), y: cy(W.gate), vx: (fx() - 0.5) * 220, vy: -fx() * 120, t: 0 }); floats.push({ x: cx(W.gate), y: cy(W.gate), text: `${W.delve}층`, color: '#d9b45a', t: 0 }); save(); }
-    renderBar(); renderPanel(); return;
+  if (act === 'delve') { if (!delveUp(W)) save(); renderBar(); renderBoard(); renderPanel(); return; }
+  if (act === 'del' && ui.sel >= 0) { demolish(W, ui.sel); ui.slot = ui.sel; ui.sel = -1; save(); renderBar(); renderBoard(); renderPanel(); return; }
+  const place = el.closest<HTMLElement>('[data-place]');
+  if (place) {
+    const k = place.dataset.place as Kind, at = ui.slot >= 0 && !W.tiles[ui.slot].b ? ui.slot : firstFree(W);
+    if (at >= 0 && build(W, at, k)) { ui.slam = at; ui.sel = at; ui.slot = -1; ui.tab = 'park'; save(); renderBar(); renderBoard(); renderPanel(); }
+    return;
   }
-  if (act === 'del' && ui.sel >= 0) { demolish(W, ui.sel); ui.sel = -1; shake = 0.15; save(); renderBar(); renderPanel(); return; }
+  const slot = el.closest<HTMLElement>('[data-slot]');
+  if (slot) { ui.slot = +slot.dataset.slot!; ui.sel = -1; ui.tab = 'build'; renderBoard(); renderPanel(); return; }
+  const sel = el.closest<HTMLElement>('[data-sel]');
+  if (sel) { ui.sel = +sel.dataset.sel!; ui.slot = -1; ui.tab = 'park'; renderBoard(); renderPanel(); return; }
   const pick = el.closest<HTMLElement>('[data-pick]');
-  if (pick) { ui.tool = pick.dataset.pick as Kind; ui.pending = -1; ui.tab = 'build'; renderTool(); renderPanel(); return; }
-  const tool = el.closest<HTMLElement>('[data-tool]');
-  if (tool) { const k = tool.dataset.tool!; ui.tool = k === 'off' || ui.tool === k ? null : k as any; ui.pending = -1; hideTip(); renderTool(); if (ui.tab === 'build') renderPanel(); return; }
+  if (pick) { ui.tab = 'build'; renderPanel(); return; }
   if (el.closest('[data-act="new"]')) { $('#over').classList.add('hidden'); fresh(); renderAll(); }
 });
 document.addEventListener('keydown', e => {
   if (e.key === ' ') { speed = speed ? 0 : 1; renderBar(); e.preventDefault(); }
-  if (e.key === 'Escape') { ui.tool = null; ui.pending = -1; renderTool(); renderPanel(); }
+  if (e.key === 'Escape') { ui.slot = -1; ui.sel = -1; renderBoard(); renderPanel(); }
 });
 
-function renderAll() { renderBar(); renderPanel(); renderTool(); flashNote(); if (W.over) renderOver(); }
-fit(); renderAll();
+function renderAll() { renderBar(); renderBoard(); renderPanel(); flashNote(); if (W.over) renderOver(); }
+renderAll();
 requestAnimationFrame(frame);
 // 개발 확인용 손잡이
 (window as any).LB = { get W() { return W; }, step: () => dayTick(), fresh: () => { fresh(); renderAll(); }, ui };
