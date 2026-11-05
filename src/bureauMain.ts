@@ -9,9 +9,11 @@ import { type BuUi, type DocKind, DESK_STANDS, DISP0, DRAFT0, dispHtml, svOf, ty
 import { mapHtml, minisOf, paintWash, terrainSvg } from './ui/bureau/map';
 import { type Desk, makeDesk } from './ui/bureau/desk';
 import { playOpening } from './ui/bureau/opening';
+import { verText } from './bureau/version';
 
 const $ = (id: string) => document.getElementById(id)!;
-const KEY = 'lb-bureau', VERSION = 20;
+document.querySelectorAll('[data-ver]').forEach(e => { e.textContent = verText(); });
+const KEY = 'lb-bureau', VERSION = 21;
 let W: World, ui: BuUi, seed = 0, desk: Desk | null = null, cutOn = false;
 // 설정 창의 새 임기 확인 단계(저장하지 않는다)
 let resetAsk = false;
