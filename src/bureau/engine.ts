@@ -34,9 +34,9 @@ export const B = {
   REC_LURE: 1, REC_FAV: 1 / 50,           // 출입 기록 제출: 서류가 귀찮아 덜 끌림 · 정보를 꺼리는 길드(info 15)가 하루에 잃는 호감
   COMFORT_HALF: 60, COMFORT_FAV: 1 / 6000, // 위로금: 이 값(G)이면 사고가 남기는 꺼림이 반 · 안전을 보는 길드(safe 3)가 G당 하루에 얻는 호감
   SUB_FAV: 1 / 4000,                      // 보조금 G당 돈을 보는 길드(cash 0.8)가 하루에 얻는 호감
-  // 집무실: 입지 단계(이 입지에 닿으면 오름, 내려가지 않음). 단계가 오를 때마다 서기 한 명을 들일 수 있다. 서기 수 = 한꺼번에 내놓는 서류 수
+  // 집무실: 명성 단계(이 명성에 닿으면 오름, 내려가지 않음). 단계가 오를 때마다 서기 한 명을 들일 수 있다. 서기 수 = 한꺼번에 내놓는 서류 수
   STAND_LV: [0, 30, 45, 60, 75], LETTER_LV: 2,
-  // 관리국 부서: 단계마다 공사비(한 번) · 늘어난 사람의 달 급료. 다음 단계는 입지 단계가 그 단계 이상일 때 연다
+  // 관리국 부서: 단계마다 공사비(한 번) · 늘어난 사람의 달 급료. 다음 단계는 명성 단계가 그 단계 이상일 때 연다
   //   서기실: 서기 +1(한꺼번에 낼 서류) · 사신실: 사신 +2 · 기록실: 미궁 보고가 하루씩 덜 늦다
   DEPT: {
     clerk: { cost: [300, 600, 1000, 1500], pay: 40 },
@@ -47,7 +47,7 @@ export const B = {
   LETTER_DAYS: 2, LETTER_AT: 50,
   // 공고문은 신문에 실려 퍼진다: 관리국에서 길드 본부까지 걸리는 날만큼(hqOf) 뒤에 그 길드에 걸린다
   // 첫 요구서(중앙 행정원): 왕국군이 눌러 두고 있는 폐광을 넘겨받아라. 길드 조가 하루 min조 이상 need일 이어 들면 군이 물러나고(인계)
-  // 예산 · 입지를 준다. 군이 버티는 동안 중앙의 인내가 모자란 조만큼 줄고(pat), 바닥나면 인계 없이 물러난다(입지를 깎는다).
+  // 예산 · 명성를 준다. 군이 버티는 동안 중앙의 인내가 모자란 조만큼 줄고(pat), 바닥나면 인계 없이 물러난다(명성를 깎는다).
   // 군은 주둔하는 동안 하루 clear만큼 마물 수를 누른다(오르는 만큼). fear: 범람이 남긴 꺼림
   ORDER: { dg: 0, min: 12, need: 3, pat: 100, drain: 1, clear: 1.25, fear: 30, pay: 1000, stand: 12, fail: 5 },
   // 사신(파견서): 관리국의 사신 crew명을 미궁이나 길드 본부에 보낸다. 관리국에서 걸어가고(svWay) 정한 날만큼 머물다 걸어 돌아온다.
@@ -67,6 +67,14 @@ export const B = {
   // 비축 매입(상단 제안서): 관리국이 창고에서 하루 v짐을 시세로 사 들인다(짐마다 buyG × 시세 G). 국장은 시세를 모르고, 사신이 창고 장부를 읽어야 안다.
   // 신문은 시세가 news[0] 밑으로 꺾일 때 한 번, news[1] 위로 돌아올 때 한 번만 쓴다(문턱)
   MKT: { lag: 4, dem: 135, hold: 20, k: 0.7, every: 5, step: 0.4, lo: 0.45, hi: 1.05, el: 0.8, full: 1.6, dump: 0.04, buyG: 6, news: [0.75, 0.92] as [number, number] },
+  // 출입 허가제(2026-11-05): 미궁 출입은 국장의 허락이다. 길드는 바라는 조 수가 허가보다 많으면 신청서(Ask 'permit')를 내고, 국장이 허락 조 수를 숫자로 정한다.
+  //   허가가 모자란 몫 중 leak만큼은 몰래 들어간다(입장료 · 보조금을 받지 못하고 탐사로도 치지 않는다). 검문소가 있으면 그 몫을 막고 되돌린 수를 센다.
+  //   신청은 바라는 조 수가 허가의 ratio배 + 반 조를 넘을 때만, 여유로 pad배를 청한다. 같은 길드 · 미궁은 cool일에 한 번, due일 안에 답하지 않으면 지금 허가 그대로다. 처음 허가는 몸집 × init(폐광은 0)
+  PERMIT: { due: 4, cool: 3, ratio: 1.15, pad: 2, leak: 0.5, fav: 4, init: 0.45 },
+  // 검문소: 미궁 어귀에 짓는다. 공사비(한 번) + 달 급료. 허가 밖 조를 막고 되돌린 수를 센다
+  GATE: { cost: 400, pay: 30 },
+  // 탐사 = 허가받은 조의 든 날이 len만큼 쌓일 때마다 한 번. 그동안 죽음이 deadOk에 닿지 않을수록 성공(0 ~ 1)이고, 성공마다 명성이 gain × (0.5 + 마물 수 / 100)만큼 쌓인다
+  EXP: { len: 40, deadOk: 0.5, gain: 0.3 },
   UPKEEP: 0.9, GROW: 120, GROW_COST: 100, SHRINK: -80, SIZE_MIN: 2,
   // 길드 일곱: 큰 길드 둘과 작은 길드 다섯. 몸집(조 · 금고 · 소재 값 · 조 유지비 · 미궁마다 처음 든 조)과
   // 성격(돈 · 안전 · 정보 · 권리에 반응하는 결, 공고 기한을 읽는 법, 본부까지 날)이 길드마다 다르다. GUILD_DEF 아래
@@ -78,8 +86,8 @@ export const B = {
   NOTICE: 50, CHECK_K: 0.02, CHECK_FADE: 0.98, // B3: 영향력이 이보다 크면 견제가 쌓인다 (쌓이는 끝 = 넘친 만큼)
   CHECK_TAX: 0.02, CHECK_RALLY: 0.03,     // 견제 1당 그 길드의 세금 · 다른 길드의 몫 무게(결집)
   CHECK_ON: 5,                            // 이 위면 견제가 켜졌다고 센다
-  GRANT: 1000, GRANT_K: 20,               // 달마다 중앙의 배정 = 1000 + 입지 × 20
-  FAV_BACK: 0.01, STAND_FLOOD: 18, STAND_POL: 1 / 30000, STAND_OUT: 0.1, // 입지: 범람마다 깎임 · 영향력 × 호감 · 물량
+  GRANT: 1000, GRANT_K: 20,               // 달마다 중앙의 배정 = 1000 + 명성 × 20
+  FAV_BACK: 0.01, STAND_FLOOD: 18, // 명성: 범람마다 깎임 (쌓이는 길은 탐사 성공, EXP)
   // 1단계: 세력 사이(-100 ~ 100) · 신세
   CLASH_K: 0.16, CLASH_REL: 1.5, CLASH_DEAD: 0.05, CLASH_OUT: 0.1, // R4: 겹친 조 하나당 다툼 · 다툼 하나에 사이 · 죽음 · 덜 캐는 몫
   REL_FADE: 0.003,                        // 세력 사이가 0쪽으로 돌아가는 몫 (아주 천천히)
@@ -145,7 +153,7 @@ const REL0: Partial<Record<string, number>> = {
   'red:shield': -12, 'red:wolf': -8, 'drift:shield': -10, 'river:wolf': -6, 'dawn:lamp': 20, 'dawn:shield': 10, 'red:river': 8,
 };
 // 요청서: 세력이 국장에게 보내는 청(aid)과 독촉(dun). 국장은 숫자(줄 값)로 답한다
-export interface Ask { id: number; day: number; due: number; from: FacId; kind: 'aid' | 'dun'; want: number; chips: string[]; got?: number }
+export interface Ask { id: number; day: number; due: number; from: FacId; kind: 'aid' | 'dun' | 'permit'; want: number; chips: string[]; got?: number; dg?: number }   // permit: want = 신청한 조 수, dg = 미궁, got = 허락한 조 수
 // 늦게 도착하는 결과: 앙금 · 마지못한 서명의 이행 · 편들기
 export interface Later { day: number; kind: 'grudge' | 'pact' | 'side'; who: FacId; vs?: FacId; chips: string[] }
 export interface Dungeon {
@@ -161,6 +169,7 @@ export interface Dungeon {
   branch: GuildId | null;         // 발전도 2단계에서 가장 많이 다닌 길드가 곁에 낸 지부 (그 길드는 하루 길)
   know: number;                   // 사신이 출입 기록을 살핀 사람 × 날 (B.SVY.full에 닿고 돌아오면 출입 기록을 갖춘다)
   logged: boolean;                // 출입 기록을 갖춰 길드들에 돌렸다
+  exp: number; expDead: number;   // 탐사: 허가받은 조의 든 날 · 그동안의 죽음 (EXP.len마다 한 번 마친다)
 }
 export interface Guild {
   id: GuildId; name: string; size: number; money: number; infl: number; fav: number; check: number; peak: number;
@@ -184,6 +193,9 @@ export interface Stats {
   clashes: number; meets: number; asks: number; answered: number; sides: number; relMin: number;
   relHist: number[];              // 날마다 가장 나쁜 두 길드 사이
   bigSize: number[];              // 날마다 가장 큰 길드의 조 수
+  expN: number; expOk: number;    // 마친 탐사 수 · 그중 성공(0 ~ 1의 합)
+  leaked: number; turned: number; // 몰래 든 조 × 날 · 검문소가 되돌린 조 × 날
+  permits: number;                // 낸 신청서
 }
 export interface World {
   day: number; budget: number; standing: number;
@@ -207,7 +219,7 @@ export interface World {
   notices: Notice[];              // 길드 전체에 내건 공고문
   letters: Letter[];              // 길드 하나에 보낸 요청서 (답을 기다림 · 서명됨)
   docN: number;                   // 서류 번호
-  rank: number; clerks: number;   // 관리국: 닿은 입지 단계 · 서기(서기실 단계 + 1)
+  rank: number; clerks: number;   // 관리국: 닿은 명성 단계 · 서기(서기실 단계 + 1)
   dept: Record<DeptId, number>;   // 관리국 부서 단계
   order: Order;                   // 중앙 행정원의 요구서
   crew: number;                   // 관리국의 사신 (다음 달 첫날 다시 채운다)
@@ -215,6 +227,10 @@ export interface World {
   pnl: number[][];                // 미궁마다 날마다 조 하나의 하루 손익 어림(G, 보조금 빼고). 첫 칸은 징세청에서 넘겨받은 기록
   mkt: Market;                    // 소재 시장(시세 사슬). 상단은 세력이 아니라 시장이다
   offers: Offer[];                // 상단에 낸 제안서
+  permit: Record<GuildId, number[]>; // 허가: 길드마다 미궁마다 허락한 조 수
+  permitDay: Record<GuildId, number[]>; // 마지막으로 답한 날 (같은 신청을 다시 내기까지 cool)
+  gate: boolean[];                // 미궁마다 검문소
+  expMo: { n: number; gain: number; turned: number }; // 이달 마친 탐사 · 쌓은 명성 · 되돌린 조 (달 끝에 보고)
 }
 // 소재 시장: 시세(평소 1) · 상단 창고 재고(짐) · 오는 중인 반출 짐(앞이 먼저 닿는다) · 날마다 시세 · 재고 · 반출의 기록
 //   read: 사신이 창고 장부를 마지막으로 읽은 날(−1이면 아직. 읽으면 상단 제안서가 열린다) · low: 신문이 내림세를 쓴 뒤(돌아올 때 한 번 더 쓴다)
@@ -229,7 +245,7 @@ export interface Letter { id: number; day: number; to: GuildId; dg: number; days
 export interface Notice { id: number; day: number; to: 'all'; dg: number; until: number; cl: Clauses; dep: number }
 export type Opts = { noCheck?: boolean; noFear?: boolean };
 
-const DUNGEONS: Omit<Dungeon, 'teams' | 'fear' | 'floods' | 'dead' | 'sub' | 'dangerAt' | 'dev' | 'gdev' | 'branch' | 'know' | 'logged'>[] = [
+const DUNGEONS: Omit<Dungeon, 'teams' | 'fear' | 'floods' | 'dead' | 'sub' | 'dangerAt' | 'dev' | 'gdev' | 'branch' | 'know' | 'logged' | 'exp' | 'expDead'>[] = [
   // 폐광은 산줄기 깊숙이 외져 늦게 드러났다. 벌이는 좋지만 길이 없어 곁에 길드가 없었고, 아무도 돌보지 않다 막 넘쳤다.
   // 왕국군이 주둔해 위험선 언저리에 붙들고 있고, 물러나면 다시 오른다
   { id: 'pit', name: '폐광', land: '로이드 지방', dist: 1, at: [14, 7], rise: 1.25, yld: 14, cap: 12, level: 75, wild: 2 },
@@ -274,7 +290,7 @@ export function newWorld(seed: number, o: Opts = {}): World {
     yld: i ? Math.round(d.yld * (0.8 + rnd() * 0.4)) : d.yld,
     teams: Object.fromEntries(GUILDS.map(g => [g, i ? B.GUILD[g].start : 0])) as Record<GuildId, number>, fear: i ? 0 : B.ORDER.fear, floods: 0, dead: 0, sub: 0, dangerAt: null,
     dev: 0, gdev: Object.fromEntries(GUILDS.map(g => [g, 0])) as Record<GuildId, number>, branch: null,
-    know: 0, logged: false,
+    know: 0, logged: false, exp: 0, expDead: 0,
   }));
   const guild = (id: GuildId): Guild => {
     const g = B.GUILD[id];
@@ -288,9 +304,9 @@ export function newWorld(seed: number, o: Opts = {}): World {
     reports: [
       { day: 0, from: '왕도일보', title: '폐광 아래 미궁 범람, 로이드 백작령 마을에 마물', chips: ['범람 직후'] },
       { day: 0, from: '왕국군', title: '폐광 1차 진압, 주둔 중', chips: ['입구에서 마물을 누르고 있음', '길드에 넘기면 물러남'] },
-      { day: 0, from: '중앙 행정원', title: '요구서: 폐광을 왕국군에게서 넘겨받을 것', chips: [`하루 ${B.ORDER.min}조 이상 ${B.ORDER.need}일 이어서`, `예산 ${B.ORDER.pay}G · 입지 +${B.ORDER.stand}`] },
+      { day: 0, from: '중앙 행정원', title: '요구서: 폐광을 왕국군에게서 넘겨받을 것', chips: [`하루 ${B.ORDER.min}조 이상 ${B.ORDER.need}일 이어서`, `예산 ${B.ORDER.pay}G · 명성 +${B.ORDER.stand}`] },
     ],
-    stats: { floods: 0, dead: 0, spent: 0, toFlood: [], pinned: {}, loops: { R1: 0, B1: 0, R2: 0, R3: 0, B3: 0, R4: 0, B4: 0, R5: 0, B5: 0, B6: 0 }, bigSize: [], clashes: 0, meets: 0, asks: 0, answered: 0, sides: 0, relMin: 0, relHist: [], litHist: [] },
+    stats: { floods: 0, dead: 0, spent: 0, toFlood: [], pinned: {}, loops: { R1: 0, B1: 0, R2: 0, R3: 0, B3: 0, R4: 0, B4: 0, R5: 0, B5: 0, B6: 0 }, bigSize: [], clashes: 0, meets: 0, asks: 0, answered: 0, sides: 0, relMin: 0, relHist: [], litHist: [], expN: 0, expOk: 0, leaked: 0, turned: 0, permits: 0 },
     rel: {},
     owe: Object.fromEntries(FACS.map(f => [f, 0])) as Record<FacId, number>, fowe: Object.fromEntries(FACS.map(f => [f, {}])) as World['fowe'],
     pact: null, meetAt: -99, asks: [], later: [], askN: 0, lit: [], notices: [], letters: [], docN: 0, rank: 1, clerks: 1, dept: { clerk: 0, envoy: 0, rec: 0 },
@@ -298,6 +314,9 @@ export function newWorld(seed: number, o: Opts = {}): World {
     crew: B.SVY.crew, trips: [], pnl: [],
     mkt: { price: 1, stock: B.MKT.hold * demOf(), road: Array(B.MKT.lag).fill(demOf()), hist: [1], stockHist: [B.MKT.hold * demOf()], outHist: [], read: -1, low: false, bought: 0 },
     offers: [],
+    permit: Object.fromEntries(GUILDS.map(g => [g, dungeons.map((_, i) => i ? Math.ceil(B.GUILD[g].size * B.PERMIT.init) : 0)])) as Record<GuildId, number[]>,
+    permitDay: Object.fromEntries(GUILDS.map(g => [g, dungeons.map(() => -99)])) as Record<GuildId, number[]>,
+    gate: dungeons.map(() => false), expMo: { n: 0, gain: 0, turned: 0 },
     ...o,
   };
   FACS.forEach((a, i) => FACS.slice(i + 1).forEach(b => { const k = pairOf(a, b); W.rel[k] = (REL0[k] ?? 0) + Math.round((rnd() - 0.5) * 10); }));
@@ -424,12 +443,24 @@ export function step(W: World) {
   const relBefore = GPAIRS.map(([a, b]) => relOf(W, a, b));
   const relDrop = GPAIRS.map(() => 0);
   const haul = Object.fromEntries(GUILDS.map(g => [g, 0])) as Record<GuildId, number>;
+  // 길드가 바라는 조 수(허가를 보기 전)와, 허가가 모자라면 내는 신청서
+  const ask0 = (g: GuildId, i: number) => sum[g] > 0 ? G[g].size * Math.min(1, sum[g] / total) * want[g][i] / sum[g] : 0;
+  permitAsks(W, ask0);
   W.dungeons.forEach((d, i) => {
+    let turned = 0;
     for (const g of GUILDS) {
-      const tgt = sum[g] > 0 ? G[g].size * Math.min(1, sum[g] / total) * want[g][i] / sum[g] : 0;
+      // 허가 밖으로 바라는 몫은 몰래 든다(검문소가 없을 때만). 있으면 되돌린다
+      const a0 = ask0(g, i), pm = W.permit[g][i], over = Math.max(0, a0 - pm);
+      const tgt = Math.min(a0, pm + (W.gate[i] ? 0 : B.PERMIT.leak * over));
+      if (W.gate[i]) turned += over;
       d.teams[g] += (tgt - d.teams[g]) * B.MOVE;
     }
+    // 허가받은 조(입장료 · 보조금을 받고 탐사로 친다)
+    const legal = (g: GuildId) => Math.min(d.teams[g], W.permit[g][i]);
+    const nLegal = GUILDS.reduce((a, g) => a + legal(g), 0);
+    S.turned += turned; W.expMo.turned += turned;
     const n = teamsIn(d);
+    S.leaked += n - nLegal;
     const army = armyIn(W, i) ? B.ORDER.clear : 0;
     d.level = Math.max(0, d.level + d.rise * (0.85 + rnd() * 0.3) - clearOf(d.level) * n - army);
     // 캐는 양은 붐비면 덜 는다. 나누는 몫은 길드의 무게대로
@@ -454,16 +485,24 @@ export function step(W: World) {
     const comfort = GUILDS.reduce((a, g) => a + guildCl(W, g, i, 'comfort') * share(g), 0);
     d.fear = d.fear * B.FEAR_FADE + dead * B.FEAR / (1 + comfort / B.COMFORT_HALF);
     subs += dead * comfort;
-    for (const g of GUILDS) subs += d.teams[g] * guildCl(W, g, i, 'sub');
+    for (const g of GUILDS) subs += legal(g) * guildCl(W, g, i, 'sub');
     // 공고문 몫은 공탁에서 먼저 나간다 (예산에서는 이미 떼어 두었다)
     const nt = W.notices.find(x => x.dg === i);
     if (nt && nt.dep > 0) {
-      const due = GUILDS.reduce((a, g) => a + d.teams[g] * (clauseOn(W, d, 'sub', g) ?? 0) + dead * share(g) * (clauseOn(W, d, 'comfort', g) ?? 0), 0);
+      const due = GUILDS.reduce((a, g) => a + legal(g) * (clauseOn(W, d, 'sub', g) ?? 0) + dead * share(g) * (clauseOn(W, d, 'comfort', g) ?? 0), 0);
       const draw = Math.min(nt.dep, due);
       nt.dep -= draw; escrowPaid += draw;
     }
     for (const g of GUILDS) if (n > 0) G[g].size = Math.max(B.SIZE_MIN, G[g].size - dead * d.teams[g] / n);
-    fees += n * B.FEE; subs += n * d.sub;
+    fees += nLegal * B.FEE; subs += nLegal * d.sub;
+    // 탐사: 허가받은 조의 든 날이 쌓여 한 번이 차면 마친다. 그동안 죽음이 적을수록 성공이고, 성공이 명성으로 쌓인다
+    d.exp += nLegal; d.expDead += dead;
+    if (d.exp >= B.EXP.len) {
+      const k = Math.floor(d.exp / B.EXP.len), ok = clamp(1 - d.expDead / k / B.EXP.deadOk, 0, 1), gain = k * ok * B.EXP.gain * (0.5 + d.level / 100);
+      d.exp -= k * B.EXP.len; d.expDead = 0;
+      S.expN += k; S.expOk += k * ok; W.expMo.n += k; W.expMo.gain += gain;
+      W.standing = clamp(W.standing + gain, 0, 100);
+    }
     if (d.level >= B.DANGER && d.dangerAt == null) d.dangerAt = W.day;
     if (d.level < B.DANGER - 10) d.dangerAt = null;
     if (d.level >= B.FLOOD) {
@@ -541,7 +580,12 @@ export function step(W: World) {
   W.feeMo += fees * (1 - W.crownShare / 100);
   W.budget += escrowPaid - subs;
   S.spent += subs;
-  if (W.day % B.MONTH === 0) { W.budget += grantOf(W) + W.feeMo; W.feeMo = 0; W.budget -= payOf(W); W.stats.spent += payOf(W); W.crew = crewMax(W); }
+  if (W.day % B.MONTH === 0) {
+    W.budget += grantOf(W) + W.feeMo; W.feeMo = 0; W.budget -= payOf(W); W.stats.spent += payOf(W); W.crew = crewMax(W);
+    const m = W.expMo;
+    if (m.n > 0 || m.turned >= B.MONTH) W.reports.push({ day: W.day, from: '중앙 행정원', title: '이달 탐사 결산', chips: [`탐사 ${Math.round(m.n)}건`, `명성 +${m.gain.toFixed(1)}`, ...(m.turned >= B.MONTH ? [`검문소가 허가 밖 평균 ${Math.round(m.turned / B.MONTH)}조 되돌림`] : [])] });
+    W.expMo = { n: 0, gain: 0, turned: 0 };
+  }
   // 호감: 평소로 천천히, 조항이 끌어당긴다
   // 길드마다 결대로: 우선권은 권리를 보는 큰 길드가 반기고 작은 길드가 싫어한다. 보조금 · 기록 · 위로금은 돈 · 정보 · 안전의 결만큼
   for (const o of GUILDS.map(g => G[g])) o.fav += (50 - o.fav) * B.FAV_BACK;
@@ -554,18 +598,16 @@ export function step(W: World) {
   }
   orderDay(W);
   officeDay(W);
-  // 입지 = 물량 + 영향력 × 호감, 예산 적자는 깎는다
-  const out = Object.values(haul).reduce((a, b) => a + b, 0);
-  let pol = 0;
-  for (const o of GUILDS.map(g => G[g])) pol += o.infl * (o.fav - 50);
-  W.standing = clamp(W.standing + B.STAND_OUT * Math.log(1 + out / 40) + pol * B.STAND_POL - (W.budget < 0 ? 0.15 - W.budget / 5000 : 0), 0, 100);
+  // 명성 = 물량 + 영향력 × 호감, 예산 적자는 깎는다
+  // 명성은 탐사 성공으로 쌓인다(위 dungeons 루프). 여기서는 예산 적자만 깎는다
+  W.standing = clamp(W.standing - (W.budget < 0 ? 0.15 - W.budget / 5000 : 0), 0, 100);
   // 저량이 끝에 붙은 날
   const pin = (k: string, on: boolean) => { if (on) S.pinned[k] = (S.pinned[k] ?? 0) + 1; };
   pin('마물 수', W.dungeons.some(d => d.level <= 0 || d.level >= B.FLOOD - 1));
   pin('돈', GUILDS.some(g => G[g].money <= B.SHRINK));
   pin('영향력', GUILDS.map(g => G[g]).some(o => o.infl <= 0 || o.infl >= 100));
   pin('호감', GUILDS.map(g => G[g]).some(o => o.fav <= 0 || o.fav >= 100));
-  pin('입지', W.standing <= 0 || W.standing >= 100);
+  pin('명성', W.standing <= 0 || W.standing >= 100);
   pin('세력 사이', Object.values(W.rel).some(v => v <= -100 || v >= 100));
   S.bigSize.push(Math.max(...GUILDS.map(g => G[g].size)));
   for (const id of W.lit) S.loops[id]++;
@@ -676,7 +718,7 @@ function sideWith(W: World) {
 // 요청서: 길드는 돈이 바닥나면 청(aid)을, 국장이 진 빚이 크면 보름마다 독촉(dun)을 보낸다. 세력마다 한 장씩만 열려 있다
 function makeAsks(W: World) {
   for (const f of FACS) {
-    if (W.asks.some(a => a.from === f && a.got == null)) continue;
+    if (W.asks.some(a => a.from === f && a.got == null && a.kind !== 'permit')) continue;
     const o = facOf(W, f);
     let ask: Omit<Ask, 'id' | 'day' | 'due' | 'from'> | null = null;
     if (W.owe[f] <= B.DUN_AT && W.day % B.DUN_EVERY === 0) ask = { kind: 'dun', want: Math.round(-W.owe[f] * B.DUN_G), chips: ['회의에 서명해 준 일'] };
@@ -686,14 +728,50 @@ function makeAsks(W: World) {
     W.stats.asks++;
   }
   // 답하지 않고 기한이 지난 요청서는 0으로 답한 것
-  for (const a of W.asks) if (a.got == null && W.day >= a.due) answer(W, a.id, 0);
+  // (신청서는 답하지 않으면 지금 허가 그대로)
+  for (const a of W.asks) if (a.got == null && W.day >= a.due) answer(W, a.id, a.kind === 'permit' ? W.permit[a.from as GuildId][a.dg!] : 0);
 }
 
+// 출입 신청서: 길드가 바라는 조 수가 허가보다 ratio배 + 1조 넘게 많으면 낸다. 길드 하나에 열린 신청서는 한 장, 같은 미궁은 cool일에 한 번
+function permitAsks(W: World, ask0: (g: GuildId, i: number) => number) {
+  for (const g of GUILDS) {
+    if (W.asks.some(a => a.kind === 'permit' && a.from === g && a.got == null)) continue;
+    let best = -1, gap = 0;
+    W.dungeons.forEach((d, i) => {
+      const pm = W.permit[g][i], a0 = ask0(g, i);
+      if (a0 < 0.6 || a0 < pm * B.PERMIT.ratio + 0.5 || W.day - W.permitDay[g][i] < B.PERMIT.cool) return;
+      if (a0 - pm > gap) { gap = a0 - pm; best = i; }
+    });
+    if (best < 0) continue;
+    const d = W.dungeons[best];
+    W.asks.push({ id: ++W.askN, day: W.day, due: W.day + B.PERMIT.due, from: g, kind: 'permit', dg: best, want: Math.max(1, Math.ceil(ask0(g, best) * B.PERMIT.pad)), chips: [d.name, W.permit[g][best] ? `지금 ${W.permit[g][best]}조` : '처음 신청'] });
+    W.stats.permits++;
+  }
+}
+// 신청서에 허락할 조 수로 답한다(0 ~ 신청한 수). 다 받으면 호감이 오르고, 덜 받으면 그만큼 서운해한다
+function decide(W: World, a: Ask, v: number) {
+  const g = a.from as GuildId, i = a.dg!;
+  v = clamp(Math.round(v), 0, a.want);
+  a.got = v; W.permit[g][i] = v; W.permitDay[g][i] = W.day;
+  const r = v / a.want;
+  fav(W.guilds[g], B.PERMIT.fav * (r - 0.5) * 2);
+  W.stats.answered += v > 0 ? 1 : 0;
+  W.asks = W.asks.filter(x => x.got == null || x.day > W.day - 30);
+}
+export function buildGate(W: World, i: number) {
+  if (W.gate[i] || W.budget < B.GATE.cost) return false;
+  W.budget -= B.GATE.cost; W.stats.spent += B.GATE.cost; W.gate[i] = true;
+  W.reports.push({ day: W.day, from: '관리국', title: `${W.dungeons[i].name} 검문소 완공`, chips: ['허가 없는 조를 되돌림', `달 급료 ${B.GATE.pay}G`] });
+  return true;
+}
+export const permitOf = (W: World, i: number) => GUILDS.reduce((a, g) => a + W.permit[g][i], 0);
+
 // 요청서에 숫자로 답한다: 줄 값(G). 청을 들어주면 호감과 신세를 받고(R5) 다른 쪽은 편애로 본다.
-// 독촉에 갚으면 빚이 준다. 덜 주면 그만큼 호감을 잃고, 독촉을 모른 척하면 입지도 깎인다(B5)
+// 독촉에 갚으면 빚이 준다. 덜 주면 그만큼 호감을 잃고, 독촉을 모른 척하면 명성도 깎인다(B5)
 export function answer(W: World, id: number, v: number) {
   const a = W.asks.find(x => x.id === id);
   if (!a || a.got != null) return;
+  if (a.kind === 'permit') return decide(W, a, v);
   v = clamp(Math.round(v), 0, Math.max(0, Math.min(a.want, W.budget)));
   a.got = v;
   W.stats.answered += v > 0 ? 1 : 0;
@@ -777,7 +855,7 @@ export function withdraw(W: World, id: number) {
   return true;
 }
 
-// 요청서: 길드 하나에 미궁 하나의 조항을 청한다. 입지 단계가 LETTER_LV에 닿아야 열리고, 서기 한 명을 쓴다
+// 요청서: 길드 하나에 미궁 하나의 조항을 청한다. 명성 단계가 LETTER_LV에 닿아야 열리고, 서기 한 명을 쓴다
 export function send(W: World, to: GuildId, dg: number, days: number, cl: Clauses) {
   const ids = Object.keys(cl) as ClauseId[];
   if (W.rank < B.LETTER_LV || !W.dungeons[dg] || days <= 0 || !ids.length || ids.length > CLAUSE_MAX || docsOut(W) >= W.clerks) return null;
@@ -900,7 +978,7 @@ function tripHome(W: World, t: Trip) {
 // 왕국군이 이 미궁에 주둔해 있나: 요구서가 끝나기 전까지
 export const armyIn = (W: World, i: number) => !!W.order && !W.order.done && W.order.dg === i;
 // 중앙 요구서: 하루 min조 이상 든 날이 이어지면 센다(검문소 수라 늦지 않는다). 모자란 날은 끊기고 중앙의 인내가 모자란 조만큼 준다.
-// need일 이어지면 군이 물러나며 넘긴다(예산 · 입지). 인내가 바닥나면 넘기지 않고 물러난다(입지를 깎는다)
+// need일 이어지면 군이 물러나며 넘긴다(예산 · 명성). 인내가 바닥나면 넘기지 않고 물러난다(명성를 깎는다)
 function orderDay(W: World) {
   const o = W.order;
   if (!o || o.done) return;
@@ -911,28 +989,28 @@ function orderDay(W: World) {
     o.done = 'ok';
     W.budget += B.ORDER.pay;
     W.standing = clamp(W.standing + B.ORDER.stand, 0, 100);
-    W.reports.push({ day: W.day, from: '중앙 행정원', title: '폐광 인계 · 요구서 달성', chips: ['왕국군 물러남', `예산 +${B.ORDER.pay}G`, `입지 +${B.ORDER.stand}`] });
+    W.reports.push({ day: W.day, from: '중앙 행정원', title: '폐광 인계 · 요구서 달성', chips: ['왕국군 물러남', `예산 +${B.ORDER.pay}G`, `명성 +${B.ORDER.stand}`] });
   } else if (o.pat <= 0) {
     o.done = 'fail';
     W.standing = clamp(W.standing - B.ORDER.fail, 0, 100);
-    W.reports.push({ day: W.day, from: '중앙 행정원', title: '인내가 다함 · 왕국군 철수', chips: ['인계 없이 물러남', '폐광에 마물이 다시 늚', `입지 −${B.ORDER.fail}`] });
+    W.reports.push({ day: W.day, from: '중앙 행정원', title: '인내가 다함 · 왕국군 철수', chips: ['인계 없이 물러남', '폐광에 마물이 다시 늚', `명성 −${B.ORDER.fail}`] });
   }
 }
 
-// 관리국: 입지가 새 단계에 닿으면 부서의 다음 단계가 열린다. 단계는 내려가지 않는다
+// 관리국: 명성가 새 단계에 닿으면 부서의 다음 단계가 열린다. 단계는 내려가지 않는다
 function officeDay(W: World) {
   const lv = levelOf(W.standing);
   if (lv <= W.rank) return;
   W.rank = lv;
-  W.reports.push({ day: W.day, from: '중앙 행정원', title: `입지 ${lv}단계`, chips: ['관리국 부서 증설 승인', ...(lv === B.LETTER_LV ? ['길드 지정 서신(요청서) 열림'] : [])] });
+  W.reports.push({ day: W.day, from: '중앙 행정원', title: `명성 ${lv}단계`, chips: ['관리국 부서 증설 승인', ...(lv === B.LETTER_LV ? ['길드 지정 서신(요청서) 열림'] : [])] });
 }
 export type DeptId = 'clerk' | 'envoy' | 'rec';
 export const DEPTS: DeptId[] = ['clerk', 'envoy', 'rec'];
-// 다음 단계 공사비 (끝 단계면 null) · 열렸나(입지 단계)
+// 다음 단계 공사비 (끝 단계면 null) · 열렸나(명성 단계)
 export const deptCost = (W: World, k: DeptId) => B.DEPT[k].cost[W.dept[k]] ?? null;
 export const deptOpen = (W: World, k: DeptId) => W.dept[k] < W.rank;
 // 달마다 나가는 급료 · 사신 정원 · 미궁 보고가 늦는 날
-export const payOf = (W: World) => DEPTS.reduce((a, k) => a + W.dept[k] * B.DEPT[k].pay, 0);
+export const payOf = (W: World) => DEPTS.reduce((a, k) => a + W.dept[k] * B.DEPT[k].pay, 0) + W.gate.filter(Boolean).length * B.GATE.pay;
 export const crewMax = (W: World) => B.SVY.crew + W.dept.envoy * (B.DEPT.envoy.add ?? 0);
 export const lagOf = (W: World, i: number) => Math.max(0, W.dungeons[i].dist - W.dept.rec);
 export function upgrade(W: World, k: DeptId) {

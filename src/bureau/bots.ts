@@ -1,13 +1,13 @@
 // 국장 봇 셋: 시뮬레이터(`sim/bureau.ts`) · 테스트 · 개발용 확인 화면(`dev/loops.html`)이 함께 쓴다.
 // idle(손 놓음, 요청서도 답하지 않음) · normal(위험선 보고를 보면 보조금, 요청서는 다 들어줌, 가장 나쁜 두 길드 사이가 크게 틀어지면 둘만 불러 회의)
 // smart(늦은 보고를 추세로 메우고, 예산 · 조항, 청은 신세를 받아 둔 쪽엔 반만, 사이가 틀어지는 길드들을 체면 보는 길드까지 한 자리에 불러 회의)
-import { B, GPAIRS, GUILDS, type World, answer, meet, relOf, seenLevel, willOf, worstPair } from './engine';
+import { B, GPAIRS, GUILDS, type GuildId, type World, answer, buildGate, meet, permitOf, relOf, seenLevel, willOf, worstPair } from './engine';
 
 export const BOT: Record<string, (W: World) => void> = {
   idle: () => {},
   normal: W => {
     W.dungeons.forEach((d, i) => { d.sub = seenLevel(W, i) >= B.DANGER && W.budget > 0 ? 15 : 0; });
-    for (const a of W.asks) if (a.got == null) answer(W, a.id, W.budget > a.want * 2 ? a.want : 0);
+    for (const a of W.asks) if (a.got == null) answer(W, a.id, a.kind === 'permit' ? a.want : W.budget > a.want * 2 ? a.want : 0);
     const [a, b] = worstPair(W);
     if (relOf(W, a, b) < -40) meet(W, [a, b]);
   },
@@ -28,7 +28,14 @@ export const BOT: Record<string, (W: World) => void> = {
     const G = W.guilds, avg = (big: boolean) => { const gs = GUILDS.filter(g => B.GUILD[g].big === big); return gs.reduce((s, g) => s + G[g].infl, 0) / gs.length; };
     W.prio = Math.round(Math.max(40, Math.min(60, 50 - (avg(true) - avg(false)) / 8)));
     // 독촉은 갚고, 청은 신세를 이미 받아 둔 쪽에는 반만 들어준다(예산을 아껴 회의 서명에 쓸 신세를 고루 모은다)
-    for (const a of W.asks) if (a.got == null && W.budget > a.want) answer(W, a.id, a.kind === 'dun' || W.owe[a.from] < 5 ? a.want : a.want / 2);
+    for (const a of W.asks) if (a.got == null && a.kind === 'permit') {
+      // 신청서: 미궁이 받아 줄 만큼(cap의 1.3배)까지, 다른 길드의 허가를 뺀 나머지. 마물이 적어 캘 것이 없으면 절반
+      const d = W.dungeons[a.dg!], room = Math.floor(d.cap * (est[a.dg!] < 30 ? 0.65 : 1.3)) - (permitOf(W, a.dg!) - W.permit[a.from as GuildId][a.dg!]);
+      answer(W, a.id, Math.max(Math.min(a.want, room), Math.min(a.want, 1)));
+    }
+    // 검문소: 예산이 넉넉하면 짓는다
+    if (W.day > 20 && W.budget > 1200) { const i = W.gate.findIndex(g => !g); if (i >= 0) buildGate(W, i); }
+    for (const a of W.asks) if (a.got == null && a.kind !== 'permit' && W.budget > a.want) answer(W, a.id, a.kind === 'dun' || W.owe[a.from] < 5 ? a.want : a.want / 2);
     // 사이가 틀어지는 짝에 든 길드를 모두(서명할 마음이 있는 쪽만) 한 자리에
     const sore = GPAIRS.filter(([a, b]) => relOf(W, a, b) < -20).flat();
     // 가장 나쁜 짝은 마지못해서라도(결렬되지 않을 만큼) 부른다
