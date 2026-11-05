@@ -1,4 +1,4 @@
-// Launderinth 화면: 상단바 · 탑뷰 타일맵(캔버스) · 장부 조작소 · 건축 및 세탁소 · 소식
+// Launderinth 화면: 상단바 · 탑뷰 타일맵(캔버스) · 장부 조작소 · 건축 및 세탁소
 import {
   World, Kind, newWorld, step, build, canBuild, demolish, BDEF, BUILD_ORDER, RANKS, L, MW, MH, idx, xy, nbrs,
   roadNet, live, preview, clampLed, washCap, count, deathRate, LOOK, monthDay,
@@ -27,7 +27,7 @@ const fx = () => { fxs = (fxs * 1664525 + 1013904223) >>> 0; return fxs / 429496
 // ── 시간 ────────────────────────────────────────────
 const SPEEDS = [0, 2.2, 0.8, 0.25]; // 하루가 걸리는 초
 let speed = 1, acc = 0;
-let ui = { tab: 'ledger' as 'ledger' | 'build' | 'news', tool: null as Kind | 'demolish' | null, hover: -1, pending: -1, tipAt: -1 };
+let ui = { tab: 'ledger' as 'ledger' | 'build', tool: null as Kind | 'demolish' | null, hover: -1, pending: -1, tipAt: -1 };
 
 // ── 연출 상태 ────────────────────────────────────────
 interface Agent { path: number[]; seg: number; t: number; wait: number; hue: number; stopAt: number; doom: boolean }
@@ -414,18 +414,10 @@ function buildHtml() {
   <div class="mt-2 text-[11px] text-dim">비자금 <span class="num text-black">${fmt(W.black)}</span></div>`;
 }
 
-function newsHtml() {
-  const C = { news: 'border-line', warn: 'border-[#e08a3c]/60', good: 'border-clean/60', bad: 'border-blood/60' };
-  return `<h2 class="font-serif text-base mb-2">변방 소식</h2><div class="space-y-2">` + W.notes.map(n => {
-    const { m, d } = { m: Math.floor(n.day / L.MONTH) + 1, d: (n.day % L.MONTH) + 1 };
-    return `<div class="border-l-2 ${C[n.kind]} pl-2.5"><div class="num text-[10px] text-dim">${m}월 ${d}일</div><p class="font-serif text-[13px] leading-relaxed">${n.text}</p></div>`;
-  }).join('') + `</div>`;
-}
-
 function renderPanel() {
   document.querySelectorAll<HTMLElement>('.tab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === ui.tab)));
   const p = $('#panel'); const top = p.scrollTop;
-  p.innerHTML = ui.tab === 'ledger' ? ledgerHtml() : ui.tab === 'build' ? buildHtml() : newsHtml();
+  p.innerHTML = ui.tab === 'ledger' ? ledgerHtml() : buildHtml();
   p.scrollTop = top;
 }
 function renderTool() {
