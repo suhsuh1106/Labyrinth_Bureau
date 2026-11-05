@@ -17,6 +17,7 @@ export const L = {
   GEAR: 40,                  // 죽은 모험가 장비 한 벌 값
   SUB: 5,                   // 등록 탐사대원 한 명당 제국 보조금(달)
   EXPECT: 9,                 // 제국이 대원 한 명에게서 기대하는 달 수익(대조 기준)
+  TOWN_TAX: 0.02,            // 주민 한 명당 하루 마을세
   TAX: [0.7, 0.65, 0.6],     // 계급별 신고 수익 세율
   PROMOTE: [10000, 60000],    // 누적 상납: 자작 · 대공
   RISK_DECAY: 0.08,          // 하루 저절로 식는 의심
@@ -71,7 +72,7 @@ export const BDEF: Record<Kind, BDef> = {
 };
 export const BUILD_ORDER: Kind[] = ['road', 'inn', 'tavern', 'rental', 'hospital', 'casino', 'cathedral'];
 
-export type Terrain = 'grass' | 'forest' | 'rock' | 'water';
+export type Terrain = 'grass' | 'forest' | 'rock' | 'water' | 'castle' | 'plot';
 export interface Tile { t: Terrain; b: Kind | null; born: number; lv: number }
 
 // 장부: 국장이 숫자로 정하는 것들. 달이 닫힐 때 그대로 제국에 올라간다
@@ -94,12 +95,12 @@ export interface Stat {
 }
 // 월 결산: 금고(합법 자금)가 한 달 동안 어디서 들어와 어디로 나갔나
 export interface Flow {
-  fee: number; sales: Partial<Record<Kind, number>>; subsidy: number; wash: number;       // 들어온 돈
+  town: number; fee: number; sales: Partial<Record<Kind, number>>; subsidy: number; wash: number;       // 들어온 돈
   upkeep: number; budget: number; capex: number; tax: number; bribe: number; toBlack: number; // 나간 돈
   visits: number; deaths: number; sat: number; guests: number;
 }
 export interface Book extends Flow { m: number; from: number; to: number; net: number; black: number }
-export const emptyFlow = (): Flow => ({ fee: 0, sales: {}, subsidy: 0, wash: 0, upkeep: 0, budget: 0, capex: 0, tax: 0, bribe: 0, toBlack: 0, visits: 0, deaths: 0, sat: 0, guests: 0 });
+export const emptyFlow = (): Flow => ({ town: 0, fee: 0, sales: {}, subsidy: 0, wash: 0, upkeep: 0, budget: 0, capex: 0, tax: 0, bribe: 0, toBlack: 0, visits: 0, deaths: 0, sat: 0, guests: 0 });
 export interface Budget { promo: number; safety: number; upkeep: number }
 export const BUDGET_KEYS = ['promo', 'safety', 'upkeep'] as const;
 export const BUDGET_NAME = { promo: '홍보', safety: '안전', upkeep: '정비' } as const;
@@ -138,6 +139,8 @@ export interface MonthReport {
 export const idx = (x: number, y: number) => y * MW + x;
 export const xy = (i: number) => [i % MW, Math.floor(i / MW)] as const;
 
+export const CASTLE: [number, number][] = [[2, 5], [3, 5], [2, 6], [3, 6]];
+export const VILLAGE = { x0: 1, y0: 9, x1: 7, y1: 12 };
 function makeMap(): { tiles: Tile[]; spawn: number; gate: number } {
   const tiles: Tile[] = [];
   for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) {
@@ -151,12 +154,16 @@ function makeMap(): { tiles: Tile[]; spawn: number; gate: number } {
     if ((x < 3 || y < 2) && rnd() < 0.35) t = 'forest';
     tiles.push({ t, b: null, born: -99, lv: 1 });
   }
+  // 영주성: 길 위쪽, 작게. 마을 터: 길 아래쪽 개울 위
+  for (const [x, y] of CASTLE) { const t = tiles[idx(x, y)]; t.t = 'castle'; }
+  for (let y = VILLAGE.y0; y <= VILLAGE.y1; y++) for (let x = VILLAGE.x0; x <= VILLAGE.x1; x++) tiles[idx(x, y)].t = 'plot';
   const sy = 8, gx = 20, gy = 6;
   const spawn = idx(0, sy), gate = idx(gx, gy);
   // 처음 흙길: 서쪽 끝에서 미궁 어귀까지
   const path: number[] = [];
   for (let x = 0; x <= gx; x++) path.push(idx(x, sy));
   for (let y = sy - 1; y > gy; y--) path.push(idx(gx, y));
+  path.push(idx(3, 7)); // 성문에서 큰길로 나오는 길
   for (const i of path) { tiles[i].t = 'grass'; tiles[i].b = 'road'; tiles[i].born = -99; }
   tiles[gate].t = 'rock'; tiles[gate].b = null;
   // 어귀 둘레는 바위
@@ -216,10 +223,24 @@ export function canBuild(w: World, i: number, k: Kind): string | null {
   if (w.clean < d.cost) return '자금 부족';
   if (i === w.gate) return '미궁 어귀';
   if (t.b) return '이미 있음';
-  if (t.t === 'water' || t.t === 'rock') return '지을 수 없는 땅';
+  if (t.t === 'water' || t.t === 'rock' || t.t === 'castle' || t.t === 'plot') return t.t === 'plot' ? '마을 터' : t.t === 'castle' ? '영주성' : '지을 수 없는 땅';
   if (k === 'road') { if (!nbrs(i).some(n => w.tiles[n].b === 'road')) return '길과 떨어짐'; }
   else if (!nbrs(i).some(n => w.tiles[n].b === 'road')) return '길 옆에만';
   return null;
+}
+// 마을: 처음엔 농사짓는 사람들, 미궁이 돈이 되면서 관광 도시가 된다. 읽어 보여 주는 값이고 난수는 쓰지 않는다
+export const TOWN = ['농촌', '장터 마을', '관광 마을', '관광 도시'] as const;
+export const TOWN_AT = [0, 6, 22, 60]; // 점수 문턱
+export const builtCount = (w: World) => w.tiles.filter(t => t.b && t.b !== 'road').length;
+export const townScore = (w: World) => w.stat.visits / 40 + builtCount(w) * 1.6 + (w.delve - 1) * 3;
+export const townStage = (w: World) => { const sc = townScore(w); let n = 0; for (let k = 1; k < TOWN_AT.length; k++) if (sc >= TOWN_AT[k]) n = k; return n; };
+export const popOf = (w: World) => Math.min(520, 40 + Math.floor(w.stat.visits / 18) + builtCount(w) * 5 + (w.delve - 1) * 12);
+// 주민의 직업: 농부는 줄고, 장사 · 숙박 · 안내가 는다
+export function jobsOf(w: World) {
+  const pop = popOf(w), st = townStage(w);
+  const farm = Math.round(pop * [0.82, 0.55, 0.28, 0.12][st]), guide = Math.round(pop * [0, 0.03, 0.1, 0.18][st]);
+  const inn = Math.round(pop * [0.04, 0.12, 0.22, 0.3][st]);
+  return { farm, trade: Math.max(0, pop - farm - guide - inn), inn, guide, pop };
 }
 export const lvMul = (w: World, i: number, per: number) => 1 + per * (w.tiles[i].lv - 1);
 export const capOf = (w: World, i: number) => Math.round(BDEF[w.tiles[i].b!].cap * lvMul(w, i, L.UP_CAP));
@@ -281,8 +302,14 @@ export const clampLed = (w: World) => {
 function note(w: World, kind: Note['kind'], text: string) { w.notes.unshift({ day: w.day, kind, text }); if (w.notes.length > 60) w.notes.length = 60; }
 
 // 대조 소견: 제국 회계관이 신고 장부를 펼쳤을 때의 얼굴
+// 제국이 대원 한 명에게 기대하는 달 수익: 입장료에, 영지에 서 있는 시설 종류만큼 얹는다
+export function expectPer(w: World): number {
+  const have = new Set(live(w).map(i => w.tiles[i].b!));
+  let e = L.FEE; for (const k of PRICED) if (have.has(k)) e += BDEF[k].rev * 0.55;
+  return e;
+}
 export function lookOf(w: World, reported: number, registered: number, gearSold: number): number {
-  const expect = Math.max(1, registered * L.EXPECT);
+  const expect = Math.max(1, registered * expectPer(w));
   const ratio = reported / expect;
   const ghostR = w.mo.visits > 0 ? w.led.ghosts / w.mo.visits : (w.led.ghosts > 0 ? 3 : 0);
   let s = 0;
@@ -305,7 +332,7 @@ export function preview(w: World): MonthReport {
   const gearSold = Math.round(w.mo.gear * l.smuggle / 100);
   const bribe = Math.min(l.bribe, Math.max(0, w.clean - skim - tax + subsidy - ghostCut));
   const look = lookOf(w, reported, registered, gearSold);
-  const expect = Math.max(1, registered * L.EXPECT);
+  const expect = Math.max(1, registered * expectPer(w));
   const ratio = reported / expect;
   const ghostR = w.mo.visits > 0 ? l.ghosts / w.mo.visits : (l.ghosts > 0 ? 3 : 0);
   let dRisk = 0;
@@ -424,6 +451,7 @@ export function step(w: World) {
   w.mo.take += rev; w.clean += rev; w.mo.visits += visits; w.mo.deaths += deaths; w.mo.gear += deaths * L.GEAR;
   // 유지비
   let up = 0; for (const i of lv) up += BDEF[w.tiles[i].b!].upkeep * lvMul(w, i, L.UP_UPKEEP);
+  const town = popOf(w) * L.TOWN_TAX; w.clean += town; w.mb.town += town;
   w.clean -= up; w.mb.upkeep += up;
   const bud = (w.budget.promo + w.budget.safety + w.budget.upkeep) / L.MONTH; w.clean -= bud; w.mb.budget += bud;
   // 세탁: 목표의 30분의 1씩
@@ -440,6 +468,14 @@ export function step(w: World) {
   w.risk += Math.max(0, w.black - L.SMELL_AT) * L.SMELL - calm;
   w.risk = Math.max(0, Math.min(100, w.risk));
   w.today = { visits, deaths, rev, byTile };
+  const ts = townStage(w);
+  if (ts > (w.flags.town ?? 0)) {
+    w.flags.town = ts;
+    note(w, 'good', [
+      '', '길가에 천막이 늘었다. 소작농들은 곡식 값보다 하룻밤 방값이 높다는 사실을 처음 알았다.',
+      '쟁기 대신 간판이 팔렸다. 마을 아이들은 이제 모험가의 장비 이름을 먼저 외운다.',
+      '곡식밭은 골목이 되었고, 이 땅은 이제 미궁 관광의 도시라 불린다. 쟁기를 아는 이는 노인뿐이다.'][ts]);
+  }
   st.fee += visits * L.FEE; st.visits += visits; st.deaths += deaths; st.spent += rev; st.upkeep += up;
   st.hist.push({ v: visits, r: rev, d: deaths, s: Math.round(avgSat), l: Math.round(lootSum), b: ret, n: turnedK, x: pricey }); if (st.hist.length > 60) st.hist.shift();
   // 조건 사건

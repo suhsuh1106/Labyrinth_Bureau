@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { delveUp, delveCost, lootMean, deathRate, setBudget, needsOf, upgrade, upCost, setPrice, capOf, newWorld, build, canBuild, idx, L, preview, step, World } from '../src/launderinth/engine';
+import { townStage, popOf, jobsOf, CASTLE, VILLAGE, delveUp, delveCost, lootMean, deathRate, setBudget, needsOf, upgrade, upCost, setPrice, capOf, newWorld, build, canBuild, idx, L, preview, step, World } from '../src/launderinth/engine';
 import { botDay, Style } from '../src/launderinth/bots';
 
 function play(seed: number, s: Style, months = 36): World {
@@ -93,7 +93,7 @@ describe('launderinth', () => {
     w.led.report = 70; w.led.ghosts = 15; w.led.wash.casino = 500; w.led.bribe = 300; setBudget(w, 'promo', 300);
     for (let d = 0; d < 30; d++) step(w);
     const b = w.books[0]; expect(b).toBeTruthy();
-    const inc = b.fee + Object.values(b.sales).reduce((a, n) => a + (n ?? 0), 0) + b.subsidy + b.wash;
+    const inc = b.town + b.fee + Object.values(b.sales).reduce((a, n) => a + (n ?? 0), 0) + b.subsidy + b.wash;
     const out = b.upkeep + b.budget + b.capex + b.tax + b.bribe + b.toBlack;
     expect(Math.round(b.from + inc - out)).toBe(Math.round(b.to));
     expect(b.budget).toBe(300); expect(b.capex).toBe(180 + 280 + 900);
@@ -124,5 +124,29 @@ describe('launderinth', () => {
     const a = run(() => {}), b = run(w => { w.delve = 3; });
     expect(b.stat.visits).toBeGreaterThan(a.stat.visits); expect(b.stat.loot / b.stat.visits).toBeGreaterThan(a.stat.loot / a.stat.visits);
     const z = newWorld(3); z.clean = 0; expect(delveUp(z)).toBe('자금 부족');
+  });
+
+  it('아무것도 안 하고 두어도 임기 안에 체포 · 파산으로 끝나지 않는다', () => {
+    for (const seed of [1, 2, 3, 4]) { const w = newWorld(seed); while (!w.over) step(w); expect(w.over).toBe('term'); }
+  });
+
+  it('처음 지도: 영주성 한 채와 마을 터가 있고, 거기에는 지을 수 없다', () => {
+    const w = newWorld(1);
+    for (const [x, y] of CASTLE) expect(w.tiles[idx(x, y)].t).toBe('castle');
+    expect(w.tiles[idx(VILLAGE.x0, VILLAGE.y0)].t).toBe('plot');
+    expect(canBuild(w, idx(VILLAGE.x0, VILLAGE.y0), 'inn')).toBe('마을 터');
+    expect(canBuild(w, idx(2, 5), 'inn')).toBe('영주성');
+    expect(popOf(w)).toBeGreaterThanOrEqual(40); expect(townStage(w)).toBe(0);
+    expect(jobsOf(w).farm).toBeGreaterThan(jobsOf(w).guide);
+  });
+
+  it('마을: 미궁이 돈이 될수록 농촌에서 관광 도시로 바뀌고 주민이 는다', () => {
+    const w = newWorld(6); w.clean = 20000;
+    const pop0 = popOf(w), farm0 = jobsOf(w).farm / popOf(w);
+    for (const [x, k] of [[5, 'inn'], [6, 'tavern'], [9, 'casino'], [10, 'inn'], [11, 'rental'], [13, 'inn'], [14, 'tavern']] as const) { w.tiles[idx(x, 7)].t = 'grass'; build(w, idx(x, 7), k); }
+    for (let d = 0; d < 400; d++) step(w);
+    expect(townStage(w)).toBeGreaterThanOrEqual(2); expect(popOf(w)).toBeGreaterThan(pop0 * 2);
+    expect(jobsOf(w).farm / popOf(w)).toBeLessThan(farm0);
+    expect(w.notes.some(n => n.text.includes('관광'))).toBe(true);
   });
 });

@@ -1,12 +1,13 @@
 // Launderinth 화면: 상단바 · 탑뷰 타일맵(캔버스) · 장부 조작소 · 건축 및 세탁소
 import {
-  World, Kind, newWorld, step, build, canBuild, demolish, BDEF, BUILD_ORDER, RANKS, L, MW, MH, idx, xy, nbrs, wantOf,
+  World, Kind, newWorld, step, build, canBuild, demolish, BDEF, BUILD_ORDER, RANKS, L, MW, MH, idx, xy, nbrs, wantOf, CASTLE, TOWN, TOWN_AT, townStage, townScore, popOf, jobsOf,
   roadNet, live, preview, needsOf, Day, delveUp, delveCost, lootMean, setBudget, BUDGET_KEYS, BUDGET_NAME, effOf, Book, upgrade, upCost, setPrice, PRICED, capOf, clampLed, washCap, count, deathRate, LOOK, monthDay,
 } from './engine';
 import { getSeed, setSeed } from '../core/rng';
+import { buildBg, drawBuilding, drawGateArt, drawCastle, drawVillage } from './draw';
 import './style.css';
 
-const KEY = 'lb-launder', VERSION = 6;
+const KEY = 'lb-launder', VERSION = 7;
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector(s) as T;
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
 
@@ -26,7 +27,7 @@ const fx = () => { fxs = (fxs * 1664525 + 1013904223) >>> 0; return fxs / 429496
 
 // ── 시간 ────────────────────────────────────────────
 const SPEEDS = [0, 2.2, 0.8, 0.25]; // 하루가 걸리는 초
-let speed = 1, acc = 0;
+let speed = 0, acc = 0; // 시작은 멈춤: 읽고 짓고 나서 ▶
 let ui = { tab: 'park' as 'park' | 'ledger' | 'build', tool: null as Kind | 'demolish' | null, hover: -1, pending: -1, tipAt: -1, sel: -1 };
 
 // ── 연출 상태 ────────────────────────────────────────
@@ -90,61 +91,34 @@ const hash = (i: number) => { let h = i * 2654435761 >>> 0; h ^= h >>> 13; retur
 const cx = (i: number) => OX + (i % MW) * TS + TS / 2;
 const cy = (i: number) => OY + Math.floor(i / MW) * TS + TS / 2;
 
-const BCOL: Record<Kind, string> = {
-  road: '#8b7350', inn: '#7a5236', tavern: '#6d4a2a', rental: '#56606a', hospital: '#d8d2c2', casino: '#5b2346', cathedral: '#8e8a7c',
-};
-
-function drawTile(i: number, now: number) {
-  const t = W.tiles[i], x = OX + (i % MW) * TS, y = OY + Math.floor(i / MW) * TS, h = hash(i);
-  const base = t.t === 'grass' ? (h < 0.5 ? '#3d4a2c' : '#425030') : t.t === 'forest' ? '#2c3a22' : t.t === 'rock' ? '#4a4640' : '#26404a';
-  g.fillStyle = base; g.fillRect(x, y, TS, TS);
-  if (t.t === 'grass' && h > 0.82) { g.fillStyle = '#56653a'; g.fillRect(x + TS * h * 0.6, y + TS * 0.6, 2, 2); }
-  if (t.t === 'forest') {
-    g.fillStyle = '#1e2a17'; g.beginPath(); g.arc(x + TS * 0.35, y + TS * 0.45, TS * 0.28, 0, 7); g.arc(x + TS * 0.68, y + TS * 0.62, TS * 0.24, 0, 7); g.fill();
-  }
-  if (t.t === 'rock') { g.fillStyle = '#5c5750'; g.fillRect(x + TS * 0.2, y + TS * 0.3, TS * 0.35, TS * 0.25); g.fillStyle = '#3a3732'; g.fillRect(x + TS * 0.5, y + TS * 0.55, TS * 0.3, TS * 0.2); }
-  if (t.t === 'water') { g.strokeStyle = 'rgba(160,200,210,.25)'; g.beginPath(); const o = ((now / 900 + h) % 1) * TS; g.moveTo(x + o * 0.5, y + TS * 0.4); g.lineTo(x + o * 0.5 + TS * 0.3, y + TS * 0.4); g.stroke(); }
-  if (t.b === 'road') {
-    g.fillStyle = '#7d6748'; g.fillRect(x, y, TS, TS);
-    g.fillStyle = '#6c583b';
-    for (const n of nbrs(i)) if (W.tiles[n].b !== 'road' && n !== W.gate) {
-      const [ax, ay] = xy(i), [bx, by] = xy(n);
-      if (bx > ax) g.fillRect(x + TS - 2, y, 2, TS); if (bx < ax) g.fillRect(x, y, 2, TS);
-      if (by > ay) g.fillRect(x, y + TS - 2, TS, 2); if (by < ay) g.fillRect(x, y, TS, 2);
-    }
-    if (h > 0.7) { g.fillStyle = '#8f7853'; g.fillRect(x + TS * 0.3, y + TS * 0.4, 2, 2); }
-  }
-}
-
-function drawBuilding(i: number, now: number) {
-  const t = W.tiles[i]; if (!t.b || t.b === 'road') return;
-  const b0 = bornAt.get(i);
-  const pop = b0 != null ? Math.min(1, (now - b0) / 380) : 1;
-  const s = pop < 1 ? 1 + (1 - pop) * 0.9 : 1;
-  const yOff = pop < 1 ? -(1 - pop) * TS * 1.2 : 0;
-  const x = cx(i), y = cy(i) + yOff, w = TS * 0.86 * s;
-  const lit = liveSet.has(i);
-  g.globalAlpha = lit ? 1 : 0.45;
-  g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(x - w / 2 + 2, cy(i) - w / 2 + 3, w, w);
-  g.fillStyle = BCOL[t.b]; g.fillRect(x - w / 2, y - w / 2, w, w);
-  g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(x - w / 2, y - w / 2, w, w * 0.22);
-  if (t.b === 'casino') { g.fillStyle = (Math.floor(now / 400) % 2) ? '#e8c35a' : '#b4609a'; g.fillRect(x - w / 2, y + w / 2 - 3, w, 3); }
-  g.font = `${Math.floor(TS * 0.58 * s)}px serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillStyle = '#f3e6c8'; // 색 이모지 글꼴이 없는 기기에서도 보이게
-  g.fillText(BDEF[t.b].icon, x, y + 1);
-  g.globalAlpha = 1;
-  for (let n = 1; n < t.lv; n++) { g.fillStyle = '#d9b45a'; g.fillRect(x - w / 2 + 2 + (n - 1) * 5, y - w / 2 + 2, 3, 3); }
-  if (i === ui.sel) { g.strokeStyle = '#d9b45a'; g.lineWidth = 2; g.strokeRect(x - w / 2 - 2, cy(i) - w / 2 - 2, w + 4, w + 4); g.lineWidth = 1; }
-}
 const bornAt = new Map<number, number>();
 let liveSet = new Set<number>();
-
-function drawGate(now: number) {
-  const x = cx(W.gate), y = cy(W.gate), r = TS * 0.48;
-  const glow = 0.3 + 0.07 * W.delve + 0.2 * Math.sin(now / 500);
-  g.fillStyle = `rgba(194,72,61,${glow})`; g.beginPath(); g.arc(x, y + 2, r * 1.25, 0, 7); g.fill();
-  g.fillStyle = '#0b0807'; g.beginPath(); g.moveTo(x - r, y + r); g.lineTo(x - r, y - r * 0.1); g.arc(x, y - r * 0.1, r, Math.PI, 0); g.lineTo(x + r, y + r); g.fill();
-  g.strokeStyle = '#6a5f52'; g.lineWidth = 2; g.stroke(); g.lineWidth = 1;
+let bg: { key: string; img: HTMLCanvasElement } | null = null;
+function bgOf(): HTMLCanvasElement {
+  const key = `${TS}|${DPR}|${W.tiles.map(t => t.b === 'road' ? 1 : 0).join('')}`;
+  if (!bg || bg.key !== key) bg = { key, img: buildBg(W, TS, DPR) };
+  return bg.img;
+}
+// 서 있는 것은 아래쪽 칸일수록 앞에 그린다
+function drawWorld(now: number) {
+  g.drawImage(bgOf(), OX, OY, TS * MW, TS * MH);
+  const items: { y: number; draw: () => void }[] = [];
+  const [gx, gy] = xy(W.gate);
+  items.push({ y: OY + (gy + 1) * TS, draw: () => drawGateArt(g, cx(W.gate), cy(W.gate) + TS * 0.15, TS, W.delve, now) });
+  const cy0 = xy(CASTLE[0][1] * MW + CASTLE[0][0])[1];
+  items.push({ y: OY + (cy0 + 2) * TS, draw: () => drawCastle(g, TS, OX, OY, W.rank, now, ui.sel === -2) });
+  items.push(...drawVillage(g, W, TS, OX, OY, now, ui.sel === -3));
+  for (let i = 0; i < MW * MH; i++) {
+    const t = W.tiles[i]; if (!t.b || t.b === 'road') continue;
+    const b0 = bornAt.get(i), pop = b0 != null ? Math.min(1, (now - b0) / 380) : 1;
+    const x = cx(i), yb = OY + (Math.floor(i / MW) + 1) * TS - TS * 0.08 + (pop < 1 ? -(1 - pop) * TS * 1.3 : 0);
+    items.push({ y: OY + (Math.floor(i / MW) + 1) * TS, draw: () => {
+      drawBuilding(g, t.b!, x, yb, TS, t.lv, now, liveSet.has(i));
+      if (i === ui.sel) { g.strokeStyle = '#d9b45a'; g.lineWidth = 2; g.beginPath(); g.ellipse(x, yb, TS * 0.7, TS * 0.26, 0, 0, 7); g.stroke(); g.lineWidth = 1; }
+    } });
+  }
+  void gx;
+  items.sort((a, b) => a.y - b.y).forEach(it => it.draw());
 }
 
 function drawAgents(dt: number) {
@@ -194,11 +168,10 @@ function drawHover() {
   const i = ui.pending >= 0 ? ui.pending : ui.hover; if (i < 0 || !ui.tool) return;
   const x = OX + (i % MW) * TS, y = OY + Math.floor(i / MW) * TS;
   const bad = ui.tool === 'demolish' ? !(W.tiles[i].b && i !== W.spawn) : !!canBuild(W, i, ui.tool);
-  g.fillStyle = bad ? 'rgba(194,72,61,.35)' : 'rgba(127,163,107,.4)'; g.fillRect(x, y, TS, TS);
-  g.strokeStyle = bad ? '#c2483d' : '#b9e09c'; g.lineWidth = 2; g.strokeRect(x + 1, y + 1, TS - 2, TS - 2); g.lineWidth = 1;
-  if (ui.tool !== 'demolish' && ui.tool !== 'road' && !bad) { g.globalAlpha = 0.7; g.font = `${Math.floor(TS * 0.58)}px serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(BDEF[ui.tool].icon, x + TS / 2, y + TS / 2 + 1); g.globalAlpha = 1; }
+  g.fillStyle = bad ? 'rgba(194,72,61,.3)' : 'rgba(150,200,110,.32)'; g.strokeStyle = bad ? '#c2483d' : '#b9e09c'; g.lineWidth = 2;
+  g.beginPath(); g.roundRect(x + 2, y + 2, TS - 4, TS - 4, TS * 0.28); g.fill(); g.stroke(); g.lineWidth = 1;
+  if (ui.tool !== 'demolish' && ui.tool !== 'road' && !bad) { g.globalAlpha = 0.62; drawBuilding(g, ui.tool, x + TS / 2, y + TS * 0.92, TS, 1, performance.now(), true); g.globalAlpha = 1; }
 }
-
 function drawFx(dt: number) {
   for (const d of dust) { d.t += dt; d.x += d.vx * dt; d.y += d.vy * dt; d.vy += 60 * dt; g.fillStyle = `rgba(200,180,140,${Math.max(0, 0.7 - d.t)})`; g.fillRect(d.x, d.y, 3, 3); }
   dust = dust.filter(d => d.t < 0.7);
@@ -234,11 +207,9 @@ function frame(now: number) {
   g.setTransform(DPR, 0, 0, DPR, 0, 0);
   g.fillStyle = '#14110d'; g.fillRect(0, 0, cv.width, cv.height);
   if (shake > 0) { shake -= dt; g.translate((fx() - 0.5) * 6 * shake * 4, (fx() - 0.5) * 6 * shake * 4); }
-  for (let i = 0; i < MW * MH; i++) drawTile(i, now);
-  drawGate(now);
-  drawHover();
   liveSet = new Set(live(W));
-  for (let i = 0; i < MW * MH; i++) drawBuilding(i, now);
+  drawWorld(now);
+  drawHover();
   drawAgents(speed ? dt : 0);
   drawInspector();
   drawFx(dt);
@@ -276,9 +247,9 @@ cv.addEventListener('pointerleave', () => { ui.hover = -1; hideTip(); });
 cv.addEventListener('pointerdown', e => {
   const i = tileAt(e); if (i < 0) return;
   if (!ui.tool) {
-    const t = W.tiles[i]; ui.sel = t.b && t.b !== 'road' ? i : -1;
-    if (ui.sel >= 0 || i === W.gate) ui.tab = 'park';
-    renderPanel(); if (ui.sel < 0) showTip(i, e, true); else hideTip(); return;
+    const t = W.tiles[i]; ui.sel = t.b && t.b !== 'road' ? i : t.t === 'castle' ? -2 : t.t === 'plot' ? -3 : -1;
+    if (ui.sel !== -1 || i === W.gate) ui.tab = 'park';
+    renderPanel(); if (ui.sel === -1) showTip(i, e, true); else hideTip(); return;
   }
   // 손가락은 한 번 눌러 자리를 보고, 같은 칸을 한 번 더 눌러 짓는다
   if (e.pointerType !== 'mouse' && ui.pending !== i) { ui.pending = i; renderTool(); return; }
@@ -297,7 +268,9 @@ function act(i: number) {
 function showTip(i: number, e: PointerEvent, pin = false) {
   const tip = $('#tip'); if (i < 0) return hideTip();
   const t = W.tiles[i]; let h = '';
-  if (i === W.gate) h = `<b class="font-serif">미궁 어귀</b><div class="text-dim mt-0.5">사망률 <span class="num">${Math.round(deathRate(W) * 100)}%</span></div>`;
+  if (W.tiles[i].t === 'castle') h = `<b class="font-serif">영주성</b><div class="text-dim mt-0.5">${['남작', '자작', '대공'][W.rank]}의 관청</div>`;
+  else if (W.tiles[i].t === 'plot') h = `<b class="font-serif">${TOWN[townStage(W)]}</b><div class="text-dim mt-0.5">주민 <span class="num">${popOf(W)}</span>명</div>`;
+  else if (i === W.gate) h = `<b class="font-serif">미궁 어귀</b><div class="text-dim mt-0.5">사망률 <span class="num">${Math.round(deathRate(W) * 100)}%</span></div>`;
   else if (t.b && t.b !== 'road') {
     const d = BDEF[t.b]; const on = live(W).includes(i);
     h = `<b class="font-serif">${d.icon} ${d.name}</b>${on ? '' : ' <span class="text-blood">길 끊김</span>'}<div class="text-dim mt-0.5">${d.note}</div>` +
@@ -437,6 +410,16 @@ function spark(vals: number[], color: string, h = 44) {
     <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.8" vector-effect="non-scaling-stroke"/>
   </svg>`;
 }
+function townHtml() {
+  const st = townStage(W), j = jobsOf(W), sc = townScore(W), next = TOWN_AT[st + 1];
+  const pct = next ? Math.max(0, Math.min(100, (sc - TOWN_AT[st]) / (next - TOWN_AT[st]) * 100)) : 100;
+  const chip = (n: string, v: number, c: string) => `<div class="rounded border border-line py-1 text-center"><div class="text-[11px] text-dim">${n}</div><div class="num text-sm ${c}">${v}</div></div>`;
+  return `<div class="rounded border ${ui.sel === -2 || ui.sel === -3 ? 'border-clean/60' : 'border-line'} bg-felt/60 p-2.5">
+    <div class="flex items-baseline justify-between"><span class="font-serif text-sm">🏘 ${TOWN[st]}</span><span class="text-[11px] text-dim">주민 <span class="num text-paper">${j.pop}</span> · 마을세 <span class="num text-clean">+${Math.round(j.pop * L.TOWN_TAX * L.MONTH)}</span>/달</span></div>
+    <div class="mt-2 grid grid-cols-4 gap-1.5">${chip('농부', j.farm, 'text-moss')}${chip('장사', j.trade, 'text-paper')}${chip('숙박', j.inn, 'text-paper')}${chip('안내', j.guide, 'text-clean')}</div>
+    <div class="mt-2 flex items-center gap-2 text-[11px] text-dim"><span>${next ? TOWN[st + 1] : '더 클 곳이 없다'}</span><div class="h-1.5 flex-1 rounded bg-line overflow-hidden"><div class="h-full bg-clean" style="width:${pct}%"></div></div></div>
+  </div>`;
+}
 function selHtml() {
   const i = ui.sel; if (i < 0 || !W.tiles[i].b || W.tiles[i].b === 'road') return '';
   const t = W.tiles[i], d = BDEF[t.b!], ts = W.stat.tile[i], on = live(W).includes(i), c = upCost(W, i);
@@ -505,10 +488,10 @@ function parkHtml() {
     return `<div class="flex items-center gap-2 rounded border ${c} px-2 py-1.5"><span class="num text-[11px]">${'●'.repeat(n.sev)}</span><div class="flex-1"><div class="text-[13px] text-paper">${n.what}</div>${n.hint ? `<div class="text-[11px] text-dim">${n.hint}</div>` : ''}</div>${n.kind ? `<button data-pick="${n.kind}" class="rounded border border-line px-2 py-0.5 text-[11px] text-paper hover:bg-felt">${BDEF[n.kind].name} 짓기</button>` : ''}</div>`;
   }).join('');
   const best = Object.entries(st.tile).sort((a, b) => b[1].rev - a[1].rev).slice(0, 3).filter(e => e[1].rev > 0);
-  return `${selHtml()}${selHtml() ? '<div class="h-3"></div>' : ''}${delveHtml()}
+  return `${selHtml()}${selHtml() ? '<div class="h-3"></div>' : ''}${townHtml()}<div class="h-3"></div>${delveHtml()}
   <div class="grid grid-cols-3 gap-2 mt-3">
     ${kpi('오늘 입장객', W.today.visits + '명')}${kpi('최근 30일', fmt(mV) + '명')}${kpi('누적', fmt(st.visits) + '명')}
-    ${kpi('평판', '★'.repeat(stars) + '☆'.repeat(5 - stars), 'text-clean')}${kpi('사망률', Math.round(deathRate(W) * 100) + '%', deathRate(W) > 0.09 ? 'text-blood' : 'text-paper')}${kpi('손님 만족', sat + '점', sat < 55 ? 'text-blood' : 'text-paper')}
+    ${kpi('평판', '★'.repeat(stars) + '☆'.repeat(5 - stars), 'text-clean')}${kpi('사망률', Math.round(deathRate(W) * 100) + '%', deathRate(W) > 0.09 ? 'text-blood' : 'text-paper')}${kpi('손님 만족', h.length ? sat + '점' : '–', h.length && sat < 55 ? 'text-blood' : 'text-paper')}
   </div>
   <h2 class="font-serif text-base mt-4 mb-1">입장객 · 매상 <span class="text-[11px] text-dim">최근 30일</span></h2>
   <div class="rounded border border-line p-2">
