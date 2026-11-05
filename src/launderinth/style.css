@@ -37,3 +37,30 @@ body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
 .slot small { color: #7f8f6c; font-size: 11px; }
 .slot.on { border-color: #d9b45a; color: #d9b45a; }
 .slot.lock { opacity: .4; }
+
+/* 기본 꼴은 가로 화면: 판은 왼쪽, 패널은 오른쪽. 세로로 서 있는 좁은 화면(휴대폰)만 돌려 달라고 한다 */
+#main { flex-direction: row; }
+#side { width: clamp(300px, 34vw, 440px); border-left: 1px solid #3a3226; border-top: 0; height: auto; }
+.turn { display: none; position: fixed; inset: 0; z-index: 60; place-items: center; background: #14110d; color: #e9dcc0; padding: 24px; }
+@media (orientation: portrait) and (max-width: 900px) {
+  .turn { display: grid; }
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  .board { grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 14px 8px; padding: 8px; }
+  .card, .slot { min-height: 120px; }
+  .card .art { height: 38px; font-size: 22px; }
+}
+
+/* 손패: 카드를 끌어 빈 칸에 놓거나, 누른 뒤 빈 칸을 누른다 */
+.hand { border-top: 1px solid #3a3226; background: #1d1913; }
+.hand-in { display: flex; gap: 8px; align-items: stretch; padding: 8px 10px 10px; overflow-x: auto; }
+.hand .hl { align-self: center; font-size: 11px; color: #a79878; writing-mode: vertical-rl; letter-spacing: .2em; }
+.hcard { flex: 0 0 auto; width: 92px; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 4px; border: 2px solid #3a3226; border-radius: 9px; background: #26211a; color: #e9dcc0; font-size: 12px; box-shadow: 0 3px 0 #0008; transition: transform .12s; cursor: grab; }
+.hcard:hover { transform: translateY(-6px); }
+.hcard .hi { font-size: 22px; line-height: 1.2; }
+.hcard i { font-style: normal; font-size: 10px; color: #a79878; }
+.hcard.on { border-color: #d9b45a; transform: translateY(-10px); box-shadow: 0 3px 0 #0008, 0 0 12px #d9b45a55; }
+.hcard.off { opacity: .45; cursor: not-allowed; }
+.slot.ready { border-color: #d9b45a; color: #e9dcc0; background: #d9b45a14; }
+.slot.over { background: #d9b45a33; }
+@media (orientation: landscape) and (max-height: 520px) { .hcard { width: 78px; padding: 3px; } .hcard .hi { font-size: 18px; } .hand-in { padding: 4px 8px 6px; } }

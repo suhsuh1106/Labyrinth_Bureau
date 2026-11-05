@@ -4,8 +4,8 @@ import { World, Kind, BDEF, canBuild, build, step, L, washCap, clampLed, firstFr
 export type Style = 'honest' | 'greedy' | 'smart';
 
 // 짓는 순서(앞에서부터 카드를 하나씩 놓는다). 놓을 수 없으면 다음 카드로
-const PLAN_HONEST: Kind[] = ['tavern', 'inn', 'rental', 'chapel', 'tavern', 'inn', 'lodge', 'hospital', 'casino', 'lodge', 'cathedral', 'guild', 'casino', 'theater', 'auction'];
-const PLAN: Kind[] = ['tavern', 'inn', 'rental', 'chapel', 'casino', 'tavern', 'inn', 'lodge', 'hospital', 'casino', 'cathedral', 'guild', 'lodge', 'theater', 'auction'];
+const PLAN_HONEST: Kind[] = ['checkpoint', 'buyer', 'tavern', 'inn', 'rental', 'chapel', 'tavern', 'inn', 'lodge', 'hospital', 'casino', 'lodge', 'cathedral', 'guild', 'casino', 'theater', 'auction'];
+const PLAN: Kind[] = ['checkpoint', 'buyer', 'tavern', 'inn', 'rental', 'chapel', 'casino', 'tavern', 'inn', 'lodge', 'hospital', 'casino', 'cathedral', 'guild', 'lodge', 'theater', 'auction'];
 
 export function botDay(w: World, s: Style) {
   // 짓기: 계획 순서대로, 여유 자금이 있을 때
@@ -25,7 +25,7 @@ export function botDay(w: World, s: Style) {
     }
   }
   const l = w.led;
-  if (s === 'honest') { l.report = 100; l.ghosts = 0; l.smuggle = 0; }
+  if (s === 'honest') { l.report = 100; l.ghosts = 0; l.smuggle = 0; l.backdoor = 0; }
   if (s === 'greedy') { l.report = 40; l.ghosts = 120; l.smuggle = 100; l.wash.casino = washCap(w, 'casino'); l.wash.cathedral = washCap(w, 'cathedral'); }
   if (s === 'smart') {
     const calm = w.risk < 30 && !w.audit;

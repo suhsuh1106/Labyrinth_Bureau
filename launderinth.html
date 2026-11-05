@@ -12,20 +12,24 @@
 <body class="font-sans text-paper overflow-hidden">
 <div id="app" class="h-[100dvh] flex flex-col">
   <header id="bar" class="shrink-0 border-b border-line bg-desk"></header>
-  <main class="flex-1 min-h-0 flex flex-col lg:flex-row">
-    <section class="relative flex-1 min-h-[40%] lg:min-h-0 overflow-y-auto scroll-thin bg-ink p-3" id="mapWrap">
-      <div id="board" class="board"></div>
-      <div id="ticker" class="pointer-events-none sticky bottom-0 mt-2"></div>
+  <main id="main" class="flex-1 min-h-0 flex flex-col">
+    <section class="relative flex-1 min-w-0 min-h-0 flex flex-col bg-ink">
+      <div class="relative flex-1 min-h-0 overflow-y-auto scroll-thin p-3" id="mapWrap">
+        <div id="board" class="board"></div>
+        <div id="ticker" class="pointer-events-none sticky bottom-0 mt-2"></div>
+      </div>
+      <div id="hand" class="hand shrink-0"></div>
     </section>
-    <aside class="shrink-0 h-[52%] lg:h-auto lg:w-[420px] flex flex-col border-t lg:border-t-0 lg:border-l border-line bg-desk">
+    <aside id="side" class="shrink-0 flex flex-col border-line bg-desk">
       <nav class="flex shrink-0 border-b border-line text-sm" role="tablist">
         <button class="tab flex-1 py-2.5 border-b-2 border-transparent text-dim" data-tab="park" role="tab">영지 현황</button>
         <button class="tab flex-1 py-2.5 border-b-2 border-transparent text-dim" data-tab="ledger" role="tab">장부 조작소</button>
-        <button class="tab flex-1 py-2.5 border-b-2 border-transparent text-dim" data-tab="build" role="tab">건축 및 세탁소</button>
+        <button class="tab flex-1 py-2.5 border-b-2 border-transparent text-dim" data-tab="build" role="tab">세탁소</button>
       </nav>
       <div id="panel" class="flex-1 min-h-0 overflow-y-auto scroll-thin p-3" role="tabpanel"></div>
     </aside>
   </main>
+  <div id="turn" class="turn"><div class="text-center font-serif text-xl">화면을 가로로 돌려 주세요<div class="mt-2 text-xs text-dim">가로 화면에 맞춰 만든 판입니다</div></div></div>
   <div id="book" class="hidden fixed inset-0 z-40 bg-black/70 flex items-center justify-center p-3"></div>
   <div id="over" class="hidden fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4"></div>
 </div>
