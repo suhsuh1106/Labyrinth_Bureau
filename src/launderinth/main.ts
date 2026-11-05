@@ -10,6 +10,21 @@ const KEY = 'lb-launder', VERSION = 8;
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector(s) as T;
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
 
+// 전체 화면(사파리는 webkit 이름). 켜면 가로로 잠가 본다(막히는 브라우저는 그냥 둔다)
+type FsEl = HTMLElement & { webkitRequestFullscreen?: () => Promise<void> };
+type FsDoc = Document & { webkitFullscreenEnabled?: boolean; webkitFullscreenElement?: Element | null; webkitExitFullscreen?: () => Promise<void> };
+const fsCan = () => !!((document as FsDoc).fullscreenEnabled || (document as FsDoc).webkitFullscreenEnabled);
+const fsOn = () => !!(document.fullscreenElement || (document as FsDoc).webkitFullscreenElement);
+async function toggleFs() {
+  try {
+    if (fsOn()) { await ((document as FsDoc).exitFullscreen?.() ?? (document as FsDoc).webkitExitFullscreen?.()); return; }
+    const el = document.documentElement as FsEl;
+    await (el.requestFullscreen?.() ?? el.webkitRequestFullscreen?.());
+    try { await (screen.orientation as any)?.lock?.('landscape'); } catch { /* 잠금이 안 되는 기기 */ }
+  } catch { /* 막힌 창 */ }
+}
+['fullscreenchange', 'webkitfullscreenchange'].forEach(t => document.addEventListener(t, () => renderBar()));
+
 // ── 판 ──────────────────────────────────────────────
 let W: World;
 function save() { try { localStorage.setItem(KEY, JSON.stringify({ v: VERSION, rng: getSeed(), W })); } catch { /* 저장이 막혀도 판은 계속 */ } }
@@ -96,6 +111,7 @@ function renderBar() {
     <div class="flex items-center gap-1.5"><span class="text-[11px] text-dim">비자금</span><span class="num text-sm text-black">${fmt(W.black)}</span></div>
     <div class="ml-auto flex items-center gap-2">
       <span class="num text-xs text-dim">${m}월 ${d}일 · 임기 ${L.TERM}월</span>
+      ${fsCan() ? `<button data-act="fs" class="rounded border border-line px-1.5 py-1 text-xs text-dim hover:bg-felt" aria-label="${fsOn() ? '전체 화면 끄기' : '전체 화면'}" title="전체 화면">${fsOn() ? '⤡' : '⤢'}</button>` : ''}
       <div class="flex overflow-hidden rounded border border-line text-xs">
         ${['⏸', '▶', '▶▶', '▶▶▶'].map((s, k) => `<button data-speed="${k}" class="px-2 py-1 ${speed === k ? 'bg-clean text-ink' : 'text-dim hover:bg-felt'}" aria-label="속도 ${k}">${s}</button>`).join('')}
       </div>
@@ -395,6 +411,7 @@ document.addEventListener('click', e => {
   const tab = el.closest<HTMLElement>('[data-tab]'); if (tab) { ui.tab = tab.dataset.tab as any; renderPanel(); return; }
   const sp = el.closest<HTMLElement>('[data-speed]'); if (sp) { speed = +sp.dataset.speed!; renderBar(); return; }
   const act = el.closest<HTMLElement>('[data-act]')?.dataset.act;
+  if (act === 'fs') { void toggleFs(); return; }
   if (act === 'next') { $('#book').classList.add('hidden'); speed = resume || 1; renderBar(); return; }
   if (act === 'book' && W.books.length) { resume = speed || resume; openBook(W.books[W.books.length - 1]); return; }
   if (act === 'up' && ui.sel >= 0) {
@@ -420,6 +437,7 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('keydown', e => {
   if (e.key === ' ') { speed = speed ? 0 : 1; renderBar(); e.preventDefault(); }
+  if (e.key === 'f' || e.key === 'F') { if (fsCan()) void toggleFs(); }
   if (e.key === 'Escape') { ui.slot = -1; ui.sel = -1; renderBoard(); renderPanel(); }
 });
 

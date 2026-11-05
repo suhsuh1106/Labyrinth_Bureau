@@ -37,3 +37,16 @@ body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
 .slot small { color: #7f8f6c; font-size: 11px; }
 .slot.on { border-color: #d9b45a; color: #d9b45a; }
 .slot.lock { opacity: .4; }
+
+/* 기본 꼴은 가로 화면: 판은 왼쪽, 패널은 오른쪽. 세로로 서 있는 좁은 화면(휴대폰)만 돌려 달라고 한다 */
+#main { flex-direction: row; }
+#side { width: clamp(300px, 34vw, 440px); border-left: 1px solid #3a3226; border-top: 0; height: auto; }
+.turn { display: none; position: fixed; inset: 0; z-index: 60; place-items: center; background: #14110d; color: #e9dcc0; padding: 24px; }
+@media (orientation: portrait) and (max-width: 900px) {
+  .turn { display: grid; }
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  .board { grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 14px 8px; padding: 8px; }
+  .card, .slot { min-height: 120px; }
+  .card .art { height: 38px; font-size: 22px; }
+}
