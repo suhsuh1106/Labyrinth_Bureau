@@ -1,7 +1,7 @@
 // Launderinth(론더린스) 프로토타입 엔진. DOM을 쓰지 않는다. 하루가 한 턴(step), 한 달 L.MONTH일.
 // 루프: 건설 · 집객 → 표면 수익 → 장부 조작(신고율 · 유령 대원 · 장비 밀수) → 비자금 → 세탁 → 상납 → 승진.
 // 사건은 날짜가 아니라 상태 조건으로 터진다(감사 · 유족 항의 · 발길 끊김 · 승진).
-import { rnd, setSeed } from '../core/rng';
+import { rnd, setSeed } from '../../../src/core/rng';
 
 export const MW = 24, MH = 16;
 export const RANKS = ['남작', '자작', '대공'] as const;
