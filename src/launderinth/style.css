@@ -50,3 +50,17 @@ body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
   .card, .slot { min-height: 120px; }
   .card .art { height: 38px; font-size: 22px; }
 }
+
+/* 손패: 카드를 끌어 빈 칸에 놓거나, 누른 뒤 빈 칸을 누른다 */
+.hand { border-top: 1px solid #3a3226; background: #1d1913; }
+.hand-in { display: flex; gap: 8px; align-items: stretch; padding: 8px 10px 10px; overflow-x: auto; }
+.hand .hl { align-self: center; font-size: 11px; color: #a79878; writing-mode: vertical-rl; letter-spacing: .2em; }
+.hcard { flex: 0 0 auto; width: 92px; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 4px; border: 2px solid #3a3226; border-radius: 9px; background: #26211a; color: #e9dcc0; font-size: 12px; box-shadow: 0 3px 0 #0008; transition: transform .12s; cursor: grab; }
+.hcard:hover { transform: translateY(-6px); }
+.hcard .hi { font-size: 22px; line-height: 1.2; }
+.hcard i { font-style: normal; font-size: 10px; color: #a79878; }
+.hcard.on { border-color: #d9b45a; transform: translateY(-10px); box-shadow: 0 3px 0 #0008, 0 0 12px #d9b45a55; }
+.hcard.off { opacity: .45; cursor: not-allowed; }
+.slot.ready { border-color: #d9b45a; color: #e9dcc0; background: #d9b45a14; }
+.slot.over { background: #d9b45a33; }
+@media (orientation: landscape) and (max-height: 520px) { .hcard { width: 78px; padding: 3px; } .hcard .hi { font-size: 18px; } .hand-in { padding: 4px 8px 6px; } }

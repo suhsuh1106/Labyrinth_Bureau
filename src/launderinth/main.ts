@@ -1,12 +1,12 @@
 // Launderinth 화면: 상단바 · 영지 판(시설 카드) · 장부 조작소 · 건축 및 세탁소
 import {
   World, Kind, newWorld, step, build, demolish, canBuild, BDEF, BUILD_ORDER, RANKS, L, TOWN, TOWN_AT, townStage, townScore, popOf, jobsOf,
-  live, preview, needsOf, Day, delveUp, delveCost, lootMean, setBudget, BUDGET_KEYS, BUDGET_NAME, effOf, Book, upgrade, upCost, setPrice, PRICED, capOf, clampLed, washCap, count, deathRate, LOOK, monthDay, wantOf, slotsOf, firstFree,
+  live, preview, needsOf, Day, delveUp, delveCost, lootMean, setBudget, BUDGET_KEYS, BUDGET_NAME, effOf, Book, upgrade, upCost, setPrice, PRICED, capOf, clampLed, washCap, count, deathRate, LOOK, monthDay, wantOf, slotsOf, firstFree, setBuy, setLevy, setFee, feeWant, quotaOf, gateOf, buyerOf,
 } from './engine';
 import { getSeed, setSeed } from '../core/rng';
 import './style.css';
 
-const KEY = 'lb-launder', VERSION = 8;
+const KEY = 'lb-launder', VERSION = 9;
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector(s) as T;
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
 
@@ -32,14 +32,14 @@ function load(): World | null {
   try { const d = JSON.parse(localStorage.getItem(KEY) || 'null'); if (d && d.v === VERSION) { setSeed(d.rng); return d.W; } } catch { /* 새 판 */ }
   return null;
 }
-function fresh() { W = newWorld((Date.now() ^ 0x5eed) >>> 0); ui.sel = -1; ui.slot = -1; ui.slam = -1; save(); }
+function fresh() { W = newWorld((Date.now() ^ 0x5eed) >>> 0); ui.sel = -1; ui.slot = -1; ui.slam = -1; ui.hand = ''; save(); }
 W = load() ?? newWorld((Date.now() ^ 0x5eed) >>> 0);
 
 // ── 시간 ────────────────────────────────────────────
 const SPEEDS = [0, 2.2, 0.8, 0.25]; // 하루가 걸리는 초
 let speed = 0, acc = 0; // 시작은 멈춤: 읽고 놓고 나서 ▶
 // sel: 칸 번호 · -1 없음 · -2 마을 · -5 미궁. slot: 카드를 놓으려고 고른 빈 칸
-const ui = { tab: 'park' as 'park' | 'ledger' | 'build', sel: -1, slot: -1, slam: -1 };
+const ui = { tab: 'park' as 'park' | 'ledger' | 'build', sel: -1, slot: -1, slam: -1, hand: '' as '' | Kind };
 
 let last = performance.now();
 function frame(now: number) {
@@ -65,7 +65,7 @@ function dayTick() {
 
 // ── 영지 판 ─────────────────────────────────────────
 const TAGC: Record<string, string> = { 세탁: 'text-black', 체면: 'text-moss', 영업: 'text-clean' };
-const ART: Record<Kind, string> = { inn: '#4a3a28', tavern: '#4a2f2a', rental: '#3a3a3c', chapel: '#2e3a44', lodge: '#33412f', hospital: '#2d3b3a', casino: '#3d2a40', cathedral: '#3d3a2a', guild: '#3a3326', theater: '#44303a', auction: '#3d3322' };
+const ART: Record<Kind, string> = { house: '#3b3a2c', checkpoint: '#3a3a3a', buyer: '#3d3a22', inn: '#4a3a28', tavern: '#4a2f2a', rental: '#3a3a3c', chapel: '#2e3a44', lodge: '#33412f', hospital: '#2d3b3a', casino: '#3d2a40', cathedral: '#3d3a2a', guild: '#3a3326', theater: '#44303a', auction: '#3d3322' };
 function boardHtml(): string {
   const open = slotsOf(W), nextOpen = W.rank < RANKS.length - 1 ? L.SLOTS[W.rank + 1] : open;
   const cards: string[] = [];
@@ -75,7 +75,7 @@ function boardHtml(): string {
   for (let i = 0; i < Math.max(open, nextOpen); i++) {
     const t = W.tiles[i];
     if (i >= open) { cards.push(`<div class="slot lock"><b>🔒</b><small>${RANKS[W.rank + 1]} 승급 시</small></div>`); continue; }
-    if (!t.b) { cards.push(`<button data-slot="${i}" class="slot ${ui.slot === i ? 'on' : ''}"><b>＋ 카드 놓기</b><small>빈 칸</small></button>`); continue; }
+    if (!t.b) { cards.push(`<button data-slot="${i}" class="slot ${ui.slot === i ? 'on' : ''} ${ui.hand ? 'ready' : ''}"><b>${ui.hand ? BDEF[ui.hand].icon + ' 여기에 내려놓기' : '빈 칸'}</b><small>${ui.hand ? fmt(BDEF[ui.hand].cost) : '손패에서 카드를'}</small></button>`); continue; }
     const d = BDEF[t.b], ts = W.stat.tile[i], today = W.today.byTile[i] ?? 0;
     const eff = d.cap ? `수용 ${capOf(W, i)}/일` : d.wash ? `세탁 한도 ${fmt(Math.round(d.wash * (1 + L.UP_CAP * (t.lv - 1))))}` : d.fx;
     const gear = t.lv > 1 ? `<div class="gear">${Array.from({ length: t.lv - 1 }, () => '<b>▲</b>').join('')}</div>` : '';
@@ -84,7 +84,17 @@ function boardHtml(): string {
   ui.slam = -1;
   return cards.join('');
 }
-function renderBoard() { $('#board').innerHTML = boardHtml(); }
+function handHtml(): string {
+  const free = firstFree(W);
+  const cards = BUILD_ORDER.filter(k => W.cards.includes(k)).map(k => {
+    const d = BDEF[k], why = free < 0 ? '빈 칸 없음' : canBuild(W, free, k), own = count(W, k), poor = W.clean < d.cost;
+    const off = !!why;
+    return `<button draggable="${off ? 'false' : 'true'}" data-hand="${k}" class="hcard ${ui.hand === k ? 'on' : ''} ${off ? 'off' : ''}" title="${why ?? ''}">
+      <span class="hi">${d.icon}</span><b>${d.name}</b><span class="num ${poor ? 'text-blood' : 'text-clean'}">${fmt(d.cost)}</span><i>${own}/${d.max}</i></button>`;
+  }).join('');
+  return `<div class="hand-in"><span class="hl">손패</span>${cards || '<span class="text-dim text-xs">내려놓을 카드가 없다</span>'}</div>`;
+}
+function renderBoard() { $('#board').innerHTML = boardHtml(); $('#hand').innerHTML = handHtml(); }
 
 // ── 상단바 ──────────────────────────────────────────
 function renderBar() {
@@ -148,9 +158,11 @@ function ledgerHtml() {
   <div class="ledger-paper rounded-sm p-3 shadow-inner">
     <div class="grid grid-cols-[1fr_auto_auto] gap-x-3 pb-1 text-[11px] text-[#6b5a3e]"><span></span><span class="text-right">실제</span><span class="text-right">제국 신고</span></div>
     ${row('미궁 수익', fmt(p.real), fmt(p.reported), `<div class="rounded bg-ink/90 p-1.5 flex items-center justify-between"><span class="text-[11px] text-dim">신고율</span>${stepper('report', l.report + '%')}</div>`)}
+    ${gateOf(W) ? `
     ${row('탐사대원 명부', fmt(W.mo.visits), fmt(p.registered), `<div class="rounded bg-ink/90 p-1.5 flex items-center justify-between"><span class="text-[11px] text-dim">유령 대원</span>${stepper('ghosts', l.ghosts + '명')}</div>`)}
     ${row('사망자 장비', fmt(W.mo.gear), l.smuggle ? `밀수 ${fmt(p.gearSold)}` : '유족 반환', `<div class="rounded bg-ink/90 p-1.5 flex items-center justify-between"><span class="text-[11px] text-dim">밀수 비율</span>${stepper('smuggle', l.smuggle + '%')}</div>`)}
-    ${row('제국 세금', '', '−' + fmt(p.tax))}
+    ` : `<div class="border-b border-[#cdbb95] py-1.5 text-[12px] text-[#6b5a3e]">탐사대원 명부 · 사망자 장비: 검문소가 서야 적을 것이 생긴다</div>`}
+    ${row(quotaOf(W) > Math.round(p.reported * L.TAX[W.rank]) ? '공납(할당 ' + fmt(quotaOf(W)) + ')' : '제국 세금', '', '−' + fmt(p.tax))}
     ${row('개척 보조금', '', '+' + fmt(p.subsidy))}
     ${row('상납', '', p.bribe ? '−' + fmt(p.bribe) : '0', `<div class="rounded bg-ink/90 p-1.5 flex items-center justify-between"><span class="text-[11px] text-dim">합법 자금에서</span>${stepper('bribe', fmt(l.bribe))}</div>`)}
     <div class="relative mt-2 flex items-end justify-between">
@@ -176,18 +188,6 @@ function ledgerHtml() {
 }
 
 function buildHtml() {
-  const free = firstFree(W), target = ui.slot >= 0 && !W.tiles[ui.slot].b ? ui.slot : free;
-  const cards = BUILD_ORDER.map(k => {
-    const d = BDEF[k], why = target < 0 ? '빈 칸 없음' : canBuild(W, target, k), own = count(W, k);
-    const lock = d.rank > W.rank, poor = W.clean < d.cost;
-    const tagc = TAGC[d.tag] ?? 'text-dim';
-    return `<button data-place="${k}" ${why ? 'disabled' : ''} class="text-left rounded border border-line ${why ? 'opacity-45' : 'hover:bg-felt'} p-2">
-      <div class="flex items-center justify-between"><span class="text-lg leading-none">${d.icon}</span><span class="text-[10px] ${tagc}">${d.tag}</span></div>
-      <div class="mt-1 font-serif text-sm">${d.name} <span class="num text-[11px] text-dim">${own}/${d.max}</span></div>
-      <div class="num text-xs ${poor && !lock ? 'text-blood' : 'text-clean'}">${fmt(d.cost)} <span class="text-dim">· 유지 ${d.upkeep}</span></div>
-      <div class="text-[10px] text-dim">${lock ? RANKS[d.rank] + ' 이상' : d.fx}</div>
-    </button>`;
-  }).join('');
   const wash = (k: 'casino' | 'cathedral') => {
     const d = BDEF[k], cap = washCap(W, k), n = count(W, k);
     if (!n) return `<div class="rounded border border-dashed border-line p-2.5 text-xs text-dim">${d.icon} ${d.name} 없음</div>`;
@@ -200,10 +200,7 @@ function buildHtml() {
     </div>`;
   };
   return `
-  <div class="flex items-baseline justify-between mb-2"><h2 class="font-serif text-base">카드 놓기</h2>
-    <span class="text-[11px] text-dim">${firstFree(W) < 0 ? '빈 칸 없음 · 카드를 내려야 한다' : ui.slot >= 0 ? `${ui.slot + 1}번 칸에 놓는다` : '빈 칸 ' + (slotsOf(W) - live(W).length) + '개'}</span></div>
-  <div class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-3 gap-2">${cards}</div>
-  <h2 class="font-serif text-base mt-4 mb-2">세탁소</h2>
+  <h2 class="font-serif text-base mb-2">세탁소</h2>
   <div class="space-y-2">${wash('casino')}${wash('cathedral')}</div>
   <div class="mt-2 text-[11px] text-dim">비자금 <span class="num text-black">${fmt(W.black)}</span></div>`;
 }
@@ -225,6 +222,20 @@ function townHtml() {
     <div class="mt-2 flex items-center gap-2 text-[11px] text-dim"><span>${next ? TOWN[st + 1] : '더 클 곳이 없다'}</span><div class="h-1.5 flex-1 rounded bg-line overflow-hidden"><div class="h-full bg-clean" style="width:${pct}%"></div></div></div>
   </div>`;
 }
+// 시설에서 정하는 숫자: 검문소는 입장료, 매입소는 매입가와 거래세
+function knobsHtml(k: Kind): string {
+  const row = (name: string, ctl: string, hint: string) => `<div class="mt-2 rounded bg-ink/70 p-1.5"><div class="flex items-center justify-between"><span class="text-[12px]">${name}</span>${ctl}</div><div class="mt-0.5 text-[11px] text-dim">${hint}</div></div>`;
+  if (k === 'checkpoint') {
+    const per = Math.round(feeWant(W.fee) * 100);
+    return row('입장료', stepper('fee', fmt(W.fee) + '금'), `모험가 한 명당 · 발길 ${per}%${W.today.visits ? ` · 오늘 ${fmt(W.today.visits * W.fee)}` : ''}`);
+  }
+  if (k === 'buyer') {
+    const eff = Math.round(W.buyPct * (1 - W.levy / 100));
+    return row('매입가', stepper('buy', W.buyPct + '%'), `시세 ${Math.round(W.mkt * 100)}% ${W.mkt >= 1.05 ? '▲' : W.mkt <= 0.95 ? '▼' : '·'} · 재고 ${fmt(W.stock)} · 손에 쥐는 몫 ${eff}%`)
+      + row('거래세', stepper('levy', W.levy + '%'), `파는 값에서 떼어 금고로 · 높을수록 모험가가 꺼린다`);
+  }
+  return '';
+}
 function selHtml() {
   const i = ui.sel; if (i < 0 || !W.tiles[i].b) return '';
   const t = W.tiles[i], d = BDEF[t.b!], ts = W.stat.tile[i], c = upCost(W, i);
@@ -233,6 +244,7 @@ function selHtml() {
     <div class="flex items-center justify-between"><span class="font-serif text-sm">${d.icon} ${d.name} <span class="num text-clean text-xs">${'▲'.repeat(t.lv - 1) || '1단계'}</span></span>
       <button data-act="del" class="text-[11px] text-dim hover:text-blood">철거</button></div>
     <div class="mt-1 flex flex-wrap gap-x-4 text-[11px] text-dim">${eff}${ts ? `<span>손님 <span class="num text-paper">${fmt(ts.served)}</span></span><span>누계 <span class="num text-clean">${fmt(ts.rev)}</span></span>` : ''}</div>
+    ${knobsHtml(t.b!)}
     ${c ? `<button data-act="up" class="mt-2 w-full rounded border ${W.clean >= c ? 'border-clean text-clean hover:bg-clean/10' : 'border-line text-dim'} py-1.5 text-sm">업그레이드 <span class="num">${fmt(c)}</span></button>` : `<div class="mt-2 text-[11px] text-dim">${t.lv >= L.UP_MAX ? '최고 단계' : ''}</div>`}
   </div>`;
 }
@@ -324,8 +336,8 @@ function openBook(b: Book) {
   if (speed) resume = speed;
   const prev = W.books.length > 1 ? W.books[W.books.length - 2] : null;
   const rows: [string, number, string?][] = [];
-  const inc: [string, number][] = [['입장료', b.fee], ...(PRICED as readonly Kind[]).filter(k => b.sales[k]).map(k => [BDEF[k].icon + ' ' + BDEF[k].name, b.sales[k]!] as [string, number]), ['개척 보조금', b.subsidy], ['세탁 유입', b.wash]];
-  const out: [string, number][] = [['시설 유지비', b.upkeep], ['월 예산', b.budget], ['건축 · 업그레이드', b.capex], ['제국 세금', b.tax], ['상납', b.bribe], ['비자금으로 빠짐', b.toBlack]];
+  const inc: [string, number][] = [['입장료', b.fee], ...(PRICED as readonly Kind[]).filter(k => b.sales[k]).map(k => [BDEF[k].icon + ' ' + BDEF[k].name, b.sales[k]!] as [string, number]), ['개척 보조금', b.subsidy], ['거래세', b.levy], ['상단 출하', b.trade], ['세탁 유입', b.wash]];
+  const out: [string, number][] = [['시설 유지비', b.upkeep], ['월 예산', b.budget], ['전리품 매입', b.buy], ['건축 · 업그레이드', b.capex], ['제국 세금', b.tax], ['상납', b.bribe], ['비자금으로 빠짐', b.toBlack]];
   void rows;
   const sI = inc.reduce((a, [, v]) => a + v, 0), sO = out.reduce((a, [, v]) => a + v, 0);
   const line = (l: string, v: number, sign: string, c: string) => v ? `<div class="flex justify-between py-0.5 text-[13px]"><span>${l}</span><span class="num ${c}">${sign}${fmt(v)}</span></div>` : '';
@@ -387,10 +399,13 @@ function renderOver() {
 }
 
 // ── 손 ──────────────────────────────────────────────
-const STEP: Record<string, number> = { 'bud.promo': 100, 'bud.safety': 100, 'bud.upkeep': 100, report: 5, ghosts: 5, smuggle: 10, bribe: 250, 'wash.casino': 250, 'wash.cathedral': 250 };
+const STEP: Record<string, number> = { 'bud.promo': 100, 'bud.safety': 100, 'bud.upkeep': 100, report: 5, ghosts: 5, smuggle: 10, bribe: 250, 'wash.casino': 250, 'wash.cathedral': 250, fee: 1, buy: 10, levy: 5 };
 function bump(key: string, dir: number, big: boolean) {
   const s = STEP[key] * (big ? 4 : 1) * dir; const l = W.led;
   if (key.startsWith('bud.')) { const k = key.slice(4) as typeof BUDGET_KEYS[number]; setBudget(W, k, W.budget[k] + s); save(); renderPanel(); return; }
+  if (key === 'fee') { setFee(W, W.fee + dir); save(); renderPanel(); renderBoard(); return; }
+  if (key === 'buy') { setBuy(W, W.buyPct + dir * 10); save(); renderPanel(); return; }
+  if (key === 'levy') { setLevy(W, W.levy + dir * 5); save(); renderPanel(); return; }
   if (key.startsWith('price.')) { const k = key.slice(6) as typeof PRICED[number]; setPrice(W, k, W.price[k] + dir * 10 * (big ? 3 : 1)); save(); renderPanel(); return; }
   if (key.startsWith('wash.')) { const k = key.slice(5) as 'casino' | 'cathedral'; l.wash[k] += s; }
   else (l as any)[key] += s;
@@ -421,6 +436,8 @@ document.addEventListener('click', e => {
   }
   if (act === 'delve') { if (!delveUp(W)) save(); renderBar(); renderBoard(); renderPanel(); return; }
   if (act === 'del' && ui.sel >= 0) { demolish(W, ui.sel); ui.slot = ui.sel; ui.sel = -1; save(); renderBar(); renderBoard(); renderPanel(); return; }
+  const hand = el.closest<HTMLElement>('[data-hand]');
+  if (hand) { const k = hand.dataset.hand as Kind; ui.hand = ui.hand === k ? '' : k; ui.sel = -1; renderBoard(); return; }
   const place = el.closest<HTMLElement>('[data-place]');
   if (place) {
     const k = place.dataset.place as Kind, at = ui.slot >= 0 && !W.tiles[ui.slot].b ? ui.slot : firstFree(W);
@@ -428,17 +445,27 @@ document.addEventListener('click', e => {
     return;
   }
   const slot = el.closest<HTMLElement>('[data-slot]');
-  if (slot) { ui.slot = +slot.dataset.slot!; ui.sel = -1; ui.tab = 'build'; renderBoard(); renderPanel(); return; }
+  if (slot) { dropCard(+slot.dataset.slot!, ui.hand); return; }
   const sel = el.closest<HTMLElement>('[data-sel]');
   if (sel) { ui.sel = +sel.dataset.sel!; ui.slot = -1; ui.tab = 'park'; renderBoard(); renderPanel(); return; }
   const pick = el.closest<HTMLElement>('[data-pick]');
-  if (pick) { ui.tab = 'build'; renderPanel(); return; }
+  if (pick) { ui.hand = pick.dataset.pick as Kind; renderBoard(); return; }
   if (el.closest('[data-act="new"]')) { $('#over').classList.add('hidden'); fresh(); renderAll(); }
 });
+// 손패의 카드를 빈 칸에 내려놓는다(끌어 놓기 · 누르고 누르기 모두)
+function dropCard(at: number, k: '' | Kind) {
+  if (!k) { ui.slot = at; ui.sel = -1; renderBoard(); return; }
+  if (build(W, at, k)) { ui.slam = at; ui.sel = at; ui.slot = -1; ui.hand = ''; ui.tab = 'park'; save(); renderBar(); renderBoard(); renderPanel(); }
+}
+let drag: Kind | '' = '';
+document.addEventListener('dragstart', e => { const h = (e.target as HTMLElement).closest<HTMLElement>('[data-hand]'); if (!h) return; drag = h.dataset.hand as Kind; ui.hand = drag; e.dataTransfer?.setData('text/plain', drag); renderBoard(); });
+document.addEventListener('dragover', e => { if (drag && (e.target as HTMLElement).closest('[data-slot]')) e.preventDefault(); });
+document.addEventListener('drop', e => { const sl = (e.target as HTMLElement).closest<HTMLElement>('[data-slot]'); if (!sl || !drag) return; e.preventDefault(); const k = drag; drag = ''; dropCard(+sl.dataset.slot!, k); });
+document.addEventListener('dragend', () => { drag = ''; });
 document.addEventListener('keydown', e => {
   if (e.key === ' ') { speed = speed ? 0 : 1; renderBar(); e.preventDefault(); }
   if (e.key === 'f' || e.key === 'F') { if (fsCan()) void toggleFs(); }
-  if (e.key === 'Escape') { ui.slot = -1; ui.sel = -1; renderBoard(); renderPanel(); }
+  if (e.key === 'Escape') { ui.slot = -1; ui.sel = -1; ui.hand = ''; renderBoard(); renderPanel(); }
 });
 
 function renderAll() { renderBar(); renderBoard(); renderPanel(); flashNote(); if (W.over) renderOver(); }
