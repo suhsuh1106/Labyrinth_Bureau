@@ -1,12 +1,12 @@
 // Launderinth 화면: 상단바 · 탑뷰 타일맵(캔버스) · 장부 조작소 · 건축 및 세탁소
 import {
   World, Kind, newWorld, step, build, canBuild, demolish, BDEF, BUILD_ORDER, RANKS, L, MW, MH, idx, xy, nbrs,
-  roadNet, live, preview, clampLed, washCap, count, deathRate, LOOK, monthDay,
+  roadNet, live, preview, needsOf, Day, clampLed, washCap, count, deathRate, LOOK, monthDay,
 } from './engine';
 import { getSeed, setSeed } from '../core/rng';
 import './style.css';
 
-const KEY = 'lb-launder', VERSION = 1;
+const KEY = 'lb-launder', VERSION = 2;
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector(s) as T;
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
 
@@ -27,7 +27,7 @@ const fx = () => { fxs = (fxs * 1664525 + 1013904223) >>> 0; return fxs / 429496
 // ── 시간 ────────────────────────────────────────────
 const SPEEDS = [0, 2.2, 0.8, 0.25]; // 하루가 걸리는 초
 let speed = 1, acc = 0;
-let ui = { tab: 'ledger' as 'ledger' | 'build', tool: null as Kind | 'demolish' | null, hover: -1, pending: -1, tipAt: -1 };
+let ui = { tab: 'park' as 'park' | 'ledger' | 'build', tool: null as Kind | 'demolish' | null, hover: -1, pending: -1, tipAt: -1 };
 
 // ── 연출 상태 ────────────────────────────────────────
 interface Agent { path: number[]; seg: number; t: number; wait: number; hue: number; stopAt: number; doom: boolean }
@@ -285,7 +285,7 @@ function showTip(i: number, e: PointerEvent, pin = false) {
   else if (t.b && t.b !== 'road') {
     const d = BDEF[t.b]; const on = live(W).includes(i);
     h = `<b class="font-serif">${d.icon} ${d.name}</b>${on ? '' : ' <span class="text-blood">길 끊김</span>'}<div class="text-dim mt-0.5">${d.note}</div>` +
-      (W.today.byTile[i] ? `<div class="num text-clean mt-0.5">오늘 +${W.today.byTile[i]}</div>` : '');
+      (W.stat.tile[i] ? `<div class="num text-clean mt-0.5">오늘 +${W.today.byTile[i] ?? 0} · 누계 ${fmt(W.stat.tile[i].rev)}</div><div class="num text-dim">손님 ${fmt(W.stat.tile[i].served)}명</div>` : '');
   } else if (pin) return hideTip();
   else return hideTip();
   tip.innerHTML = h; tip.classList.remove('hidden');
@@ -414,10 +414,56 @@ function buildHtml() {
   <div class="mt-2 text-[11px] text-dim">비자금 <span class="num text-black">${fmt(W.black)}</span></div>`;
 }
 
+function spark(vals: number[], color: string, h = 44) {
+  const n = Math.max(2, vals.length), mx = Math.max(1, ...vals), w = 300;
+  const pts = vals.map((v, i) => `${(i / (n - 1) * w).toFixed(1)},${(h - 3 - (v / mx) * (h - 8)).toFixed(1)}`).join(' ');
+  return `<svg viewBox="0 0 ${w} ${h}" class="w-full" style="height:${h}px" preserveAspectRatio="none" aria-hidden="true">
+    <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.8" vector-effect="non-scaling-stroke"/>
+  </svg>`;
+}
+function parkHtml() {
+  const st = W.stat, h = st.hist, last30 = h.slice(-30);
+  const sum = (a: Day[], f: (d: Day) => number) => a.reduce((x, d) => x + f(d), 0);
+  const mV = sum(last30, d => d.v), mR = sum(last30, d => d.r), mD = sum(last30, d => d.d);
+  const stars = Math.max(0, Math.min(5, Math.round((W.rep - 0.5) / 0.9 * 5)));
+  const kpi = (l: string, v: string, c = 'text-paper') => `<div class="rounded border border-line py-1.5 text-center"><div class="text-[11px] text-dim">${l}</div><div class="num text-sm ${c}">${v}</div></div>`;
+  const KN: Partial<Record<Kind, string>> = { inn: '여관', tavern: '선술집', rental: '장비 대여소', casino: '카지노' };
+  const rows: string[] = [];
+  rows.push(`<tr class="border-b border-line/60"><td class="py-1">🎫 입장료</td><td class="num text-right">${fmt(st.visits)}</td><td class="num text-right text-clean">${fmt(st.fee)}</td><td></td></tr>`);
+  for (const k of ['inn', 'tavern', 'rental', 'casino'] as Kind[]) {
+    const ks = st.kind[k], own = count(W, k, false), lv = count(W, k);
+    if (!ks && !own) continue;
+    const cap = lv * BDEF[k].cap;
+    const use = cap && W.today.visits ? Math.min(100, Math.round(Math.min(cap, W.today.visits) / cap * 100)) : 0;
+    rows.push(`<tr class="border-b border-line/60"><td class="py-1">${BDEF[k].icon} ${KN[k]} <span class="text-dim text-[11px]">×${own}</span></td><td class="num text-right">${fmt(ks?.served ?? 0)}</td><td class="num text-right text-clean">${fmt(ks?.rev ?? 0)}</td><td class="num text-right text-dim">${use}%</td></tr>`);
+  }
+  const needs = needsOf(W).map(n => {
+    const c = n.sev === 3 ? 'border-blood text-blood' : n.sev === 2 ? 'border-[#e08a3c] text-[#e08a3c]' : 'border-line text-dim';
+    return `<div class="flex items-center gap-2 rounded border ${c} px-2 py-1.5"><span class="num text-[11px]">${'●'.repeat(n.sev)}</span><div class="flex-1"><div class="text-[13px] text-paper">${n.what}</div>${n.hint ? `<div class="text-[11px] text-dim">${n.hint}</div>` : ''}</div>${n.kind ? `<button data-pick="${n.kind}" class="rounded border border-line px-2 py-0.5 text-[11px] text-paper hover:bg-felt">${BDEF[n.kind].name} 짓기</button>` : ''}</div>`;
+  }).join('');
+  const best = Object.entries(st.tile).sort((a, b) => b[1].rev - a[1].rev).slice(0, 3).filter(e => e[1].rev > 0);
+  return `
+  <div class="grid grid-cols-3 gap-2">
+    ${kpi('오늘 입장객', W.today.visits + '명')}${kpi('최근 30일', fmt(mV) + '명')}${kpi('누적', fmt(st.visits) + '명')}
+    ${kpi('평판', '★'.repeat(stars) + '☆'.repeat(5 - stars), 'text-clean')}${kpi('사망률', Math.round(deathRate(W) * 100) + '%', deathRate(W) > 0.09 ? 'text-blood' : 'text-paper')}${kpi('귀환 못 함', fmt(st.deaths) + '명')}
+  </div>
+  <h2 class="font-serif text-base mt-4 mb-1">입장객 · 매상 <span class="text-[11px] text-dim">최근 30일</span></h2>
+  <div class="rounded border border-line p-2">
+    <div class="flex items-baseline justify-between text-[11px] text-dim"><span>입장객</span><span class="num text-paper">${fmt(mV)}</span></div>${spark(last30.map(d => d.v), '#7fa36b')}
+    <div class="mt-1 flex items-baseline justify-between text-[11px] text-dim"><span>매상</span><span class="num text-clean">${fmt(mR)}</span></div>${spark(last30.map(d => d.r), '#d9b45a')}
+  </div>
+  <h2 class="font-serif text-base mt-4 mb-1">수입원</h2>
+  <table class="w-full text-[13px]"><thead><tr class="text-[11px] text-dim"><th class="text-left font-normal"></th><th class="text-right font-normal">손님</th><th class="text-right font-normal">매상</th><th class="text-right font-normal">가동</th></tr></thead><tbody>${rows.join('')}</tbody>
+  <tfoot><tr><td class="pt-1.5 text-dim">유지비 누계</td><td></td><td class="num text-right text-blood pt-1.5">−${fmt(st.upkeep)}</td><td></td></tr></tfoot></table>
+  ${best.length ? `<div class="mt-1.5 text-[11px] text-dim">잘 버는 곳 ${best.map(([i, t]) => `${BDEF[W.tiles[+i].b!].icon}<span class="num"> ${fmt(t.rev)}</span>`).join(' · ')}</div>` : ''}
+  <h2 class="font-serif text-base mt-4 mb-1">필요한 것</h2>
+  <div class="space-y-1.5">${needs}</div>`;
+}
+
 function renderPanel() {
   document.querySelectorAll<HTMLElement>('.tab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === ui.tab)));
   const p = $('#panel'); const top = p.scrollTop;
-  p.innerHTML = ui.tab === 'ledger' ? ledgerHtml() : buildHtml();
+  p.innerHTML = ui.tab === 'park' ? parkHtml() : ui.tab === 'ledger' ? ledgerHtml() : buildHtml();
   p.scrollTop = top;
 }
 function renderTool() {
@@ -479,6 +525,8 @@ document.addEventListener('click', e => {
   const el = e.target as HTMLElement;
   const tab = el.closest<HTMLElement>('[data-tab]'); if (tab) { ui.tab = tab.dataset.tab as any; renderPanel(); return; }
   const sp = el.closest<HTMLElement>('[data-speed]'); if (sp) { speed = +sp.dataset.speed!; renderBar(); return; }
+  const pick = el.closest<HTMLElement>('[data-pick]');
+  if (pick) { ui.tool = pick.dataset.pick as Kind; ui.pending = -1; ui.tab = 'build'; renderTool(); renderPanel(); return; }
   const tool = el.closest<HTMLElement>('[data-tool]');
   if (tool) { const k = tool.dataset.tool!; ui.tool = k === 'off' || ui.tool === k ? null : k as any; ui.pending = -1; hideTip(); renderTool(); if (ui.tab === 'build') renderPanel(); return; }
   if (el.closest('[data-act="new"]')) { $('#over').classList.add('hidden'); fresh(); renderAll(); }

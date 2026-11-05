@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { newWorld, build, canBuild, idx, L, preview, step, World } from '../src/launderinth/engine';
+import { needsOf, newWorld, build, canBuild, idx, L, preview, step, World } from '../src/launderinth/engine';
 import { botDay, Style } from '../src/launderinth/bots';
 
 function play(seed: number, s: Style, months = 36): World {
@@ -46,5 +46,17 @@ describe('launderinth', () => {
     expect(duke(smart)).toBeGreaterThanOrEqual(6);
     expect(caught(greedy)).toBeGreaterThanOrEqual(3);
     expect(duke(honest)).toBeLessThan(duke(smart));
+  });
+
+  it('현황: 입장객 · 건물별 매상이 쌓이고, 없는 시설은 부족한 것으로 나온다', () => {
+    const w = newWorld(5);
+    build(w, idx(5, 7), 'inn');
+    for (let d = 0; d < 12; d++) step(w);
+    expect(w.stat.hist.length).toBe(12);
+    expect(w.stat.visits).toBe(w.stat.hist.reduce((a, d) => a + d.v, 0));
+    expect(w.stat.tile[idx(5, 7)].served).toBeGreaterThan(0);
+    const spent = (w.stat.kind.inn?.rev ?? 0) + w.stat.fee;
+    expect(w.stat.spent).toBe(spent);
+    expect(needsOf(w).some(n => n.what.startsWith('마실 곳'))).toBe(true);
   });
 });

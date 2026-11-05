@@ -67,6 +67,14 @@ export interface Ledger {
   wash: { casino: number; cathedral: number }; // 이번 달 세탁 목표(비자금)
 }
 
+// 영지 현황: 입장객 · 건물별 매상 · 돌려보낸 손님. 읽어 보여 주는 용도이고 규칙에는 쓰지 않는다
+export interface Day { v: number; r: number; d: number; n: Partial<Record<Kind, number>> }
+export interface Stat {
+  hist: Day[];                                   // 최근 60일
+  tile: Record<number, { rev: number; served: number }>;
+  kind: Partial<Record<Kind, { rev: number; served: number; turned: number }>>;
+  fee: number; visits: number; deaths: number; spent: number; upkeep: number;
+}
 export interface Note { day: number; text: string; kind: 'news' | 'warn' | 'good' | 'bad' }
 export interface Audit { due: number; }
 
@@ -82,6 +90,7 @@ export interface World {
   audit: Audit | null;
   notes: Note[];
   over: null | 'arrest' | 'bankrupt' | 'duke' | 'term';
+  stat: Stat;
   today: { visits: number; deaths: number; rev: number; byTile: Record<number, number> };
   flags: Record<string, number>;
 }
@@ -135,6 +144,7 @@ export function newWorld(seed: number): World {
     mo: { take: 0, visits: 0, deaths: 0, gear: 0, washed: { casino: 0, cathedral: 0 } },
     last: null, audit: null, over: null,
     notes: [{ day: 0, kind: 'news', text: '변방 영지의 인장이 새 주인의 손에 들어왔다. 미궁 어귀로 이어진 길은 하나, 그마저 진흙이다.' }],
+    stat: { hist: [], tile: {}, kind: {}, fee: 0, visits: 0, deaths: 0, spent: 0, upkeep: 0 },
     today: { visits: 0, deaths: 0, rev: 0, byTile: {} },
     flags: {},
   };
@@ -306,6 +316,7 @@ export function step(w: World) {
   let rev = visits * L.FEE;
   const byTile: Record<number, number> = {};
   const left: Record<string, number> = {};
+  const st = w.stat, turnedK: Partial<Record<Kind, number>> = {};
   for (const i of lv) {
     const k = w.tiles[i].b!, d = BDEF[k];
     if (!d.cap) continue;
@@ -313,6 +324,13 @@ export function step(w: World) {
     const serve = Math.max(0, Math.min(d.cap, visits - used));
     left[k] = used + serve;
     const g = serve * d.rev; rev += g; if (g) byTile[i] = g;
+    const ts = st.tile[i] ?? (st.tile[i] = { rev: 0, served: 0 }); ts.rev += g; ts.served += serve;
+    const ks = st.kind[k] ?? (st.kind[k] = { rev: 0, served: 0, turned: 0 }); ks.rev += g; ks.served += serve;
+  }
+  // 돌려보낸 손님: 시설 종류마다, 손님 수에서 받은 수를 뺀 만큼(시설이 아예 없어도 센다)
+  for (const k of ['inn', 'tavern', 'rental'] as Kind[]) {
+    const n = Math.max(0, visits - (left[k] ?? 0)); turnedK[k] = n;
+    (st.kind[k] ?? (st.kind[k] = { rev: 0, served: 0, turned: 0 })).turned += n;
   }
   let deaths = 0; for (let n = 0; n < visits; n++) if (rnd() < dr) deaths++;
   w.mo.take += rev; w.clean += rev; w.mo.visits += visits; w.mo.deaths += deaths; w.mo.gear += deaths * L.GEAR;
@@ -333,6 +351,8 @@ export function step(w: World) {
   w.risk += Math.max(0, w.black - L.SMELL_AT) * L.SMELL - calm;
   w.risk = Math.max(0, Math.min(100, w.risk));
   w.today = { visits, deaths, rev, byTile };
+  st.fee += visits * L.FEE; st.visits += visits; st.deaths += deaths; st.spent += rev; st.upkeep += up;
+  st.hist.push({ v: visits, r: rev, d: deaths, n: turnedK }); if (st.hist.length > 60) st.hist.shift();
   // 조건 사건
   if (deaths >= 3 && !w.flags.bigloss) { w.flags.bigloss = 1; note(w, 'bad', `하루에 ${deaths}명이 돌아오지 않았다. 대여소 반납대에는 주인 없는 방패만 쌓였다.`); }
   if (w.rep < 0.7 && (w.flags.rep ?? -99) < w.day - 40) { w.flags.rep = w.day; note(w, 'bad', '"그 영지 미궁은 무덤이다." 이웃 영지 선술집에서 그런 노래가 불린다고 한다.'); }
@@ -346,3 +366,26 @@ export function step(w: World) {
 }
 
 export function monthDay(w: World) { return { m: Math.floor(w.day / L.MONTH) + 1, d: (w.day % L.MONTH) + 1 }; }
+
+// 부족한 것: 최근 열흘 하루 평균으로 읽는다. 무엇을 지을지는 국장이 정한다
+export interface Need { sev: 1 | 2 | 3; what: string; hint: string; kind?: Kind }
+export function needsOf(w: World): Need[] {
+  const out: Need[] = []; const h = w.stat.hist.slice(-10);
+  if (h.length < 3) return [{ sev: 1, what: '통계 모으는 중', hint: '며칠 지켜볼 것' }];
+  const avg = (f: (d: Day) => number) => h.reduce((a, d) => a + f(d), 0) / h.length;
+  const v = avg(d => d.v);
+  const names: Partial<Record<Kind, [string, string]>> = { inn: ['잠잘 곳', '여관'], tavern: ['마실 곳', '선술집'], rental: ['빌릴 장비', '장비 대여소'] };
+  for (const k of ['inn', 'tavern', 'rental'] as Kind[]) {
+    const t = avg(d => d.n[k] ?? 0); const own = count(w, k);
+    if (v >= 3 && t / Math.max(1, v) > 0.15) out.push({ sev: t / v > 0.5 ? 3 : 2, what: `${names[k]![0]} ${own ? '모자람' : '없음'}`, hint: `하루 ${t.toFixed(1)}명 그냥 돌아감`, kind: k });
+  }
+  const dr = deathRate(w);
+  if (dr > 0.09) out.push({ sev: dr > 0.11 ? 3 : 2, what: '미궁 사망률 높음', hint: `${Math.round(dr * 100)}% · 병원 · 장비 대여소`, kind: 'hospital' });
+  const dead = w.tiles.filter(t => t.b && t.b !== 'road').length - live(w).length;
+  if (dead > 0) out.push({ sev: 3, what: '길 끊긴 건물', hint: `${dead}채 영업 못 함`, kind: 'road' });
+  if (w.black > 600 && !count(w, 'casino') && !count(w, 'cathedral')) out.push({ sev: 2, what: '세탁 거점 없음', hint: `비자금 ${Math.round(w.black)} 쌓이는 중`, kind: 'casino' });
+  if (w.rep < 0.8) out.push({ sev: 2, what: '모험가 평판 하락', hint: '발길이 줄어드는 중' });
+  
+  if (!out.length) out.push({ sev: 1, what: '당장 급한 것 없음', hint: '' });
+  return out.sort((a, b) => b.sev - a.sev);
+}
