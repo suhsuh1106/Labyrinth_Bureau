@@ -6,7 +6,7 @@ import {
 import { getSeed, setSeed } from '../core/rng';
 import './style.css';
 
-const KEY = 'lb-launder', VERSION = 5;
+const KEY = 'lb-launder', VERSION = 6;
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector(s) as T;
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
 
@@ -459,6 +459,30 @@ function delveHtml() {
     ${c ? `<button data-act="delve" class="mt-2 w-full rounded border ${W.clean >= c ? 'border-clean text-clean hover:bg-clean/10' : 'border-line text-dim'} py-1.5 text-sm">${W.delve + 1}층 개척 <span class="num">${fmt(c)}</span></button>` : '<div class="mt-2 text-[11px] text-dim">가장 깊은 층까지 열렸다</div>'}
   </div>`;
 }
+// 월별 손익 막대(위로 +, 아래로 −)와 금고 · 비자금 꺾은선
+function trendHtml() {
+  const bs = W.books;
+  if (!bs.length) return `<div class="rounded border border-dashed border-line p-3 text-center text-xs text-dim">첫 결산이 나오면 월별 추이가 그려진다</div>`;
+  const slots = Math.max(6, L.TERM), w = 300, h = 74, mid = h / 2, bw = w / slots;
+  const mx = Math.max(1, ...bs.map(b => Math.abs(b.net)));
+  const bars = bs.map((b, i) => {
+    const bh = Math.max(1.5, Math.abs(b.net) / mx * (mid - 6)), x = i * bw + bw * 0.18, y = b.net >= 0 ? mid - bh : mid;
+    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${(bw * 0.64).toFixed(1)}" height="${bh.toFixed(1)}" rx="1" fill="${b.net >= 0 ? '#d9b45a' : '#c2483d'}"/>`;
+  }).join('');
+  const ticks = bs.map((b, i) => (b.m % 3 === 0 || i === bs.length - 1) ? `<text x="${(i * bw + bw / 2).toFixed(1)}" y="${h + 10}" text-anchor="middle" font-size="8" fill="#a79878" font-family="IBM Plex Mono">${b.m}</text>` : '').join('');
+  const last = bs[bs.length - 1], sum = bs.reduce((a, b) => a + b.net, 0);
+  const lh = 50, ly = (v: number, top: number) => (lh - 4 - (v / top) * (lh - 10)).toFixed(1);
+  const top = Math.max(1, ...bs.map(b => Math.max(b.to, b.black ?? 0)));
+  const line = (f: (b: Book) => number, col: string) => bs.length < 2 ? '' : `<polyline fill="none" stroke="${col}" stroke-width="1.8" vector-effect="non-scaling-stroke" points="${bs.map((b, i) => `${(i * bw + bw / 2).toFixed(1)},${ly(f(b), top)}`).join(' ')}"/>`;
+  const dot = (f: (b: Book) => number, col: string) => `<circle cx="${((bs.length - 1) * bw + bw / 2).toFixed(1)}" cy="${ly(f(last), top)}" r="2.6" fill="${col}"/>`;
+  return `<div class="rounded border border-line p-2">
+    <div class="flex items-baseline justify-between text-[11px] text-dim"><span>월 손익</span><span class="num ${sum >= 0 ? 'text-clean' : 'text-blood'}">누계 ${sum >= 0 ? '+' : '−'}${fmt(Math.abs(sum))}</span></div>
+    <svg viewBox="0 0 ${w} ${h + 12}" class="w-full" style="height:${h + 12}px" preserveAspectRatio="none" aria-label="월별 손익">
+      <line x1="0" x2="${w}" y1="${mid}" y2="${mid}" stroke="#3a3226" stroke-width="1"/>${bars}${ticks}</svg>
+    <div class="mt-2 flex items-center gap-3 text-[11px] text-dim"><span><i class="inline-block h-0.5 w-3 align-middle bg-clean"></i> 금고 <span class="num text-clean">${fmt(last.to)}</span></span><span><i class="inline-block h-0.5 w-3 align-middle bg-black"></i> 비자금 <span class="num text-black">${fmt(last.black ?? 0)}</span></span></div>
+    <svg viewBox="0 0 ${w} ${lh}" class="w-full" style="height:${lh}px" preserveAspectRatio="none" aria-label="금고와 비자금">${line(b => b.to, '#d9b45a')}${line(b => b.black ?? 0, '#b4609a')}${dot(b => b.to, '#d9b45a')}${dot(b => b.black ?? 0, '#b4609a')}</svg>
+  </div>`;
+}
 function parkHtml() {
   const st = W.stat, h = st.hist, last30 = h.slice(-30);
   const sum = (a: Day[], f: (d: Day) => number) => a.reduce((x, d) => x + f(d), 0);
@@ -491,6 +515,8 @@ function parkHtml() {
     <div class="flex items-baseline justify-between text-[11px] text-dim"><span>입장객</span><span class="num text-paper">${fmt(mV)}</span></div>${spark(last30.map(d => d.v), '#7fa36b')}
     <div class="mt-1 flex items-baseline justify-between text-[11px] text-dim"><span>매상</span><span class="num text-clean">${fmt(mR)}</span></div>${spark(last30.map(d => d.r), '#d9b45a')}
   </div>
+  <h2 class="font-serif text-base mt-4 mb-1">월별 추이</h2>
+  ${trendHtml()}
   <h2 class="font-serif text-base mt-4 mb-1">수입원</h2>
   <table class="w-full text-[13px]"><thead><tr class="text-[11px] text-dim"><th class="text-left font-normal"></th><th class="text-right font-normal">손님</th><th class="text-right font-normal">매상</th><th class="text-right font-normal">요금</th></tr></thead><tbody>${rows.join('')}</tbody>
   <tfoot><tr><td class="pt-1.5 text-dim">유지비 누계</td><td></td><td class="num text-right text-blood pt-1.5">−${fmt(st.upkeep)}</td><td></td></tr></tfoot></table>

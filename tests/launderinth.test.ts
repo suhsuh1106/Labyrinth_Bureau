@@ -98,6 +98,7 @@ describe('launderinth', () => {
     expect(Math.round(b.from + inc - out)).toBe(Math.round(b.to));
     expect(b.budget).toBe(300); expect(b.capex).toBe(180 + 280 + 900);
     expect(w.mb.fee).toBe(0);
+    expect(b.black).toBeCloseTo(w.black, 5);
   });
 
   it('예산: 홍보는 입장객을, 안전은 사망률을, 정비는 만족을 올린다. 돈은 달마다 나간다', () => {

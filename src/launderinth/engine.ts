@@ -98,7 +98,7 @@ export interface Flow {
   upkeep: number; budget: number; capex: number; tax: number; bribe: number; toBlack: number; // 나간 돈
   visits: number; deaths: number; sat: number; guests: number;
 }
-export interface Book extends Flow { m: number; from: number; to: number; net: number }
+export interface Book extends Flow { m: number; from: number; to: number; net: number; black: number }
 export const emptyFlow = (): Flow => ({ fee: 0, sales: {}, subsidy: 0, wash: 0, upkeep: 0, budget: 0, capex: 0, tax: 0, bribe: 0, toBlack: 0, visits: 0, deaths: 0, sat: 0, guests: 0 });
 export interface Budget { promo: number; safety: number; upkeep: number }
 export const BUDGET_KEYS = ['promo', 'safety', 'upkeep'] as const;
@@ -321,7 +321,7 @@ function closeMonth(w: World) {
   const from = w.flags.from ?? L.START_CLEAN;
   w.clean += -p.skim - p.tax + (p.subsidy - p.ghostCut) - p.bribe;
   Object.assign(w.mb, { subsidy: p.subsidy - p.ghostCut, tax: p.tax, bribe: p.bribe, toBlack: p.skim });
-  w.books.push({ ...w.mb, sales: { ...w.mb.sales }, m: Math.round(w.day / L.MONTH), from, to: w.clean, net: w.clean - from }); if (w.books.length > 24) w.books.shift();
+  w.books.push({ ...w.mb, sales: { ...w.mb.sales }, m: Math.round(w.day / L.MONTH), from, to: w.clean, net: w.clean - from, black: w.black + p.skim + p.ghostCut + p.gearSold }); if (w.books.length > 24) w.books.shift();
   w.mb = emptyFlow(); w.flags.from = w.clean;
   w.black += p.skim + p.ghostCut + p.gearSold;
   w.favor += p.bribe;
