@@ -1,6 +1,6 @@
 // 미궁관리국 배경 엔진 0단계: 인과 루프 두 쌍이 폭주하거나 멈추지 않는지, 국장의 손이 판을 바꾸는지
 import { describe, expect, it } from 'vitest';
-import { B, FACS, pairOf, BUREAU_AT, HAVEL_AT, LOYD_AT, ROADS, devRoadOf, GUILDS, answer, clauseOn, upgrade, payOf, lagOf, crewMax, subAt, letterScore, meet, newWorld, over, pactK, pnlGuild, pnlSum, devStage, post, recall, relOf, run, send, step as stepRaw, buildGate, permitOf, dispatch, crewFree, knowLv, willOf, svWay, teamsIn, withdraw, worstPair, wayOf, hqOf, type World, demOf, lure, propose, unpropose } from '../src/bureau/engine';
+import { B, FACS, pairOf, BUREAU_AT, HAVEL_AT, LOYD_AT, ROADS, devRoadOf, GUILDS, answer, clauseOn, upgrade, payOf, lagOf, crewMax, subAt, letterScore, meet, newWorld, over, pactK, pnlGuild, pnlSum, pnlOf, devStage, post, recall, relOf, run, send, step as stepRaw, buildGate, permitOf, dispatch, crewFree, knowLv, willOf, svWay, teamsIn, withdraw, worstPair, wayOf, hqOf, type World, demOf, lure, propose, unpropose } from '../src/bureau/engine';
 import { BOT, playGame } from '../sim/bureau';
 import { EDGES, LINKS, LOOPS, NODES, checkLoops } from '../src/bureau/loops';
 import { SHOT_N, openingHtml } from '../src/ui/bureau/opening';
@@ -59,7 +59,7 @@ describe('미궁관리국 엔진 0단계', () => {
     const free = avg('normal', W => W.stats.bigSize.at(-1)!, { noCheck: true });
     expect(peak).toBeGreaterThan(20);                // 처음 15조에서 커진다
     expect(end).toBeLessThanOrEqual(peak);           // 끝까지 커지지 않는다
-    expect(free).toBeGreaterThan(end * 1.5);         // 붙잡는 고리가 없으면 훨씬 크다
+    expect(free).toBeGreaterThan(end * 1.3);         // 붙잡는 고리가 없으면 훨씬 크다 (광맥이 얇아져 둘 다 덜 크다)
   });
 
   it('같은 시작에서 봇마다 판이 갈린다', () => {
@@ -81,8 +81,8 @@ describe('미궁관리국 엔진 1단계: 세력 사이 · 신세', () => {
   it('R4 · B4: 손을 놓으면 가장 나쁜 두 길드 사이가 무너지고, 회의를 여는 봇은 붙잡는다', () => {
     const worst = (W: ReturnType<typeof newWorld>) => relOf(W, ...worstPair(W));
     const idle = avg('idle', worst), normal = avg('normal', worst), smart = avg('smart', worst);
-    expect(idle).toBeLessThan(-60);
-    expect(normal).toBeGreaterThan(idle + 25);
+    expect(idle).toBeLessThan(-25);                  // (광맥이 얇아져 손 놓은 판은 길드가 줄며 다툼도 줄어 옛 −88만큼은 아니다)
+    expect(smart).toBeGreaterThan(idle + 10);
     expect(smart).toBeGreaterThan(normal);
     // 손 놓은 판은 범람으로 미궁이 비어 다툼이 적다: 회의를 여는 두 봇끼리 견준다
     expect(avg('smart', W => W.stats.clashes)).toBeLessThan(avg('normal', W => W.stats.clashes));
@@ -308,7 +308,7 @@ describe('국장의 서류 (조항 조합)', () => {
       if (y.order.done === 'ok') ok++;
       if (y.dungeons[0].logged) rep++;
     }
-    expect(ok).toBeGreaterThanOrEqual(4);
+    expect(ok).toBeGreaterThanOrEqual(3);            // (허가를 받는 하루 이틀, 광맥이 얇아지는 몫만큼 넉넉하지 않다)
     expect(rep).toBeGreaterThanOrEqual(4);
   });
 
@@ -656,7 +656,8 @@ describe('외진 폐광과 발전도 (R2 발길)', () => {
     expect(h).toContain('길목 여관');
     expect(h).toContain(`town f-${W.dungeons[0].branch}`);
     // 미궁에 든 길드는 길 위에 말(미니어처)이 있다
-    expect(minisOf(W).some(m => m.key.startsWith('t-0-'))).toBe(true);
+    expect(minisOf(W).some(m => m.key.startsWith('flag-0-'))).toBe(true);   // 폐광에 든 길드는 깃발로 보인다 (걷는 조 · 마물 미니어처는 그리지 않는다)
+    expect(minisOf(W).some(m => m.walk && m.key.startsWith('t-'))).toBe(false);
   });
 
   it('보조금을 거둔 뒤에도 마을이 선 폐광엔 발길이 이어진다: 보조금 없이 둔 판보다 훨씬 많다', () => {
@@ -898,5 +899,43 @@ describe('출입 허가제 · 검문소 · 탐사 명성', () => {
   it('숙련 봇(허가를 헤아려 주고 검문소를 짓는다)이 보통 봇보다 명성이 높다', () => {
     const smart = avg('smart', W => W.standing), normal = avg('normal', W => W.standing);
     expect(smart).toBeGreaterThan(normal);
+  });
+});
+
+describe('허락만 하는 판 (광맥 고갈)', () => {
+  it('신청서에 도장만 찍는 판은 광맥이 얇아져 조당 벌이가 줄고, 길드가 줄며, 서서히 기운다', () => {
+    const rows: { pnl: number[]; teams: number[]; size: number[] } = { pnl: [], teams: [], size: [] };
+    const N = 8;
+    for (let g = 0; g < N; g++) {
+      const W = newWorld(1000 + g);
+      for (let t = 0; t < B.DAYS; t++) {
+        BOT.yes(W); stepRaw(W);
+        if ((W.day === 60 || W.day === 330)) {
+          const k = W.day === 60 ? 0 : 1;
+          rows.pnl[k] = (rows.pnl[k] ?? 0) + (pnlOf(W, W.dungeons[1]) + pnlOf(W, W.dungeons[2])) / 2 / N;   // 조 하나가 현장에서 하루 버는 값
+          rows.teams[k] = (rows.teams[k] ?? 0) + W.dungeons.reduce((a, d) => a + teamsIn(d), 0) / N;
+          rows.size[k] = (rows.size[k] ?? 0) + GUILDS.reduce((a, x) => a + W.guilds[x].size, 0) / N;
+        }
+      }
+    }
+    expect(rows.pnl[1]).toBeLessThan(rows.pnl[0] * 0.85);       // 조당 벌이가 줄고
+    expect(rows.teams[1]).toBeLessThan(rows.teams[0] * 0.75);   // 길드가 덜 들며
+    expect(rows.size[1]).toBeLessThan(rows.size[0]);            // 몸집도 준다
+  });
+
+  it('광맥은 캐 낸 만큼 얇아지고(min까지), 조가 빠진 갱은 천천히 되살아난다', () => {
+    const W = newWorld(5);
+    const d = W.dungeons[1];
+    expect(d.vein).toBe(1);
+    for (let t = 0; t < 120; t++) { BOT.yes(W); stepRaw(W); }
+    expect(d.vein).toBeLessThan(1);
+    expect(d.vein).toBeGreaterThanOrEqual(B.VEIN.min);
+    // 검문소를 짓고 허가를 거두면 조가 빠져 갱이 쉰다
+    W.budget = 5000; buildGate(W, 1);
+    W.permit = Object.fromEntries(GUILDS.map(g => [g, W.permit[g].map((v, i) => i === 1 ? 0 : v)])) as typeof W.permit;
+    for (let t = 0; t < 30; t++) stepRaw(W);
+    const thin = d.vein;
+    for (let t = 0; t < 30; t++) stepRaw(W);
+    expect(d.vein).toBeGreaterThanOrEqual(thin);
   });
 });

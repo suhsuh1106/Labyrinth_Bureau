@@ -75,6 +75,9 @@ export const B = {
   GATE: { cost: 400, pay: 30 },
   // 탐사 = 허가받은 조의 든 날이 len만큼 쌓일 때마다 한 번. 그동안 죽음이 deadOk에 닿지 않을수록 성공(0 ~ 1)이고, 성공마다 명성이 gain × (0.5 + 마물 수 / 100)만큼 쌓인다
   EXP: { len: 40, deadOk: 0.5, gain: 0.3 },
+  // 광맥 고갈(2026-11-05): 캐 낸 짐만큼 얕은 데부터 줄어 조당 벌이가 얇아진다(vein 1 → min). 얇아지면 길드는 신청을 줄이고 조가 빠져, 손 놓은 판이 서서히 기운다.
+  //   캐 낸 짐 1당 use만큼 줄고, 하루 regen × (1 − vein)만큼 천천히 되살아난다(조가 빠진 갱은 쉰다)
+  VEIN: { use: 1 / 30000, regen: 0.0006, min: 0.25 },
   UPKEEP: 0.9, GROW: 120, GROW_COST: 100, SHRINK: -80, SIZE_MIN: 2,
   // 길드 일곱: 큰 길드 둘과 작은 길드 다섯. 몸집(조 · 금고 · 소재 값 · 조 유지비 · 미궁마다 처음 든 조)과
   // 성격(돈 · 안전 · 정보 · 권리에 반응하는 결, 공고 기한을 읽는 법, 본부까지 날)이 길드마다 다르다. GUILD_DEF 아래
@@ -169,6 +172,7 @@ export interface Dungeon {
   branch: GuildId | null;         // 발전도 2단계에서 가장 많이 다닌 길드가 곁에 낸 지부 (그 길드는 하루 길)
   know: number;                   // 사신이 출입 기록을 살핀 사람 × 날 (B.SVY.full에 닿고 돌아오면 출입 기록을 갖춘다)
   logged: boolean;                // 출입 기록을 갖춰 길드들에 돌렸다
+  vein: number;                   // 광맥 두께 1 → B.VEIN.min: 캐 낼수록 얇아져 조당 벌이가 준다(손익 자료에 보임)
   exp: number; expDead: number;   // 탐사: 허가받은 조의 든 날 · 그동안의 죽음 (EXP.len마다 한 번 마친다)
 }
 export interface Guild {
@@ -245,7 +249,7 @@ export interface Letter { id: number; day: number; to: GuildId; dg: number; days
 export interface Notice { id: number; day: number; to: 'all'; dg: number; until: number; cl: Clauses; dep: number }
 export type Opts = { noCheck?: boolean; noFear?: boolean };
 
-const DUNGEONS: Omit<Dungeon, 'teams' | 'fear' | 'floods' | 'dead' | 'sub' | 'dangerAt' | 'dev' | 'gdev' | 'branch' | 'know' | 'logged' | 'exp' | 'expDead'>[] = [
+const DUNGEONS: Omit<Dungeon, 'teams' | 'fear' | 'floods' | 'dead' | 'sub' | 'dangerAt' | 'dev' | 'gdev' | 'branch' | 'know' | 'logged' | 'exp' | 'expDead' | 'vein'>[] = [
   // 폐광은 산줄기 깊숙이 외져 늦게 드러났다. 벌이는 좋지만 길이 없어 곁에 길드가 없었고, 아무도 돌보지 않다 막 넘쳤다.
   // 왕국군이 주둔해 위험선 언저리에 붙들고 있고, 물러나면 다시 오른다
   { id: 'pit', name: '폐광', land: '로이드 지방', dist: 1, at: [14, 7], rise: 1.25, yld: 14, cap: 12, level: 75, wild: 2 },
@@ -290,7 +294,7 @@ export function newWorld(seed: number, o: Opts = {}): World {
     yld: i ? Math.round(d.yld * (0.8 + rnd() * 0.4)) : d.yld,
     teams: Object.fromEntries(GUILDS.map(g => [g, i ? B.GUILD[g].start : 0])) as Record<GuildId, number>, fear: i ? 0 : B.ORDER.fear, floods: 0, dead: 0, sub: 0, dangerAt: null,
     dev: 0, gdev: Object.fromEntries(GUILDS.map(g => [g, 0])) as Record<GuildId, number>, branch: null,
-    know: 0, logged: false, exp: 0, expDead: 0,
+    know: 0, logged: false, exp: 0, expDead: 0, vein: 1,
   }));
   const guild = (id: GuildId): Guild => {
     const g = B.GUILD[id];
@@ -397,7 +401,7 @@ export const pnlAvg = (W: World, i: number, n: number) => { const a = W.pnl[i].s
 // 갱도 조사 보고서가 나온 미궁은 길드가 마물의 위험을 반만 보고, 알려진 광맥이 끌림을 더한다
 const harmOf = (W: World, d: Dungeon) => Math.max(0, d.level - 65) / 8 * (d.logged ? B.SVY.half : 1) + (W.noFear ? 0 : d.fear / 10);
 export function lure(W: World, d: Dungeon) {
-  return d.yld * B.PRICE * W.mkt.price / 10 * richOf(d.level) * (1 - d.level / 160) + d.sub / B.SUB_LURE - harmOf(W, d) + B.WAY_BASE * B.WAY_K + (d.logged ? B.SVY.lure : 0);
+  return d.yld * d.vein * B.PRICE * W.mkt.price / 10 * richOf(d.level) * (1 - d.level / 160) + d.sub / B.SUB_LURE - harmOf(W, d) + B.WAY_BASE * B.WAY_K + (d.logged ? B.SVY.lure : 0);
 }
 // 미궁 i에서 길드들이 오늘 남기는 값(오가는 날 빼고, 보조금 빼고)의 중간값 · 평균값과 평균 오가는 날: 손익 자료의 요약 (길드 하나하나는 보이지 않는다)
 export function pnlSum(W: World, i: number) {
@@ -474,7 +478,8 @@ export function step(W: World) {
       relDrop[k] += c; clash += c;
     });
     clashes += clash;
-    const out = d.cap * (1 - Math.exp(-n / d.cap)) * d.yld * richOf(d.level) * (1 - d.level / 250) * (1 - Math.min(0.5, clash * B.CLASH_OUT));
+    const out = d.cap * (1 - Math.exp(-n / d.cap)) * d.yld * richOf(d.level) * (1 - d.level / 250) * (1 - Math.min(0.5, clash * B.CLASH_OUT)) * d.vein;
+    d.vein = Math.max(B.VEIN.min, d.vein - out * B.VEIN.use) + B.VEIN.regen * (1 - d.vein);
     const wt = GUILDS.map(g => d.teams[g] * weightOf(W, g)), ws = wt.reduce((a, b) => a + b, 0);
     if (ws > 0) GUILDS.forEach((g, k) => { haul[g] += out * wt[k] / ws; });
     // 사고: 위험선 언저리부터 죽는다. 죽음은 꺼림으로 남아 조를 밀어낸다(R1)

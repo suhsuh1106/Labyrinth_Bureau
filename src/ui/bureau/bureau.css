@@ -134,6 +134,7 @@ button.t-cell.on { outline: 2px solid #8c2f25; }
 .obj.pulse .plate::after { content: ""; position: absolute; inset: -1px; border-radius: inherit; box-shadow: 0 0 0 8px rgba(242, 193, 78, .55); opacity: 0; pointer-events: none; animation: glow 1.4s ease-in-out infinite; }
 /* 세로 화면: 가로로 돌려 달라고 한다 */
 .turn { display: none; }
+.turn .ver { display: block; margin-top: 10px; font: 500 13px var(--f-mono, monospace); opacity: .6; text-align: center; }
 @media (orientation: portrait) and (max-width: 900px) {
   .turn { display: grid; place-items: center; position: fixed; inset: 0; z-index: 20; background: #1a120b; color: #f4ecd8; font: 700 20px var(--f-display); }
 }

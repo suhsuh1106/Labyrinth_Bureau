@@ -3,6 +3,7 @@
 // 책상 위 물건(깃펜 → 서류, 기록 더미 → 기록, 종 → 회의) · 지도에서 고른 것(살펴보기)을 여는 시트 · 테사의 한마디
 import { lookHtml, type Mini } from './map';
 import { askLetter, dateOf, moneyWord, mineSurveyHtml, docOf, floodNews, govHtml, introNews, letterHtml, newsHtml, peekLines, tripGov } from './docs';
+import { verText } from '../../bureau/version';
 import { B, type FacId, FACS, GUILDS, type GuildId, type Report, type World, knowLv, lagOf, grantOf, payOf, crewMax, deptCost, deptOpen, DEPTS, type DeptId, pnlGuild, pnlOf, pnlSum, devStage, wayOf, hqOf, depOf, docsOut, escrowOf, crewFree, svWay, svName, type SvTo, trustOf, withdrawFav, priceWord, stockWord, facOf, levelOf, nameOf, pactK, relOf, seenLevel, subAt, teamsIn, willOf, permitOf } from '../../bureau/engine';
 import { CLAUSE, CLAUSES, CLAUSE_MAX, type Clause, type Clauses, type ClauseId, FORM_NAME, type Tag, FORM_OF, type Form, toName, type To, clauseLock, fits, toLock } from '../../bureau/clauses';
 
@@ -61,7 +62,7 @@ function fsBtn() {
 // 설정 창: 새 임기는 여기에만 둔다(누르면 창 안에서 한 번 더 묻는다)
 export function setHtml(W: World, ask = false) {
   return `<div class="card modal set"><h2>설정</h2>
-  <p class="note num">임기 ${Math.min(W.day + 1, B.DAYS)}일째 / ${B.DAYS}일 · 이 브라우저에 저장됨</p>
+  <p class="note num">임기 ${Math.min(W.day + 1, B.DAYS)}일째 / ${B.DAYS}일 · 이 브라우저에 저장됨 · ${verText()}</p>
   ${fsCan() ? `<button type="button" data-act="fs">${fsOn() ? '전체 화면 끄기' : '전체 화면'}</button>` : `<p class="note">이 창에선 전체 화면을 막아 둠 · PC는 F11 · 휴대폰은 브라우저 메뉴의 '홈 화면에 추가'</p>`}
   <button type="button" data-act="replay">첫 장면 다시 보기</button>
   ${ask ? `<p class="note">지금 판을 지우고 새 임기를 시작할까요?</p>
