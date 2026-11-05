@@ -24,7 +24,7 @@ export const NODES: LoopNode[] = [
   { id: 'meet', label: '회의', x: 950, y: 340, hand: true },
   { id: 'give', label: '요청서에 줌', x: 260, y: 420, hand: true },
   { id: 'fav', label: '호감', x: 430, y: 420 },
-  { id: 'stand', label: '입지', x: 430, y: 520 },
+  { id: 'stand', label: '명성', x: 430, y: 520 },
   { id: 'budget', label: '예산', x: 260, y: 520 },
   { id: 'owe', label: '신세', x: 90, y: 420 },
   { id: 'dun', label: '독촉', x: 90, y: 520 },

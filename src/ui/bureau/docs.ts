@@ -212,8 +212,8 @@ export function docOf(r: Report): { gov: Gov } | { letter: Letter } {
         '귀 국에 길드를 강제할 법적 근거가 없음은 본원도 압니다. 그 근거를 마련할 예산 또한 없습니다.',
       ], [SURVEY_LINK]) };
     }
-    // 붙임에는 세상 안의 것만 (입지 같은 판의 수치는 서류에 적지 않는다)
-    const att = r.chips.filter(c => !c.startsWith('입지'));
+    // 붙임에는 세상 안의 것만 (명성 같은 판의 수치는 서류에 적지 않는다)
+    const att = r.chips.filter(c => !c.startsWith('명성'));
     if (r.title.startsWith('폐광 인계')) return { gov: gov(r, '폐광 인계 완료 통보', [
       '귀 국이 폐광을 왕국군에게서 넘겨받았음을 확인합니다.',
       `약속한 예산 ${num(B.ORDER.pay)}G를 보냅니다.`,
@@ -224,7 +224,7 @@ export function docOf(r: Report): { gov: Gov } | { letter: Letter } {
       '국경의 사정이 더는 기다려 주지 않아, 주둔대는 인계 없이 오늘 진지를 걷습니다. 어귀는 이 날부터 비어 있습니다.',
       '본원은 이 경과를 귀 국의 기록에 남깁니다.',
     ], att) };
-    if (r.title.startsWith('입지')) return { gov: gov(r, '미궁관리국 직제 확대 통보', [
+    if (r.title.startsWith('명성')) return { gov: gov(r, '미궁관리국 직제 확대 통보', [
       '귀 국의 그간 업무를 살펴 직제를 한 단계 넓힙니다. 늘어나는 것은 자리일 뿐, 권한은 그대로임을 아울러 밝혀 둡니다.',
       '서기 한 자리를 더 둘 수 있으니 귀 국에서 사람을 정하시기 바랍니다.',
       ...(r.chips.some(c => c.includes('요청서')) ? ['아울러 길드 한 곳을 지정하여 요청서를 보낼 수 있습니다.'] : []),
@@ -265,13 +265,15 @@ export function docOf(r: Report): { gov: Gov } | { letter: Letter } {
 }
 
 // 청원 · 독촉: 길드 서신
-export function askLetter(W: World, a: { day: number; from: string; kind: 'aid' | 'dun'; want: number; chips: string[] }): Letter {
+export function askLetter(W: World, a: { day: number; from: string; kind: 'aid' | 'dun' | 'permit'; want: number; chips: string[]; dg?: number }): Letter {
   const name = W.guilds[a.from as GuildId].name;
   const g = guildBy(name) ?? { sign: '', seal: '', tone: undefined };
   return {
     house: name, day: a.day, to: '미궁관리국장 귀하', sign: g.sign, seal: g.seal, tone: g.tone,
-    title: a.kind === 'dun' ? '제목: 지난 신세에 관하여' : '제목: 도움을 청하는 글',
-    body: a.kind === 'dun'
+    title: a.kind === 'permit' ? '제목: 출입 허가 신청서' : a.kind === 'dun' ? '제목: 지난 신세에 관하여' : '제목: 도움을 청하는 글',
+    body: a.kind === 'permit'
+      ? ['국장님께. 미궁의 문을 쥐고 계신 분께 격식을 갖추어 청합니다.', `저희는 <b>${W.dungeons[a.dg!].name}</b>에 <b>${num(a.want)}조</b>를 들이고자 합니다. ${a.chips.includes('처음 신청') ? '이 문으로 처음 올리는 글이니 이름만이라도 장부에 올려 주십시오.' : '지금 받은 허락으로는 일손이 모자라 횃불 값만 나갑니다.'} 도장을 찍어 주시면 그날부터 이름 아래서 들겠습니다. 덜 주신다면 그 몫만 받아 가겠습니다.`]
+      : a.kind === 'dun'
       ? ['국장님께. 늘 애써 주시는 데 감사드립니다.', `지난 회의에서 저희가 이름을 적어 드린 종이를 국장님도 기억하시리라 믿습니다. 이제 저희 겨울이 길어져, 그때의 신세를 <b>${num(a.want)}G</b>로 셈해 주시기를 청합니다.`]
       : ['국장님께. 염치 불고하고 붓을 듭니다.', ...(a.chips.includes('소재 값 내림') ? ['지고 내려온 짐은 지난 철과 같은데, 로이드 창고에서 쳐 주는 값이 지난 철보다 얇습니다.'] : []), `금고 바닥이 드러난 지 오래라, 다음 조를 꾸릴 횃불 값도 빠듯합니다. <b>${num(a.want)}G</b>를 빌려주십시오. 이 신세는 저희 장부 맨 앞장에 적어 두겠습니다.`],
   };

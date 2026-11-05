@@ -2,8 +2,8 @@
 
 변방 미궁 영지의 영주가 되어, 겉으로는 건실한 미궁 타이쿤을 굴리고 속으로는 비자금을 만든다. 씻은 돈을 제국에 바쳐 남작 → 자작 → 대공.
 
-- 화면: `launderinth.html` · `src/launderinth/main.ts` · `style.css`(Tailwind, `tailwind.config.js`)
-- 규칙: `src/launderinth/engine.ts`(DOM 없음, 숫자는 모두 `L` · `BDEF`). 봇: `bots.ts`. 테스트: `tests/launderinth.test.ts`
+- 화면: `shelved/launderinth/launderinth.html` · `src/main.ts` · `src/style.css`(Tailwind, `tailwind.config.js`)
+- 규칙: `src/engine.ts`(DOM 없음, 숫자는 모두 `L` · `BDEF`). 봇: `src/bots.ts`. 테스트: `launderinth.test.ts`
 - 저장: `localStorage`의 `lb-launder`(`VERSION`이 다르면 새 임기)
 
 ## 핵심 루프
@@ -60,7 +60,7 @@
 | 창고 냄새 | 비자금 2,500 이상 | 소식(위험도는 따로 날마다 오른다) |
 | 임기 만료 · 파산 | 18달 · 합법 자금 −400 아래 | 임기 끝 |
 
-## 봇 결과(`tests/launderinth.test.ts`, 시드 1–8, 18달)
+## 봇 결과(`launderinth.test.ts`, 시드 1–8, 18달)
 
 | 봇 | 대공 | 체포 | 평균 계급 | 평균 날 |
 |---|---|---|---|---|

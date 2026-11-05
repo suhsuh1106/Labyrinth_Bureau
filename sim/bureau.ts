@@ -14,9 +14,9 @@ export function playGame(seed: number, bot: string, o: { noCheck?: boolean } = {
   return run(newWorld(seed, o), BOT[bot]);
 }
 
-export interface Sum { games: number; floods: number; dead: number; standing: number; budgetEnd: number; toFlood: number[]; pinned: Record<string, number>; loops: Record<string, number>; bigPeak: number; bigEnd: number; bigAt: number[]; clashes: number; meets: number; relEnd: number; relMin: number; asks: number; sides: number; owe: number }
+export interface Sum { games: number; floods: number; dead: number; standing: number; budgetEnd: number; toFlood: number[]; pinned: Record<string, number>; loops: Record<string, number>; bigPeak: number; bigEnd: number; bigAt: number[]; clashes: number; meets: number; relEnd: number; relMin: number; asks: number; sides: number; owe: number; permits: number; expN: number; expOk: number; leaked: number; turned: number; gates: number }
 export function summarize(bot: string, games: number, o: { noCheck?: boolean } = {}): Sum {
-  const S: Sum = { games, floods: 0, dead: 0, standing: 0, budgetEnd: 0, toFlood: [], pinned: {}, loops: {}, bigPeak: 0, bigEnd: 0, bigAt: [0, 0, 0, 0, 0], clashes: 0, meets: 0, relEnd: 0, relMin: 0, asks: 0, sides: 0, owe: 0 };
+  const S: Sum = { games, floods: 0, dead: 0, standing: 0, budgetEnd: 0, toFlood: [], pinned: {}, loops: {}, bigPeak: 0, bigEnd: 0, bigAt: [0, 0, 0, 0, 0], clashes: 0, meets: 0, relEnd: 0, relMin: 0, asks: 0, sides: 0, owe: 0, permits: 0, expN: 0, expOk: 0, leaked: 0, turned: 0, gates: 0 };
   for (let g = 0; g < games; g++) {
     const W = playGame(1000 + g, bot, o), s = W.stats;
     S.floods += s.floods / games; S.dead += s.dead / games;
@@ -28,6 +28,7 @@ export function summarize(bot: string, games: number, o: { noCheck?: boolean } =
     [0, 89, 179, 269, 359].forEach((d, i) => { S.bigAt[i] += s.bigSize[d] / games; });
     S.clashes += s.clashes / games; S.meets += s.meets / games; S.asks += s.asks / games; S.sides += s.sides / games;
     S.relEnd += relOf(W, ...worstPair(W)) / games; S.relMin += s.relMin / games;
+    S.permits += s.permits / games; S.expN += s.expN / games; S.expOk += s.expOk / games; S.leaked += s.leaked / games; S.turned += s.turned / games; S.gates += W.gate.filter(Boolean).length / games;
     S.owe += Object.values(W.owe).reduce((a, b) => a + b, 0) / games;
   }
   return S;
@@ -43,7 +44,7 @@ function main() {
   const o = { noCheck: args.includes('--noCheck') };
   const f1 = (v: number) => v.toFixed(1), pct = (v: number) => (v * 100).toFixed(1) + '%';
   console.log(`미궁관리국 엔진 1단계 · ${games}판 · ${B.DAYS}일${o.noCheck ? ' · B3 끔' : ''}\n`);
-  console.log('봇      범람  죽음   입지  예산끝  위험→범람(날)  가장 큰 길드의 조(0·90·180·270·360일 / 붉은 깃발단 최대)');
+  console.log('봇      범람  죽음   명성  예산끝  위험→범람(날)  가장 큰 길드의 조(0·90·180·270·360일 / 붉은 깃발단 최대)');
   const sums: Record<string, Sum> = {};
   for (const bot of Object.keys(BOT)) {
     const S = sums[bot] = summarize(bot, games, o);
@@ -57,6 +58,12 @@ function main() {
   for (const bot of Object.keys(BOT)) {
     const S = sums[bot];
     console.log(`${bot.padEnd(7)} ${f1(S.clashes).padStart(4)} ${f1(S.meets).padStart(5)}  ${f1(S.relEnd).padStart(10)} / ${f1(S.relMin).padStart(6)}         ${(S.asks / B.DAYS).toFixed(2).padStart(5)}    ${f1(S.sides).padStart(4)}   ${f1(S.owe).padStart(6)}`);
+  }
+  console.log('\n출입 허가 · 탐사 (판당)');
+  console.log('봇      신청서  탐사  성공  몰래 든 조·일  되돌린 조·일  검문소');
+  for (const bot of Object.keys(BOT)) {
+    const S = sums[bot];
+    console.log(`${bot.padEnd(7)} ${f1(S.permits).padStart(5)} ${f1(S.expN).padStart(6)} ${f1(S.expOk).padStart(5)} ${Math.round(S.leaked).toString().padStart(11)} ${Math.round(S.turned).toString().padStart(12)}  ${f1(S.gates).padStart(5)}`);
   }
   console.log('\n고리마다 켜진 날 (판당)');
   for (const bot of Object.keys(BOT)) console.log(`${bot.padEnd(7)} ${Object.entries(sums[bot].loops).map(([k, v]) => `${k} ${f1(v)}`).join(' · ')}`);

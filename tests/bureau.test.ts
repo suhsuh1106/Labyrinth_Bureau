@@ -1,6 +1,6 @@
 // 미궁관리국 배경 엔진 0단계: 인과 루프 두 쌍이 폭주하거나 멈추지 않는지, 국장의 손이 판을 바꾸는지
 import { describe, expect, it } from 'vitest';
-import { B, FACS, pairOf, BUREAU_AT, HAVEL_AT, LOYD_AT, ROADS, devRoadOf, GUILDS, answer, clauseOn, upgrade, payOf, lagOf, crewMax, subAt, letterScore, meet, newWorld, over, pactK, pnlGuild, pnlSum, devStage, post, recall, relOf, run, send, step, dispatch, crewFree, knowLv, willOf, svWay, teamsIn, withdraw, worstPair, wayOf, hqOf, type World, demOf, lure, propose, unpropose } from '../src/bureau/engine';
+import { B, FACS, pairOf, BUREAU_AT, HAVEL_AT, LOYD_AT, ROADS, devRoadOf, GUILDS, answer, clauseOn, upgrade, payOf, lagOf, crewMax, subAt, letterScore, meet, newWorld, over, pactK, pnlGuild, pnlSum, devStage, post, recall, relOf, run, send, step as stepRaw, buildGate, permitOf, dispatch, crewFree, knowLv, willOf, svWay, teamsIn, withdraw, worstPair, wayOf, hqOf, type World, demOf, lure, propose, unpropose } from '../src/bureau/engine';
 import { BOT, playGame } from '../sim/bureau';
 import { EDGES, LINKS, LOOPS, NODES, checkLoops } from '../src/bureau/loops';
 import { SHOT_N, openingHtml } from '../src/ui/bureau/opening';
@@ -12,6 +12,8 @@ import { canAdd, dropClause, toLock } from '../src/bureau/clauses';
 import { getSeed, setSeed } from '../src/core/rng';
 import { docOf } from '../src/ui/bureau/docs';
 
+// 신청서가 오면 다 허락하고 하루를 넘긴다(출입 허가제 이전의 판과 같은 흐름). 허가제 자체를 재는 시험은 stepRaw를 쓴다
+const step = (W: World) => { for (const a of W.asks) if (a.kind === 'permit' && a.got == null) answer(W, a.id, a.want); stepRaw(W); };
 const SEEDS = Array.from({ length: 30 }, (_, i) => 1000 + i);
 const avg = (bot: string, f: (W: ReturnType<typeof playGame>) => number, o = {}) =>
   SEEDS.reduce((s, seed) => s + f(playGame(seed, bot, o)), 0) / SEEDS.length;
@@ -43,7 +45,7 @@ describe('미궁관리국 엔진 0단계', () => {
     expect(avg('normal', W => W.stats.floods)).toBeLessThan(avg('idle', W => W.stats.floods) / 3);
   });
 
-  it('숙련 봇이 앞선다: 범람 · 죽음은 적고 입지는 높다', () => {
+  it('숙련 봇이 앞선다: 범람 · 죽음은 적고 명성는 높다', () => {
     const f = (bot: string) => [avg(bot, W => W.stats.floods), avg(bot, W => W.stats.dead), avg(bot, W => W.standing)];
     const [sF, sD, sS] = f('smart'), [nF, nD, nS] = f('normal'), [, , iS] = f('idle');
     expect(sF).toBeLessThanOrEqual(nF);             // 왕국군이 폐광을 눌러 두고 시작해 손을 쓰는 봇은 거의 범람이 없다
@@ -121,7 +123,7 @@ describe('미궁관리국 엔진 1단계: 세력 사이 · 신세', () => {
     expect(V.pact).toBeNull();
   });
 
-  it('R5 · B5: 청을 들어주면 신세를 받고, 진 빚은 독촉으로 돌아오며 모른 척하면 입지를 잃는다', () => {
+  it('R5 · B5: 청을 들어주면 신세를 받고, 진 빚은 독촉으로 돌아오며 모른 척하면 명성를 잃는다', () => {
     const W = W0();
     W.guilds.wolf.money = -200;
     for (const g of GUILDS) if (g !== 'wolf') W.rel[pairOf('wolf', g)] = -50;   // 빌려줄 길드가 없는 사이
@@ -169,7 +171,7 @@ describe('미궁관리국 엔진 1단계: 세력 사이 · 신세', () => {
     const W = newWorld(2);
     while (W.day < B.DAYS) {
       step(W);
-      for (const f of GUILDS) expect(W.asks.filter(a => a.from === f && a.got == null).length).toBeLessThanOrEqual(1);
+      for (const f of GUILDS) expect(W.asks.filter(a => a.from === f && a.got == null && a.kind !== 'permit').length).toBeLessThanOrEqual(1);
     }
   });
 });
@@ -205,7 +207,7 @@ describe('국장의 서류 (조항 조합)', () => {
     expect(hqOf('wolf')).toBeLessThan(hqOf('drift'));            // 관리국 곁의 늑대단은 이튿날, 변두리의 떠돌이 칼은 사흘
   });
 
-  it('첫 요구서: 폐광에 조를 들여 군에게서 넘겨받으면 예산 · 입지를 받고 요청서가 열린다. 손을 놓으면 인내가 다해 군이 물러난다', () => {
+  it('첫 요구서: 폐광에 조를 들여 군에게서 넘겨받으면 예산 · 명성를 받고 요청서가 열린다. 손을 놓으면 인내가 다해 군이 물러난다', () => {
     const a = newWorld(5), b = newWorld(5);
     expect(post(a, 0, 30, { sub: 20, comfort: 100 })).not.toBeNull();
     for (let t = 0; t < 40 && !(a.order.done && b.order.done); t++) { step(a); step(b); }
@@ -360,11 +362,11 @@ describe('국장의 서류 (조항 조합)', () => {
     expect(post(W, 1, 20, { sub: 10 })).toBeNull();
     expect(post(W, 0, 20, { sub: 20 })).not.toBeNull();
     expect(upgrade(W, 'clerk')).toBe(true);
-    expect(upgrade(W, 'clerk')).toBe(false);   // 2단계는 입지 2단계에
+    expect(upgrade(W, 'clerk')).toBe(false);   // 2단계는 명성 2단계에
     expect(post(W, 1, 20, { sub: 10 })).not.toBeNull();
   });
 
-  it('관리국: 입지가 새 단계에 닿으면 부서 다음 단계가 열리고, 2단계에 요청서가 열린다', () => {
+  it('관리국: 명성가 새 단계에 닿으면 부서 다음 단계가 열리고, 2단계에 요청서가 열린다', () => {
     const W = newWorld(5);
     expect(W.rank).toBe(1);
     expect(send(W, 'wolf', 0, 20, { sub: 10 })).toBeNull();
@@ -507,7 +509,9 @@ describe('첫 사건의 업무 안내', () => {
     post(W, 0, 30, { sub: 15 });
     expect(tutOf(W, ui)).toBe('wait');
     expect(topHtml(W, ui)).toContain('go pulse');
-    for (let t = 0; t < 6 && tutOf(W, ui) === 'wait'; t++) step(W);
+    for (let t = 0; t < 6 && tutOf(W, ui) === 'wait'; t++) stepRaw(W);
+    expect(tutOf(W, ui)).toBe('permit');                           // 길드가 신청서를 보냄: 허락해야 조가 든다
+    for (let t = 0; t < 6 && tutOf(W, ui) !== 'see'; t++) step(W);
     expect(tutOf(W, ui)).toBe('see');
     // 요구서가 끝나면 다음 목표(마을이 서는 폐광)를 가리키고, 마을이 서면 사라진다
     W.order.done = 'ok';
@@ -517,9 +521,9 @@ describe('첫 사건의 업무 안내', () => {
     W.dungeons[0].dev = B.DEV[1];
     expect(tutOf(W, ui)).toBe('');
     expect(docModalHtml(newWorld(5), { ...ui, docSeen: 0 })).toContain('폐광 실태 조사서 1부');
-    // 서류 글은 세상 안의 말로만: 입지 같은 판의 수치를 적지 않는다
+    // 서류 글은 세상 안의 말로만: 명성 같은 판의 수치를 적지 않는다
     for (const title of ['폐광 인계 · 요구서 달성', '인내가 다함 · 왕국군 철수'])
-      expect(JSON.stringify(docOf({ day: 9, from: '중앙 행정원', title, chips: ['예산 +1000G', '입지 +10'] }))).not.toContain('입지');
+      expect(JSON.stringify(docOf({ day: 9, from: '중앙 행정원', title, chips: ['예산 +1000G', '명성 +10'] }))).not.toContain('명성');
   });
 });
 
@@ -802,7 +806,7 @@ describe('시세 사슬', () => {
   });
 
   it('보조금을 늘 세게 거는 국장은 시세가 꺾여 범람을 맞는다(보조금이 많을수록 좋다는 답이 깨진다)', () => {
-    const heavy = (W: World) => { W.dungeons.forEach(d => { d.sub = W.budget > 0 ? 30 : 0; }); };
+    const heavy = (W: World) => { for (const a of W.asks) if (a.kind === 'permit' && a.got == null) answer(W, a.id, a.want); W.dungeons.forEach(d => { d.sub = W.budget > 0 ? 30 : 0; }); };
     const seeds = SEEDS.slice(0, 10);
     const floods = () => seeds.reduce((s, seed) => s + run(newWorld(seed), heavy).stats.floods, 0) / seeds.length;
     const withMkt = floods();
@@ -810,5 +814,89 @@ describe('시세 사슬', () => {
     const fixed = floods();
     B.MKT.k = k;
     expect(withMkt).toBeGreaterThan(fixed);
+  });
+});
+
+describe('출입 허가제 · 검문소 · 탐사 명성', () => {
+  const denyAll = (W: World) => { for (const a of W.asks) if (a.kind === 'permit' && a.got == null) answer(W, a.id, 0); };
+  it('길드는 허가보다 많이 바라면 신청서를 낸다. 답하지 않으면 지금 허가 그대로, 숫자로 답하면 그 조 수가 허가다', () => {
+    const W = newWorld(5);
+    post(W, 0, 30, { sub: 20 });
+    expect(permitOf(W, 0)).toBe(0);
+    for (let t = 0; t < 8 && !W.asks.some(x => x.kind === 'permit' && x.dg === 0); t++) stepRaw(W);
+    const a = W.asks.find(x => x.kind === 'permit' && x.dg === 0)!;
+    expect(a).toBeTruthy();
+    expect(a.want).toBeGreaterThan(1);
+    const g = a.from as typeof GUILDS[number], half = Math.floor(a.want / 2);
+    answer(W, a.id, half);
+    expect(W.permit[g][0]).toBe(half);
+    expect(a.got).toBe(half);
+    // 답하지 않은 신청서는 기한이 지나면 지금 허가 그대로
+    const W2 = newWorld(5);
+    post(W2, 0, 30, { sub: 20 });
+    for (let t = 0; t < 8 && !W2.asks.some(x => x.kind === 'permit' && x.dg === 0); t++) stepRaw(W2);
+    const b = W2.asks.find(x => x.kind === 'permit' && x.dg === 0)!, before = W2.permit[b.from as typeof GUILDS[number]][0];
+    for (let t = 0; t < B.PERMIT.due + 1 && b.got == null; t++) stepRaw(W2);
+    expect(b.got).toBe(before);
+    expect(W2.permit[b.from as typeof GUILDS[number]][0]).toBe(before);
+  });
+
+  it('허가 밖 조는 몰래 들어 입장료를 내지 않고, 검문소가 있으면 막아 되돌린다. 공사비와 달 급료가 든다', () => {
+    const run1 = (gate: boolean) => {
+      const W = newWorld(5);
+      post(W, 0, 30, { sub: 25 });
+      if (gate) expect(buildGate(W, 0)).toBe(true);
+      for (let t = 0; t < 20; t++) { denyAll(W); stepRaw(W); }
+      return W;
+    };
+    const open = run1(false), shut = run1(true);
+    expect(open.stats.leaked).toBeGreaterThan(0);
+    expect(teamsIn(open.dungeons[0])).toBeGreaterThan(0.3);            // 몰래 든 조
+    expect(teamsIn(shut.dungeons[0])).toBeLessThan(teamsIn(open.dungeons[0]));
+    expect(shut.stats.turned).toBeGreaterThan(0);
+    expect(shut.stats.leaked).toBeLessThan(open.stats.leaked);
+    expect(payOf(shut)).toBe(B.GATE.pay);
+    expect(buildGate(shut, 0)).toBe(false);                            // 두 번 짓지 않는다
+  });
+
+  it('명성은 허가받은 조의 탐사가 성공할 때 쌓인다. 허가를 모두 거두면 쌓이지 않는다', () => {
+    const play = (grant: boolean) => {
+      const W = newWorld(5);
+      post(W, 1, 30, { sub: 10 }); post(W, 2, 30, { sub: 10 });
+      if (!grant) for (const g of GUILDS) W.permit[g] = W.permit[g].map(() => 0);
+      for (let t = 0; t < 60; t++) { if (grant) for (const a of W.asks) if (a.kind === 'permit' && a.got == null) answer(W, a.id, a.want); else denyAll(W); stepRaw(W); }
+      return W;
+    };
+    const yes = play(true), no = play(false);
+    expect(yes.stats.expN).toBeGreaterThan(0);
+    expect(yes.stats.expOk).toBeGreaterThan(no.stats.expOk + 5);
+    expect(yes.standing).toBeGreaterThan(no.standing);
+    expect(yes.reports.some(r => r.title === '이달 탐사 결산')).toBe(true);
+  });
+
+  it('화면: 신청서는 쪽지 · 편지 · 받은 서류 칸에 조 수로 적히고 도장으로 답하며, 관리국 창에 검문소 줄이 있다', () => {
+    const W = newWorld(5);
+    post(W, 0, 30, { sub: 20 });
+    for (let t = 0; t < 8 && !W.asks.some(x => x.kind === 'permit'); t++) stepRaw(W);
+    const a = W.asks.find(x => x.kind === 'permit')!, ui: BuUi = { tab: 'asks', invite: [], give: {}, intro: false, seenNews: 0, docSeen: W.reports.length };
+    expect(asksFloatHtml(W, ui)).toContain(`${a.want}조`);
+    expect(paneHtml(W, ui)).toContain('도장');
+    expect(docModalHtml(W, { ...ui, ask: a.id })).toContain('출입 허가 신청서');
+    expect(paneHtml(W, { ...ui, tab: 'office' })).toContain('data-act="gate:0"');
+    expect(deskHtml(W, ui)).toContain('신청서');
+  });
+
+  it('범람은 명성을 깎는다', () => {
+    const W = newWorld(5);
+    const s0 = W.standing;
+    W.dungeons[0].level = 99.9; W.dungeons[0].fear = 0;
+    for (let t = 0; t < 3; t++) stepRaw(W);
+    expect(W.stats.floods).toBeGreaterThan(0);
+    expect(W.standing).toBeLessThan(s0);
+  });
+
+  it('숙련 봇(허가를 헤아려 주고 검문소를 짓는다)이 보통 봇보다 명성이 높다', () => {
+    const smart = avg('smart', W => W.standing), normal = avg('normal', W => W.standing);
+    expect(smart).toBeGreaterThan(normal);
   });
 });

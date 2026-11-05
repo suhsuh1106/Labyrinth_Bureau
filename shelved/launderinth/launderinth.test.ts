@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { delveUp, delveCost, lootMean, deathRate, setBudget, needsOf, upgrade, upCost, setPrice, capOf, newWorld, build, canBuild, idx, L, preview, step, World } from '../src/launderinth/engine';
-import { botDay, Style } from '../src/launderinth/bots';
+import { delveUp, delveCost, lootMean, deathRate, setBudget, needsOf, upgrade, upCost, setPrice, capOf, newWorld, build, canBuild, idx, L, preview, step, World } from './src/engine';
+import { botDay, Style } from './src/bots';
 
 function play(seed: number, s: Style, months = 36): World {
   const w = newWorld(seed);

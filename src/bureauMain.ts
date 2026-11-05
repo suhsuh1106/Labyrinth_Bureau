@@ -2,7 +2,7 @@
 // 판을 이 브라우저에 저장한다(`lb-bureau`). 엔진은 src/bureau/engine.ts
 import './ui/bureau/bureau.css';
 import { getSeed, setSeed } from './core/rng';
-import { B, type FacId, type World, answer, crewFree, dispatch, upgrade, type DeptId, meet, newWorld, over, post, propose, recall, unpropose, run, send, step, withdraw } from './bureau/engine';
+import { B, type FacId, type World, answer, buildGate, crewFree, dispatch, upgrade, type DeptId, meet, newWorld, over, post, propose, recall, unpropose, run, send, step, withdraw } from './bureau/engine';
 import { BOT } from './bureau/bots';
 import { CLAUSE, type ClauseId, type Tag, FORM_OF, type To, addClause, canAdd, dropClause } from './bureau/clauses';
 import { type BuUi, type DocKind, DESK_STANDS, DISP0, DRAFT0, dispHtml, svOf, type Shelf, type Tab, SPEED, asksFloatHtml, deskHtml, docModalHtml, setHtml, fsOn, reportDocHtml, endHtml, introHtml, paneHtml, topHtml, tutHtml, writeHtml } from './ui/bureau/board';
@@ -11,7 +11,7 @@ import { type Desk, makeDesk } from './ui/bureau/desk';
 import { playOpening } from './ui/bureau/opening';
 
 const $ = (id: string) => document.getElementById(id)!;
-const KEY = 'lb-bureau', VERSION = 19;
+const KEY = 'lb-bureau', VERSION = 20;
 let W: World, ui: BuUi, seed = 0, desk: Desk | null = null, cutOn = false;
 // 설정 창의 새 임기 확인 단계(저장하지 않는다)
 let resetAsk = false;
@@ -186,8 +186,9 @@ function act(a: string, d = 0) {
   else if (k === 'recall') recall(W, +arg);
   else if (k === 'unprop') unpropose(W, +arg);
   else if (k === 'dept') upgrade(W, arg as DeptId);
+  else if (k === 'gate') buildGate(W, +arg);
   else if (k === 'withdraw') withdraw(W, +arg);
-  else if (k === 'give') { const ask = W.asks.find(x => x.id === +arg); if (ask) ui.give[ask.id] = clamp((ui.give[ask.id] ?? ask.want) + d * 10, 0, ask.want); }
+  else if (k === 'give') { const ask = W.asks.find(x => x.id === +arg); if (ask) ui.give[ask.id] = clamp((ui.give[ask.id] ?? ask.want) + d * (ask.kind === 'permit' ? 1 : 10), 0, ask.want); }
   else if (k === 'answer' || k === 'refuse') { const ask = W.asks.find(x => x.id === +arg); if (ask) { answer(W, ask.id, k === 'refuse' ? 0 : ui.give[ask.id] ?? ask.want); delete ui.give[ask.id]; ui.askSeen = Math.max(ui.askSeen ?? 0, ask.id); ui.ask = undefined; } }
   else if (k === 'inv') { const f = arg as FacId; ui.invite = ui.invite.includes(f) ? ui.invite.filter(x => x !== f) : [...ui.invite, f]; }
   else if (k === 'meet') { meet(W, ui.invite); ui.tab = 'office'; ui.open = true; }

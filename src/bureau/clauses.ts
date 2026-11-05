@@ -14,9 +14,9 @@ export const FORM_OF = (to: To): Form => to === 'all' ? 'notice' : to === 'trade
 export const FORM_NAME: Record<Form, string> = { notice: '공고문', letter: '요청서', offer: '제안서' };
 export const toName = (to: To) => to === 'all' ? '길드 전체' : to === 'trade' ? '상단' : B.GUILD[to].name;
 // 받는 쪽이 잠긴 까닭 (비우면 열림)
-// 길드 하나에 보내는 요청서는 입지 단계가 B.LETTER_LV에 닿으면 열린다. 상단 제안서는 사신이 상단 창고 장부를 한 번 읽으면 열린다. 화면은 잠긴 받는 쪽을 보이지 않는다
+// 길드 하나에 보내는 요청서는 명성 단계가 B.LETTER_LV에 닿으면 열린다. 상단 제안서는 사신이 상단 창고 장부를 한 번 읽으면 열린다. 화면은 잠긴 받는 쪽을 보이지 않는다
 export const toLock = (W: World, to: To) =>
-  to === 'trade' ? (W.mkt.read < 0 ? '상단 창고 장부를 아직 읽지 못함' : '') : to !== 'all' && W.rank < B.LETTER_LV ? `입지 ${B.LETTER_LV}단계에 열림` : '';
+  to === 'trade' ? (W.mkt.read < 0 ? '상단 창고 장부를 아직 읽지 못함' : '') : to !== 'all' && W.rank < B.LETTER_LV ? `명성 ${B.LETTER_LV}단계에 열림` : '';
 
 export interface Field { unit: string; min: number; max: number; step: number; def: number }
 export interface Clause {

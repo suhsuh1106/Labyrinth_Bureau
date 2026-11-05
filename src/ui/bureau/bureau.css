@@ -198,6 +198,9 @@ button.link { border: 0; background: none; padding: 0; color: var(--accent); jus
 .dg-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding-top: 8px; border-top: 1px solid var(--rule); font-size: 13px; }
 .dg-sub > span { flex: 1 1 100%; }
 .dg-sub small { color: var(--soft); font-size: 11px; }
+.dg-gate { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding-top: 8px; border-top: 1px solid var(--rule); font-size: 13px; }
+.dg-gate > span { flex: 1 1 100%; }
+.dg-gate small { color: var(--soft); font-size: 11px; }
 .dg-dev { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding-top: 8px; border-top: 1px solid var(--rule); font-size: 13px; }
 .dg-dev > span { flex: 1 1 100%; }
 .dg-dev small { color: var(--soft); font-size: 11px; }
