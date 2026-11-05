@@ -5,6 +5,8 @@ import { B, GPAIRS, GUILDS, type GuildId, type World, answer, buildGate, meet, p
 
 export const BOT: Record<string, (W: World) => void> = {
   idle: () => {},
+  // 허락만: 공고 · 보조금 · 청 · 회의 없이 길드의 신청서에 다 도장만 찍는다 (기본 균형 확인용. 서서히 기울어야 한다)
+  yes: W => { for (const a of W.asks) if (a.got == null && a.kind === 'permit') answer(W, a.id, a.want); },
   normal: W => {
     W.dungeons.forEach((d, i) => { d.sub = seenLevel(W, i) >= B.DANGER && W.budget > 0 ? 15 : 0; });
     for (const a of W.asks) if (a.got == null) answer(W, a.id, a.kind === 'permit' ? a.want : W.budget > a.want * 2 ? a.want : 0);

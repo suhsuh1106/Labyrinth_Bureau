@@ -387,12 +387,6 @@ export function mapHtml(W: World, ui: BuUi) {
     const v = relOf(W, wa, wb), A = FAC_AT(wa), Bb = FAC_AT(wb), pact = W.pact && W.day < W.pact.until && W.pact.who.includes(wa) && W.pact.who.includes(wb);
     if (v <= -25) h += label((cx(A) + cx(Bb)) / 2, (cy(A) + cy(Bb)) / 2 - 6, relWord(v) + (pact ? (pactK(W, wa, wb) > 0 ? ' · 협정' : ' · 협정 대기') : ''), 'rel');
   }
-  // 길드 조가 걷는 길: 먹 점선 (말은 minisOf가 세운다)
-  W.dungeons.forEach((d, i) => GUILDS.forEach(g => {
-    if (d.teams[g] < 0.3 || d.branch === g) return;
-    const p = pathOf(B.GUILD[g].at, d.at);
-    if (p.length >= 2) h += `<path class="route f-${g}" d="${smooth(centers(p))}"><title>${nameOf(W, g)} ${n1(d.teams[g])}조 → ${d.name} (본부에서 ${wayOf(W, g, i)}일)</title></path>`;
-  }));
   // 두 지방 성 (중앙 직할 지방의 징세소. 세력이 아니라 표식만)
   for (const [at, nm] of [[HAVEL_AT, '하벨 성'], [LOYD_AT, '로이드 성']] as [At, string][]) {
     const x = cx(at), y = cy(at);
@@ -439,7 +433,9 @@ const ART = {
   cart: (c: string) => `${BASE(16)}<path d="M-16,-9 h20 v-9 h-20 z" fill="#8a6a3e" stroke="#1d1712" stroke-width="0.8"/><path d="M-15,-18 q5,-7 9,-1 q4,-6 9,1 z" fill="#c9b07a" stroke="#1d1712" stroke-width="0.7"/><circle cx="-10" cy="-5" r="4.5" fill="none" stroke="#1d1712" stroke-width="1.2"/><circle cx="-1" cy="-5" r="4.5" fill="none" stroke="#1d1712" stroke-width="1.2"/><path d="M4,-12 h6" stroke="#3a2a1a" stroke-width="1.2"/><path d="M9,-7 l1,-8 q1,-4 6,-4 l3,-4 l1,4 q1,3 -2,4 l0,8 M11,-7 v-1 M17,-7 v-1" fill="#7a6656" stroke="#1d1712" stroke-width="0.8"/><path d="M-16,-18 v-6 h3 l2,2 h-5" fill="${c}" stroke="#1d1712" stroke-width="0.5"/>`,
   // 본부: 천막과 큰 깃발, 몸집만큼 크다
   hq: (c: string, k: number) => `${BASE(16)}<path d="M-13,-3 L-3,-22 L7,-3 z" fill="#d8cdb0" stroke="#1d1712" stroke-width="0.8"/><path d="M-3,-22 L-3,-3" stroke="#1d1712" stroke-width="0.6"/><path d="M-5,-3 l2,-7 l2,7" fill="#3a2a1a"/><path d="M10,-3 V${f1(-30 - k * 14)}" stroke="#3a2a1a" stroke-width="1.8"/><path d="M10,${f1(-30 - k * 14)} h${f1(16 + k * 6)} q-3,${f1(5 + k)} 0,${f1(10 + k * 2)} h${f1(-16 - k * 6)} z" fill="${c}" stroke="#1d1712" stroke-width="0.8"/><path d="M10,${f1(-30 - k * 14)} h${f1(16 + k * 6)}" stroke="${light(c)}" stroke-width="1.2"/><circle cx="10" cy="${f1(-31 - k * 14)}" r="1.8" fill="#c9a64a"/>`,
-  // 마물: 웅크린 검은 몸 · 등의 가시 · 붉은 눈
+  // 깃발: 길드 색 깃발. 든 조가 많을수록 깃대가 높고 깃발이 크다. 위에 조 수
+  flag: (c: string, n: number) => { const k = Math.min(1, n / 10), h = 24 + k * 22, w = 10 + k * 12; return `${BASE(6)}<path d="M0,-2 V${f1(-h)}" stroke="#3a2a1a" stroke-width="1.6"/><path d="M0,${f1(-h)} h${f1(w)} q-3,${f1(4 + k * 2)} 0,${f1(8 + k * 4)} h${f1(-w)} z" fill="${c}" stroke="#1d1712" stroke-width="0.8"/><path d="M0,${f1(-h)} h${f1(w)}" stroke="${light(c)}" stroke-width="1"/><circle cx="0" cy="${f1(-h - 1)}" r="1.6" fill="#c9a64a"/><text x="${f1(w / 2 + 1)}" y="${f1(-h - 5)}" text-anchor="middle" font-size="10" font-family="var(--mono, monospace)" fill="#2b2118" stroke="${PAPER}" stroke-width="2.4" paint-order="stroke">${n.toFixed(0)}</text>`; },
+  // 마물: (지금은 그리지 않는다)
   mob: (s: number) => `${BASE(7)}<g transform="scale(${f1(s)})"><path d="M-8,-3 q-2,-9 4,-13 l2,-5 l2,4 l3,-5 l2,5 l3,-3 l0,5 q5,4 2,12 z" fill="#1d1410" stroke="#0c0806" stroke-width="0.8"/><path d="M-8,-3 l-3,2 M8,-3 l3,2" stroke="#0c0806" stroke-width="1.2" stroke-linecap="round"/><circle cx="-2" cy="-11" r="1.2" fill="#e0412c"/><circle cx="2.5" cy="-11" r="1.2" fill="#e0412c"/></g>`,
   // 왕국군 병사: 강철 투구 · 창, 하나는 왕국 깃발
   soldier: (flag: boolean) => `${BASE(9)}<path d="M-5,-3 q-1,-13 2,-19 q3,-3 6,0 q3,7 2,19 z" fill="#5c5f66" stroke="#1d1712" stroke-width="0.8"/><path d="M-5,-12 h10" stroke="#7b1f2a" stroke-width="2.2"/><circle cx="0" cy="-25" r="3.4" fill="#d9ad84" stroke="#1d1712" stroke-width="0.7"/><path d="M-4,-25 q4,-8 8,0 z" fill="#9aa0a6" stroke="#1d1712" stroke-width="0.7"/><path d="M7,-2 V-36" stroke="#3a2a1a" stroke-width="1.2"/><path d="M7,-36 l-2,4 h4 z" fill="#c8ccd2" stroke="#1d1712" stroke-width="0.5"/>${flag ? '<path d="M7,-34 h14 v10 l-7,-3 l-7,3 z" fill="#7b1f2a" stroke="#1d1712" stroke-width="0.7"/><circle cx="14" cy="-29" r="2" fill="#c9a64a"/>' : ''}`,
@@ -459,35 +455,16 @@ export function minisOf(W: World, f = 0): Mini[] {
     const k = Math.min(1.4, W.guilds[g].size / 10);
     out.push({ key: `hq-${g}`, x: cx(B.GUILD[g].at) - 6, y: cy(B.GUILD[g].at) + 4, w: 60, h: f1n(54 + k * 14), svg: ART.hq(GC(g), k), title: `${nameOf(W, g)} 본부 · ${n0(W.guilds[g].size)}조` });
   }
-  // 조: 든 조만큼(여섯까지) 걷는 길 위에. 오가는 길의 앞 절반은 가는 길, 뒤 절반은 오는 길. 하루에 1 / (2 × 오가는 날)만큼 돈다
-  W.dungeons.forEach((d, i) => GUILDS.forEach((g, gi) => {
-    const n = d.teams[g];
-    if (n < 0.3) return;
-    const p = d.branch === g ? [d.at, d.at] as At[] : pathOf(B.GUILD[g].at, d.at);
-    if (p.length < 2) return;
-    const way = wayOf(W, g, i), k = Math.max(1, Math.min(6, Math.round(n))), c = centersOf(p);
-    for (let j = 0; j < k; j++) {
-      const t = (j / k + (W.day + f) / (2 * way) + hash(i, gi)) % 1, there = t < 0.5;
-      let [x, y, a] = ptAt(c, there ? t * 2 : 2 - t * 2);
-      const dx = Math.cos(a) * (there ? 1 : -1);
-      // 돌아오는 조는 짐을 지고, 셋 이상 든 길드는 그중 하나가 짐수레를 끈다
-      const cart = !there && k >= 3 && j === 0;
-      // 다른 미궁 곁을 지나는 조는 갱 입구를 비켜 걷는다(그 미궁에 든 것처럼 보이지 않게)
-      for (const o of W.dungeons) {
-        if (o === d) continue;
-        const ox = cx(o.at), oy = cy(o.at), dd = Math.hypot(x - ox, y - oy);
-        if (dd < 46) { const q = 46 / Math.max(1, dd); x = ox + (x - ox) * q; y = oy + (y - oy) * q; }
-      }
-      out.push({ key: `t-${i}-${g}-${j}`, x, y: y + 3, w: cart ? 44 : 34, h: 50, svg: cart ? ART.cart(GC(g)) : ART.team(GC(g), !there), face: dx < 0 ? -1 : 1, walk: true, title: `${nameOf(W, g)} 조 → ${d.name}${there ? '' : ' (돌아오는 길 · 짐)'}` });
-    }
-  }));
-  // 마물 떼: 보고된 마물 수만큼 갱 둘레에 우글거린다(이름표가 있는 아래쪽은 비운다)
+  // 조: 움직이지 않는다. 미궁 곁에 그 미궁에 든 길드마다 깃발 하나(든 조가 많을수록 깃대가 높고 깃발이 크다)
   W.dungeons.forEach((d, i) => {
-    const k = dangerK(seenLevel(W, i)), n = Math.round(k * 12);
-    for (let j = 0; j < n; j++) {
-      const a = Math.PI * (0.8 + hash(i, j, 61) * 1.4), r = 34 + hash(i, j, 63) * (14 + k * 40), s = 1 + hash(i, j, 67) * 0.45;
-      out.push({ key: `mob-${i}-${j}`, x: f1n(cx(d.at) + Math.cos(a) * r), y: f1n(cy(d.at) + Math.sin(a) * r * 0.8), w: 24, h: 30, svg: ART.mob(s), face: Math.cos(a) < 0 ? -1 : 1, title: `${d.name}의 마물` });
-    }
+    const gs = GUILDS.filter(g => d.teams[g] >= 0.5).sort((a, b) => d.teams[b] - d.teams[a]), m = gs.length;
+    gs.forEach((g, j) => {
+      const a = Math.PI * (1.12 + (m > 1 ? j / (m - 1) : 0.5) * 0.76), r = 46;
+      out.push({ key: `flag-${i}-${g}`, x: f1n(cx(d.at) + Math.cos(a) * r), y: f1n(cy(d.at) + Math.sin(a) * r * 0.8), w: 34, h: 70, svg: ART.flag(GC(g), d.teams[g]), title: `${nameOf(W, g)} ${n1(d.teams[g])}조 · ${d.name}` });
+    });
+  });
+  // 왕국군: 막사와 병사(마물은 그리지 않는다: 갱 둘레의 얼룩이 말한다)
+  W.dungeons.forEach((d, i) => {
     // 왕국군: 막사 하나 · 병사 셋이 길목을 지킨다
     if (armyIn(W, i)) {
       const [ax, ay, aa] = armyAt(i, d), nx = -Math.sin(aa), ny = Math.cos(aa);
