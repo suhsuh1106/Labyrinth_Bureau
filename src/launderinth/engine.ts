@@ -28,6 +28,10 @@ export const L = {
   TERM: 18,                  // 임기(달). 그때까지 대공이 못 되면 다음 사람에게 인장이 간다
   BANKRUPT: -400,
   UP_COST: 0.7,              // 업그레이드 값 = 건축비 × 이 값 × 지금 단계
+  BUD_STEP: 100, BUD_MAX: 2000,
+  BUD_PROMO: 600, BUD_PULL: 0.35,       // 홍보: 달 600이면 효과의 63%, 발길 최대 +35%
+  BUD_SAFE: 500, BUD_DEATH: 0.04,       // 안전: 사망률 최대 −4%p
+  BUD_CARE: 400, BUD_SAT: 10,           // 정비: 손님 만족 최대 +10
   UP_MAX: 3,
   UP_CAP: 0.5, UP_PULL: 0.3, UP_UPKEEP: 0.5, // 단계마다 늘어나는 몫
   GOLD_MIN: 8, GOLD_VAR: 42, // 손님이 가져오는 돈
@@ -81,6 +85,18 @@ export interface Stat {
   guests: number; sat: number; gold: number;        // 손님 수 · 만족 합 · 가져온 돈 합
   fee: number; visits: number; deaths: number; spent: number; upkeep: number;
 }
+// 월 결산: 금고(합법 자금)가 한 달 동안 어디서 들어와 어디로 나갔나
+export interface Flow {
+  fee: number; sales: Partial<Record<Kind, number>>; subsidy: number; wash: number;       // 들어온 돈
+  upkeep: number; budget: number; capex: number; tax: number; bribe: number; toBlack: number; // 나간 돈
+  visits: number; deaths: number; sat: number; guests: number;
+}
+export interface Book extends Flow { m: number; from: number; to: number; net: number }
+export const emptyFlow = (): Flow => ({ fee: 0, sales: {}, subsidy: 0, wash: 0, upkeep: 0, budget: 0, capex: 0, tax: 0, bribe: 0, toBlack: 0, visits: 0, deaths: 0, sat: 0, guests: 0 });
+export interface Budget { promo: number; safety: number; upkeep: number }
+export const BUDGET_KEYS = ['promo', 'safety', 'upkeep'] as const;
+export const BUDGET_NAME = { promo: '홍보', safety: '안전', upkeep: '정비' } as const;
+export const effOf = (spend: number, k: number) => 1 - Math.exp(-spend / k);
 export interface Note { day: number; text: string; kind: 'news' | 'warn' | 'good' | 'bad' }
 export interface Audit { due: number; }
 
@@ -96,6 +112,7 @@ export interface World {
   audit: Audit | null;
   notes: Note[];
   over: null | 'arrest' | 'bankrupt' | 'duke' | 'term';
+  budget: Budget; mb: Flow; books: Book[];
   price: Record<'inn' | 'tavern' | 'rental' | 'casino', number>; // 요금(%)
   stat: Stat;
   today: { visits: number; deaths: number; rev: number; byTile: Record<number, number> };
@@ -151,6 +168,7 @@ export function newWorld(seed: number): World {
     mo: { take: 0, visits: 0, deaths: 0, gear: 0, washed: { casino: 0, cathedral: 0 } },
     last: null, audit: null, over: null,
     notes: [{ day: 0, kind: 'news', text: '변방 영지의 인장이 새 주인의 손에 들어왔다. 미궁 어귀로 이어진 길은 하나, 그마저 진흙이다.' }],
+    budget: { promo: 0, safety: 0, upkeep: 0 }, mb: emptyFlow(), books: [],
     price: { inn: 100, tavern: 100, rental: 100, casino: 100 },
     stat: { hist: [], tile: {}, kind: {}, guests: 0, sat: 0, gold: 0, fee: 0, visits: 0, deaths: 0, spent: 0, upkeep: 0 },
     today: { visits: 0, deaths: 0, rev: 0, byTile: {} },
@@ -203,8 +221,9 @@ export function upgrade(w: World, i: number): string | null {
   if (!t.b || t.b === 'road') return '건물 아님';
   if (t.lv >= L.UP_MAX) return '최고 단계';
   if (w.clean < c) return '자금 부족';
-  w.clean -= c; t.lv++; return null;
+  w.clean -= c; w.mb.capex += c; t.lv++; return null;
 }
+export function setBudget(w: World, k: keyof Budget, v: number) { w.budget[k] = Math.max(0, Math.min(L.BUD_MAX, Math.round(v / L.BUD_STEP) * L.BUD_STEP)); }
 export const PRICED = ['inn', 'tavern', 'rental', 'casino'] as const;
 export function setPrice(w: World, k: typeof PRICED[number], pct: number) { w.price[k] = Math.max(50, Math.min(200, Math.round(pct / 10) * 10)); }
 // 요금이 오르면 안 오는 손님이 는다
@@ -212,7 +231,7 @@ export const wantOf = (pct: number) => Math.max(0.1, Math.min(1.3, 1.6 - 0.6 * p
 export function build(w: World, i: number, k: Kind): boolean {
   if (canBuild(w, i, k)) return false;
   const t = w.tiles[i];
-  w.clean -= BDEF[k].cost;
+  w.clean -= BDEF[k].cost; w.mb.capex += BDEF[k].cost;
   t.b = k; t.born = w.day; t.lv = 1;
   if (t.t === 'forest') t.t = 'grass';
   return true;
@@ -226,6 +245,7 @@ export function demolish(w: World, i: number): boolean {
 export function deathRate(w: World): number {
   let r = L.DEATH_BASE;
   for (const i of live(w)) r -= BDEF[w.tiles[i].b!].safe * lvMul(w, i, L.UP_CAP);
+  r -= L.BUD_DEATH * effOf(w.budget.safety, L.BUD_SAFE);
   return Math.max(L.DEATH_MIN, r);
 }
 export function washCap(w: World, k: 'casino' | 'cathedral'): number { return Math.round(live(w).filter(i => w.tiles[i].b === k).reduce((a, i) => a + BDEF[k].wash * lvMul(w, i, L.UP_CAP), 0)); }
@@ -279,7 +299,11 @@ export function preview(w: World): MonthReport {
 function closeMonth(w: World) {
   const p = preview(w);
   // 매상은 날마다 금고(합법 자금)에 들어와 있다. 장부에서 지운 몫은 금고에서 빼내 비자금이 된다
+  const from = w.flags.from ?? L.START_CLEAN;
   w.clean += -p.skim - p.tax + (p.subsidy - p.ghostCut) - p.bribe;
+  Object.assign(w.mb, { subsidy: p.subsidy - p.ghostCut, tax: p.tax, bribe: p.bribe, toBlack: p.skim });
+  w.books.push({ ...w.mb, sales: { ...w.mb.sales }, m: Math.round(w.day / L.MONTH), from, to: w.clean, net: w.clean - from }); if (w.books.length > 24) w.books.shift();
+  w.mb = emptyFlow(); w.flags.from = w.clean;
   w.black += p.skim + p.ghostCut + p.gearSold;
   w.favor += p.bribe;
   w.risk = Math.max(0, Math.min(100, w.risk + p.dRisk));
@@ -332,6 +356,7 @@ export function step(w: World) {
   let pull = L.BASE_VISIT;
   for (const i of lv) pull += BDEF[w.tiles[i].b!].pull * lvMul(w, i, L.UP_PULL);
   const dr = deathRate(w);
+  pull *= 1 + L.BUD_PULL * effOf(w.budget.promo, L.BUD_PROMO);
   const visits = Math.max(0, Math.floor(pull * w.rep * (0.75 + rnd() * 0.5)));
   // 손님 한 명씩: 돈을 들고 와서, 시설을 차례로 들르고, 못 받으면 불만이 쌓인다
   let rev = visits * L.FEE;
@@ -339,9 +364,10 @@ export function step(w: World) {
   const st = w.stat, turnedK: Partial<Record<Kind, number>> = {}, pricey: Partial<Record<Kind, number>> = {};
   const room: Record<number, number> = {}; for (const i of lv) room[i] = capOf(w, i);
   const byKind: Record<string, number[]> = {}; for (const i of lv) (byKind[w.tiles[i].b!] ??= []).push(i);
+  const careSat = L.BUD_SAT * effOf(w.budget.upkeep, L.BUD_CARE);
   let deaths = 0, satSum = 0;
   for (let n = 0; n < visits; n++) {
-    let gold = L.GOLD_MIN + rnd() * L.GOLD_VAR, sat = L.SAT_BASE; st.gold += gold;
+    let gold = L.GOLD_MIN + rnd() * L.GOLD_VAR, sat = L.SAT_BASE + careSat; st.gold += gold;
     for (const k of PRICED) {
       const own = byKind[k];
       if (!own) { if (k !== 'casino') { turnedK[k] = (turnedK[k] ?? 0) + 1; sat += L.SAT_NONE; } continue; }
@@ -356,25 +382,28 @@ export function step(w: World) {
       sat += L.SAT_OK + L.SAT_UP * (w.tiles[spot].lv - 1);
       const ts = st.tile[spot] ?? (st.tile[spot] = { rev: 0, served: 0 }); ts.rev += price; ts.served++;
       const ks = st.kind[k] ?? (st.kind[k] = { rev: 0, served: 0, turned: 0 }); ks.rev += price; ks.served++;
+      w.mb.sales[k] = (w.mb.sales[k] ?? 0) + price;
     }
     sat = Math.max(0, Math.min(100, sat)); satSum += sat;
     if (rnd() < dr) deaths++;
   }
   for (const k of PRICED) if (turnedK[k]) (st.kind[k] ?? (st.kind[k] = { rev: 0, served: 0, turned: 0 })).turned += turnedK[k]!;
   st.guests += visits; st.sat += satSum;
+  w.mb.fee += visits * L.FEE; w.mb.visits += visits; w.mb.deaths += deaths; w.mb.sat += satSum; w.mb.guests += visits;
   const avgSat = visits ? satSum / visits : L.SAT_BASE + 20;
   w.rep += ((Math.max(0.5, Math.min(1.4, 1.15 - dr * 2.5 + count(w, 'hospital') * 0.04 + (avgSat - 70) / 200)) - w.rep) * 0.05);
   w.mo.take += rev; w.clean += rev; w.mo.visits += visits; w.mo.deaths += deaths; w.mo.gear += deaths * L.GEAR;
   // 유지비
   let up = 0; for (const i of lv) up += BDEF[w.tiles[i].b!].upkeep * lvMul(w, i, L.UP_UPKEEP);
-  w.clean -= up;
+  w.clean -= up; w.mb.upkeep += up;
+  const bud = (w.budget.promo + w.budget.safety + w.budget.upkeep) / L.MONTH; w.clean -= bud; w.mb.budget += bud;
   // 세탁: 목표의 30분의 1씩
   for (const k of ['casino', 'cathedral'] as const) {
     const goal = w.led.wash[k]; if (!goal) continue;
     const amt = Math.min(w.black, Math.ceil(goal / L.MONTH), goal - w.mo.washed[k]);
     if (amt <= 0) continue;
     w.black -= amt; w.mo.washed[k] += amt;
-    w.clean += Math.round(amt * (1 - BDEF[k].cut));
+    const got = Math.round(amt * (1 - BDEF[k].cut)); w.clean += got; w.mb.wash += got;
     w.risk += amt * BDEF[k].washRisk;
   }
   // 의심: 쌓인 비자금의 냄새, 체면 시설, 저절로 식음

@@ -1,12 +1,12 @@
 // Launderinth 화면: 상단바 · 탑뷰 타일맵(캔버스) · 장부 조작소 · 건축 및 세탁소
 import {
   World, Kind, newWorld, step, build, canBuild, demolish, BDEF, BUILD_ORDER, RANKS, L, MW, MH, idx, xy, nbrs, wantOf,
-  roadNet, live, preview, needsOf, Day, upgrade, upCost, setPrice, PRICED, capOf, clampLed, washCap, count, deathRate, LOOK, monthDay,
+  roadNet, live, preview, needsOf, Day, setBudget, BUDGET_KEYS, BUDGET_NAME, effOf, Book, upgrade, upCost, setPrice, PRICED, capOf, clampLed, washCap, count, deathRate, LOOK, monthDay,
 } from './engine';
 import { getSeed, setSeed } from '../core/rng';
 import './style.css';
 
-const KEY = 'lb-launder', VERSION = 3;
+const KEY = 'lb-launder', VERSION = 4;
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector(s) as T;
 const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR');
 
@@ -240,6 +240,7 @@ function frame(now: number) {
 }
 
 function dayTick() {
+  const nBooks = W.books.length;
   const before = { clean: W.clean, black: W.black, rank: W.rank, notes: W.notes.length, top: W.notes[0] };
   step(W);
   const t = W.today;
@@ -250,6 +251,7 @@ function dayTick() {
   for (const [i, v] of Object.entries(t.byTile)) if (fx() < 0.55) floats.push({ x: cx(+i), y: cy(+i) - TS * 0.3, text: `+${v}`, color: '#d9b45a', t: fx() * 0.3 });
   if (W.black - before.black > 0) floats.push({ x: OX + TS * 2.5, y: cy(W.spawn) - TS, text: `+${fmt(W.black - before.black)}`, color: '#b4609a', t: 0 });
   if (W.notes[0] !== before.top) flashNote();
+  if (W.books.length > nBooks && !W.over) openBook(W.books[W.books.length - 1]);
   save();
   renderBar();
   if (ui.tab !== 'build' || W.day % 3 === 0) renderPanel();
@@ -474,10 +476,48 @@ function parkHtml() {
   <table class="w-full text-[13px]"><thead><tr class="text-[11px] text-dim"><th class="text-left font-normal"></th><th class="text-right font-normal">손님</th><th class="text-right font-normal">매상</th><th class="text-right font-normal">요금</th></tr></thead><tbody>${rows.join('')}</tbody>
   <tfoot><tr><td class="pt-1.5 text-dim">유지비 누계</td><td></td><td class="num text-right text-blood pt-1.5">−${fmt(st.upkeep)}</td><td></td></tr></tfoot></table>
   ${best.length ? `<div class="mt-1.5 text-[11px] text-dim">잘 버는 곳 ${best.map(([i, t]) => `${BDEF[W.tiles[+i].b!].icon}<span class="num"> ${fmt(t.rev)}</span>`).join(' · ')}</div>` : ''}
+  <h2 class="font-serif text-base mt-4 mb-1">월 예산 <span class="text-[11px] text-dim">달마다 나감 · <span class="num">${fmt(W.budget.promo + W.budget.safety + W.budget.upkeep)}</span></span></h2>
+  <div class="space-y-1.5">${BUDGET_KEYS.map(k => {
+    const v = W.budget[k], e = k === 'promo' ? effOf(v, L.BUD_PROMO) * L.BUD_PULL * 100 : k === 'safety' ? effOf(v, L.BUD_SAFE) * L.BUD_DEATH * 100 : effOf(v, L.BUD_CARE) * L.BUD_SAT;
+    const eff = k === 'promo' ? `발길 +${e.toFixed(0)}%` : k === 'safety' ? `사망률 −${e.toFixed(1)}%p` : `만족 +${e.toFixed(0)}`;
+    return `<div class="flex items-center justify-between rounded border border-line px-2 py-1.5"><div><div class="text-[13px]">${BUDGET_NAME[k]}</div><div class="num text-[11px] ${v ? 'text-moss' : 'text-dim'}">${eff}</div></div>${stepper('bud.' + k, fmt(v))}</div>`;
+  }).join('')}</div>
+  ${W.books.length ? `<button data-act="book" class="mt-3 w-full rounded border border-line py-1.5 text-sm hover:bg-felt">${W.books[W.books.length - 1].m}월 결산 <span class="num ${W.books[W.books.length - 1].net >= 0 ? 'text-clean' : 'text-blood'}">${W.books[W.books.length - 1].net >= 0 ? '+' : '−'}${fmt(Math.abs(W.books[W.books.length - 1].net))}</span></button>` : ''}
   <h2 class="font-serif text-base mt-4 mb-1">필요한 것</h2>
   <div class="space-y-1.5">${needs}</div>`;
 }
 
+let resume = 1;
+function openBook(b: Book) {
+  if (speed) resume = speed;
+  const prev = W.books.length > 1 ? W.books[W.books.length - 2] : null;
+  const rows: [string, number, string?][] = [];
+  const inc: [string, number][] = [['입장료', b.fee], ...(['inn', 'tavern', 'rental', 'casino'] as Kind[]).filter(k => b.sales[k]).map(k => [BDEF[k].icon + ' ' + BDEF[k].name, b.sales[k]!] as [string, number]), ['개척 보조금', b.subsidy], ['세탁 유입', b.wash]];
+  const out: [string, number][] = [['시설 유지비', b.upkeep], ['월 예산', b.budget], ['건축 · 업그레이드', b.capex], ['제국 세금', b.tax], ['상납', b.bribe], ['비자금으로 빠짐', b.toBlack]];
+  void rows;
+  const sI = inc.reduce((a, [, v]) => a + v, 0), sO = out.reduce((a, [, v]) => a + v, 0);
+  const line = (l: string, v: number, sign: string, c: string) => v ? `<div class="flex justify-between py-0.5 text-[13px]"><span>${l}</span><span class="num ${c}">${sign}${fmt(v)}</span></div>` : '';
+  const delta = (n: number, p?: number) => p == null ? '' : `<span class="text-[10px] ${n >= p ? 'text-moss' : 'text-blood'}">${n >= p ? '▲' : '▼'}</span>`;
+  const sat = b.guests ? Math.round(b.sat / b.guests) : 0, psat = prev && prev.guests ? Math.round(prev.sat / prev.guests) : undefined;
+  speed = 0; renderBar();
+  const el = $('#book'); el.classList.remove('hidden');
+  el.innerHTML = `<div class="w-full max-w-md bg-[#efe3c7] text-[#2a2218] max-h-full overflow-y-auto scroll-thin rounded-sm p-4 shadow-2xl">
+    <div class="flex items-baseline justify-between"><h2 class="font-serif text-lg">${b.m}월 결산</h2><span class="num text-xs text-[#6b5a3e]">금고 ${fmt(b.from)} → ${fmt(b.to)}</span></div>
+    <div class="mt-2 grid grid-cols-3 gap-2 text-center text-[11px] text-[#6b5a3e]">
+      <div>입장객<div class="num text-sm text-[#2a2218]">${fmt(b.visits)}${delta(b.visits, prev?.visits)}</div></div>
+      <div>귀환 못 함<div class="num text-sm text-[#2a2218]">${fmt(b.deaths)}</div></div>
+      <div>손님 만족<div class="num text-sm text-[#2a2218]">${sat}${delta(sat, psat)}</div></div>
+    </div>
+    <h3 class="mt-3 border-b border-[#cdbb95] pb-0.5 text-[11px] text-[#6b5a3e]">들어온 돈</h3>
+    ${inc.map(([l, v]) => line(l, v, '+', 'text-[#2f5a1f]')).join('')}
+    <div class="flex justify-between border-t border-[#cdbb95] py-0.5 text-[13px] font-semibold"><span>합계</span><span class="num">+${fmt(sI)}</span></div>
+    <h3 class="mt-3 border-b border-[#cdbb95] pb-0.5 text-[11px] text-[#6b5a3e]">나간 돈</h3>
+    ${out.map(([l, v]) => line(l, v, '−', 'text-[#8a2f26]')).join('')}
+    <div class="flex justify-between border-t border-[#cdbb95] py-0.5 text-[13px] font-semibold"><span>합계</span><span class="num">−${fmt(sO)}</span></div>
+    <div class="mt-3 flex items-baseline justify-between border-t-2 border-[#2a2218] pt-1.5"><span class="font-serif">이달 손익</span><span class="num text-lg font-semibold ${b.net >= 0 ? 'text-[#2f5a1f]' : 'text-[#8a2f26]'}">${b.net >= 0 ? '+' : '−'}${fmt(Math.abs(b.net))}</span></div>
+    <button data-act="next" class="mt-3 w-full rounded bg-[#2a2218] py-2 font-serif text-paper">다음 달</button>
+  </div>`;
+}
 function renderPanel() {
   document.querySelectorAll<HTMLElement>('.tab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === ui.tab)));
   const p = $('#panel'); const top = p.scrollTop;
@@ -522,9 +562,10 @@ function renderOver() {
 }
 
 // ── 손 ──────────────────────────────────────────────
-const STEP: Record<string, number> = { report: 5, ghosts: 5, smuggle: 10, bribe: 250, 'wash.casino': 250, 'wash.cathedral': 250 };
+const STEP: Record<string, number> = { 'bud.promo': 100, 'bud.safety': 100, 'bud.upkeep': 100, report: 5, ghosts: 5, smuggle: 10, bribe: 250, 'wash.casino': 250, 'wash.cathedral': 250 };
 function bump(key: string, dir: number, big: boolean) {
   const s = STEP[key] * (big ? 4 : 1) * dir; const l = W.led;
+  if (key.startsWith('bud.')) { const k = key.slice(4) as typeof BUDGET_KEYS[number]; setBudget(W, k, W.budget[k] + s); save(); renderPanel(); return; }
   if (key.startsWith('price.')) { const k = key.slice(6) as typeof PRICED[number]; setPrice(W, k, W.price[k] + dir * 10 * (big ? 3 : 1)); save(); renderPanel(); return; }
   if (key.startsWith('wash.')) { const k = key.slice(5) as 'casino' | 'cathedral'; l.wash[k] += s; }
   else (l as any)[key] += s;
@@ -545,6 +586,8 @@ document.addEventListener('click', e => {
   const tab = el.closest<HTMLElement>('[data-tab]'); if (tab) { ui.tab = tab.dataset.tab as any; renderPanel(); return; }
   const sp = el.closest<HTMLElement>('[data-speed]'); if (sp) { speed = +sp.dataset.speed!; renderBar(); return; }
   const act = el.closest<HTMLElement>('[data-act]')?.dataset.act;
+  if (act === 'next') { $('#book').classList.add('hidden'); speed = resume || 1; renderBar(); return; }
+  if (act === 'book' && W.books.length) { resume = speed || resume; openBook(W.books[W.books.length - 1]); return; }
   if (act === 'up' && ui.sel >= 0) {
     const why = upgrade(W, ui.sel);
     if (why) floats.push({ x: cx(ui.sel), y: cy(ui.sel), text: why, color: '#c2483d', t: 0 });

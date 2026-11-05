@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { needsOf, upgrade, upCost, setPrice, capOf, newWorld, build, canBuild, idx, L, preview, step, World } from '../src/launderinth/engine';
+import { deathRate, setBudget, needsOf, upgrade, upCost, setPrice, capOf, newWorld, build, canBuild, idx, L, preview, step, World } from '../src/launderinth/engine';
 import { botDay, Style } from '../src/launderinth/bots';
 
 function play(seed: number, s: Style, months = 36): World {
@@ -85,5 +85,27 @@ describe('launderinth', () => {
   it('손님이 넘치면 돌려보내고 불만이 쌓인다(만족 하락)', () => {
     const w = run(() => {}); const w2 = run(w => { for (const x of [5, 6]) w.tiles[idx(x, 7)].lv = 3; });
     expect(w.stat.kind.inn!.turned).toBeGreaterThanOrEqual(w2.stat.kind.inn!.turned);
+  });
+
+  it('월 결산: 들어온 돈과 나간 돈이 금고 증감과 정확히 맞는다', () => {
+    const w = newWorld(4); w.clean = 4000; w.flags.from = 4000;
+    for (const [x, k] of [[5, 'inn'], [6, 'tavern'], [9, 'casino']] as const) w.tiles[idx(x, 7)].t = 'grass', build(w, idx(x, 7), k);
+    w.led.report = 70; w.led.ghosts = 15; w.led.wash.casino = 500; w.led.bribe = 300; setBudget(w, 'promo', 300);
+    for (let d = 0; d < 30; d++) step(w);
+    const b = w.books[0]; expect(b).toBeTruthy();
+    const inc = b.fee + Object.values(b.sales).reduce((a, n) => a + (n ?? 0), 0) + b.subsidy + b.wash;
+    const out = b.upkeep + b.budget + b.capex + b.tax + b.bribe + b.toBlack;
+    expect(Math.round(b.from + inc - out)).toBe(Math.round(b.to));
+    expect(b.budget).toBe(300); expect(b.capex).toBe(180 + 280 + 900);
+    expect(w.mb.fee).toBe(0);
+  });
+
+  it('예산: 홍보는 입장객을, 안전은 사망률을, 정비는 만족을 올린다. 돈은 달마다 나간다', () => {
+    const none = run(() => {}), promo = run(w => setBudget(w, 'promo', 1500));
+    expect(promo.stat.visits).toBeGreaterThan(none.stat.visits);
+    expect(promo.mb.budget + promo.books.reduce((a, b) => a + b.budget, 0)).toBeCloseTo(3000, 0);
+    const safe = run(w => setBudget(w, 'safety', 1500)); expect(deathRate(safe)).toBeLessThan(deathRate(none));
+    const care = run(w => setBudget(w, 'upkeep', 1500));
+    expect(care.stat.sat / care.stat.guests).toBeGreaterThan(none.stat.sat / none.stat.guests);
   });
 });
